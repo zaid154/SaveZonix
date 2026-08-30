@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zonix Turbo Stream Downloader</title>
+    <link rel="stylesheet" href="downloader.css">
+</head>
+<body>
+    <div class="glow glow-1"></div>
+    <div class="glow glow-2"></div>
+
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <span class="icon">⚡</span>
+                <span class="title">ZONIX TURBO DOWNLOADER</span>
+                <span class="badge">PRO 100% FREE</span>
+            </div>
+            <p class="subtitle">Direct Browser-Session High-Speed Stream Downloader &bull; Anti-403 Protection</p>
+        </header>
+
+        <main class="card">
+            <!-- Stream Info -->
+            <div class="stream-info">
+                <div class="info-row">
+                    <span class="label">Stream URL:</span>
+                    <span class="url-text" id="streamUrlDisplay">Loading stream...</span>
+                </div>
+            </div>
+
+            <!-- Quality & Config -->
+            <div id="configSection" class="config-section">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="qualitySelect">Video Quality:</label>
+                        <select id="qualitySelect" class="select-input">
+                            <option value="">Fetching qualities...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="fileNameInput">File Name:</label>
+                        <input type="text" id="fileNameInput" class="text-input" value="PixelFlix_Video.mp4">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Parallel Speed Mode: <span id="concurrencyBadge" class="badge">16 Simultaneous Threads</span></label>
+                    <input type="range" id="concurrencySlider" min="4" max="32" step="4" value="16" class="range-slider">
+                </div>
+
+                <button id="btnStart" class="btn-start">
+                    <span>⚡ START HIGH-SPEED DOWNLOAD</span>
+                </button>
+            </div>
+
+            <!-- Live Progress -->
+            <div id="progressSection" class="progress-section hidden">
+                <div class="progress-header">
+                    <span id="statusText" class="status-badge">⚡ Downloading video chunks in parallel...</span>
+                    <span id="percentText" class="percent-val">0.0%</span>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="m-label">Download Speed</span>
+                        <span id="mSpeed" class="m-val speed">0.0 MB/s</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="m-label">Chunks / Segments</span>
+                        <span id="mChunks" class="m-val">0 / 0</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="m-label">Downloaded Size</span>
+                        <span id="mSize" class="m-val">0 MB</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="m-label">Time Remaining</span>
+                        <span id="mEta" class="m-val">--:--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Complete Section -->
+            <div id="completeSection" class="complete-section hidden">
+                <div class="complete-card">
+                    <div class="check-icon">🎉</div>
+                    <h3>Download & Merge Complete!</h3>
+                    <p id="completeSummary">Your video has been assembled into a single MP4 file and saved to your Downloads folder.</p>
+                    <button id="btnDownloadAgain" class="btn-secondary">🔄 Download Another Video</button>
+                </div>
+            </div>
+
+            <!-- Error Box -->
+            <div id="errorBox" class="alert error hidden">
+                <span>⚠️</span>
+                <span id="errorMsg">An error occurred</span>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>Zonix Engine &bull; Mohd Zaid Edition &bull; No limits, No premium subscriptions</p>
+        </footer>
+    </div>
+
+    <script src="downloader.js"></script>
+</body>
+</html>

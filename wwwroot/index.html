@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zonix — Ultra High-Speed Video Downloader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-glow glow-1"></div>
+    <div class="background-glow glow-2"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-badge">
+                <span class="logo-icon">⚡</span>
+                <span class="logo-text">ZONIX</span>
+                <span class="version-tag">.NET 10 Turbo</span>
+            </div>
+            <p class="subtitle">Ultra High-Speed Multi-Threaded Streaming Video Downloader</p>
+        </header>
+
+        <!-- Main Card -->
+        <main class="card">
+            <!-- URL Input Form -->
+            <div class="input-group">
+                <label for="streamUrl">Stream / Video URL (.m3u8 or MP4)</label>
+                <div class="input-wrapper">
+                    <input type="text" id="streamUrl" placeholder="https://example.com/stream/index.m3u8..." autocomplete="off">
+                    <button id="btnPaste" class="btn-secondary" title="Paste from Clipboard">📋 Paste</button>
+                    <button id="btnAnalyze" class="btn-primary">
+                        <span class="btn-text">🔍 Analyze Stream</span>
+                        <div class="spinner hidden" id="analyzeSpinner"></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Error Banner -->
+            <div id="errorBox" class="alert error hidden">
+                <span class="alert-icon">⚠️</span>
+                <span id="errorMessage">Error loading stream</span>
+            </div>
+
+            <!-- Stream Details (Hidden initially) -->
+            <div id="streamDetails" class="stream-details hidden">
+                <div class="divider"></div>
+                
+                <h3 class="section-title">🎯 Stream Configuration</h3>
+
+                <div class="grid-2">
+                    <div class="form-control">
+                        <label for="qualitySelect">Video Quality</label>
+                        <select id="qualitySelect" class="select-input">
+                            <option value="">Detecting qualities...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-control">
+                        <label for="fileNameInput">File Name</label>
+                        <input type="text" id="fileNameInput" class="text-input" placeholder="video_name.mp4">
+                    </div>
+                </div>
+
+                <div class="form-control thread-control">
+                    <div class="thread-label-wrapper">
+                        <label for="threadsRange">Parallel Threads (Speed Mode):</label>
+                        <span id="threadsValue" class="badge">16 Workers (Recommended)</span>
+                    </div>
+                    <input type="range" id="threadsRange" min="4" max="64" step="4" value="16" class="range-slider">
+                </div>
+
+                <div class="info-chips">
+                    <div class="chip">
+                        <span class="chip-label">Total Chunks:</span>
+                        <span class="chip-value" id="totalChunksBadge">0 segments</span>
+                    </div>
+                    <div class="chip">
+                        <span class="chip-label">Engine:</span>
+                        <span class="chip-value">Zero-Loss Parallel Remux</span>
+                    </div>
+                </div>
+
+                <button id="btnStartDownload" class="btn-turbo">
+                    <span>⚡ Start Turbo Download</span>
+                </button>
+            </div>
+
+            <!-- Download Progress Section (Hidden initially) -->
+            <div id="progressSection" class="progress-section hidden">
+                <div class="divider"></div>
+                
+                <div class="progress-header">
+                    <span class="status-badge pulse" id="statusBadge">⚡ Downloading in Parallel...</span>
+                    <span class="percentage-text" id="percentText">0.0%</span>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <span class="metric-label">Download Speed</span>
+                        <span class="metric-value speed" id="metricSpeed">0.0 MB/s</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Chunks</span>
+                        <span class="metric-value" id="metricChunks">0 / 0</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Downloaded Size</span>
+                        <span class="metric-value" id="metricSize">0 MB</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">Time Remaining (ETA)</span>
+                        <span class="metric-value" id="metricEta">--:--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success Section -->
+            <div id="successSection" class="success-section hidden">
+                <div class="divider"></div>
+                <div class="success-card">
+                    <div class="success-icon">🎉</div>
+                    <h3>Download Complete!</h3>
+                    <p id="successSummary">Your video has been downloaded and merged seamlessly into MP4.</p>
+                    <div class="success-actions">
+                        <button id="btnOpenFolder" class="btn-primary">📁 Open Downloads Folder</button>
+                        <button id="btnReset" class="btn-secondary">🔄 Download Another</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Zonix Engine &bull; Built with .NET 10 High-Concurrency Architecture &bull; 100% Free</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

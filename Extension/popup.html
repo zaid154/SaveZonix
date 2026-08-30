@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Stream Helper</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <span class="logo-icon">⚡</span>
+            <span class="logo-title">Stream Helper</span>
+            <span class="badge-free">PRO</span>
+        </div>
+        <div class="header-actions">
+            <button id="btnRefresh" class="icon-btn" title="Refresh Streams">🔄</button>
+            <button id="btnClearAll" class="icon-btn" title="Clear List">🗑️</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="content">
+        <!-- Detected Videos List -->
+        <div id="detectedSection" class="section">
+            <div class="section-heading">
+                <span>DETECTED MEDIA</span>
+                <span id="detectedCountBadge" class="count-badge">0</span>
+            </div>
+            <div id="videoList" class="video-list">
+                <!-- Video Cards Injected Dynamically -->
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state">
+            <div class="radar-box">
+                <span class="radar-icon">📡</span>
+                <div class="pulse-ring ring-1"></div>
+                <div class="pulse-ring ring-2"></div>
+            </div>
+            <h4>No Videos Detected Yet</h4>
+            <p>Play a video on the page to automatically detect accessible media streams.</p>
+        </div>
+
+        <!-- Completed Downloads Section -->
+        <div id="completedSection" class="section completed-section hidden">
+            <div class="section-divider">
+                <span>COMPLETED DOWNLOADS</span>
+            </div>
+            <div id="completedList" class="completed-list">
+                <!-- Completed items injected dynamically -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-left">
+            <button id="btnSettings" class="footer-btn" title="Settings">⚙️</button>
+            <a href="#" id="btnNoVideo" class="footer-link">No video?</a>
+        </div>
+        <div class="footer-right">
+            <span class="info-tag">Authorized Playback &bull; Non-DRM</span>
+        </div>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>
