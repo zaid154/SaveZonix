@@ -329,7 +329,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <button class="btn-primary-download" id="btn_dl_${video.id}" style="flex: 1;">
                             <span>${buttonLabel}</span>
                         </button>
-                        <button class="btn-secondary" id="btn_copy_${video.id}" title="Copy Direct Stream URL" style="padding: 0 14px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center;">
+                        <button class="btn-zonix" id="btn_zonix_${video.id}" title="Send to Zonix (256x Fiber Speed)" style="padding: 0 12px; background: #238636; border: 1px solid #2ea043; border-radius: 6px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
+                            ⚡ Zonix
+                        </button>
+                        <button class="btn-secondary" id="btn_copy_${video.id}" title="Copy Direct Stream URL" style="padding: 0 12px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
                             📋 Copy
                         </button>
                     </div>
@@ -369,14 +372,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     function bindCardActions(video, card, siteName) {
         const dlBtn = card.querySelector(`#btn_dl_${video.id}`);
         const copyBtn = card.querySelector(`#btn_copy_${video.id}`);
+        const zonixBtn = card.querySelector(`#btn_zonix_${video.id}`);
         const qualSelect = card.querySelector(`#qual_${video.id}`);
         const resTag = card.querySelector(`#res_tag_${video.id}`);
         const errBanner = card.querySelector(`#err_${video.id}`);
+
+        if (zonixBtn) {
+            zonixBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                let targetUrl = qualSelect.value || video.url;
+                if (!targetUrl || !targetUrl.startsWith('http')) {
+                    const key = `tab_media_${tab.id}`;
+                    const stored = await chrome.storage.local.get(key);
+                    const list = stored[key] || [];
+                    const found = list.find(item => item.url && item.url.startsWith('http'));
+                    if (found) targetUrl = found.url;
+                }
+                if (targetUrl) {
+                    chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(targetUrl)}` });
+                    window.close();
+                }
+            });
+        }
 
         if (copyBtn) {
             copyBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 let targetUrl = qualSelect.value || video.url;
+                if (!targetUrl || !targetUrl.startsWith('http')) {
+                    const key = `tab_media_${tab.id}`;
+                    const stored = await chrome.storage.local.get(key);
+                    const list = stored[key] || [];
+                    const found = list.find(item => item.url && item.url.startsWith('http'));
+                    if (found) targetUrl = found.url;
+                }
                 if (targetUrl && targetUrl.startsWith('http')) {
                     try {
                         await navigator.clipboard.writeText(targetUrl);

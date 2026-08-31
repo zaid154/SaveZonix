@@ -708,3 +708,17 @@ function showError(msg) {
 function hideError() {
     errorBox.classList.add('hidden');
 }
+
+// Auto-populate & analyze from URL query parameters (e.g. http://localhost:5000/?url=https://...)
+document.addEventListener('DOMContentLoaded', () => {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const autoUrl = params.get('url');
+        if (autoUrl && streamUrlInput) {
+            streamUrlInput.value = autoUrl;
+            if (typeof analyzeStream === 'function') {
+                analyzeStream(autoUrl);
+            }
+        }
+    } catch { }
+});
