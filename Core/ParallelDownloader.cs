@@ -422,18 +422,22 @@ public class ParallelDownloader
         return new List<SegmentItem> { singleChunk };
     }
 
-    private async Task DownloadRangeChunkWithRetryAsync(SegmentItem chunk, Action<int> totalBytesRef, CancellationToken ct, int maxRetries = 5)
+    private async Task DownloadRangeChunkWithRetryAsync(SegmentItem chunk, Action<int> totalBytesRef, CancellationToken ct, int maxRetries = 8)
     {
         int attempt = 0;
         var uri = new Uri(chunk.Url);
         var referers = StreamSecurityHelper.GetCandidateReferers(uri);
 
-        while (attempt < maxRetries)
+        while (attempt < maxRetries && !ct.IsCancellationRequested)
         {
+            long attemptBytesRead = 0;
             try
             {
                 attempt++;
                 string referer = referers[(attempt - 1) % referers.Count];
+
+                using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15s connection / header timeout
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, chunk.Url);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
@@ -444,7 +448,7 @@ public class ParallelDownloader
                     request.Headers.TryAddWithoutValidation("Referer", referer);
                 }
 
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptCts.Token);
                 response.EnsureSuccessStatusCode();
 
                 long expectedBytes = chunk.RangeEnd - chunk.RangeStart + 1;
@@ -453,17 +457,23 @@ public class ParallelDownloader
                     throw new InvalidOperationException("Server returned 200 OK instead of 206 Partial Content for byte range.");
                 }
 
-                await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
+                await using var contentStream = await response.Content.ReadAsStreamAsync(attemptCts.Token);
                 await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
 
-                byte[] buffer = new byte[32768];
+                byte[] buffer = new byte[65536];
                 int bytesRead;
                 long chunkTotal = 0;
 
-                while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
+                while (true)
                 {
+                    // Reset stall watchdog timeout on every read activity (12s per read chunk)
+                    attemptCts.CancelAfter(TimeSpan.FromSeconds(12));
+                    bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, attemptCts.Token);
+                    if (bytesRead <= 0) break;
+
                     await fileStream.WriteAsync(buffer, 0, bytesRead, ct);
                     chunkTotal += bytesRead;
+                    attemptBytesRead += bytesRead;
                     totalBytesRef(bytesRead);
                 }
 
@@ -480,8 +490,12 @@ public class ParallelDownloader
             }
             catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
+                if (attemptBytesRead > 0)
+                {
+                    totalBytesRef((int)-attemptBytesRead);
+                }
                 try { if (File.Exists(chunk.LocalTempPath)) File.Delete(chunk.LocalTempPath); } catch { }
-                await Task.Delay(150 * attempt, ct);
+                await Task.Delay(100 * attempt, ct);
             }
         }
     }
