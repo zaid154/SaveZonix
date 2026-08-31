@@ -303,6 +303,7 @@ function renderStreamDetails(data) {
             opt.dataset.estSize = q.formattedEstimatedSize || '';
             opt.dataset.estBytes = q.estimatedSizeBytes || 0;
             opt.dataset.isDirect = q.isDirectFile ? '1' : '0';
+            opt.dataset.audioUrl = q.audioUrl || '';
             opt.dataset.bw = q.bandwidth ? `${(q.bandwidth / 1000000.0).toFixed(1)} Mbps` : 'Auto';
             if (i === 0) opt.selected = true;
             qualitySelect.appendChild(opt);
@@ -315,6 +316,7 @@ function renderStreamDetails(data) {
         opt.dataset.estSize = '';
         opt.dataset.estBytes = 0;
         opt.dataset.isDirect = '1';
+        opt.dataset.audioUrl = '';
         opt.dataset.bw = 'Adaptive';
         qualitySelect.appendChild(opt);
     }
@@ -363,6 +365,7 @@ btnStartDownload.addEventListener('click', async () => {
     hideError();
     const selectedOpt = qualitySelect.options[qualitySelect.selectedIndex];
     const selectedUrl = qualitySelect.value || streamUrlInput.value.trim();
+    const audioUrl = selectedOpt ? (selectedOpt.dataset.audioUrl || '') : '';
     const fileName = fileNameInput.value.trim() || 'video.mp4';
     const concurrency = currentConcurrency || 64;
     const estimatedSizeBytes = selectedOpt ? parseInt(selectedOpt.dataset.estBytes || 0, 10) : 0;
@@ -403,6 +406,7 @@ btnStartDownload.addEventListener('click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 streamUrl: selectedUrl,
+                audioUrl: audioUrl,
                 fileName,
                 concurrency,
                 estimatedSizeBytes,

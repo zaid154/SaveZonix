@@ -40,6 +40,7 @@ public class AnalyzeRequest
 public class DownloadRequest
 {
     public string StreamUrl { get; set; } = string.Empty;
+    public string? AudioUrl { get; set; }
     public string FileName { get; set; } = "video.mp4";
     public int Concurrency { get; set; } = 64;
     public long EstimatedSizeBytes { get; set; } = 0;
@@ -49,6 +50,44 @@ public class DownloadRequest
 public class Program
 {
     private static readonly ConcurrentDictionary<string, DownloadTaskState> _tasks = new();
+
+    private static async Task<bool> MuxVideoAndAudioAsync(string videoPath, string audioPath, string outputPath)
+    {
+        string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+        if (!File.Exists(ffmpegPath))
+        {
+            ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
+        }
+        if (!File.Exists(ffmpegPath))
+        {
+            ffmpegPath = "ffmpeg";
+        }
+
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c copy -map 0:v:0 -map 1:a:0 \"{outputPath}\" -y",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var proc = Process.Start(psi);
+            if (proc != null)
+            {
+                await proc.WaitForExitAsync();
+                return proc.ExitCode == 0 && File.Exists(outputPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[FFmpeg Mux Notice] {ex.Message}");
+        }
+        return false;
+    }
 
     public static void Main(string[] args)
     {
@@ -119,6 +158,7 @@ public class Program
                         q.Bandwidth,
                         q.Codecs,
                         q.Url,
+                        q.AudioUrl,
                         q.DisplayName,
                         q.EstimatedSizeBytes,
                         q.FormattedEstimatedSize,
@@ -201,25 +241,74 @@ public class Program
                     if (req.IsDirectFile || req.StreamUrl.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || req.StreamUrl.EndsWith(".webm", StringComparison.OrdinalIgnoreCase))
                     {
                         state.TotalSegments = Math.Clamp(concurrency, 1, 64);
-                        var chunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, tempDirectory, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
-                        
-                        state.IsMerging = true;
-                        state.Status = "Finalizing video file...";
-                        var mergeSw = Stopwatch.StartNew();
-                        bool merged = await SegmentMerger.MergeSegmentsAsync(chunks, outputFilePath, tempDirectory);
-                        mergeSw.Stop();
 
-                        if (merged && File.Exists(outputFilePath))
+                        if (!string.IsNullOrEmpty(req.AudioUrl))
                         {
-                            state.MergeSeconds = mergeSw.Elapsed.TotalSeconds;
-                            state.OutputPath = outputFilePath;
-                            state.IsCompleted = true;
-                            state.Status = "Download Complete";
+                            // 1. Download Video Track
+                            state.Status = "Downloading High-Res Video Track...";
+                            string tempVideoFile = Path.Combine(tempDirectory, "raw_video.mp4");
+                            var videoChunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, Path.Combine(tempDirectory, "v_chunks"), req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+                            await SegmentMerger.MergeSegmentsAsync(videoChunks, tempVideoFile, Path.Combine(tempDirectory, "v_chunks"));
+
+                            // 2. Download HQ Audio Track
+                            state.Status = "Downloading Studio Audio Track...";
+                            string tempAudioFile = Path.Combine(tempDirectory, "raw_audio.m4a");
+                            var audioChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, Path.Combine(tempDirectory, "a_chunks"), 0, Math.Clamp(concurrency / 2, 8, 32), null, cts.Token);
+                            await SegmentMerger.MergeSegmentsAsync(audioChunks, tempAudioFile, Path.Combine(tempDirectory, "a_chunks"));
+
+                            // 3. Mux Video + Audio with FFmpeg
+                            state.IsMerging = true;
+                            state.Status = "Muxing Video + Audio with FFmpeg...";
+                            var mergeSw = Stopwatch.StartNew();
+                            bool muxed = await MuxVideoAndAudioAsync(tempVideoFile, tempAudioFile, outputFilePath);
+                            mergeSw.Stop();
+
+                            if (muxed && File.Exists(outputFilePath))
+                            {
+                                state.MergeSeconds = mergeSw.Elapsed.TotalSeconds;
+                                state.OutputPath = outputFilePath;
+                                state.IsCompleted = true;
+                                state.Status = "Download Complete (Video + Audio)";
+                            }
+                            else
+                            {
+                                // Fallback to raw video if muxing failed
+                                if (File.Exists(tempVideoFile))
+                                {
+                                    File.Copy(tempVideoFile, outputFilePath, true);
+                                    state.OutputPath = outputFilePath;
+                                    state.IsCompleted = true;
+                                    state.Status = "Download Complete (Raw Video)";
+                                }
+                                else
+                                {
+                                    state.IsError = true;
+                                    state.ErrorMessage = "Failed to finalize video + audio streams.";
+                                }
+                            }
                         }
                         else
                         {
-                            state.IsError = true;
-                            state.ErrorMessage = "Failed to assemble file.";
+                            var chunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, tempDirectory, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+                            
+                            state.IsMerging = true;
+                            state.Status = "Finalizing video file...";
+                            var mergeSw = Stopwatch.StartNew();
+                            bool merged = await SegmentMerger.MergeSegmentsAsync(chunks, outputFilePath, tempDirectory);
+                            mergeSw.Stop();
+
+                            if (merged && File.Exists(outputFilePath))
+                            {
+                                state.MergeSeconds = mergeSw.Elapsed.TotalSeconds;
+                                state.OutputPath = outputFilePath;
+                                state.IsCompleted = true;
+                                state.Status = "Download Complete";
+                            }
+                            else
+                            {
+                                state.IsError = true;
+                                state.ErrorMessage = "Failed to assemble file.";
+                            }
                         }
                     }
                     else

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 
 namespace Zonix.Core;
 
@@ -212,21 +213,29 @@ public class ParallelDownloader
 
         try
         {
-            using var headReq = new HttpRequestMessage(HttpMethod.Head, fileUrl);
-            headReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            using var rangeReq = new HttpRequestMessage(HttpMethod.Get, fileUrl);
+            rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
             var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(fileUrl));
-            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0])) headReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
+            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0])) rangeReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
 
-            using var headRes = await _httpClient.SendAsync(headReq, cancellationToken);
-            if (headRes.Headers.AcceptRanges.Contains("bytes") || headRes.Content.Headers.ContentLength.HasValue)
+            using var rangeRes = await _httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (rangeRes.StatusCode == HttpStatusCode.PartialContent)
             {
                 supportsRange = true;
-                if (headRes.Content.Headers.ContentLength.HasValue) confirmedLength = headRes.Content.Headers.ContentLength.Value;
+                if (rangeRes.Content.Headers.ContentRange?.Length.HasValue == true)
+                {
+                    confirmedLength = rangeRes.Content.Headers.ContentRange.Length.Value;
+                }
+            }
+            else if (rangeRes.IsSuccessStatusCode && rangeRes.Content.Headers.ContentLength.HasValue)
+            {
+                confirmedLength = rangeRes.Content.Headers.ContentLength.Value;
             }
         }
         catch { }
 
-        if (!supportsRange || confirmedLength <= 5242880)
+        if (!supportsRange || confirmedLength <= 524288)
         {
             return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
         }

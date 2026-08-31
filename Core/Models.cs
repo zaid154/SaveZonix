@@ -6,6 +6,7 @@ public class StreamQuality
     public long Bandwidth { get; set; }
     public string Codecs { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
+    public string AudioUrl { get; set; } = string.Empty;
     public int DurationSeconds { get; set; }
     public bool IsDirectFile { get; set; } = false;
 

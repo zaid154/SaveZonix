@@ -40,13 +40,17 @@ public class M3U8Parser
                 result.ThumbnailUrl = $"https://i.ytimg.com/vi/{video.Id}/maxresdefault.jpg";
                 result.Platform = "YouTube";
 
+                var bestAudio = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+                string audioUrl = bestAudio?.Url ?? string.Empty;
+
                 var muxedStreams = streamManifest.GetMuxedStreams().OrderByDescending(s => s.VideoQuality).ToList();
                 foreach (var stream in muxedStreams)
                 {
                     result.Qualities.Add(new StreamQuality
                     {
-                        Resolution = $"{stream.VideoQuality.Label} HD",
+                        Resolution = $"{stream.VideoQuality.Label} HD (Video + Audio)",
                         Url = stream.Url,
+                        AudioUrl = string.Empty, // Native muxed
                         IsDirectFile = true,
                         DurationSeconds = result.DurationSeconds,
                         Bandwidth = stream.Bitrate.BitsPerSecond
@@ -58,21 +62,22 @@ public class M3U8Parser
                 {
                     result.Qualities.Add(new StreamQuality
                     {
-                        Resolution = $"{stream.VideoQuality.Label} (Video Track)",
+                        Resolution = $"{stream.VideoQuality.Label} (Video + Audio)",
                         Url = stream.Url,
+                        AudioUrl = audioUrl,
                         IsDirectFile = true,
                         DurationSeconds = result.DurationSeconds,
-                        Bandwidth = stream.Bitrate.BitsPerSecond
+                        Bandwidth = stream.Bitrate.BitsPerSecond + (bestAudio?.Bitrate.BitsPerSecond ?? 0)
                     });
                 }
 
-                var bestAudio = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
                 if (bestAudio != null)
                 {
                     result.Qualities.Add(new StreamQuality
                     {
                         Resolution = "Audio Only (HQ M4A)",
                         Url = bestAudio.Url,
+                        AudioUrl = string.Empty,
                         IsDirectFile = true,
                         DurationSeconds = result.DurationSeconds,
                         Bandwidth = bestAudio.Bitrate.BitsPerSecond
