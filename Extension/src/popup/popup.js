@@ -380,16 +380,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (zonixBtn) {
             zonixBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                let targetUrl = qualSelect.value || video.url;
-                if (!targetUrl || !targetUrl.startsWith('http')) {
-                    const key = `tab_media_${tab.id}`;
-                    const stored = await chrome.storage.local.get(key);
-                    const list = stored[key] || [];
-                    const found = list.find(item => item.url && item.url.startsWith('http'));
-                    if (found) targetUrl = found.url;
-                }
-                if (targetUrl) {
-                    chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(targetUrl)}` });
+                const sendUrl = (isYT || siteName === 'YouTube' || currentTabDomain.includes('youtube'))
+                    ? currentTabUrl
+                    : (qualSelect.value || video.url || currentTabUrl);
+                if (sendUrl) {
+                    chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(sendUrl)}` });
                     window.close();
                 }
             });
@@ -398,14 +393,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (copyBtn) {
             copyBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
-                let targetUrl = qualSelect.value || video.url;
-                if (!targetUrl || !targetUrl.startsWith('http')) {
-                    const key = `tab_media_${tab.id}`;
-                    const stored = await chrome.storage.local.get(key);
-                    const list = stored[key] || [];
-                    const found = list.find(item => item.url && item.url.startsWith('http'));
-                    if (found) targetUrl = found.url;
-                }
+                let targetUrl = (isYT || siteName === 'YouTube' || currentTabDomain.includes('youtube'))
+                    ? currentTabUrl
+                    : (qualSelect.value || video.url || currentTabUrl);
                 if (targetUrl && targetUrl.startsWith('http')) {
                     try {
                         await navigator.clipboard.writeText(targetUrl);
@@ -416,10 +406,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        if (video.isYouTube || siteName === 'YouTube') {
+        if (video.isYouTube || siteName === 'YouTube' || isYT) {
             const qOpt = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
-            qualSelect.innerHTML = `<option value="${video.url || ''}">${qOpt}</option>`;
-            dlBtn.innerHTML = `<span>Download YouTube Video</span>`;
+            qualSelect.innerHTML = `<option value="${currentTabUrl}">${qOpt}</option>`;
+            dlBtn.innerHTML = `<span>🚀 Download in Zonix (256x Speed)</span>`;
             dlBtn.disabled = false;
             resTag.textContent = 'Ready';
             errBanner.classList.add('hidden');
@@ -483,9 +473,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // Launch Downloader Tab
+        // Launch Downloader Tab / Zonix Main App
         dlBtn.addEventListener('click', async () => {
             if (dlBtn.disabled) return;
+
+            if (isYT || siteName === 'YouTube' || currentTabDomain.includes('youtube')) {
+                chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(currentTabUrl)}` });
+                window.close();
+                return;
+            }
 
             let targetUrl = qualSelect.value || video.url;
             if (!targetUrl || !targetUrl.startsWith('http')) {
