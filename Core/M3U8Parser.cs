@@ -137,6 +137,10 @@ public class M3U8Parser
                         foreach (var q in innerResult.Qualities)
                         {
                             q.DurationSeconds = innerResult.DurationSeconds;
+                            if (q.DirectContentLengthBytes > 0 && innerResult.DurationSeconds > 0)
+                            {
+                                q.Bandwidth = (long)((q.DirectContentLengthBytes * 8.0) / innerResult.DurationSeconds);
+                            }
                         }
                     }
                     else if (detectedQualities.Count > 0)
@@ -145,6 +149,10 @@ public class M3U8Parser
                         foreach (var q in innerResult.Qualities)
                         {
                             q.DurationSeconds = innerResult.DurationSeconds;
+                            if (q.DirectContentLengthBytes > 0 && innerResult.DurationSeconds > 0)
+                            {
+                                q.Bandwidth = (long)((q.DirectContentLengthBytes * 8.0) / innerResult.DurationSeconds);
+                            }
                         }
                     }
 
@@ -254,13 +262,19 @@ public class M3U8Parser
         catch { }
 
         result.ContentLengthBytes = length;
+        long calcBw = (length > 0 && result.DurationSeconds > 0) 
+            ? (long)((length * 8.0) / result.DurationSeconds) 
+            : ((length > 0) ? (long)((length * 8.0) / 1800.0) : 4000000);
+
         result.Qualities = new List<StreamQuality>
         {
             new StreamQuality
             {
                 Resolution = "Original Quality (Direct Stream)",
                 Url = url,
-                Bandwidth = (length > 0) ? (length * 8 / 60) : 4000000,
+                DirectContentLengthBytes = length,
+                DurationSeconds = result.DurationSeconds,
+                Bandwidth = calcBw,
                 IsDirectFile = true
             }
         };

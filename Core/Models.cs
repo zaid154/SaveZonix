@@ -9,11 +9,14 @@ public class StreamQuality
     public string AudioUrl { get; set; } = string.Empty;
     public int DurationSeconds { get; set; }
     public bool IsDirectFile { get; set; } = false;
+    public long DirectContentLengthBytes { get; set; }
 
     public long EstimatedSizeBytes => 
-        (DurationSeconds > 0 && Bandwidth > 0) 
-            ? (long)((DurationSeconds * Bandwidth) / 8.0) 
-            : 0;
+        (DirectContentLengthBytes > 0)
+            ? DirectContentLengthBytes
+            : ((DurationSeconds > 0 && Bandwidth > 0) 
+                ? (long)((DurationSeconds * (double)Bandwidth) / 8.0) 
+                : 0);
 
     public string FormattedEstimatedSize
     {
