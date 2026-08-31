@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -28,27 +28,63 @@ public class AdminSettingsService : IAdminSettingsService
 
     public async Task<string> GetSettingAsync(string key, string defaultValue = "")
     {
-        var setting = await _context.AdminSettings.FirstOrDefaultAsync(s => s.Key == key);
-        return setting?.Value ?? defaultValue;
+        try
+        {
+            var setting = await _context.AdminSettings.FirstOrDefaultAsync(s => s.Key == key);
+            return setting?.Value ?? defaultValue;
+        }
+        catch
+        {
+            return defaultValue;
+        }
     }
 
     public async Task<bool> GetSettingBoolAsync(string key, bool defaultValue = false)
     {
-        var val = await GetSettingAsync(key);
-        if (bool.TryParse(val, out var res)) return res;
-        return defaultValue;
+        try
+        {
+            var val = await GetSettingAsync(key, defaultValue ? "true" : "false");
+            if (bool.TryParse(val, out var res)) return res;
+            return defaultValue;
+        }
+        catch
+        {
+            return defaultValue;
+        }
     }
 
     public async Task<int> GetSettingIntAsync(string key, int defaultValue = 0)
     {
-        var val = await GetSettingAsync(key);
-        if (int.TryParse(val, out var res)) return res;
-        return defaultValue;
+        try
+        {
+            var val = await GetSettingAsync(key, defaultValue.ToString());
+            if (int.TryParse(val, out var res)) return res;
+            return defaultValue;
+        }
+        catch
+        {
+            return defaultValue;
+        }
     }
 
     public async Task<Dictionary<string, string>> GetAllSettingsAsync()
     {
-        return await _context.AdminSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+        try
+        {
+            return await _context.AdminSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+        }
+        catch
+        {
+            return new Dictionary<string, string>
+            {
+                { "RegistrationEnabled", "true" },
+                { "EmailVerificationRequired", "false" },
+                { "GoogleLoginEnabled", "true" },
+                { "DefaultThreads", "64" },
+                { "MaxThreads", "256" },
+                { "MaintenanceMode", "false" }
+            };
+        }
     }
 
     public async Task UpdateSettingAsync(string key, string value, string? description = null, string? category = null)

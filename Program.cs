@@ -107,12 +107,21 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         
-        // 1. Database Context (SQL Server)
+        // 1. Database Context (SQLite / SQL Server)
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-            ?? "Server=(localdb)\\mssqllocaldb;Database=StreamHelperDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True";
+            ?? "Data Source=streamhelper.db";
 
         builder.Services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(connectionString));
+        {
+            if (connectionString.Contains(".db") || (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase) && !connectionString.Contains("Initial Catalog")))
+            {
+                options.UseSqlite(connectionString);
+            }
+            else
+            {
+                options.UseSqlServer(connectionString);
+            }
+        });
 
         // 2. ASP.NET Core Identity
         builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
