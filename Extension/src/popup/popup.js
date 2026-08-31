@@ -71,35 +71,37 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadData();
     });
 
-    // Reactive State Loading (Optimized — No Aggressive Polling)
-    async function loadData() {
+        // 1. Await live page scan before reading storage
         try {
-            chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, async (res) => {
-                if (res && res.metadata) {
-                    livePageMetadata = res.metadata;
-                    liveThumbnail = res.thumbnail || res.metadata.thumbnail;
-                    if (res.streams && res.streams.length > 0) {
-                        for (const st of res.streams) {
-                            if (st.url && st.url.startsWith('http')) {
-                                await window.Storage.addVideo(tab.id, {
-                                    ...st,
-                                    title: res.metadata.title,
-                                    showName: res.metadata.showName,
-                                    subtitle: res.metadata.subtitle,
-                                    thumbnail: res.thumbnail || res.metadata.thumbnail,
-                                    platform: res.site
-                                });
-                            }
-                        }
+            const res = await new Promise(resolve => {
+                try {
+                    chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, (r) => {
+                        if (chrome.runtime.lastError) resolve(null);
+                        else resolve(r);
+                    });
+                } catch { resolve(null); }
+            });
+
+            if (res && res.metadata) {
+                livePageMetadata = res.metadata;
+                liveThumbnail = res.thumbnail || res.metadata.thumbnail;
+                if (res.streams && res.streams.length > 0) {
+                    for (const st of res.streams) {
+                        await window.Storage.addVideo(tab.id, {
+                            ...st,
+                            title: res.metadata.title,
+                            showName: res.metadata.showName,
+                            subtitle: res.metadata.subtitle,
+                            thumbnail: res.thumbnail || res.metadata.thumbnail,
+                            platform: res.site
+                        });
                     }
                 }
-            });
+            }
         } catch { }
 
         const tabData = await window.Storage.getTabVideos(tab.id);
-        if (!tabData) return;
-
-        if (tabData.settings) {
+        if (tabData && tabData.settings) {
             userSettings = { ...userSettings, ...tabData.settings };
             settingQuality.value = userSettings.defaultQuality || 'best';
             if (settingThreads) settingThreads.value = userSettings.threads || '64';
@@ -107,9 +109,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             settingAutoEpisode.checked = userSettings.autoDetectEpisode !== false;
         }
 
-        let rawVideos = tabData.videos || [];
-        const completed = tabData.completed || [];
-        const activeDl = tabData.activeDownload || null;
+        let rawVideos = (tabData && tabData.videos) ? tabData.videos : [];
+        const completed = (tabData && tabData.completed) ? tabData.completed : [];
+        const activeDl = (tabData && tabData.activeDownload) ? tabData.activeDownload : null;
 
         // Strict Site Isolation & Filtering
         let videos = rawVideos.filter(v => {
@@ -146,34 +148,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             videos = withValidUrl ? [withValidUrl] : [videos[0]];
         }
 
-        const fallbackTitle = getFallbackTitle();
+        const fallbackTitle = (tab.title || 'Video').replace(/\s*-\s*YouTube$/i, '').trim();
 
-        // Synthesize live detection if content script reported active metadata or tab title
-        if (videos.length === 0 && (livePageMetadata?.title || fallbackTitle)) {
+        // Synthesize live detection if no captured streams yet
+        if (videos.length === 0) {
             const initialTitle = (livePageMetadata?.title && livePageMetadata.title.length > 3) ? livePageMetadata.title : fallbackTitle;
             videos = [{
                 id: stableDeterministicId,
                 url: '',
                 title: initialTitle,
                 showName: livePageMetadata?.showName || initialTitle,
-                subtitle: livePageMetadata?.subtitle || '',
+                subtitle: livePageMetadata?.subtitle || (isYT ? 'YouTube' : ''),
                 season: livePageMetadata?.season,
                 episode: livePageMetadata?.episode,
                 episodeTitle: livePageMetadata?.episodeTitle || '',
                 shortId: livePageMetadata?.shortId || '',
                 domain: currentTabDomain.replace(/^www\./, ''),
                 pageUrl: currentTabUrl,
-                thumbnail: liveThumbnail || livePageMetadata?.thumbnail || '',
-                duration: '',
+                thumbnail: liveThumbnail || livePageMetadata?.thumbnail || (isYT ? `https://i.ytimg.com/vi/${new URLSearchParams(new URL(currentTabUrl).search).get('v') || ''}/hqdefault.jpg` : ''),
+                duration: livePageMetadata?.duration || '',
                 format: 'MP4',
                 platform: currentSiteName,
                 isYouTube: isYT,
-                isDirectMp4: isInsta,
-                isDownloadable: !isYT,
-                isRestricted: isYT,
-                downloadNotice: isYT 
-                    ? 'YouTube video detected — direct stream uses protected adaptive chunking (download unavailable).' 
-                    : ''
+                isDirectMp4: isInsta || isYT,
+                isDownloadable: true,
+                isRestricted: false,
+                downloadNotice: ''
             }];
         }
 
