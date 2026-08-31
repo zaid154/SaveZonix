@@ -7,79 +7,87 @@
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <!-- Clean Header -->
-    <header class="app-header">
-        <div class="header-titles">
-            <h1 class="app-title">Stream Helper</h1>
-            <p class="app-subtitle">Multi-site video detection & helper</p>
+    <!-- Header -->
+    <header class="header">
+        <div class="brand">
+            <img src="../../icons/icon48.png" alt="" class="logo">
+            <span class="app-name">Stream Helper</span>
         </div>
-        <div class="header-controls">
-            <button id="btnRefresh" class="btn-icon" title="Refresh Detection">🔄</button>
-            <button id="btnSettingsToggle" class="btn-icon" title="Settings">⚙️</button>
+        <div class="header-actions">
+            <button id="btnRefresh" class="icon-btn" title="Refresh">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+            </button>
+            <button id="btnSettingsToggle" class="icon-btn" title="Settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
         </div>
     </header>
 
-    <!-- Settings Panel (Collapsible) -->
-    <section id="settingsPanel" class="settings-panel hidden">
-        <div class="settings-title-row">
-            <h3>Settings</h3>
-            <button id="btnCloseSettings" class="btn-close-sm">&times;</button>
+    <!-- Settings Panel -->
+    <div id="settingsPanel" class="settings-panel hidden">
+        <div class="settings-header">
+            <span>Settings</span>
+            <button id="btnCloseSettings" class="close-btn">&times;</button>
         </div>
-        <div class="setting-item">
+        <div class="form-group">
             <label for="settingQuality">Default Quality</label>
-            <select id="settingQuality" class="select-input">
-                <option value="best">Best Available Quality</option>
+            <select id="settingQuality" class="select-box">
+                <option value="best">Highest (Auto)</option>
                 <option value="1080p">1080p Full HD</option>
                 <option value="720p">720p HD</option>
-                <option value="480p">480p</option>
+                <option value="480p">480p SD</option>
             </select>
         </div>
-        <div class="setting-checkbox">
+        <div class="form-group">
+            <label for="settingThreads">Download Threads</label>
+            <select id="settingThreads" class="select-box">
+                <option value="8">8 Threads (Standard)</option>
+                <option value="16">16 Threads (Fast)</option>
+                <option value="32">32 Threads (Turbo)</option>
+                <option value="64" selected>64 Threads (Extreme Max — Recommended)</option>
+                <option value="128">128 Threads (Ultra Fiber)</option>
+                <option value="256">256 Threads (Hyper Max)</option>
+            </select>
+        </div>
+        <div class="checkbox-row">
             <input type="checkbox" id="settingRemember" checked>
-            <label for="settingRemember">Remember selected quality</label>
+            <label for="settingRemember">Remember quality</label>
         </div>
-        <div class="setting-checkbox">
+        <div class="checkbox-row">
             <input type="checkbox" id="settingAutoEpisode" checked>
-            <label for="settingAutoEpisode">Auto-detect episode and reel titles</label>
+            <label for="settingAutoEpisode">Format series title</label>
         </div>
-        <button id="btnSaveSettings" class="btn-save-sm">Save Preferences</button>
-    </section>
+        <button id="btnSaveSettings" class="btn btn-primary btn-full">Save</button>
+    </div>
 
-    <!-- Main Body Area -->
-    <main class="app-main">
-        <!-- Status Bar -->
-        <div class="status-bar">
-            <span class="status-dot"></span>
-            <span id="statusLabel" class="status-text">Scanning for media stream...</span>
+    <!-- Main -->
+    <main class="main">
+        <div class="status-line">
+            <span class="dot"></span>
+            <span id="statusLabel" class="status-text">Scanning for media...</span>
         </div>
 
-        <!-- Detected Video Card Container -->
-        <section id="detectedSection" class="detected-section">
-            <div id="videoList" class="video-list">
-                <!-- Video Card Injected Here -->
-            </div>
-        </section>
+        <div id="videoList" class="video-list">
+            <!-- Injected via popup.js -->
+        </div>
 
         <!-- Empty State -->
         <div id="emptyState" class="empty-state hidden">
-            <div class="empty-icon">📺</div>
-            <h3>No video detected</h3>
-            <p>Play a video on the current page to detect media automatically.</p>
+            <span class="empty-title">No media found</span>
+            <span class="empty-desc">Play a video in the active tab to detect streams.</span>
         </div>
 
-        <!-- Download History -->
-        <section id="completedSection" class="history-section hidden">
-            <div class="section-title">DOWNLOAD HISTORY</div>
-            <div id="completedList" class="history-list">
-                <!-- Completed History Injected Here -->
-            </div>
-        </section>
+        <!-- Downloads History -->
+        <div id="completedSection" class="history-section hidden">
+            <div class="history-header">Recent Downloads</div>
+            <div id="completedList" class="history-list"></div>
+        </div>
     </main>
-
-    <!-- Footer -->
-    <footer class="app-footer">
-        <span class="footer-info">Multi-Site Video Downloader &bull; Non-DRM</span>
-    </footer>
 
     <script src="../utils/helpers.js"></script>
     <script src="../utils/thumbnail.js"></script>

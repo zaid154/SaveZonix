@@ -1,25 +1,37 @@
 // src/detectors/media-detector.js — Comprehensive HTML5 & Streaming Media Sniffer (Universal)
 
 (function (root) {
-    // Only match genuine media stream extensions and patterns
-    const MEDIA_STREAM_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|playlist\.m3u8|master\.m3u8|index\.m3u8|\/hls\/|\.mpd)/i;
+    // Strictly match genuine media stream extensions and patterns (NEVER bare 'index' or 'master' without .m3u8)
+    const MEDIA_STREAM_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\.mpd|videoplayback|serve_m3u8|proxy\.php\?url=)/i;
 
     function isInvalidStreamUrl(url) {
         if (!url || typeof url !== 'string' || !url.startsWith('http')) return true;
-        const clean = url.split('?')[0].toLowerCase();
         
-        // Strict non-media extensions & webpage rejection
-        if (clean.endsWith('.xml') || 
-            clean.endsWith('.json') || 
-            clean.endsWith('.txt') || 
-            clean.endsWith('.html') || 
+        const lower = url.toLowerCase();
+        const clean = lower.split('?')[0];
+        
+        // 1. Strict rejection of individual transport stream segments & chunk slices
+        if (clean.endsWith('.ts') || 
+            clean.endsWith('.m4s') || 
+            clean.endsWith('.mp4s') || 
+            lower.includes('seg-') || 
+            lower.includes('seg_') || 
+            lower.includes('/segment') || 
+            lower.includes('/fragment') || 
+            lower.includes('/chunk_') || 
+            lower.includes('range=')) {
+            return true;
+        }
+
+        // 2. Strict non-media static asset & webpage rejection
+        if (clean.endsWith('.html') || 
             clean.endsWith('.htm') || 
             clean.endsWith('.php') || 
-            clean.endsWith('.asp') || 
-            clean.endsWith('.aspx') || 
-            clean.endsWith('.jsp') || 
             clean.endsWith('.js') || 
             clean.endsWith('.css') || 
+            clean.endsWith('.xml') || 
+            clean.endsWith('.json') || 
+            clean.endsWith('.txt') || 
             clean.endsWith('.png') || 
             clean.endsWith('.jpg') || 
             clean.endsWith('.jpeg') || 
@@ -39,23 +51,36 @@
             return true;
         }
 
-        // Check path & query params for XML/JSON/API/Iframe formats
-        const lower = url.toLowerCase();
-        if (lower.includes('format=xml') || 
-            lower.includes('type=xml') || 
-            lower.includes('output=xml') || 
-            lower.includes('format=json') || 
-            lower.includes('type=json') || 
-            lower.includes('/subtitles/') || 
-            lower.includes('/captions/') || 
-            lower.includes('/embed/') || 
-            lower.includes('/player/') || 
-            lower.includes('/api/player') || 
-            lower.includes('/api/source') || 
-            lower.includes('/api/stream') ||
-            lower.includes('/api/v') ||
-            lower.includes('getsource') ||
-            lower.includes('load-source')) {
+        // 2. Reject Ad Networks, Preroll Video Ads & Sponsored Clips
+        if (lower.includes('trafficjunky') || 
+            lower.includes('doubleclick.net') || 
+            lower.includes('googlesyndication') || 
+            lower.includes('exoclick') || 
+            lower.includes('juicyads') || 
+            lower.includes('tsyndicate') || 
+            lower.includes('ero-advertising') || 
+            lower.includes('adxpansion') || 
+            lower.includes('etahub') || 
+            lower.includes('/preroll') || 
+            lower.includes('/midroll') || 
+            lower.includes('/postroll') || 
+            lower.includes('/vast/') || 
+            lower.includes('/vpaid/') || 
+            lower.includes('ad_system') || 
+            lower.includes('delivery.trafficjunky') || 
+            lower.includes('creative.trafficjunky') || 
+            lower.includes('/ads/') || 
+            lower.includes('ad_type=preroll')) {
+            return true;
+        }
+
+        // 3. Rejection of tiny animated hover previews and trailers
+        if (clean.includes('_preview') || clean.includes('/preview/') || clean.includes('trailer.mp4') || 
+            clean.includes('sample.mp4') || clean.includes('thumbnail.mp4') || clean.includes('preview.mp4')) {
+            return true;
+        }
+
+        if (lower.includes('/subtitles/') || lower.includes('/captions/') || lower.includes('format=xml') || lower.includes('type=xml')) {
             return true;
         }
 
@@ -65,76 +90,60 @@
     const MediaDetector = {
         MEDIA_REGEX: MEDIA_STREAM_REGEX,
 
-        isSegment(url) {
-            if (!url) return true;
-            const clean = url.split('?')[0].toLowerCase();
-            return (clean.endsWith('.ts') && !clean.includes('playlist') && !clean.includes('master') && !clean.includes('index')) || 
-                   (clean.endsWith('.m4s') && !clean.includes('init'));
-        },
+        // 1. Sniff HTML5 <video> elements in DOM
+        detectFromDOM() {
+            const detected = [];
+            const seen = new Set();
 
-        findActiveVideoElement() {
-            const videos = Array.from(document.querySelectorAll('video'));
-            if (videos.length === 0) return null;
-
-            // 1. Prioritize currently playing video
-            const playing = videos.find(v => !v.paused && v.currentTime > 0);
-            if (playing) return playing;
-
-            // 2. Prioritize video centered in the viewport
-            const centerY = window.innerHeight / 2;
-            const inViewport = videos.find(v => {
-                const rect = v.getBoundingClientRect();
-                return rect.top <= centerY && rect.bottom >= centerY && rect.height > 100;
-            });
-            if (inViewport) return inViewport;
-
-            // 3. Prioritize video with dimensions
-            const withDims = videos.find(v => v.videoWidth > 0 && v.videoHeight > 0);
-            if (withDims) return withDims;
-
-            // 4. Prioritize video with source
-            const withSrc = videos.find(v => v.currentSrc || v.src || v.querySelector('source'));
-            if (withSrc) return withSrc;
-
-            return videos[0];
-        },
-
-        findPerformanceStreams() {
-            const found = [];
-            const candidatePlaylists = new Set();
-
-            try {
-                const entries = performance.getEntriesByType('resource');
-                for (let i = entries.length - 1; i >= 0; i--) {
-                    const url = entries[i].name;
-                    if (!url || !url.startsWith('http') || isInvalidStreamUrl(url)) continue;
-
-                    // Direct match for .m3u8, /hls/, or .mp4
-                    if (MEDIA_STREAM_REGEX.test(url) && !this.isSegment(url)) {
-                        if (!found.includes(url)) {
-                            found.push(url);
-                        }
-                    } 
-                    // Active .ts or .m4s media chunk detected -> derive parent playlist
-                    else if (url.includes('.ts') || url.includes('.m4s')) {
-                        try {
-                            const parsedUrl = new URL(url);
-                            const pathParts = parsedUrl.pathname.split('/');
-                            pathParts.pop(); // remove segment name
-                            const basePath = pathParts.join('/');
-                            
-                            const p1 = `${parsedUrl.origin}${basePath}/index.m3u8${parsedUrl.search}`;
-                            const p2 = `${parsedUrl.origin}${basePath}/playlist.m3u8${parsedUrl.search}`;
-                            const p3 = `${parsedUrl.origin}${basePath}/master.m3u8${parsedUrl.search}`;
-
-                            if (!candidatePlaylists.has(p1)) { candidatePlaylists.add(p1); found.push(p1); }
-                            if (!candidatePlaylists.has(p2)) { candidatePlaylists.add(p2); found.push(p2); }
-                            if (!candidatePlaylists.has(p3)) { candidatePlaylists.add(p3); found.push(p3); }
-                        } catch { }
-                    }
+            const videos = document.querySelectorAll('video');
+            videos.forEach((video) => {
+                const src = video.currentSrc || video.src;
+                if (src && !src.startsWith('blob:') && !isInvalidStreamUrl(src) && !seen.has(src)) {
+                    seen.add(src);
+                    detected.push({
+                        url: src,
+                        type: src.includes('.m3u8') ? 'HLS' : (src.includes('.mpd') ? 'DASH' : 'MP4'),
+                        source: 'DOM_VIDEO_TAG'
+                    });
                 }
-            } catch { }
-            return found;
+
+                // Check embedded <source> elements
+                const sources = video.querySelectorAll('source');
+                sources.forEach((source) => {
+                    const sourceSrc = source.src;
+                    if (sourceSrc && !sourceSrc.startsWith('blob:') && !isInvalidStreamUrl(sourceSrc) && !seen.has(sourceSrc)) {
+                        seen.add(sourceSrc);
+                        detected.push({
+                            url: sourceSrc,
+                            type: sourceSrc.includes('.m3u8') ? 'HLS' : (sourceSrc.includes('.mpd') ? 'DASH' : 'MP4'),
+                            source: 'DOM_SOURCE_TAG'
+                        });
+                    }
+                });
+            });
+
+            return detected;
+        },
+
+        // 2. Sniff Network Resource Performance Timeline for real stream segments
+        findPerformanceStreams() {
+            const urls = [];
+            const seen = new Set();
+
+            if (typeof performance === 'undefined' || !performance.getEntriesByType) {
+                return urls;
+            }
+
+            const entries = performance.getEntriesByType('resource');
+            for (let i = entries.length - 1; i >= 0; i--) {
+                const name = entries[i].name;
+                if (name && !isInvalidStreamUrl(name) && MEDIA_STREAM_REGEX.test(name) && !seen.has(name)) {
+                    seen.add(name);
+                    urls.push(name);
+                }
+            }
+
+            return urls;
         }
     };
 

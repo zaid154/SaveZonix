@@ -1,4 +1,4 @@
-// src/detectors/stream-detector.js — HLS & DASH Stream Analyzer with Tab-Context Fetch Fallback (Universal)
+// src/detectors/stream-detector.js — HLS & DASH Stream Analyzer with Token-Preserving Resolution (Universal)
 
 (function (root) {
     const manifestCache = new Map();
@@ -7,26 +7,28 @@
         resolveSegmentUrl(relativeOrAbsoluteUrl, parentPlaylistUrl) {
             try {
                 if (!relativeOrAbsoluteUrl) return '';
-                if (relativeOrAbsoluteUrl.startsWith('http://') || relativeOrAbsoluteUrl.startsWith('https://')) {
-                    return relativeOrAbsoluteUrl;
-                }
+                
+                const parentUrlObj = parentPlaylistUrl ? new URL(parentPlaylistUrl) : null;
+                let resolved = (relativeOrAbsoluteUrl.startsWith('http://') || relativeOrAbsoluteUrl.startsWith('https://'))
+                    ? new URL(relativeOrAbsoluteUrl)
+                    : new URL(relativeOrAbsoluteUrl, parentPlaylistUrl);
 
-                // If it's a proxy path on the proxy host, resolve directly against parent URL origin
-                if (relativeOrAbsoluteUrl.startsWith('/') || relativeOrAbsoluteUrl.startsWith('proxy.php') || relativeOrAbsoluteUrl.startsWith('?')) {
-                    return new URL(relativeOrAbsoluteUrl, parentPlaylistUrl).href;
-                }
-
-                if (parentPlaylistUrl && parentPlaylistUrl.includes('url=')) {
-                    const proxyUrl = new URL(parentPlaylistUrl);
-                    const nestedTarget = proxyUrl.searchParams.get('url');
-                    if (nestedTarget) {
-                        const resolvedNested = new URL(relativeOrAbsoluteUrl, nestedTarget).href;
-                        proxyUrl.searchParams.set('url', resolvedNested);
-                        return proxyUrl.href;
+                // Strictly inherit and merge parent security tokens & signature query params for CDN authorization
+                if (parentUrlObj && parentUrlObj.search) {
+                    const parentParams = new URLSearchParams(parentUrlObj.search);
+                    const resolvedParams = new URLSearchParams(resolved.search);
+                    for (const [k, v] of parentParams.entries()) {
+                        if (!resolvedParams.has(k)) {
+                            resolvedParams.set(k, v);
+                        }
+                    }
+                    const qStr = resolvedParams.toString();
+                    if (qStr) {
+                        resolved.search = '?' + qStr;
                     }
                 }
 
-                return new URL(relativeOrAbsoluteUrl, parentPlaylistUrl).href;
+                return resolved.href;
             } catch {
                 return relativeOrAbsoluteUrl;
             }
@@ -185,15 +187,13 @@
                             const next = lines[j].trim();
                             if (next && !next.startsWith('#')) {
                                 const variantUrl = this.resolveSegmentUrl(next, url);
-                                const height = this.getResolutionHeight(resolution);
-
                                 variants.push({
-                                    resolution,
-                                    height,
-                                    bandwidth,
-                                    audioGroup,
+                                    url: variantUrl,
+                                    resolution: resolution,
+                                    bandwidth: bandwidth,
+                                    audioGroup: audioGroup,
                                     label: this.formatQualityLabel(resolution, bandwidth),
-                                    url: variantUrl
+                                    height: this.getResolutionHeight(resolution)
                                 });
                                 i = j;
                                 break;
@@ -221,6 +221,7 @@
                 const segments = [];
                 let initSegmentUrl = '';
                 let keyInfo = null;
+                let totalDurationSeconds = 0;
                 const lines = text.split(/\r?\n/);
 
                 for (let i = 0; i < lines.length; i++) {
@@ -247,6 +248,10 @@
                             initSegmentUrl = this.resolveSegmentUrl(uriMatch[1], url);
                         }
                     } else if (line.startsWith('#EXTINF')) {
+                        const durMatch = line.match(/#EXTINF:([\d.]+)/);
+                        if (durMatch) {
+                            totalDurationSeconds += parseFloat(durMatch[1]);
+                        }
                         for (let j = i + 1; j < lines.length; j++) {
                             const next = lines[j].trim();
                             if (next && !next.startsWith('#')) {
@@ -267,6 +272,7 @@
                     initSegmentUrl: initSegmentUrl,
                     keyInfo: keyInfo,
                     segments: [...new Set(segments)],
+                    durationSeconds: Math.round(totalDurationSeconds),
                     variants: []
                 };
             } else {

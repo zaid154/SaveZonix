@@ -1,4 +1,4 @@
-// src/popup/popup.js — Modular Popup UI Controller with Dedicated Downloader Hub Integration (Universal)
+// src/popup/popup.js — High-Performance Event-Driven Popup Controller (Universal)
 
 document.addEventListener('DOMContentLoaded', async () => {
     const videoList = document.getElementById('videoList');
@@ -12,12 +12,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSaveSettings = document.getElementById('btnSaveSettings');
     const settingsPanel = document.getElementById('settingsPanel');
     const settingQuality = document.getElementById('settingQuality');
+    const settingThreads = document.getElementById('settingThreads');
     const settingRemember = document.getElementById('settingRemember');
     const settingAutoEpisode = document.getElementById('settingAutoEpisode');
 
     let livePageMetadata = null;
     let liveThumbnail = '';
-    let userSettings = { defaultQuality: 'best', rememberQuality: true, autoDetectEpisode: true };
+    let userSettings = { defaultQuality: 'best', threads: '32', rememberQuality: true, autoDetectEpisode: true };
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) {
@@ -45,7 +46,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentSiteName = resolveSiteName();
     const stableDeterministicId = `vid_${tab.id}_${currentSiteName.toLowerCase()}`;
 
-    // Extract clean series/show title from tab title fallback
     function getFallbackTitle() {
         if (!currentTabTitle) return 'Video';
         return currentTabTitle
@@ -55,13 +55,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             .trim() || 'Video';
     }
 
-    // ─── 1. SETTINGS HANDLERS ──────────────────────────────────────────────
+    // Settings Handlers
     btnSettingsToggle.addEventListener('click', () => settingsPanel.classList.toggle('hidden'));
     btnCloseSettings.addEventListener('click', () => settingsPanel.classList.add('hidden'));
 
     btnSaveSettings.addEventListener('click', async () => {
         userSettings = {
             defaultQuality: settingQuality.value,
+            threads: settingThreads.value || '64',
             rememberQuality: settingRemember.checked,
             autoDetectEpisode: settingAutoEpisode.checked
         };
@@ -70,7 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadData();
     });
 
-    // ─── 2. DATA POLLING & PERSISTENCE ─────────────────────────────────────
+    // Reactive State Loading (Optimized — No Aggressive Polling)
     async function loadData() {
         try {
             chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, (res) => {
@@ -85,8 +86,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!tabData) return;
 
         if (tabData.settings) {
-            userSettings = tabData.settings;
+            userSettings = { ...userSettings, ...tabData.settings };
             settingQuality.value = userSettings.defaultQuality || 'best';
+            if (settingThreads) settingThreads.value = userSettings.threads || '64';
             settingRemember.checked = userSettings.rememberQuality !== false;
             settingAutoEpisode.checked = userSettings.autoDetectEpisode !== false;
         }
@@ -95,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const completed = tabData.completed || [];
         const activeDl = tabData.activeDownload || null;
 
-        // STRICT SITE ISOLATION & NON-MEDIA REJECTION
+        // Strict Site Isolation & Filtering
         let videos = rawVideos.filter(v => {
             if (v.url && window.isInvalidStreamUrl && window.isInvalidStreamUrl(v.url)) return false;
 
@@ -107,28 +109,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             return v.platform !== 'Instagram' && v.platform !== 'YouTube';
         });
 
-        // Prioritize confirmed media stream URLs (.m3u8 > .mp4 > generic)
+        // Prioritize confirmed media stream URLs (Main feature streams first)
         if (videos.length > 1) {
             videos.sort((a, b) => {
+                const isVideosA = (a.url || '').includes('/videos/');
+                const isVideosB = (b.url || '').includes('/videos/');
+                if (isVideosA && !isVideosB) return -1;
+                if (!isVideosA && isVideosB) return 1;
+
                 const isM3u8A = (a.url || '').includes('.m3u8') || (a.url || '').includes('/hls/');
                 const isM3u8B = (b.url || '').includes('.m3u8') || (b.url || '').includes('/hls/');
                 if (isM3u8A && !isM3u8B) return -1;
                 if (!isM3u8A && isM3u8B) return 1;
+
                 const isMp4A = (a.url || '').includes('.mp4');
                 const isMp4B = (b.url || '').includes('.mp4');
                 if (isMp4A && !isMp4B) return -1;
                 if (!isMp4A && isMp4B) return 1;
                 return 0;
             });
-            const withValidUrl = videos.find(v => v.url && (v.url.includes('.m3u8') || v.url.includes('/hls/') || v.url.includes('.mp4'))) || videos.find(v => v.url && v.url.startsWith('http'));
+            const withValidUrl = videos.find(v => v.url && ((v.url.includes('/videos/') && v.url.includes('.m3u8')) || v.url.includes('.m3u8') || v.url.includes('/hls/') || v.url.includes('.mp4'))) || videos.find(v => v.url && v.url.startsWith('http'));
             videos = withValidUrl ? [withValidUrl] : [videos[0]];
         }
 
         const fallbackTitle = getFallbackTitle();
 
-        // Synthesize live detection if content script reported active metadata or from tab
+        // Synthesize live detection if content script reported active metadata or tab title
         if (videos.length === 0 && (livePageMetadata?.title || fallbackTitle)) {
-            const initialTitle = livePageMetadata?.title || fallbackTitle;
+            const initialTitle = (livePageMetadata?.title && livePageMetadata.title.length > 3) ? livePageMetadata.title : fallbackTitle;
             videos = [{
                 id: stableDeterministicId,
                 url: '',
@@ -155,13 +163,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             }];
         }
 
-        const effectiveTitle = (livePageMetadata && livePageMetadata.title && livePageMetadata.title !== 'Video' && livePageMetadata.title !== 'PvrPlay')
+        const effectiveTitle = (livePageMetadata && livePageMetadata.title && livePageMetadata.title !== 'Video' && livePageMetadata.title !== 'PvrPlay' && livePageMetadata.title.length > 3)
             ? livePageMetadata.title
-            : (videos[0]?.title && videos[0]?.title !== 'Video' && videos[0]?.title !== 'PvrPlay' ? videos[0].title : fallbackTitle);
+            : (videos[0]?.title && videos[0]?.title !== 'Video' && videos[0]?.title !== 'PvrPlay' && videos[0].title.length > 3 ? videos[0].title : fallbackTitle);
 
-        const effectiveShow = (livePageMetadata && livePageMetadata.showName && livePageMetadata.showName !== 'Video' && livePageMetadata.showName !== 'PvrPlay')
+        const effectiveShow = (livePageMetadata && livePageMetadata.showName && livePageMetadata.showName !== 'Video' && livePageMetadata.showName !== 'PvrPlay' && livePageMetadata.showName.length > 3)
             ? livePageMetadata.showName
-            : (videos[0]?.showName && videos[0]?.showName !== 'Video' && videos[0]?.showName !== 'PvrPlay' ? videos[0].showName : fallbackTitle);
+            : (videos[0]?.showName && videos[0]?.showName !== 'Video' && videos[0]?.showName !== 'PvrPlay' && videos[0].showName.length > 3 ? videos[0].showName : fallbackTitle);
 
         const effectiveSubtitle = livePageMetadata?.subtitle || videos[0]?.subtitle || '';
         const effectiveSeason = livePageMetadata?.season !== undefined ? livePageMetadata.season : videos[0]?.season;
@@ -185,15 +193,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (videos.length > 0) {
             emptyState.classList.add('hidden');
             videoList.classList.remove('hidden');
-            statusLabel.textContent = `✓ ${currentSiteName} detected`;
+            statusLabel.textContent = `${currentSiteName} Stream Detected`;
             renderVideoCards(videos, completed, activeDl);
         } else {
             emptyState.classList.remove('hidden');
             videoList.classList.add('hidden');
-            statusLabel.textContent = 'Scanning for media stream...';
+            statusLabel.textContent = 'Scanning for media streams...';
         }
 
-        // Always render persistent download history
         if (completed && completed.length > 0) {
             completedSection.classList.remove('hidden');
             renderCompletedList(completed);
@@ -202,8 +209,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Initial Load & Storage Change Listener (Event-Driven Performance)
     await loadData();
-    const pollInterval = setInterval(loadData, 2000);
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && (changes[`tab_media_${tab.id}`] || changes['completed_downloads'])) {
+            loadData();
+        }
+    });
 
     btnRefresh.addEventListener('click', async () => {
         statusLabel.textContent = 'Rescanning media...';
@@ -218,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadData();
     });
 
-    // ─── 3. VIDEO CARDS RENDERER ───────────────────────────────────────────
+    // Render Video Cards
     function renderVideoCards(videos, completedListItems, activeDl) {
         const activeCardIds = new Set(Array.from(document.querySelectorAll('.video-card')).map(c => c.id));
         const newCardIds = new Set(videos.map(v => `card_${v.id}`));
@@ -236,23 +248,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             const safeFileName = window.FilenameGenerator.generate({ ...video, title: currentTitle, platform: currentSiteName });
             const thumbUrl = video.thumbnail || liveThumbnail;
 
-            // Check if already completed
             const isAlreadyDownloaded = completedListItems && completedListItems.some(c => c.filename === safeFileName || c.title === safeFileName);
-
-            // Non-DRM streams are downloadable by default
             const isDownloadPossible = Boolean((video.isDownloadable !== false) && !video.isRestricted && (!video.url || !video.url.includes('.htm')));
 
-            // Quality Label formatting
-            let qualityLabel = '⭐ Best Quality (Auto)';
+            let qualityLabel = 'Best Quality (Auto)';
             if (currentSiteName === 'Instagram') {
                 qualityLabel = video.resolution ? `Original MP4 (${video.resolution})` : 'Original Quality (MP4)';
             } else if (video.qualityLabel) {
-                qualityLabel = `⭐ Best Quality — ${video.qualityLabel}`;
+                qualityLabel = video.qualityLabel;
             }
 
-            let buttonLabel = isDownloadPossible ? (currentSiteName === 'Instagram' ? 'Download Reel (MP4)' : 'Download Video') : 'Download Unavailable';
+            let buttonLabel = isDownloadPossible ? (currentSiteName === 'Instagram' ? 'Download Reel' : 'Download Video') : 'Download Unavailable';
             if (isAlreadyDownloaded) {
-                buttonLabel = '✓ Downloaded (Download Again)';
+                buttonLabel = 'Downloaded (Download Again)';
             }
 
             if (!card) {
@@ -260,8 +268,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 card.className = 'video-card';
                 card.id = `card_${video.id}`;
 
-                const thumbHtml = thumbUrl
-                    ? `<img class="thumb-image" src="${thumbUrl}" alt="thumb">`
+                const thumbHtml = (thumbUrl && !thumbUrl.includes('data:image/svg+xml'))
+                    ? `<img class="thumb-image" src="${thumbUrl}" alt="Thumbnail">`
                     : `<div class="thumb-placeholder">${currentSiteName}</div>`;
 
                 const durationHtml = video.duration
@@ -278,7 +286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div class="show-title-text" id="title_${video.id}">${currentShow}</div>
                             <div class="show-subtitle-text" id="sub_${video.id}">${currentSub}</div>
                             <div class="meta-badges-row">
-                                <span class="badge-tag" id="res_tag_${video.id}">${isAlreadyDownloaded ? 'Downloaded' : (isDownloadPossible ? 'Ready to Download' : 'Stream')}</span>
+                                <span class="badge-tag" id="res_tag_${video.id}">${isAlreadyDownloaded ? 'Downloaded' : (isDownloadPossible ? 'Ready' : 'Stream')}</span>
                                 <span class="badge-tag">${currentSiteName}</span>
                             </div>
                         </div>
@@ -300,7 +308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <span>${buttonLabel}</span>
                     </button>
                     <div class="error-banner ${isDownloadPossible ? 'hidden' : ''}" id="err_${video.id}">
-                        ${video.downloadNotice || `✓ ${currentSiteName} stream detected.`}
+                        ${video.downloadNotice || `${currentSiteName} stream detected.`}
                     </div>
                 `;
 
@@ -321,9 +329,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     resTag.textContent = 'Downloaded';
                 }
 
-                if (thumbBox && thumbUrl && !thumbBox.querySelector('.thumb-image')) {
+                if (thumbBox && thumbUrl && !thumbUrl.includes('data:image/svg+xml') && !thumbBox.querySelector('.thumb-image')) {
                     thumbBox.innerHTML = `
-                        <img class="thumb-image" src="${thumbUrl}" alt="thumb">
+                        <img class="thumb-image" src="${thumbUrl}" alt="Thumbnail">
                         ${video.duration ? `<span class="duration-chip">${video.duration}</span>` : ''}
                     `;
                 }
@@ -331,25 +339,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ─── 4. CARD ACTIONS (OPENS DEDICATED HIGH-SPEED TAB) ────────────────────
+    // Bind Card Actions
     function bindCardActions(video, card, siteName) {
         const dlBtn = card.querySelector(`#btn_dl_${video.id}`);
         const qualSelect = card.querySelector(`#qual_${video.id}`);
         const resTag = card.querySelector(`#res_tag_${video.id}`);
         const errBanner = card.querySelector(`#err_${video.id}`);
 
-        // YouTube Protected (Adaptive Chunking Policy)
         if (video.isYouTube) {
             qualSelect.innerHTML = '<option value="">Protected YouTube Stream</option>';
             dlBtn.innerHTML = '<span>Download Unavailable</span>';
             dlBtn.disabled = true;
             resTag.textContent = 'YouTube Video';
-            errBanner.textContent = video.downloadNotice || 'YouTube video detected — direct stream uses protected adaptive chunking (download unavailable).';
+            errBanner.textContent = video.downloadNotice || 'YouTube video detected — direct stream uses protected adaptive chunking.';
             errBanner.classList.remove('hidden');
             return;
         }
 
-        // Instagram Restricted
         if (video.platform === 'Instagram' && video.isRestricted && !video.isDownloadable) {
             qualSelect.innerHTML = '<option value="">Protected Instagram Reel</option>';
             dlBtn.innerHTML = '<span>Download Unavailable</span>';
@@ -360,17 +366,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // Direct Progressive MP4 (Instagram, HTML5 Video, CDN Streams)
         if (video.isDirectMp4 && video.url && video.url.startsWith('http') && !video.url.includes('.m3u8')) {
             const qOpt = video.qualityLabel || (video.resolution ? `Original MP4 (${video.resolution})` : 'Original Quality (MP4)');
             qualSelect.innerHTML = `<option value="">${qOpt}</option>`;
-            dlBtn.innerHTML = `<span>Download ${siteName === 'Instagram' ? 'Reel (MP4)' : 'Video'}</span>`;
+            dlBtn.innerHTML = `<span>Download ${siteName === 'Instagram' ? 'Reel' : 'Video'}</span>`;
             dlBtn.disabled = false;
-            resTag.textContent = 'Ready to Download';
+            resTag.textContent = 'Ready';
             errBanner.classList.add('hidden');
         }
 
-        // Stream Inspection (PixelFlix, Generic Players, Master Playlists)
         if (video.url && video.url.startsWith('http') && !card.dataset.inspected) {
             card.dataset.inspected = 'true';
             window.StreamDetector.parseHls(video.url, tab.id).then(parsed => {
@@ -385,19 +389,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                     window.QualitySelector.populate(qualSelect, parsed.variants);
                     const best = parsed.bestVariant || parsed.variants[0];
                     const cleanLabel = best.label.split(' • ')[0];
-                    resTag.textContent = `${cleanLabel} Available`;
+                    resTag.textContent = `${cleanLabel}`;
                     dlBtn.innerHTML = `<span>Download ${cleanLabel}</span>`;
                     dlBtn.disabled = false;
                     errBanner.classList.add('hidden');
                 } else if (!parsed.isInvalid) {
-                    resTag.textContent = 'Ready to Download';
-                    qualSelect.innerHTML = '<option value="">⭐ Best Quality (Auto)</option>';
+                    resTag.textContent = 'Ready';
+                    qualSelect.innerHTML = '<option value="">Highest Available (Auto)</option>';
                     dlBtn.innerHTML = `<span>Download Video</span>`;
                     dlBtn.disabled = false;
                     errBanner.classList.add('hidden');
                 }
             }).catch(() => {
-                resTag.textContent = 'Ready to Download';
+                resTag.textContent = 'Ready';
                 dlBtn.disabled = false;
             });
         }
@@ -410,11 +414,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // Launch Dedicated Downloader Tab on Download click
+        // Launch Downloader Tab
         dlBtn.addEventListener('click', async () => {
             if (dlBtn.disabled) return;
 
-            const targetUrl = qualSelect.value || video.url;
+            let targetUrl = qualSelect.value || video.url;
+            if (!targetUrl || !targetUrl.startsWith('http')) {
+                const key = `tab_media_${tab.id}`;
+                const stored = await chrome.storage.local.get(key);
+                const list = stored[key] || [];
+                const found = list.find(item => item.url && item.url.startsWith('http'));
+                if (found) {
+                    targetUrl = found.url;
+                }
+            }
+
             if (!targetUrl || !targetUrl.startsWith('http')) {
                 errBanner.textContent = 'Waiting for media stream to buffer in player. Please play the video for 2 seconds and retry.';
                 errBanner.classList.remove('hidden');
@@ -425,9 +439,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentShow = video.showName || currentTitle;
             const currentSub = video.subtitle || '';
             const selectedQualityLabel = qualSelect.options[qualSelect.selectedIndex]?.text || '1080p Full HD';
-            const thumbUrl = video.thumbnail || liveThumbnail || '';
+            const thumbUrl = video.thumbnail || liveThumbnail || (livePageMetadata ? livePageMetadata.thumbnail : '') || '';
+            const durationStr = video.duration || (livePageMetadata ? livePageMetadata.duration : '') || '';
 
-            // Open Dedicated Downloader Tab with unlimited RAM and non-stop background execution
             const params = new URLSearchParams({
                 url: targetUrl,
                 title: currentTitle,
@@ -436,11 +450,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 quality: selectedQualityLabel,
                 platform: siteName,
                 thumbnail: thumbUrl,
+                duration: durationStr,
                 tabId: String(tab.id),
-                season: video.season !== undefined ? String(video.season) : '',
-                episode: video.episode !== undefined ? String(video.episode) : '',
-                episodeTitle: video.episodeTitle || ''
+                threads: userSettings.threads || '64'
             });
+
+            if (video.season !== undefined && video.season !== null && !isNaN(Number(video.season))) {
+                params.set('season', String(video.season));
+            }
+            if (video.episode !== undefined && video.episode !== null && !isNaN(Number(video.episode))) {
+                params.set('episode', String(video.episode));
+            }
+            if (video.episodeTitle && typeof video.episodeTitle === 'string' && !video.episodeTitle.toLowerCase().includes('nan')) {
+                params.set('episodeTitle', video.episodeTitle);
+            }
 
             const downloaderUrl = chrome.runtime.getURL(`src/downloader/downloader.html?${params.toString()}`);
             chrome.tabs.create({ url: downloaderUrl });
@@ -448,7 +471,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ─── 5. DOWNLOAD HISTORY ───────────────────────────────────────────────
+    // Render Download History
     function renderCompletedList(items) {
         completedList.innerHTML = '';
         items.slice(0, 10).forEach(item => {
@@ -456,11 +479,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             div.className = 'history-item';
             div.innerHTML = `
                 <div class="history-title-col">
-                    <span class="history-filename" title="${item.filename || item.title}">✓ ${item.filename || item.title}</span>
+                    <span class="history-filename" title="${item.filename || item.title}">${item.filename || item.title}</span>
                     <span class="history-meta">${item.quality || ''} • ${item.size || ''} • ${item.site || ''}</span>
                 </div>
                 <div class="history-actions">
-                    ${item.downloadId ? `<button class="history-btn btn-open-folder" data-dlid="${item.downloadId}" title="Open Folder">📂 Open folder</button>` : ''}
+                    ${item.downloadId ? `<button class="history-btn btn-open-folder" data-dlid="${item.downloadId}" title="Open Folder">Open</button>` : ''}
                     <button class="history-btn btn-remove-hist" data-id="${item.id}" title="Remove">✕</button>
                 </div>
             `;

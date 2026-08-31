@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Stream Helper — Video Downloader",
-  "version": "3.1.2",
-  "description": "Professional multi-site video stream detector and authorized local saver with dedicated high-speed downloader hub.",
+  "version": "5.5.0",
+  "description": "Stealth, high-performance multi-site video stream detector and authorized local saver with video thumbnail preview, duration timestamp overlay, and dynamic size badges.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -43,7 +43,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/**/*"],
+      "resources": ["src/**/*", "icons/*"],
       "matches": ["<all_urls>"]
     }
   ],

@@ -3,133 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Helper — Downloader Hub</title>
+    <title>Stream Helper — Downloader</title>
     <link rel="stylesheet" href="downloader.css">
 </head>
 <body>
-    <div class="app-container">
+    <div class="container">
         <!-- Header -->
-        <header class="top-nav">
+        <header class="header">
             <div class="brand">
-                <div class="logo-icon">⚡</div>
-                <div class="brand-text">
-                    <h1>Stream Helper</h1>
-                    <span class="sub-brand">Dedicated Downloader Hub • Non-Stop High Speed</span>
-                </div>
+                <img src="../../icons/icon48.png" alt="" class="logo">
+                <span class="app-name">Stream Helper</span>
+                <span class="version-tag">v5.5.0</span>
             </div>
-            <div class="nav-badges">
-                <span class="chip chip-online">● High Speed Engine Active</span>
-                <span class="chip chip-ram">⚡ Unlimited Tab RAM</span>
+            <div class="header-right">
+                <div class="thread-picker">
+                    <label for="selActiveThreads">Threads</label>
+                    <select id="selActiveThreads">
+                        <option value="8">8 Threads (Standard)</option>
+                        <option value="16">16 Threads (Fast)</option>
+                        <option value="32">32 Threads (Turbo)</option>
+                        <option value="64" selected>64 Threads (Extreme Max — Recommended)</option>
+                        <option value="128">128 Threads (Ultra Fiber)</option>
+                        <option value="256">256 Threads (Hyper Max)</option>
+                    </select>
+                </div>
             </div>
         </header>
 
-        <!-- Main Content Area -->
-        <main class="main-card">
-            <!-- Video Info Section -->
-            <div class="media-header">
-                <div class="thumb-container" id="thumbBox">
-                    <div class="thumb-placeholder" id="thumbPlaceholder">🎬</div>
-                </div>
-                <div class="media-details">
-                    <div class="platform-row">
-                        <span class="badge badge-platform" id="platformBadge">PixelFlix</span>
-                        <span class="badge badge-quality" id="qualityBadge">⭐ 1080p Full HD</span>
-                        <span class="badge badge-format" id="formatBadge">MP4 Container</span>
+        <!-- Main Panel -->
+        <main class="panel">
+            <!-- Media Info Row -->
+            <div class="media-row">
+                <div class="media-thumb" id="thumbBox">
+                    <img id="thumbImg" src="" alt="Thumbnail" style="display: none;">
+                    <div class="thumb-empty" id="thumbPlaceholder">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
                     </div>
-                    <h2 class="video-title" id="videoTitle">Preparing Stream...</h2>
-                    <p class="video-subtitle" id="videoSubtitle">Fetching media segments and playlist information...</p>
-                    <div class="target-filename-box">
-                        <span class="file-icon">📁</span>
-                        <span class="file-label">Saving as:</span>
-                        <span class="target-filename" id="targetFilename">Video.mp4</span>
+                    <span class="thumb-duration" id="thumbDurationOverlay" style="display: none;">00:00</span>
+                </div>
+                <div class="media-meta">
+                    <div class="meta-tags">
+                        <span class="tag tag-platform" id="platformBadge">PixelFlix</span>
+                        <span class="tag tag-accent" id="qualityBadge">1080p</span>
+                        <span class="tag tag-duration" id="durationBadge" style="display: none;">⏱️ 00:00</span>
+                        <span class="tag tag-size" id="sizeBadge" style="display: none;">📦 Estimating...</span>
+                        <span class="tag" id="formatBadge">MP4 Container</span>
+                        <span class="tag tag-dim" id="codecBadge">H.264 / AAC</span>
+                        <span class="tag tag-threads" id="threadsBadge">⚡ 64 Threads</span>
+                    </div>
+                    <h1 class="title" id="videoTitle">Connecting...</h1>
+                    <div class="file-path">
+                        <span class="file-label">Destination:</span>
+                        <span class="file-val" id="targetFilename">Video.mp4</span>
                     </div>
                 </div>
             </div>
 
-            <!-- Download Status & Progress Area -->
-            <div class="download-section">
-                <!-- Status Row -->
-                <div class="progress-status-row">
-                    <div class="status-left">
-                        <div class="status-pulse" id="statusPulse"></div>
-                        <span class="status-heading" id="statusHeading">Initializing download pipeline...</span>
+            <!-- Progress Block -->
+            <div class="progress-wrap">
+                <div class="progress-info">
+                    <div class="status-col">
+                        <span class="status-msg" id="statusHeading">Connecting to stream...</span>
                     </div>
-                    <div class="status-right">
-                        <span class="percent-counter" id="percentCounter">0%</span>
-                    </div>
+                    <span class="percent" id="percentCounter">0%</span>
                 </div>
-
-                <!-- Progress Bar -->
-                <div class="progress-track">
-                    <div class="progress-fill" id="progressFill" style="width: 0%;">
-                        <div class="progress-glow"></div>
-                    </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
                 </div>
+            </div>
 
-                <!-- Live Metrics Grid -->
-                <div class="metrics-grid">
-                    <div class="metric-card">
-                        <span class="metric-label">Downloaded Size</span>
-                        <span class="metric-val" id="valSize">0 MB / Estimating...</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="metric-label">Transfer Speed</span>
-                        <span class="metric-val speed-val" id="valSpeed">0.0 MB/s</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="metric-label">Segments Processed</span>
-                        <span class="metric-val" id="valSegments">0 / 0</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="metric-label">Estimated Time Left</span>
-                        <span class="metric-val" id="valEta">Calculating...</span>
-                    </div>
+            <!-- Stats Metrics -->
+            <div class="stats-row">
+                <div class="stat-item">
+                    <span class="stat-label">Downloaded</span>
+                    <span class="stat-value" id="valSize">0 MB</span>
                 </div>
-
-                <!-- Error Alert Box -->
-                <div class="alert-box alert-error hidden" id="errorBox">
-                    <span class="alert-icon">⚠️</span>
-                    <div class="alert-content">
-                        <strong>Download Error:</strong>
-                        <span id="errorMessage">Something went wrong.</span>
-                    </div>
-                    <button class="btn-retry" id="btnRetry">🔄 Retry Download</button>
+                <div class="stat-item">
+                    <span class="stat-label">Transfer Speed</span>
+                    <span class="stat-value stat-speed" id="valSpeed">0.0 MB/s</span>
                 </div>
-
-                <!-- Success Box -->
-                <div class="alert-box alert-success hidden" id="successBox">
-                    <span class="alert-icon">🎉</span>
-                    <div class="alert-content">
-                        <strong>Download Completed Successfully!</strong>
-                        <span>Your file has been assembled and saved to your Downloads folder.</span>
-                    </div>
-                    <button class="btn-open-folder" id="btnOpenFolder">📂 Open in Folder</button>
+                <div class="stat-item">
+                    <span class="stat-label">Segments</span>
+                    <span class="stat-value" id="valSegments">0 / 0</span>
                 </div>
+                <div class="stat-item">
+                    <span class="stat-label">Time Left</span>
+                    <span class="stat-value" id="valEta">--</span>
+                </div>
+            </div>
 
-                <!-- Action Controls -->
-                <div class="actions-row">
-                    <button class="btn-action btn-pause" id="btnPause">
-                        <span class="icon">⏸️</span>
-                        <span class="btn-text">Pause Download</span>
+            <!-- Live Speed Sparkline Canvas -->
+            <div class="sparkline-wrapper">
+                <div class="sparkline-header">
+                    <span class="sparkline-title">Real-Time Throughput</span>
+                    <span class="sparkline-peak" id="valPeakSpeed">Peak: 0.0 MB/s</span>
+                </div>
+                <canvas id="speedCanvas" class="speed-canvas" width="600" height="42"></canvas>
+            </div>
+
+            <!-- Error Notice -->
+            <div class="alert alert-error hidden" id="errorBox">
+                <span class="alert-msg" id="errorMessage">Download failed.</span>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn btn-sm btn-secondary hidden" id="btnSavePartialError">Save Partial Video</button>
+                    <button class="btn btn-sm btn-danger" id="btnRetry">Retry</button>
+                </div>
+            </div>
+
+            <!-- Success Notice -->
+            <div class="alert alert-success hidden" id="successBox">
+                <span class="alert-msg">✓ Download complete. File saved to your Downloads folder.</span>
+                <button class="btn btn-sm btn-primary" id="btnOpenFolder">Show in folder</button>
+            </div>
+
+            <!-- Actions & Keyboard Shortcuts Hint -->
+            <div class="actions-row">
+                <div class="keyboard-hints">
+                    <span class="hint-pill"><kbd>Space</kbd> Pause/Resume</span>
+                    <span class="hint-pill"><kbd>Esc</kbd> Cancel</span>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-secondary hidden" id="btnSavePartial">
+                        <span>Save Partial (0%)</span>
                     </button>
-                    <button class="btn-action btn-cancel" id="btnCancel">
-                        <span class="icon">✕</span>
-                        <span class="btn-text">Cancel Download</span>
+                    <button class="btn btn-secondary" id="btnPause">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="5" y="4" width="4" height="16" rx="1"></rect>
+                            <rect x="15" y="4" width="4" height="16" rx="1"></rect>
+                        </svg>
+                        <span class="btn-text">Pause</span>
                     </button>
+                    <button class="btn btn-subtle" id="btnCancel">Cancel</button>
                 </div>
             </div>
         </main>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <span>Stream Helper v3.1.0 • Multi-Site Non-DRM Video Downloader Hub</span>
-            <span class="note">💡 Tip: You can minimize this tab, the download will continue uninterrupted at full speed.</span>
-        </footer>
     </div>
 
     <!-- Scripts -->
     <script src="../utils/helpers.js"></script>
     <script src="../utils/storage.js"></script>
+    <script src="../download/chunk-storage.js"></script>
     <script src="../download/filename-generator.js"></script>
     <script src="../detectors/media-detector.js"></script>
     <script src="../detectors/stream-detector.js"></script>

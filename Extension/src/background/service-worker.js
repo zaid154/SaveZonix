@@ -1,12 +1,95 @@
-// src/background/service-worker.js — Stream Sniffer, Dynamic Referer Injection & Multi-Candidate Coordinator
+// src/background/service-worker.js — Pure Native Stealth Stream Sniffer (Manifest V3)
 
-// Strictly match genuine video streams only (.m3u8, .mp4, .webm, .m4v, /hls/, videoplayback, proxy.php, serve_m3u8)
-const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|videoplayback|serve_m3u8|proxy\.php)/i;
+// Smart Dynamic Header Spoofing for Downloader Tab (Bypasses Hotlink Protection on phncdn, xnxx, pixelflix)
+if (chrome.declarativeNetRequest) {
+    chrome.declarativeNetRequest.getDynamicRules().then(rules => {
+        const ids = rules.map(r => r.id);
+        chrome.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds: ids,
+            addRules: [
+                // 1. Pornhub CDN Rule
+                {
+                    id: 2001,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://www.pornhub.org' },
+                            { header: 'Referer', operation: 'set', value: 'https://www.pornhub.org/' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'phncdn.com',
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 2. XNXX / XVideos CDN Rule
+                {
+                    id: 2002,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://www.xnxx.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://www.xnxx.com/' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'xnxx-cdn.com',
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 3. PixelFlix / PvrPlay Rule
+                {
+                    id: 2003,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://pixelflix.cc' },
+                            { header: 'Referer', operation: 'set', value: 'https://pixelflix.cc/' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'pixelflix.cc',
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 4. Generic Rule (Strip extension origin for all other CDNs)
+                {
+                    id: 2004,
+                    priority: 1,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'remove' },
+                            { header: 'Referer', operation: 'remove' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                }
+            ]
+        }).catch(() => { });
+    }).catch(() => { });
+}
+
+// Strictly match genuine video master manifests and direct video containers
+const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|videoplayback|serve_m3u8|proxy\.php\?url=)/i;
 
 function getStreamPriorityScore(url) {
     if (!url || typeof url !== 'string') return 0;
     const clean = url.split('?')[0].toLowerCase();
+    
+    // Higher priority for full main movie / episode HLS playlists
+    if (url.includes('/videos/') && (clean.endsWith('.m3u8') || url.includes('/hls/'))) return 120;
     if (clean.endsWith('.m3u8') || url.includes('.m3u8') || url.includes('/hls/') || url.includes('serve_m3u8')) return 100;
+    if (url.includes('/videos/') && (clean.endsWith('.mp4') || clean.endsWith('.webm'))) return 95;
     if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.m4v')) return 90;
     if (url.includes('googlevideo.com/videoplayback')) return 80;
     if (clean.endsWith('.mpd') || url.includes('.mpd')) return 70;
@@ -15,20 +98,38 @@ function getStreamPriorityScore(url) {
 
 function isSegmentOrInvalid(url) {
     if (!url || typeof url !== 'string' || !url.startsWith('http')) return true;
-    const clean = url.split('?')[0].toLowerCase();
     
-    // Strict non-media file & webpage rejection
-    if (clean.endsWith('.xml') || 
-        clean.endsWith('.json') || 
-        clean.endsWith('.txt') || 
-        clean.endsWith('.html') || 
+    const lower = url.toLowerCase();
+    const clean = lower.split('?')[0];
+    
+    // 1. Strict rejection of individual transport stream segments & chunk slices
+    if (clean.endsWith('.ts') || 
+        clean.endsWith('.m4s') || 
+        clean.endsWith('.mp4s') || 
+        lower.includes('seg-') || 
+        lower.includes('seg_') || 
+        lower.includes('/segment') || 
+        lower.includes('/fragment') || 
+        lower.includes('/chunk_') || 
+        lower.includes('range=')) {
+        return true;
+    }
+
+    // 2. Strict non-media file & webpage rejection
+    if (clean.endsWith('.html') || 
         clean.endsWith('.htm') || 
-        clean.endsWith('.asp') || 
-        clean.endsWith('.aspx') || 
-        clean.endsWith('.jsp') || 
+        clean.endsWith('.php') || 
         clean.endsWith('.js') || 
         clean.endsWith('.css') || 
+        clean.endsWith('.xml') || 
+        clean.endsWith('.json') || 
+        clean.endsWith('.txt') || 
+        clean.endsWith('.png') || 
+        clean.endsWith('.jpg') || 
+        clean.endsWith('.jpeg') || 
+        clean.endsWith('.gif') || 
         clean.endsWith('.svg') || 
+        clean.endsWith('.webp') || 
         clean.endsWith('.ico') || 
         clean.endsWith('.vtt') || 
         clean.endsWith('.srt') || 
@@ -42,58 +143,40 @@ function isSegmentOrInvalid(url) {
         return true;
     }
 
-    const lower = url.toLowerCase();
-    if (lower.includes('format=xml') || 
-        lower.includes('type=xml') || 
-        lower.includes('output=xml') || 
-        lower.includes('format=json') || 
-        lower.includes('type=json') || 
-        lower.includes('/subtitles/') ||
-        lower.includes('/captions/') ||
-        lower.includes('/embed/') ||
-        lower.includes('/player/') ||
-        lower.includes('/api/player') ||
-        lower.includes('/api/source') ||
-        lower.includes('/api/stream') ||
-        lower.includes('getsource')) {
+    // 3. Reject Ad Networks, Preroll Video Ads & Sponsored Clips
+    if (lower.includes('trafficjunky') || 
+        lower.includes('doubleclick.net') || 
+        lower.includes('googlesyndication') || 
+        lower.includes('exoclick') || 
+        lower.includes('juicyads') || 
+        lower.includes('tsyndicate') || 
+        lower.includes('ero-advertising') || 
+        lower.includes('adxpansion') || 
+        lower.includes('etahub') || 
+        lower.includes('/preroll') || 
+        lower.includes('/midroll') || 
+        lower.includes('/postroll') || 
+        lower.includes('/vast/') || 
+        lower.includes('/vpaid/') || 
+        lower.includes('ad_system') || 
+        lower.includes('delivery.trafficjunky') || 
+        lower.includes('creative.trafficjunky') || 
+        lower.includes('/ads/') || 
+        lower.includes('ad_type=preroll')) {
+        return true;
+    }
+
+    // 4. Rejection of tiny animated hover previews and trailers
+    if (clean.includes('_preview') || clean.includes('/preview/') || clean.includes('trailer.mp4') || 
+        clean.includes('sample.mp4') || clean.includes('thumbnail.mp4') || clean.includes('preview.mp4')) {
+        return true;
+    }
+
+    if (lower.includes('/subtitles/') || lower.includes('/captions/') || lower.includes('format=xml') || lower.includes('type=xml')) {
         return true;
     }
 
     return false;
-}
-
-// Dynamically set Referer / Origin header rules for CDN requests
-async function updateRefererRules(refererUrl) {
-    if (!chrome.declarativeNetRequest || !refererUrl) return;
-    try {
-        let origin = '';
-        try {
-            const parsed = new URL(refererUrl);
-            origin = parsed.origin;
-        } catch {
-            origin = refererUrl;
-        }
-
-        await chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: [1001],
-            addRules: [{
-                id: 1001,
-                priority: 1,
-                action: {
-                    type: 'modifyHeaders',
-                    requestHeaders: [
-                        { header: 'Referer', operation: 'set', value: 'https://embed.reelsdownload.online/' },
-                        { header: 'Origin', operation: 'set', value: 'https://embed.reelsdownload.online' }
-                    ]
-                },
-                condition: {
-                    resourceTypes: ['xmlhttprequest', 'media', 'other']
-                }
-            }]
-        });
-    } catch (e) {
-        console.warn('[StreamHelper] DeclarativeNetRequest notice:', e.message);
-    }
 }
 
 const tabTitles = {};
@@ -101,8 +184,8 @@ const tabThumbnails = {};
 const activeDownloads = {};
 
 async function addDetectedVideo(tabId, videoData) {
-    if (!videoData) return;
-    if (videoData.url && isSegmentOrInvalid(videoData.url)) return;
+    if (!videoData || !videoData.url) return;
+    if (isSegmentOrInvalid(videoData.url)) return;
 
     if (!tabId || tabId < 0) {
         try {
@@ -114,112 +197,78 @@ async function addDetectedVideo(tabId, videoData) {
         }
     }
 
-    // Automatically configure Referer header rule for embed player origin
-    const refererTarget = videoData.pageUrl || 'https://embed.reelsdownload.online/';
-    updateRefererRules(refererTarget);
-
     const key = `tab_media_${tabId}`;
     let list = [];
     try {
-        const stored = await chrome.storage.local.get(key);
-        list = stored[key] || [];
-    } catch {
-        list = [];
-    }
-
-    const bestTitle = (videoData.title && videoData.title !== 'Video' && videoData.title !== 'PvrPlay') 
-        ? videoData.title 
-        : (tabTitles[tabId] || 'Video');
-    const bestThumb = videoData.thumbnail || tabThumbnails[tabId] || '';
-
-    // Merge rich metadata (title/thumbnail) with real stream URL
-    let targetIndex = -1;
-
-    if (videoData.url) {
-        targetIndex = list.findIndex(item => item.url === videoData.url);
-        if (targetIndex < 0) {
-            const newScore = getStreamPriorityScore(videoData.url);
-            targetIndex = list.findIndex(item => !item.url || getStreamPriorityScore(item.url) < newScore);
-        }
-    } else {
-        targetIndex = list.findIndex(item => item.platform === (videoData.platform || 'Stream'));
-    }
-
-    const newEntry = {
-        id: (targetIndex >= 0 && list[targetIndex].id) ? list[targetIndex].id : ('vid_' + Math.random().toString(36).substr(2, 9)),
-        url: videoData.url || (targetIndex >= 0 ? list[targetIndex].url : '') || '',
-        audioUrl: videoData.audioUrl || (targetIndex >= 0 ? list[targetIndex].audioUrl : '') || '',
-        title: (bestTitle && bestTitle !== 'Video' && bestTitle !== 'Detected Video') ? bestTitle : (targetIndex >= 0 ? list[targetIndex].title : 'Video'),
-        showName: videoData.showName || (targetIndex >= 0 ? list[targetIndex].showName : 'Video') || 'Video',
-        subtitle: videoData.subtitle || (targetIndex >= 0 ? list[targetIndex].subtitle : '') || '',
-        season: videoData.season !== undefined ? videoData.season : (targetIndex >= 0 ? list[targetIndex].season : undefined),
-        episode: videoData.episode !== undefined ? videoData.episode : (targetIndex >= 0 ? list[targetIndex].episode : undefined),
-        episodeTitle: videoData.episodeTitle || (targetIndex >= 0 ? list[targetIndex].episodeTitle : ''),
-        domain: videoData.domain || (targetIndex >= 0 ? list[targetIndex].domain : 'pixelflix.cc') || 'pixelflix.cc',
-        sourceSite: videoData.sourceSite || videoData.platform || 'PixelFlix',
-        pageUrl: videoData.pageUrl || '',
-        thumbnail: bestThumb || (targetIndex >= 0 ? list[targetIndex].thumbnail : '') || '',
-        duration: videoData.duration || (targetIndex >= 0 ? list[targetIndex].duration : '') || '',
-        format: videoData.format || (videoData.url?.includes('.m3u8') ? 'HLS' : (targetIndex >= 0 ? list[targetIndex].format : 'HLS')),
-        container: videoData.container || 'MP4',
-        mediaType: videoData.mediaType || 'video/mp4',
-        resolution: videoData.resolution || (targetIndex >= 0 ? list[targetIndex].resolution : '') || '',
-        qualityLabel: videoData.qualityLabel || '',
-        platform: videoData.platform || (targetIndex >= 0 ? list[targetIndex].platform : 'PixelFlix') || 'PixelFlix',
-        isDirectMp4: videoData.isDirectMp4 || false,
-        isYouTube: videoData.isYouTube || false,
-        isDownloadable: true,
-        isRestricted: videoData.isRestricted || false,
-        downloadNotice: videoData.downloadNotice || '',
-        score: getStreamPriorityScore(videoData.url || (targetIndex >= 0 ? list[targetIndex].url : '')),
-        timestamp: Date.now()
-    };
-
-    if (targetIndex >= 0) {
-        list[targetIndex] = newEntry;
-    } else {
-        list.push(newEntry);
-    }
-
-    // Rank list strictly by stream priority score (HLS .m3u8 > MP4 > others)
-    list.sort((a, b) => {
-        const scoreA = getStreamPriorityScore(a.url);
-        const scoreB = getStreamPriorityScore(b.url);
-        if (scoreA !== scoreB) return scoreB - scoreA;
-        return 0;
-    });
-
-    if (list.length > 4) {
-        list = list.slice(0, 4);
-    }
-
-    try {
-        await chrome.storage.local.set({ [key]: list });
-        if (tabId > 0) {
-            const hasValidUrl = list.some(item => item.url && item.url.startsWith('http') && getStreamPriorityScore(item.url) >= 70);
-            const countStr = hasValidUrl ? '1' : (list.length > 0 ? '1' : '');
-            chrome.action.setBadgeText({ tabId: tabId, text: countStr }, () => {
-                if (chrome.runtime.lastError) { }
-            });
-            if (countStr) {
-                chrome.action.setBadgeBackgroundColor({ tabId: tabId, color: '#2563eb' }, () => {
-                    if (chrome.runtime.lastError) { }
-                });
-            }
+        const stored = await chrome.storage.local.get([key]);
+        if (stored[key] && Array.isArray(stored[key])) {
+            list = stored[key];
         }
     } catch { }
+
+    const exists = list.some(item => item.url === videoData.url);
+    if (!exists) {
+        if (!videoData.title && tabTitles[tabId]) {
+            videoData.title = tabTitles[tabId];
+        }
+        if (!videoData.thumbnail && tabThumbnails[tabId]) {
+            videoData.thumbnail = tabThumbnails[tabId];
+        }
+
+        list.push(videoData);
+
+        // Sort strictly so full main video stream is ALWAYS candidate 0
+        list.sort((a, b) => getStreamPriorityScore(b.url) - getStreamPriorityScore(a.url));
+
+        const obj = {};
+        obj[key] = list;
+        await chrome.storage.local.set(obj);
+
+        // Keep clean badge count: "1" for detected video on active tab
+        chrome.action.setBadgeText({ tabId, text: list.length > 0 ? '1' : '' });
+        chrome.action.setBadgeBackgroundColor({ tabId, color: '#3fb950' });
+
+        try {
+            chrome.runtime.sendMessage({ action: 'videosUpdated', tabId, videos: list }).catch(() => { });
+        } catch { }
+    }
 }
 
-// 1. Network Request URL Sniffing (EXCLUDE IFRAME / SUBFRAME NAVIGATION)
+// ─── TAB LIFECYCLE MANAGEMENT ─────────────────────────────────────────────
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'loading') {
+        const key = `tab_media_${tabId}`;
+        chrome.storage.local.remove([key]);
+        delete tabTitles[tabId];
+        delete tabThumbnails[tabId];
+        chrome.action.setBadgeText({ tabId, text: '' });
+    }
+
+    if (tab.title) {
+        let clean = tab.title
+            .replace(/^Watch\s+/i, '')
+            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
+            .trim();
+        if (clean && clean.length > 2) {
+            tabTitles[tabId] = clean;
+        }
+    }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+    const key = `tab_media_${tabId}`;
+    chrome.storage.local.remove([key]);
+    delete tabTitles[tabId];
+    delete tabThumbnails[tabId];
+});
+
+// ─── PURE NETWORK SNIFFING (Zero Performance Impact) ─────────────────────
+// 1. Passive Background Request Sniffing
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
-        if (details.type === 'main_frame' || 
-            details.type === 'sub_frame' || 
-            details.type === 'script' || 
-            details.type === 'stylesheet' || 
-            details.type === 'font') {
-            return;
-        }
+        if (details.type === 'main_frame' || details.type === 'sub_frame') return;
+        if (isSegmentOrInvalid(details.url)) return;
 
         if (details.url && MEDIA_URL_REGEX.test(details.url) && !isSegmentOrInvalid(details.url)) {
             let domain = 'pixelflix.cc';
@@ -227,14 +276,22 @@ chrome.webRequest.onBeforeRequest.addListener(
 
             const isInstaCdn = details.url.includes('cdninstagram.com') || details.url.includes('fbcdn.net');
             const isYtCdn = details.url.includes('googlevideo.com');
+            const isPhCdn = details.url.includes('phncdn.com') || details.url.includes('pornhub.com');
+            const isXnxxCdn = details.url.includes('xnxx-cdn.com') || details.url.includes('xnxx.com') || details.url.includes('xvideos');
+
+            let platformName = 'PixelFlix';
+            if (isInstaCdn) platformName = 'Instagram';
+            else if (isYtCdn) platformName = 'YouTube';
+            else if (isPhCdn) platformName = 'Pornhub';
+            else if (isXnxxCdn) platformName = 'XNXX';
 
             addDetectedVideo(details.tabId, {
                 url: details.url,
-                domain: isInstaCdn ? 'instagram.com' : (isYtCdn ? 'youtube.com' : domain),
+                domain: domain,
                 format: (details.url.includes('.m3u8') || details.url.includes('/hls/') || details.url.includes('serve_m3u8')) ? 'HLS' : (details.url.includes('.mpd') ? 'DASH' : 'MP4'),
-                platform: isInstaCdn ? 'Instagram' : (isYtCdn ? 'YouTube' : 'PixelFlix'),
+                platform: platformName,
                 isYouTube: isYtCdn,
-                isDirectMp4: isInstaCdn,
+                isDirectMp4: isInstaCdn || details.url.includes('.mp4'),
                 isDownloadable: !isYtCdn
             });
         }
@@ -242,11 +299,11 @@ chrome.webRequest.onBeforeRequest.addListener(
     { urls: ["<all_urls>"] }
 );
 
-// 2. Response Headers Content-Type Sniffing (Guaranteed Media Confirmation)
+// 2. Passive Background Response Header Sniffing
 chrome.webRequest.onHeadersReceived.addListener(
     (details) => {
-        if (details.type === 'main_frame' || details.type === 'sub_frame' || details.type === 'script' || details.type === 'stylesheet') return;
-        if (!details.responseHeaders || !details.url || !details.url.startsWith('http')) return;
+        if (!details.responseHeaders) return;
+        if (details.type === 'main_frame' || details.type === 'sub_frame') return;
         if (isSegmentOrInvalid(details.url)) return;
 
         const ctHeader = details.responseHeaders.find(h => h.name.toLowerCase() === 'content-type');
@@ -254,11 +311,12 @@ chrome.webRequest.onHeadersReceived.addListener(
 
         const cType = ctHeader.value.toLowerCase();
 
-        // Strictly reject non-media response types
+        // Strictly reject non-media response types and segment chunks
         if (cType.includes('text/xml') || 
             cType.includes('application/xml') || 
             cType.includes('text/html') || 
-            cType.includes('application/json')) {
+            cType.includes('application/json') ||
+            cType.includes('video/mp2t')) { // video/mp2t is an internal .ts segment, not a master manifest
             return;
         }
 
@@ -268,7 +326,7 @@ chrome.webRequest.onHeadersReceived.addListener(
                       cType.includes('audio/mpegurl') ||
                       details.url.includes('.m3u8') ||
                       details.url.includes('serve_m3u8');
-        const isMp4 = cType.includes('video/mp4') || cType.includes('video/webm') || cType.includes('video/mp2t');
+        const isMp4 = cType.includes('video/mp4') || cType.includes('video/webm');
 
         if (isHls || isMp4) {
             let domain = 'pixelflix.cc';
@@ -276,14 +334,22 @@ chrome.webRequest.onHeadersReceived.addListener(
 
             const isInstaCdn = details.url.includes('cdninstagram.com') || details.url.includes('fbcdn.net');
             const isYtCdn = details.url.includes('googlevideo.com');
+            const isPhCdn = details.url.includes('phncdn.com') || details.url.includes('pornhub.com');
+            const isXnxxCdn = details.url.includes('xnxx-cdn.com') || details.url.includes('xnxx.com') || details.url.includes('xvideos');
+
+            let platformName = 'PixelFlix';
+            if (isInstaCdn) platformName = 'Instagram';
+            else if (isYtCdn) platformName = 'YouTube';
+            else if (isPhCdn) platformName = 'Pornhub';
+            else if (isXnxxCdn) platformName = 'XNXX';
 
             addDetectedVideo(details.tabId, {
                 url: details.url,
-                domain: isInstaCdn ? 'instagram.com' : (isYtCdn ? 'youtube.com' : domain),
+                domain: domain,
                 format: isHls ? 'HLS' : 'MP4',
-                platform: isInstaCdn ? 'Instagram' : (isYtCdn ? 'YouTube' : 'PixelFlix'),
+                platform: platformName,
                 isYouTube: isYtCdn,
-                isDirectMp4: isInstaCdn,
+                isDirectMp4: isInstaCdn || isMp4,
                 isDownloadable: !isYtCdn
             });
         }
@@ -301,114 +367,38 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         sendResponse({ success: true });
     } else if (req.action === 'updateTabTitle') {
         if (tabId > 0 && req.title) {
-            tabTitles[tabId] = req.title;
-            if (req.thumbnail) tabThumbnails[tabId] = req.thumbnail;
-
-            const key = `tab_media_${tabId}`;
-            chrome.storage.local.get(key).then(data => {
-                const list = data[key] || [];
-                let modified = false;
-                list.forEach(item => {
-                    if (item.title !== req.title) {
-                        item.title = req.title;
-                        item.showName = req.metadata?.showName || item.showName;
-                        item.subtitle = req.metadata?.subtitle || item.subtitle;
-                        item.season = req.metadata?.season !== undefined ? req.metadata.season : item.season;
-                        item.episode = req.metadata?.episode !== undefined ? req.metadata.episode : item.episode;
-                        item.episodeTitle = req.metadata?.episodeTitle || item.episodeTitle;
-                        item.platform = req.metadata?.platform || item.platform;
-                        modified = true;
-                    }
-                    if (req.thumbnail && !item.thumbnail) {
-                        item.thumbnail = req.thumbnail;
-                        modified = true;
-                    }
-                });
-                if (modified) {
-                    chrome.storage.local.set({ [key]: list });
-                }
-            }).catch(() => { });
-        }
-        sendResponse({ success: true });
-    } else if (req.action === 'getTabVideos') {
-        const key = `tab_media_${req.tabId}`;
-        chrome.storage.local.get([key, 'completed_downloads', 'user_settings']).then(data => {
-            sendResponse({
-                videos: data[key] || [],
-                completed: data.completed_downloads || [],
-                settings: data.user_settings || { defaultQuality: 'best', autoDetectEpisode: true },
-                activeDownloads: activeDownloads
-            });
-        }).catch(() => {
-            sendResponse({ videos: [], completed: [], settings: {}, activeDownloads: {} });
-        });
-        return true;
-    } else if (req.action === 'updateDownloadState') {
-        if (req.downloadId) {
-            if (req.state.isDone) {
-                delete activeDownloads[req.downloadId];
-            } else {
-                activeDownloads[req.downloadId] = req.state;
+            let clean = req.title
+                .replace(/^Watch\s+/i, '')
+                .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+                .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
+                .trim();
+            if (clean && clean.length > 2) {
+                tabTitles[tabId] = clean;
             }
         }
         sendResponse({ success: true });
-    } else if (req.action === 'saveCompletedDownload') {
-        chrome.storage.local.get('completed_downloads').then(data => {
-            let list = (data.completed_downloads || []).filter(item => item && item.filename && item.filename !== 'Video.mp4');
-            list = list.filter(item => item.filename !== req.item.filename && item.title !== req.item.title);
-            list.unshift(req.item);
-            chrome.storage.local.set({ completed_downloads: list.slice(0, 30) });
-            sendResponse({ success: true });
-        }).catch(() => { });
-        return true;
-    } else if (req.action === 'removeCompletedDownload') {
-        chrome.storage.local.get('completed_downloads').then(data => {
-            const list = (data.completed_downloads || []).filter(item => item.id !== req.id);
-            chrome.storage.local.set({ completed_downloads: list });
-            sendResponse({ success: true });
-        }).catch(() => { });
-        return true;
-    } else if (req.action === 'saveSettings') {
-        chrome.storage.local.set({ user_settings: req.settings }).then(() => {
-            sendResponse({ success: true });
-        }).catch(() => { });
-        return true;
-    } else if (req.action === 'clearTabMedia') {
-        const targetTab = req.tabId || tabId;
-        if (targetTab > 0) {
-            chrome.storage.local.remove(`tab_media_${targetTab}`).catch(() => { });
-            delete tabTitles[targetTab];
-            delete tabThumbnails[targetTab];
-            try {
-                chrome.action.setBadgeText({ tabId: targetTab, text: '' }, () => {
-                    if (chrome.runtime.lastError) { }
-                });
-            } catch { }
+    } else if (req.action === 'updateTabThumbnail') {
+        if (tabId > 0 && req.thumbnail) {
+            tabThumbnails[tabId] = req.thumbnail;
         }
         sendResponse({ success: true });
-        return true;
+    } else if (req.action === 'openDownloaderTab') {
+        const p = new URLSearchParams();
+        p.set('url', req.url || '');
+        p.set('title', req.title || 'Video');
+        p.set('showName', req.showName || req.title || 'Video');
+        p.set('quality', req.quality || '1080p Full HD');
+        p.set('platform', req.platform || 'PixelFlix');
+        p.set('thumbnail', req.thumbnail || '');
+        p.set('threads', req.threads || '4');
+        if (req.season) p.set('season', String(req.season));
+        if (req.episode) p.set('episode', String(req.episode));
+        if (req.episodeTitle) p.set('episodeTitle', req.episodeTitle);
+        if (req.tabId) p.set('tabId', String(req.tabId));
+
+        const hubUrl = chrome.runtime.getURL(`src/downloader/downloader.html?${p.toString()}`);
+        chrome.tabs.create({ url: hubUrl });
+        sendResponse({ success: true });
     }
     return true;
-});
-
-// Clear tab storage on page reload or URL navigation (NEVER clears completed_downloads history)
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (tabId > 0 && (changeInfo.status === 'loading' || changeInfo.url)) {
-        chrome.storage.local.remove(`tab_media_${tabId}`).catch(() => { });
-        delete tabTitles[tabId];
-        delete tabThumbnails[tabId];
-        try {
-            chrome.action.setBadgeText({ tabId: tabId, text: '' }, () => {
-                if (chrome.runtime.lastError) { }
-            });
-        } catch { }
-    }
-});
-
-chrome.tabs.onRemoved.addListener((tabId) => {
-    if (tabId > 0) {
-        chrome.storage.local.remove(`tab_media_${tabId}`).catch(() => { });
-        delete tabTitles[tabId];
-        delete tabThumbnails[tabId];
-    }
 });

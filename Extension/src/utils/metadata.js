@@ -1,11 +1,47 @@
-// src/utils/metadata.js — Dynamic 6-Tier Metadata Extractor (Universal)
+// src/utils/metadata.js — Dynamic 6-Tier Metadata & Duration Extractor (Universal)
 
 (function (root) {
+    function cleanTitleString(title) {
+        if (!title || typeof title !== 'string') return '';
+        return title
+            .replace(/^Watch\s+/i, '')
+            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
+            .trim()
+            .replace(/[:\-–—\s]+$/, '');
+    }
+
+    function parseIsoDuration(durationStr) {
+        if (!durationStr || typeof durationStr !== 'string') return 0;
+        // Check if plain seconds integer
+        if (/^\d+$/.test(durationStr.trim())) {
+            return parseInt(durationStr.trim(), 10);
+        }
+        // Match ISO 8601 duration: PT1H13M15S or PT13M15S or PT795S
+        const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/i);
+        if (match) {
+            const hrs = parseInt(match[1] || '0', 10);
+            const mins = parseInt(match[2] || '0', 10);
+            const secs = parseInt(match[3] || '0', 10);
+            return (hrs * 3600) + (mins * 60) + secs;
+        }
+        // Match time format MM:SS or HH:MM:SS
+        const timeMatch = durationStr.match(/(?:(\d+):)?(\d+):(\d+)/);
+        if (timeMatch) {
+            const hrs = parseInt(timeMatch[1] || '0', 10);
+            const mins = parseInt(timeMatch[2] || '0', 10);
+            const secs = parseInt(timeMatch[3] || '0', 10);
+            return (hrs * 3600) + (mins * 60) + secs;
+        }
+        return 0;
+    }
+
     function extractPageMetadata() {
         let showName = '';
         let seasonNum = null;
         let episodeNum = null;
         let episodeTitle = '';
+        let durationSeconds = 0;
 
         // ─── TIER 1: JSON-LD Schema.org ─────────────────────────────────────────
         const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
@@ -14,29 +50,29 @@
                 const data = JSON.parse(script.innerText);
                 const items = Array.isArray(data) ? data : [data];
                 for (const item of items) {
+                    if (item.duration) {
+                        const d = parseIsoDuration(item.duration);
+                        if (d > 0 && !durationSeconds) durationSeconds = d;
+                    }
                     if (item['@type'] === 'TVEpisode' || item['@type'] === 'Episode') {
                         if (item.partOfSeries?.name) showName = item.partOfSeries.name;
                         if (item.partOfSeason?.seasonNumber) seasonNum = parseInt(item.partOfSeason.seasonNumber, 10);
                         if (item.episodeNumber) episodeNum = parseInt(item.episodeNumber, 10);
                         if (item.name && item.name.toLowerCase() !== `episode ${episodeNum}`) episodeTitle = item.name;
-                    } else if (item['@type'] === 'TVSeries' || item['@type'] === 'Movie') {
+                    } else if (item['@type'] === 'TVSeries' || item['@type'] === 'Movie' || item['@type'] === 'VideoObject') {
                         if (item.name && !showName) showName = item.name;
                     }
                 }
             } catch { }
         }
 
-        // ─── TIER 2: Page Visible Headings & Show Title ────────────────────────
+        // ─── TIER 2: Page Visible Headings & Video Title ─────────────────────────
         if (!showName) {
-            const heading = document.querySelector('h1, h2, .watch-title, .anime-title, .film-name, .show-title, .title');
+            const heading = document.querySelector('h1, h2, .watch-title, .title, .video-title, .main-title, .entry-title');
             if (heading) {
                 const text = heading.innerText.trim();
-                if (text && text.length < 80) {
-                    showName = text.replace(/^Watch\s+/i, '')
-                                   .replace(/[-|–—].*$/, '')
-                                   .replace(/Season\s*\d+.*/i, '')
-                                   .replace(/Episode\s*\d+.*/i, '')
-                                   .trim();
+                if (text && text.length >= 2) {
+                    showName = cleanTitleString(text);
                 }
             }
         }
@@ -75,12 +111,13 @@
         if (!showName) {
             const ogTitle = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]')?.getAttribute('content');
             if (ogTitle) {
-                showName = ogTitle.replace(/^Watch\s+/i, '')
-                                  .replace(/[-|–—].*$/, '')
-                                  .replace(/Season\s*\d+.*/i, '')
-                                  .replace(/Episode\s*\d+.*/i, '')
-                                  .trim();
+                showName = cleanTitleString(ogTitle);
             }
+        }
+
+        const metaDuration = document.querySelector('meta[property="video:duration"], meta[itemprop="duration"]')?.getAttribute('content');
+        if (metaDuration && !durationSeconds) {
+            durationSeconds = parseIsoDuration(metaDuration);
         }
 
         const metaSeason = document.querySelector('meta[property="video:season"]')?.getAttribute('content');
@@ -89,7 +126,14 @@
         const metaEpisode = document.querySelector('meta[property="video:episode"]')?.getAttribute('content');
         if (metaEpisode && episodeNum === null) episodeNum = parseInt(metaEpisode, 10);
 
-        // ─── TIER 6: URL Search Parameters / Path ─────────────────────────────
+        // ─── TIER 6: HTML5 Video Tag Duration & URL Search Parameters ─────────
+        if (!durationSeconds) {
+            const videoTag = document.querySelector('video');
+            if (videoTag && !isNaN(videoTag.duration) && videoTag.duration > 0 && videoTag.duration !== Infinity) {
+                durationSeconds = Math.round(videoTag.duration);
+            }
+        }
+
         const currentUrl = window.location.href;
         if (seasonNum === null) {
             const sMatch = currentUrl.match(/[?&]season=(\d+)/i) || currentUrl.match(/\/season[_\-]?(\d+)/i);
@@ -101,15 +145,10 @@
             if (eMatch) episodeNum = parseInt(eMatch[1], 10);
         }
 
-        if (!showName) {
-            showName = document.title.replace(/^Watch\s+/i, '')
-                                     .replace(/[-|–—].*$/, '')
-                                     .replace(/Season\s*\d+.*/i, '')
-                                     .replace(/Episode\s*\d+.*/i, '')
-                                     .trim();
+        if (!showName || showName.length < 2) {
+            showName = cleanTitleString(document.title);
         }
 
-        showName = (showName || '').replace(/[\\/:*?"<>|\r\n\t]+/g, ' ').trim().replace(/[:\-–—\s]+$/, '');
         if (!showName || showName.toLowerCase() === 'watch' || showName.toLowerCase() === 'home') {
             const host = window.location.hostname.replace(/^www\./, '').split('.')[0];
             showName = host ? host.charAt(0).toUpperCase() + host.slice(1) : 'Video';
@@ -135,15 +174,24 @@
             subtitle = `Episode ${episodeNum}`;
         }
 
+        const formattedDuration = durationSeconds > 0 ? root.Helpers.formatDuration(durationSeconds) : '';
+
         return {
             showName: showName,
             season: seasonNum,
             episode: episodeNum,
             episodeTitle: episodeTitle,
+            title: finalTitle,
             subtitle: subtitle,
-            title: finalTitle
+            duration: formattedDuration,
+            durationSeconds: durationSeconds,
+            thumbnail: root.ThumbnailGenerator ? root.ThumbnailGenerator.extractThumbnail() : ''
         };
     }
 
-    root.extractPageMetadata = extractPageMetadata;
+    root.MetadataExtractor = {
+        extract: extractPageMetadata,
+        cleanTitle: cleanTitleString,
+        parseIsoDuration: parseIsoDuration
+    };
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : this));

@@ -22,7 +22,12 @@
         }
 
         const lower = url.toLowerCase();
-        if (lower.includes('format=xml') || 
+        if (lower.includes('trafficjunky') || 
+            lower.includes('doubleclick') || 
+            lower.includes('exoclick') || 
+            lower.includes('/preroll') || 
+            lower.includes('/ads/') ||
+            lower.includes('format=xml') || 
             lower.includes('type=xml') || 
             lower.includes('output=xml') || 
             lower.includes('format=json') || 
@@ -61,10 +66,11 @@
             }
         }
 
-        async startDownload(video, selectedQualityUrl, selectedQualityLabel, onProgress, tabId) {
+        async startDownload(video, selectedQualityUrl, selectedQualityLabel, onProgress, tabId, requestedThreads = 4) {
             const finalFileName = (root.FilenameGenerator && root.FilenameGenerator.generate(video, selectedQualityLabel)) || (video.title + '.mp4');
+            const threadCount = Math.max(1, Math.min(8, parseInt(requestedThreads || 4, 10)));
 
-            console.log(`[StreamHelper] 🎬 [DOWNLOAD PIPELINE INITIATED]`);
+            console.log(`[StreamHelper] 🎬 [DOWNLOAD PIPELINE INITIATED] (${threadCount} threads)`);
             console.log(`[StreamHelper] 🎬 [FILE TARGET] "${finalFileName}"`);
 
             // Build candidate URL list
@@ -104,16 +110,15 @@
                 console.log(`[StreamHelper] 🚀 [TRYING CANDIDATE ${i + 1}/${candidateUrls.length}] ${targetUrl}`);
 
                 try {
-                    // 1. First attempt HLS parsing (handles .m3u8, query-based streams, and playlist manifests)
-                    let manifest = null;
-                    try {
-                        manifest = await root.StreamDetector.parseHls(targetUrl, tabId);
-                    } catch {
-                        manifest = null;
-                    }
+                    const isDirectMedia = targetUrl.includes('.mp4') || targetUrl.includes('.webm') || targetUrl.includes('.m4v') || targetUrl.includes('videoplayback');
 
-                    if (manifest && manifest.isInvalid) {
-                        throw new Error('Candidate returned non-media document (XML/HTML).');
+                    let manifest = null;
+                    if (!isDirectMedia || targetUrl.includes('.m3u8') || targetUrl.includes('/hls/')) {
+                        try {
+                            manifest = await root.StreamDetector.parseHls(targetUrl, tabId);
+                        } catch {
+                            manifest = null;
+                        }
                     }
 
                     if (manifest && !manifest.isInvalid) {
@@ -131,19 +136,19 @@
                             console.log(`[StreamHelper] 🎯 [SELECTED VARIANT] ${lockedVariant.label || 'Default'} -> ${lockedVariant.url}`);
                             
                             const mediaManifest = await root.StreamDetector.parseHls(lockedVariant.url, tabId);
-                            if (mediaManifest.isInvalid) {
-                                throw new Error('Variant playlist returned non-media response.');
-                            }
+                            if (mediaManifest && !mediaManifest.isInvalid) {
+                                segmentUrls = mediaManifest.segments || [];
+                                initSegmentUrl = mediaManifest.initSegmentUrl || '';
+                                keyInfo = mediaManifest.keyInfo || keyInfo;
 
-                            segmentUrls = mediaManifest.segments || [];
-                            initSegmentUrl = mediaManifest.initSegmentUrl || '';
-                            keyInfo = mediaManifest.keyInfo || keyInfo;
-
-                            if (manifest.audioTracks?.length > 0 && lockedVariant.audioGroup) {
-                                const audioTrack = manifest.audioTracks.find(a => a.groupId === lockedVariant.audioGroup) || manifest.audioTracks[0];
-                                if (audioTrack && audioTrack.url) {
-                                    const audioManifest = await root.StreamDetector.parseHls(audioTrack.url, tabId);
-                                    audioSegmentUrls = audioManifest.segments || [];
+                                if (manifest.audioTracks?.length > 0 && lockedVariant.audioGroup) {
+                                    const audioTrack = manifest.audioTracks.find(a => a.groupId === lockedVariant.audioGroup) || manifest.audioTracks[0];
+                                    if (audioTrack && audioTrack.url) {
+                                        const audioManifest = await root.StreamDetector.parseHls(audioTrack.url, tabId);
+                                        if (audioManifest && !audioManifest.isInvalid) {
+                                            audioSegmentUrls = audioManifest.segments || [];
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -154,22 +159,21 @@
                                     root.Storage.setActiveDownload(tabId, { ...p, filename: finalFileName, isDownloading: true });
                                 }
                                 if (onProgress) onProgress(p);
-                            }, initSegmentUrl, keyInfo);
+                            }, initSegmentUrl, keyInfo, threadCount);
                         }
                     }
 
-                    // 2. Direct MP4 Stream Download Fallback (ONLY if target is direct media file)
-                    const isDirectMedia = targetUrl.includes('.mp4') || targetUrl.includes('.webm') || targetUrl.includes('.m4v') || targetUrl.includes('videoplayback');
-                    if (!assembled && isDirectMedia) {
+                    // 2. Direct MP4 Stream Download Fallback with Multi-Threaded Range Chunking
+                    if (!assembled && (isDirectMedia || (!manifest || manifest.isInvalid))) {
                         assembled = await processor.processDirectStream(targetUrl, (p) => {
                             if (tabId && root.Storage?.setActiveDownload) {
                                 root.Storage.setActiveDownload(tabId, { ...p, filename: finalFileName, isDownloading: true });
                             }
                             if (onProgress) onProgress(p);
-                        });
+                        }, threadCount);
                     }
 
-                    if (assembled && assembled.blob && assembled.sizeBytes >= 10240) {
+                    if (assembled && assembled.blob && assembled.sizeBytes >= 2097152) {
                         console.log(`[StreamHelper] ✅ [CANDIDATE ${i + 1} SUCCEEDED] Assembled ${(assembled.sizeBytes / 1024 / 1024).toFixed(2)} MB`);
                         break;
                     }
@@ -182,7 +186,7 @@
                 }
             }
 
-            if (!assembled || !assembled.blob || assembled.sizeBytes < 10240) {
+            if (!assembled || !assembled.blob || assembled.sizeBytes < 2097152) {
                 if (tabId && root.Storage?.setActiveDownload) {
                     await root.Storage.setActiveDownload(tabId, null);
                 }
@@ -199,7 +203,7 @@
                     saveAs: false
                 }, async (dlId) => {
                     if (chrome.runtime.lastError) {
-                        console.warn('[StreamHelper] Chrome downloads API notice:', chrome.runtime.lastError.message);
+                        console.warn('[StreamHelper] Native chrome.downloads fallback:', chrome.runtime.lastError.message);
                         const a = document.createElement('a');
                         a.href = blobUrl;
                         a.download = finalFileName;
@@ -208,16 +212,15 @@
                         document.body.removeChild(a);
                     }
 
-                    // Persist complete validated download history record
-                    if (root.Storage && root.Storage.saveCompletedDownload) {
+                    if (root.Storage?.saveCompletedDownload) {
                         await root.Storage.saveCompletedDownload({
                             id: 'dl_' + Date.now(),
                             filename: finalFileName,
                             title: finalFileName,
                             site: video.platform || 'PixelFlix',
-                            showName: video.showName || video.title || 'Video',
-                            quality: selectedQualityLabel.replace('⭐ Best Quality — ', ''),
-                            size: (root.Helpers && root.Helpers.formatBytes(assembled.sizeBytes)) || 'Media File',
+                            showName: video.showName || video.title,
+                            quality: selectedQualityLabel || '1080p',
+                            size: root.Helpers ? root.Helpers.formatBytes(assembled.sizeBytes) : `${(assembled.sizeBytes / 1024 / 1024).toFixed(1)} MB`,
                             sizeBytes: assembled.sizeBytes,
                             timestamp: Date.now(),
                             status: 'Completed',
@@ -230,7 +233,7 @@
                     }
 
                     delete this.activeProcessors[video.id];
-                    resolve({ fileName: finalFileName, downloadId: dlId, sizeBytes: assembled.sizeBytes });
+                    resolve({ success: true, downloadId: dlId, filename: finalFileName });
                 });
             });
         }
