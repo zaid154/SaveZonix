@@ -27,7 +27,18 @@ public class SegmentMerger
             return false;
         }
 
-        // Check if FFmpeg is available on system
+        // Check if segments are byte-range chunks of a single continuous stream (.part slices)
+        bool isByteRangeChunks = validSegments.Any(s => s.LocalTempPath.EndsWith(".part", StringComparison.OrdinalIgnoreCase) || s.RangeEnd > 0);
+
+        if (isByteRangeChunks)
+        {
+            // Direct byte-level concatenation preserves exact MP4 box hierarchy and all frames
+            await DirectBinaryMergeAsync(validSegments, outputFilePath);
+            if (cleanUpTemp) CleanUp(tempDirectory);
+            return File.Exists(outputFilePath) && new FileInfo(outputFilePath).Length > 0;
+        }
+
+        // For separate standalone HLS segments, check if FFmpeg is available
         bool ffmpegAvailable = IsFFmpegAvailable();
 
         if (ffmpegAvailable)

@@ -447,10 +447,16 @@ public class ParallelDownloader
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
                 response.EnsureSuccessStatusCode();
 
-                await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
-                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 32768, true);
+                long expectedBytes = chunk.RangeEnd - chunk.RangeStart + 1;
+                if (response.StatusCode == HttpStatusCode.OK && chunk.RangeStart > 0)
+                {
+                    throw new InvalidOperationException("Server returned 200 OK instead of 206 Partial Content for byte range.");
+                }
 
-                byte[] buffer = new byte[16384];
+                await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
+                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
+
+                byte[] buffer = new byte[32768];
                 int bytesRead;
                 long chunkTotal = 0;
 
@@ -462,6 +468,12 @@ public class ParallelDownloader
                 }
 
                 await fileStream.FlushAsync(ct);
+
+                if (expectedBytes > 0 && chunkTotal != expectedBytes)
+                {
+                    throw new IOException($"Truncated chunk {chunk.Index}: expected {expectedBytes} bytes but received {chunkTotal} bytes.");
+                }
+
                 chunk.SizeBytes = chunkTotal;
                 chunk.IsDownloaded = true;
                 return;

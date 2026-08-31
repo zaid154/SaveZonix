@@ -68,9 +68,9 @@ public class Program
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c copy -map 0:v:0 -map 1:a:0 \"{outputPath}\" -y",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
+                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a aac -b:a 192k -map 0:v:0 -map 1:a:0 -movflags +faststart \"{outputPath}\" -y",
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
                 UseShellExecute = false,
                 CreateNoWindow = true
             };
