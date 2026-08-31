@@ -161,7 +161,8 @@ public class Program
                 try
                 {
                     using var httpClient = CreateConfiguredHttpClient();
-                    string downloadsFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads");
+                    string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                    string downloadsFolder = Directory.Exists(userDownloads) ? userDownloads : Path.Combine(Path.GetTempPath(), "StreamHelper_Downloads");
                     if (!Directory.Exists(downloadsFolder)) Directory.CreateDirectory(downloadsFolder);
 
                     string outputFileName = req.FileName.EndsWith(".mp4") ? req.FileName : req.FileName + ".mp4";

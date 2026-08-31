@@ -625,30 +625,15 @@ body {
     text-decoration: underline;
 }
 
-/* Clean Human Meta Line */
-.meta-line {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.82rem;
-    color: var(--text-muted);
-    font-weight: 500;
-}
-
-.meta-item.platform {
-    color: #38bdf8;
-    font-weight: 600;
-}
-
-.meta-dot {
-    color: rgba(255, 255, 255, 0.2);
-    font-size: 0.7rem;
-}
-
-.metrics-grid.four-cards {
+/* Stream Specifications Grid */
+.specs-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
+    gap: 10px;
+    background: rgba(11, 17, 32, 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px;
 }
 
 .spec-card {

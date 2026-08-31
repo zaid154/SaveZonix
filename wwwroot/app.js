@@ -225,57 +225,55 @@ btnAnalyze.addEventListener('click', async () => {
 });
 
 function renderStreamDetails(data) {
-    if (videoTitleDisplay) videoTitleDisplay.textContent = data.title || 'High-Definition Video Stream';
-    if (badgePlatform) badgePlatform.textContent = data.platform || 'Web Stream';
+    videoTitleDisplay.textContent = data.title || 'High-Definition Video Stream';
+    badgePlatform.textContent = data.platform || 'Web Stream';
 
     // Strategy determination
-    let stratText = data.isDirectMediaFile ? 'Parallel Range Download' : 'HLS Segment Download';
-    let srcText = data.isDirectMediaFile ? 'Direct Media Stream' : 'HLS Master Playlist';
-    let rangeText = data.isDirectMediaFile ? 'HTTP Range Byte-Level' : 'Supported (TS Chunks)';
-
-    if (strategyBadge) strategyBadge.textContent = stratText;
-    if (badgeStrategyType) badgeStrategyType.textContent = stratText;
-    if (specSourceType) specSourceType.textContent = srcText;
-    if (specRange) specRange.textContent = rangeText;
-    if (specCodec) specCodec.textContent = 'MP4 • H.264 / AAC';
+    let stratText = 'HLS Segment Download';
+    let srcText = 'HLS Master Playlist';
+    let rangeText = 'Supported (TS Chunks)';
+    if (data.isDirectMediaFile) {
+        stratText = 'Parallel Range Download';
+        srcText = 'Direct Media Stream';
+        rangeText = 'HTTP Range Byte-Level';
+    }
+    strategyBadge.textContent = stratText;
+    badgeStrategyType.textContent = stratText;
+    specSourceType.textContent = srcText;
+    specRange.textContent = rangeText;
+    specCodec.textContent = 'MP4 • H.264 / AAC';
 
     // Video Description
     if (data.description && data.description.trim().length > 0) {
-        if (videoDescDisplay) {
-            videoDescDisplay.textContent = data.description.trim();
-            videoDescDisplay.style.display = 'block';
-            videoDescDisplay.classList.remove('expanded');
-        }
-        if (btnReadMore) {
-            if (data.description.trim().length > 100) {
-                btnReadMore.style.display = 'inline-flex';
-                btnReadMore.textContent = 'Read more ▾';
-            } else {
-                btnReadMore.style.display = 'none';
-            }
+        videoDescDisplay.textContent = data.description.trim();
+        videoDescDisplay.style.display = 'block';
+        videoDescDisplay.classList.remove('expanded');
+        if (data.description.trim().length > 100) {
+            btnReadMore.style.display = 'inline-flex';
+            btnReadMore.textContent = 'Read more ▾';
+        } else {
+            btnReadMore.style.display = 'none';
         }
     } else {
-        if (videoDescDisplay) videoDescDisplay.style.display = 'none';
-        if (btnReadMore) btnReadMore.style.display = 'none';
+        videoDescDisplay.style.display = 'none';
+        btnReadMore.style.display = 'none';
     }
 
     // Duration & Chunks
     const durFormatted = data.formattedDuration || '--:--';
     if (data.formattedDuration) {
         badgeDuration.textContent = data.formattedDuration;
-        badgeDuration.style.display = 'inline';
-        if (document.getElementById('dotDuration')) document.getElementById('dotDuration').style.display = 'inline';
+        badgeDuration.style.display = 'inline-flex';
         thumbDuration.textContent = data.formattedDuration;
         thumbDuration.style.display = 'block';
     } else {
         badgeDuration.style.display = 'none';
-        if (document.getElementById('dotDuration')) document.getElementById('dotDuration').style.display = 'none';
         thumbDuration.style.display = 'none';
     }
 
-    if (specDuration) specDuration.textContent = durFormatted;
+    specDuration.textContent = durFormatted;
     const partsCount = data.isDirectMediaFile ? 'Direct Container' : `${data.totalSegments || 'Auto'} Chunks`;
-    if (specChunks) specChunks.textContent = partsCount;
+    specChunks.textContent = partsCount;
     badgeSegments.textContent = data.isDirectMediaFile ? 'Direct Stream' : `${data.totalSegments || 'Auto'} Chunks`;
 
     // Thumbnail Picture
@@ -338,22 +336,19 @@ function updateSelectedQualitySpecs() {
     const estSize = selectedOpt.dataset.estSize || '';
     const bw = selectedOpt.dataset.bw || 'Auto';
 
-    if (specBitrate) specBitrate.textContent = bw;
+    specBitrate.textContent = bw;
 
     // Clean size display without ~ when exact bytes known
-    const dotSize = document.getElementById('dotSize');
     if (estSize) {
         const cleanSize = estSize.startsWith('~') ? estSize.substring(1).trim() : estSize;
-        if (specSize) specSize.textContent = cleanSize;
+        specSize.textContent = cleanSize;
         badgeEstSize.textContent = cleanSize;
-        badgeEstSize.style.display = 'inline';
-        if (dotSize) dotSize.style.display = 'inline';
-        if (specStorage) specStorage.textContent = `Req: ${cleanSize} • OK`;
+        badgeEstSize.style.display = 'inline-flex';
+        specStorage.textContent = `Req: ${cleanSize} • OK`;
     } else {
-        if (specSize) specSize.textContent = 'Stream Dependent';
+        specSize.textContent = 'Stream Dependent';
         badgeEstSize.style.display = 'none';
-        if (dotSize) dotSize.style.display = 'none';
-        if (specStorage) specStorage.textContent = 'Available Space: OK';
+        specStorage.textContent = 'Available Space: OK';
     }
 
     const rawTitle = (streamData?.title || 'Video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').slice(0, 60);
@@ -547,17 +542,17 @@ function startPollingProgress(taskId, fileName, userMaxThreads) {
 
             // 4. Active Connections / Workers
             const activeConn = state.activeThreads || userMaxThreads;
-            if (metricWorkers) metricWorkers.textContent = `${activeConn} Workers`;
-            if (activeThreadsBadge) activeThreadsBadge.textContent = `${activeConn} Active Workers`;
-            if (metricMaxThreadsSub) metricMaxThreadsSub.textContent = `Max: ${userMaxThreads} Concurrency`;
+            metricWorkers.textContent = `${activeConn} Workers`;
+            activeThreadsBadge.textContent = `${activeConn} Active Workers`;
+            metricMaxThreadsSub.textContent = `Max: ${userMaxThreads} Concurrency`;
 
             // 5. ETA
-            if (metricEta) metricEta.textContent = formatETA(state.estimatedSecondsRemaining, state.isMerging, state.isCompleted, doneSegs, totalSegs);
-            if (metricElapsedSub) metricElapsedSub.textContent = `Elapsed: ${formatElapsed(state.elapsedSeconds || 0)}`;
+            metricEta.textContent = formatETA(state.estimatedSecondsRemaining, state.isMerging, state.isCompleted, doneSegs, totalSegs);
+            metricElapsedSub.textContent = `Elapsed: ${formatElapsed(state.elapsedSeconds || 0)}`;
 
-            // 6. Connection Health (if present)
-            if (metricHealth) metricHealth.textContent = (curSpd > 0.5) ? 'Optimal' : (curSpd > 0 ? 'Stable' : 'Connecting');
-            if (metricRetrySub) metricRetrySub.textContent = `Retries: 0 • 100% OK`;
+            // 6. Connection Health
+            metricHealth.textContent = (curSpd > 0.5) ? 'Optimal' : (curSpd > 0 ? 'Stable' : 'Connecting');
+            metricRetrySub.textContent = `Retries: 0 • 100% OK`;
         } catch { }
     }, 250);
 }
