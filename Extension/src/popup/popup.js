@@ -275,6 +275,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 qualityLabel = video.qualityLabel;
             }
 
+            const isAlreadyDownloaded = Array.isArray(completedListItems) && completedListItems.some(c => (c.url && c.url === video.url) || c.id === video.id);
+
             let buttonLabel = (currentSiteName === 'YouTube' || video.isYouTube)
                 ? 'Download YouTube Video'
                 : (currentSiteName === 'Instagram' ? 'Download Reel' : 'Download Video');
