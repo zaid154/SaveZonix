@@ -74,10 +74,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Reactive State Loading (Optimized — No Aggressive Polling)
     async function loadData() {
         try {
-            chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, (res) => {
+            chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, async (res) => {
                 if (res && res.metadata) {
                     livePageMetadata = res.metadata;
                     liveThumbnail = res.thumbnail || res.metadata.thumbnail;
+                    if (res.streams && res.streams.length > 0) {
+                        for (const st of res.streams) {
+                            if (st.url && st.url.startsWith('http')) {
+                                await window.Storage.addVideo(tab.id, {
+                                    ...st,
+                                    title: res.metadata.title,
+                                    showName: res.metadata.showName,
+                                    subtitle: res.metadata.subtitle,
+                                    thumbnail: res.thumbnail || res.metadata.thumbnail,
+                                    platform: res.site
+                                });
+                            }
+                        }
+                    }
                 }
             });
         } catch { }
@@ -248,17 +262,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             const safeFileName = window.FilenameGenerator.generate({ ...video, title: currentTitle, platform: currentSiteName });
             const thumbUrl = video.thumbnail || liveThumbnail;
 
-            const isAlreadyDownloaded = completedListItems && completedListItems.some(c => c.filename === safeFileName || c.title === safeFileName);
-            const isDownloadPossible = Boolean((video.isDownloadable !== false) && !video.isRestricted && (!video.url || !video.url.includes('.htm')));
+            const isDownloadPossible = true;
 
             let qualityLabel = 'Best Quality (Auto)';
             if (currentSiteName === 'Instagram') {
                 qualityLabel = video.resolution ? `Original MP4 (${video.resolution})` : 'Original Quality (MP4)';
+            } else if (currentSiteName === 'YouTube') {
+                qualityLabel = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
             } else if (video.qualityLabel) {
                 qualityLabel = video.qualityLabel;
             }
 
-            let buttonLabel = isDownloadPossible ? (currentSiteName === 'Instagram' ? 'Download Reel' : 'Download Video') : 'Download Unavailable';
+            let buttonLabel = (currentSiteName === 'YouTube' || video.isYouTube)
+                ? 'Download YouTube Video'
+                : (currentSiteName === 'Instagram' ? 'Download Reel' : 'Download Video');
             if (isAlreadyDownloaded) {
                 buttonLabel = 'Downloaded (Download Again)';
             }
@@ -346,14 +363,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const resTag = card.querySelector(`#res_tag_${video.id}`);
         const errBanner = card.querySelector(`#err_${video.id}`);
 
-        if (video.isYouTube && video.url && video.isDownloadable) {
+        if (video.isYouTube || siteName === 'YouTube') {
             const qOpt = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
-            qualSelect.innerHTML = `<option value="${video.url}">${qOpt}</option>`;
+            qualSelect.innerHTML = `<option value="${video.url || ''}">${qOpt}</option>`;
             dlBtn.innerHTML = `<span>Download YouTube Video</span>`;
             dlBtn.disabled = false;
             resTag.textContent = 'Ready';
             errBanner.classList.add('hidden');
-            return;
         }
 
         if (video.platform === 'Instagram' && video.isRestricted && !video.isDownloadable) {
