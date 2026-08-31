@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -170,9 +170,9 @@ public class AdminController : Controller
         if (user == null) return NotFound();
 
         var currentUserId = _userManager.GetUserId(User);
-        if (user.Id == currentUserId)
+        if (user.Id == currentUserId || await _userManager.IsInRoleAsync(user, "Admin"))
         {
-            TempData["ErrorMessage"] = "You cannot deactivate your own account.";
+            TempData["ErrorMessage"] = "Administrator accounts are protected and cannot be deactivated.";
             return RedirectToAction("Users");
         }
 
@@ -190,9 +190,9 @@ public class AdminController : Controller
         if (user == null) return NotFound();
 
         var currentUserId = _userManager.GetUserId(User);
-        if (user.Id == currentUserId)
+        if (user.Id == currentUserId || await _userManager.IsInRoleAsync(user, "Admin"))
         {
-            TempData["ErrorMessage"] = "You cannot delete your own account.";
+            TempData["ErrorMessage"] = "Administrator accounts are protected and cannot be deleted.";
             return RedirectToAction("Users");
         }
 

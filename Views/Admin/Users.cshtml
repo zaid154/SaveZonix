@@ -1,4 +1,4 @@
-﻿@model StreamHelper.ViewModels.AdminUsersViewModel
+@model StreamHelper.ViewModels.AdminUsersViewModel
 @{
     ViewData["Title"] = "User Management — Stream Helper Admin";
 }
@@ -108,20 +108,27 @@
                                 </span>
                             </td>
                             <td style="text-align: right;">
-                                <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                <div style="display: flex; gap: 6px; justify-content: flex-end; align-items: center;">
                                     <a asp-action="UserDetails" asp-route-id="@u.Id" class="btn btn-sm btn-secondary">Details</a>
                                     
-                                    <form asp-action="ToggleUserStatus" asp-route-id="@u.Id" method="post" style="display:inline;">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm @(u.IsActive ? "btn-warning" : "btn-primary")">
-                                            @(u.IsActive ? "Deactivate" : "Activate")
-                                        </button>
-                                    </form>
+                                    @if (!u.Roles.Contains("Admin"))
+                                    {
+                                        <form asp-action="ToggleUserStatus" asp-route-id="@u.Id" method="post" style="display:inline;">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm @(u.IsActive ? "btn-warning" : "btn-primary")">
+                                                @(u.IsActive ? "Deactivate" : "Activate")
+                                            </button>
+                                        </form>
 
-                                    <form asp-action="DeleteUser" asp-route-id="@u.Id" method="post" onsubmit="return confirm('Permanently delete this user and all associated records?');" style="display:inline;">
-                                        @Html.AntiForgeryToken()
-                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
-                                    </form>
+                                        <form asp-action="DeleteUser" asp-route-id="@u.Id" method="post" onsubmit="return confirm('Permanently delete this user and all associated records?');" style="display:inline;">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-tag badge-red" style="font-size: 11px; padding: 4px 8px;">🛡️ Protected Admin</span>
+                                    }
                                 </div>
                             </td>
                         </tr>
