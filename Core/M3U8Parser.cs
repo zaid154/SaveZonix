@@ -427,9 +427,15 @@ public class M3U8Parser
 
         using var finalReq = new HttpRequestMessage(HttpMethod.Get, url);
         finalReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-        finalReq.Headers.TryAddWithoutValidation("Accept", "*/*");
+        finalReq.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
         finalReq.Headers.TryAddWithoutValidation("Cookie", "platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1");
         using var finalRes = await _httpClient.SendAsync(finalReq);
+        
+        if (finalRes.StatusCode == HttpStatusCode.Forbidden || (int)finalRes.StatusCode == 403)
+        {
+            throw new HttpRequestException($"Site '{targetUri.Host}' is protected by Cloudflare bot verification. Please play the video in your Chrome browser and click the Stream Helper extension (or copy the direct .m3u8 / .mp4 stream URL) to download!");
+        }
+
         finalRes.EnsureSuccessStatusCode();
 
         var content = await finalRes.Content.ReadAsStringAsync();
