@@ -65,10 +65,15 @@ public class SegmentMerger
     private static async Task DirectBinaryMergeAsync(List<SegmentItem> segments, string outputFilePath)
     {
         var orderedSegments = segments.OrderBy(s => s.Index).ToList();
+        long totalExpectedBytes = orderedSegments.Sum(s => s.SizeBytes > 0 ? s.SizeBytes : (new FileInfo(s.LocalTempPath).Exists ? new FileInfo(s.LocalTempPath).Length : 0));
         
-        await using var outputStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 1048576, true);
+        await using var outputStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None, 2097152, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        if (totalExpectedBytes > 0)
+        {
+            outputStream.SetLength(totalExpectedBytes);
+        }
 
-        byte[] buffer = new byte[524288]; // 512KB buffer for ultra-fast I/O throughput
+        byte[] buffer = new byte[2097152]; // 2MB high-throughput buffer for ultra-fast SSD/NVMe write throughput
         foreach (var seg in orderedSegments)
         {
             if (File.Exists(seg.LocalTempPath))
@@ -76,7 +81,7 @@ public class SegmentMerger
                 var fileInfo = new FileInfo(seg.LocalTempPath);
                 if (fileInfo.Length == 0) continue;
 
-                await using var inputStream = new FileStream(seg.LocalTempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 524288, true);
+                await using var inputStream = new FileStream(seg.LocalTempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 2097152, FileOptions.Asynchronous | FileOptions.SequentialScan);
                 int bytesRead;
                 while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {

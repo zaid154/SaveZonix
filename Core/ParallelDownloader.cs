@@ -458,9 +458,13 @@ public class ParallelDownloader
                 }
 
                 await using var contentStream = await response.Content.ReadAsStreamAsync(attemptCts.Token);
-                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
+                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                if (expectedBytes > 0)
+                {
+                    fileStream.SetLength(expectedBytes);
+                }
 
-                byte[] buffer = new byte[65536];
+                byte[] buffer = new byte[131072];
                 int bytesRead;
                 long chunkTotal = 0;
 

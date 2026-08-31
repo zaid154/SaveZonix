@@ -442,12 +442,12 @@ public class Program
             AutomaticDecompression = System.Net.DecompressionMethods.All,
             UseCookies = true,
             CookieContainer = new System.Net.CookieContainer(),
-            MaxConnectionsPerServer = 300
+            MaxConnectionsPerServer = 1000
         };
 
         var client = new HttpClient(handler);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-        client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+        client.DefaultRequestHeaders.Add("Accept", "*/*");
         client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
         client.DefaultRequestHeaders.Add("Cookie", "platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1");
         return client;
