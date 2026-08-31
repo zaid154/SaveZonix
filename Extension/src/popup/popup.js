@@ -71,6 +71,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadData();
     });
 
+    // Reactive State Loading
+    async function loadData() {
         // 1. Await live page scan before reading storage
         try {
             const res = await new Promise(resolve => {
