@@ -101,7 +101,34 @@
             let audioStreamUrl = '';
             let isHls = false;
 
-            // 1. Inspect Performance Resource Timeline for accessible HLS manifests or non-chunked streams
+            // 1. Inspect DOM & Player scripts for streamingData
+            try {
+                const scripts = Array.from(document.querySelectorAll('script'));
+                for (const s of scripts) {
+                    const text = s.textContent || '';
+                    if (text.includes('streamingData')) {
+                        const m = text.match(/ytInitialPlayerResponse\s*=\s*({.+?});/) || text.match(/var ytInitialPlayerResponse\s*=\s*({.+?});/);
+                        if (m) {
+                            const data = JSON.parse(m[1]);
+                            if (data.streamingData?.hlsManifestUrl) {
+                                videoStreamUrl = data.streamingData.hlsManifestUrl;
+                                isHls = true;
+                                break;
+                            }
+                            if (data.streamingData?.formats?.length > 0) {
+                                for (const f of data.streamingData.formats) {
+                                    if (f.url) {
+                                        videoStreamUrl = f.url;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch { }
+
+            // 2. Inspect Performance Resource Timeline for live video/audio playback streams
             try {
                 const entries = performance.getEntriesByType('resource');
                 for (let i = entries.length - 1; i >= 0; i--) {
@@ -115,55 +142,54 @@
                         break;
                     }
 
-                    // Complete progressive stream without byte-range chunking
-                    if (name.includes('googlevideo.com/videoplayback') && !name.includes('range=') && !name.includes('sq=')) {
-                        if (name.includes('mime=audio') || name.includes('itag=140')) {
-                            if (!audioStreamUrl) audioStreamUrl = name;
-                        } else if (!videoStreamUrl) {
-                            videoStreamUrl = name;
+                    // Live videoplayback stream — clean byte-range chunk parameters to get full stream
+                    if (name.includes('googlevideo.com/videoplayback')) {
+                        const cleanUrl = name.replace(/[?&]range=[^&]+/g, '').replace(/[?&]sq=[^&]+/g, '');
+                        if (name.includes('mime=audio') || name.includes('itag=140') || name.includes('itag=251')) {
+                            if (!audioStreamUrl) audioStreamUrl = cleanUrl;
+                        } else {
+                            if (!videoStreamUrl) videoStreamUrl = cleanUrl;
                         }
                     }
                 }
             } catch { }
 
-            // 2. Check DOM video tag for direct progressive source
+            // 3. Check DOM video tag for direct progressive source
             if (!videoStreamUrl && activeVideo) {
                 const src = activeVideo.currentSrc || activeVideo.src;
-                if (src && src.startsWith('http') && !src.startsWith('blob:') && !src.includes('range=')) {
-                    videoStreamUrl = src;
+                if (src && src.startsWith('http') && !src.startsWith('blob:')) {
+                    videoStreamUrl = src.replace(/[?&]range=[^&]+/g, '').replace(/[?&]sq=[^&]+/g, '');
                     isHls = src.includes('.m3u8');
                 }
             }
 
             // Real Media Inspection
-            const itagInfo = parseItagInfo(videoStreamUrl);
+            const targetStream = videoStreamUrl || audioStreamUrl;
+            const itagInfo = parseItagInfo(targetStream);
             let resolution = (activeVideo && activeVideo.videoWidth > 0 && activeVideo.videoHeight > 0)
                 ? `${activeVideo.videoWidth}x${activeVideo.videoHeight}`
                 : itagInfo.resolution;
             let container = itagInfo.container;
             let mediaType = itagInfo.mediaType;
-            let isDownloadable = Boolean(videoStreamUrl && !videoStreamUrl.includes('.htm') && !videoStreamUrl.includes('.xml'));
-            let reason = isDownloadable ? 'Direct media representation detected' : 'YouTube uses adaptive MSE chunking; direct download stream is protected.';
-
-            console.log(`[SITE] YouTube | [DOWNLOADABLE] ${isDownloadable} | [REASON] ${reason}`);
+            let isDownloadable = Boolean(targetStream && !targetStream.includes('.htm') && !targetStream.includes('.xml'));
 
             if (isDownloadable) {
                 streams.push({
-                    url: videoStreamUrl,
+                    url: videoStreamUrl || audioStreamUrl,
                     audioUrl: audioStreamUrl || '',
                     duration: durationStr,
                     thumbnail: meta.thumbnail,
-                    format: isHls ? 'HLS' : container,
-                    container: container,
+                    format: isHls ? 'HLS' : 'MP4',
+                    container: 'MP4',
                     mediaType: mediaType,
                     resolution: resolution,
-                    qualityLabel: itagInfo.label,
+                    qualityLabel: `${itagInfo.label} (Direct MP4)`,
                     platform: 'YouTube',
                     isYouTube: true,
-                    isDownloadable: true
+                    isDownloadable: true,
+                    isDirectMp4: !isHls
                 });
             } else if (activeVideo) {
-                // Adaptive player MSE blob without accessible standalone progressive stream
                 streams.push({
                     url: '',
                     audioUrl: '',
@@ -177,7 +203,7 @@
                     isYouTube: true,
                     isDownloadable: false,
                     isRestricted: true,
-                    downloadNotice: 'Video detected — direct stream uses protected adaptive chunking (download unavailable).'
+                    downloadNotice: 'Buffering stream... Please play the video for 2 seconds and open popup.'
                 });
             }
 

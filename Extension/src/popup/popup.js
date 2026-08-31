@@ -346,13 +346,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         const resTag = card.querySelector(`#res_tag_${video.id}`);
         const errBanner = card.querySelector(`#err_${video.id}`);
 
-        if (video.isYouTube) {
-            qualSelect.innerHTML = '<option value="">Protected YouTube Stream</option>';
-            dlBtn.innerHTML = '<span>Download Unavailable</span>';
-            dlBtn.disabled = true;
-            resTag.textContent = 'YouTube Video';
-            errBanner.textContent = video.downloadNotice || 'YouTube video detected — direct stream uses protected adaptive chunking.';
-            errBanner.classList.remove('hidden');
+        if (video.isYouTube && video.url && video.isDownloadable) {
+            const qOpt = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
+            qualSelect.innerHTML = `<option value="${video.url}">${qOpt}</option>`;
+            dlBtn.innerHTML = `<span>Download YouTube Video</span>`;
+            dlBtn.disabled = false;
+            resTag.textContent = 'Ready';
+            errBanner.classList.add('hidden');
             return;
         }
 
