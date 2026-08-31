@@ -120,7 +120,7 @@
                 });
             }
 
-            // 3. Inspect In-Page Player Configurations (Hls.js, JWPlayer, Video.js, etc.)
+            // 3. Inspect In-Page Player Configurations (Hls.js, JWPlayer, Video.js, Playlist Sources, etc.)
             try {
                 const playerCandidates = [
                     window.hls?.url,
@@ -133,6 +133,18 @@
                     window.playerConfig?.file
                 ];
 
+                // Check playlist sources array (e.g. window.playlist = { sources: [...] })
+                if (window.playlist?.sources && Array.isArray(window.playlist.sources)) {
+                    window.playlist.sources.forEach(s => {
+                        if (s?.file) playerCandidates.push(s.file);
+                    });
+                }
+                if (window.playerConfig?.sources && Array.isArray(window.playerConfig.sources)) {
+                    window.playerConfig.sources.forEach(s => {
+                        if (s?.file) playerCandidates.push(s.file);
+                    });
+                }
+
                 playerCandidates.forEach(cand => {
                     if (cand && typeof cand === 'string' && isValidMediaStreamUrl(cand) && !seen.has(cand)) {
                         seen.add(cand);
@@ -142,7 +154,7 @@
                             duration: '',
                             thumbnail: meta.thumbnail,
                             format: isHls ? 'HLS' : (cand.includes('.mpd') ? 'DASH' : 'MP4'),
-                            platform: 'PixelFlix',
+                            platform: meta.platform || 'Stream',
                             isDownloadable: true
                         });
                     }

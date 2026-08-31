@@ -74,10 +74,12 @@
             return true;
         }
 
-        // 3. Rejection of tiny animated hover previews and trailers
-        if (clean.includes('_preview') || clean.includes('/preview/') || clean.includes('trailer.mp4') || 
-            clean.includes('sample.mp4') || clean.includes('thumbnail.mp4') || clean.includes('preview.mp4')) {
-            return true;
+        // 3. Rejection of image thumbnails and sprite previews (only if not a video format)
+        if (!clean.endsWith('.m3u8') && !clean.endsWith('.mp4') && !clean.endsWith('.webm')) {
+            if (clean.includes('_preview') || clean.includes('/preview/') || clean.includes('trailer.mp4') || 
+                clean.includes('sample.mp4') || clean.includes('thumbnail.mp4') || clean.includes('preview.mp4')) {
+                return true;
+            }
         }
 
         if (lower.includes('/subtitles/') || lower.includes('/captions/') || lower.includes('format=xml') || lower.includes('type=xml')) {

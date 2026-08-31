@@ -323,9 +323,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </div>
 
-                    <button class="btn-primary-download" id="btn_dl_${video.id}">
-                        <span>${buttonLabel}</span>
-                    </button>
+                    <div class="card-action-row" style="display: flex; gap: 8px; margin-top: 8px;">
+                        <button class="btn-primary-download" id="btn_dl_${video.id}" style="flex: 1;">
+                            <span>${buttonLabel}</span>
+                        </button>
+                        <button class="btn-secondary" id="btn_copy_${video.id}" title="Copy Direct Stream URL" style="padding: 0 14px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center;">
+                            📋 Copy
+                        </button>
+                    </div>
                     <div class="error-banner ${isDownloadPossible ? 'hidden' : ''}" id="err_${video.id}">
                         ${video.downloadNotice || `${currentSiteName} stream detected.`}
                     </div>
@@ -361,9 +366,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Bind Card Actions
     function bindCardActions(video, card, siteName) {
         const dlBtn = card.querySelector(`#btn_dl_${video.id}`);
+        const copyBtn = card.querySelector(`#btn_copy_${video.id}`);
         const qualSelect = card.querySelector(`#qual_${video.id}`);
         const resTag = card.querySelector(`#res_tag_${video.id}`);
         const errBanner = card.querySelector(`#err_${video.id}`);
+
+        if (copyBtn) {
+            copyBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                let targetUrl = qualSelect.value || video.url;
+                if (targetUrl && targetUrl.startsWith('http')) {
+                    try {
+                        await navigator.clipboard.writeText(targetUrl);
+                        copyBtn.textContent = '✅ Copied!';
+                        setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 2000);
+                    } catch { }
+                }
+            });
+        }
 
         if (video.isYouTube || siteName === 'YouTube') {
             const qOpt = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
