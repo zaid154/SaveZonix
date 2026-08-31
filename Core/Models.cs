@@ -30,8 +30,8 @@ public class StreamQuality
     {
         get
         {
-            string resLabel = "Standard Quality";
-            if (!string.IsNullOrEmpty(Resolution) && Resolution != "Unknown")
+            string resLabel = Resolution;
+            if (Resolution.Contains('x'))
             {
                 var height = GetHeight(Resolution);
                 string tier = height >= 2160 ? "4K UHD" :
@@ -53,9 +53,14 @@ public class StreamQuality
 
     private static int GetHeight(string resolution)
     {
-        if (string.IsNullOrEmpty(resolution) || !resolution.Contains('x')) return 0;
-        var parts = resolution.Split('x');
-        return parts.Length > 1 && int.TryParse(parts[1], out var h) ? h : 0;
+        if (string.IsNullOrEmpty(resolution)) return 0;
+        if (resolution.Contains('x'))
+        {
+            var parts = resolution.Split('x');
+            return parts.Length > 1 && int.TryParse(parts[1], out var h) ? h : 0;
+        }
+        var m = System.Text.RegularExpressions.Regex.Match(resolution, @"(\d+)p");
+        return m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 0;
     }
 }
 

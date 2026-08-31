@@ -1,12 +1,15 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using YoutubeExplode;
+using YoutubeExplode.Videos.Streams;
 
 namespace Zonix.Core;
 
 public class M3U8Parser
 {
     private readonly HttpClient _httpClient;
+    private readonly YoutubeClient _youtubeClient = new();
 
     public M3U8Parser(HttpClient httpClient)
     {
@@ -21,6 +24,72 @@ public class M3U8Parser
             Title = GetSmartFallbackTitle(targetUri),
             Platform = DetectPlatformName(targetUri)
         };
+
+        // 0. Dedicated YouTube Video Extractor via YoutubeExplode
+        if (targetUri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) || 
+            targetUri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var video = await _youtubeClient.Videos.GetAsync(url);
+                var streamManifest = await _youtubeClient.Videos.Streams.GetManifestAsync(video.Id);
+
+                result.Title = video.Title;
+                result.Description = video.Description;
+                result.DurationSeconds = (int)(video.Duration?.TotalSeconds ?? 0);
+                result.ThumbnailUrl = $"https://i.ytimg.com/vi/{video.Id}/maxresdefault.jpg";
+                result.Platform = "YouTube";
+
+                var muxedStreams = streamManifest.GetMuxedStreams().OrderByDescending(s => s.VideoQuality).ToList();
+                foreach (var stream in muxedStreams)
+                {
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = $"{stream.VideoQuality.Label} HD",
+                        Url = stream.Url,
+                        IsDirectFile = true,
+                        DurationSeconds = result.DurationSeconds,
+                        Bandwidth = stream.Bitrate.BitsPerSecond
+                    });
+                }
+
+                var videoStreams = streamManifest.GetVideoOnlyStreams().Where(s => s.Container == Container.Mp4).OrderByDescending(s => s.VideoQuality).ToList();
+                foreach (var stream in videoStreams)
+                {
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = $"{stream.VideoQuality.Label} (Video Track)",
+                        Url = stream.Url,
+                        IsDirectFile = true,
+                        DurationSeconds = result.DurationSeconds,
+                        Bandwidth = stream.Bitrate.BitsPerSecond
+                    });
+                }
+
+                var bestAudio = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+                if (bestAudio != null)
+                {
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = "Audio Only (HQ M4A)",
+                        Url = bestAudio.Url,
+                        IsDirectFile = true,
+                        DurationSeconds = result.DurationSeconds,
+                        Bandwidth = bestAudio.Bitrate.BitsPerSecond
+                    });
+                }
+
+                if (result.Qualities.Count > 0)
+                {
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Fallback to HTML analysis if API is throttled
+                Console.WriteLine($"[YouTube Parser Notice] {ex.Message}");
+            }
+        }
 
         // 1. Direct video file extension check (.mp4, .webm, .m4v)
         if (IsDirectMediaExtension(targetUri))
