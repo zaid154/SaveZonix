@@ -1,0 +1,168 @@
+﻿@model StreamHelper.ViewModels.AdminDownloadsViewModel
+@{
+    ViewData["Title"] = "Global Downloads — Stream Helper Admin";
+}
+
+<div class="admin-page">
+    <div class="container">
+        <div class="admin-header">
+            <div>
+                <h1 class="page-title">Global Download History</h1>
+                <p class="page-subtitle">Inspect, filter, and audit all media stream extraction tasks across the platform</p>
+            </div>
+            <div class="admin-nav-links">
+                <a asp-action="Index" class="btn btn-secondary">Dashboard</a>
+                <a asp-action="Users" class="btn btn-secondary">Users</a>
+                <a asp-action="Downloads" class="btn btn-primary">Downloads</a>
+                <a asp-action="Settings" class="btn btn-secondary">Settings</a>
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert success" style="margin-bottom: 24px;">
+                <span class="alert-icon">✅</span>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+
+        <!-- Filter Bar -->
+        <div class="glass-card" style="margin-bottom: 24px; padding: 16px 20px;">
+            <form method="get" asp-action="Downloads" class="filter-form">
+                <div class="filter-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr auto;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control" placeholder="Search by title, file or URL..." />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" name="userEmail" value="@Model.UserFilter" class="form-control" placeholder="Filter by User Email..." />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="status" class="form-control">
+                            <option value="">All Statuses</option>
+                            <option value="Completed" selected="@(Model.StatusFilter == "Completed")">Completed</option>
+                            <option value="Downloading" selected="@(Model.StatusFilter == "Downloading")">Downloading</option>
+                            <option value="Failed" selected="@(Model.StatusFilter == "Failed")">Failed</option>
+                            <option value="Cancelled" selected="@(Model.StatusFilter == "Cancelled")">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="platform" class="form-control">
+                            <option value="">All Platforms</option>
+                            <option value="YouTube" selected="@(Model.PlatformFilter == "YouTube")">YouTube</option>
+                            <option value="Instagram" selected="@(Model.PlatformFilter == "Instagram")">Instagram</option>
+                            <option value="PixelFlix" selected="@(Model.PlatformFilter == "PixelFlix")">PixelFlix</option>
+                            <option value="Web Stream" selected="@(Model.PlatformFilter == "Web Stream")">Web Stream</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="submit" class="btn btn-primary">Filter</button>
+                        <a asp-action="Downloads" class="btn btn-secondary">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-responsive glass-card" style="padding: 0; overflow: hidden;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Media</th>
+                        <th>User</th>
+                        <th>Title &amp; Source</th>
+                        <th>Quality / Format</th>
+                        <th>Size / Speed</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Downloads)
+                    {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
+                                {
+                                    <img src="@item.ThumbnailUrl" alt="Thumb" class="table-thumb" onerror="this.style.display='none'" />
+                                }
+                                else
+                                {
+                                    <div class="table-thumb-fallback">🎬</div>
+                                }
+                            </td>
+                            <td>
+                                @if (!string.IsNullOrEmpty(item.UserId))
+                                {
+                                    <div style="font-weight: 600; color: var(--text-main);">@(item.UserName ?? "User")</div>
+                                    <div class="table-sub" title="@item.UserEmail">@item.UserEmail</div>
+                                }
+                                else
+                                {
+                                    <span class="badge-tag badge-subtle">Anonymous</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="table-title" title="@item.Title">@item.Title</div>
+                                <div class="table-sub">
+                                    <span class="badge-tag badge-subtle">@item.Platform</span>
+                                    <span class="table-filename">@item.FileName</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="font-weight: 600;">@item.Quality</div>
+                                <div class="table-sub">@item.Format • @(item.Codec ?? "H.264")</div>
+                            </td>
+                            <td>
+                                <div style="font-weight: 600;">@item.FormattedFileSize</div>
+                                <div class="table-sub">
+                                    @if (item.AverageSpeedMBps > 0)
+                                    {
+                                        <span>⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@item.ThreadsUsed Threads</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <span class="status-badge status-@(item.Status.ToString().ToLower())">@item.Status</span>
+                            </td>
+                            <td>
+                                <div style="font-size: 13px;">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                <div class="table-sub">@item.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                    <a href="@item.OriginalUrl" target="_blank" class="btn btn-icon" title="Open source URL">🔗</a>
+                                    <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Permanently delete this download record?');">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-icon btn-danger-icon" title="Delete record">🗑️</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="pagination">
+                @if (Model.CurrentPage > 1)
+                {
+                    <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" asp-route-userEmail="@Model.UserFilter" class="page-link">&laquo; Prev</a>
+                }
+                @for (int p = 1; p <= Model.TotalPages; p++)
+                {
+                    <a asp-action="Downloads" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" asp-route-userEmail="@Model.UserFilter" class="page-link @(p == Model.CurrentPage ? "active" : "")">@p</a>
+                }
+                @if (Model.CurrentPage < Model.TotalPages)
+                {
+                    <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" asp-route-userEmail="@Model.UserFilter" class="page-link">Next &raquo;</a>
+                }
+            </div>
+        }
+    </div>
+</div>

@@ -1,5 +1,11 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using StreamHelper.Data;
+using StreamHelper.Services;
 using Zonix.Core;
 
 namespace Zonix;
@@ -7,6 +13,7 @@ namespace Zonix;
 public class DownloadTaskState
 {
     public string TaskId { get; set; } = string.Empty;
+    public string? UserId { get; set; }
     public string FileName { get; set; } = string.Empty;
     public double Percentage { get; set; }
     public double SpeedMBps { get; set; }
@@ -40,11 +47,18 @@ public class AnalyzeRequest
 public class DownloadRequest
 {
     public string StreamUrl { get; set; } = string.Empty;
+    public string? OriginalPageUrl { get; set; }
+    public string? Title { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public string? Platform { get; set; }
+    public string? Quality { get; set; }
+    public string? Format { get; set; }
     public string? AudioUrl { get; set; }
     public string FileName { get; set; } = "video.mp4";
     public int Concurrency { get; set; } = 64;
     public long EstimatedSizeBytes { get; set; } = 0;
     public bool IsDirectFile { get; set; } = false;
+    public int DurationSeconds { get; set; } = 0;
 }
 
 public class Program
@@ -68,7 +82,7 @@ public class Program
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a aac -b:a 192k -map 0:v:0 -map 1:a:0 -movflags +faststart \"{outputPath}\" -y",
+                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c copy -map 0:v:0 -map 1:a:0 -movflags +faststart \"{outputPath}\" -y",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,
@@ -89,16 +103,82 @@ public class Program
         return false;
     }
 
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
         
+        // 1. Database Context (SQL Server)
+        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+            ?? "Server=(localdb)\\mssqllocaldb;Database=StreamHelperDb;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True";
+
+        builder.Services.AddDbContext<AppDbContext>(options =>
+            options.UseSqlServer(connectionString));
+
+        // 2. ASP.NET Core Identity
+        builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
+        {
+            options.Password.RequireDigit = true;
+            options.Password.RequireLowercase = true;
+            options.Password.RequireUppercase = false;
+            options.Password.RequireNonAlphanumeric = false;
+            options.Password.RequiredLength = 6;
+
+            options.User.RequireUniqueEmail = true;
+            options.SignIn.RequireConfirmedAccount = false;
+
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.AllowedForNewUsers = true;
+        })
+        .AddEntityFrameworkStores<AppDbContext>()
+        .AddDefaultTokenProviders();
+
+        // 3. Cookie Authentication & OAuth
+        builder.Services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.HttpOnly = true;
+            options.Cookie.Name = "StreamHelper.Auth";
+            options.ExpireTimeSpan = TimeSpan.FromDays(30);
+            options.LoginPath = "/Account/Login";
+            options.LogoutPath = "/Account/Logout";
+            options.AccessDeniedPath = "/Account/Login";
+            options.SlidingExpiration = true;
+        });
+
+        var googleClientId = builder.Configuration["Authentication:Google:ClientId"] ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
+        var googleClientSecret = builder.Configuration["Authentication:Google:ClientSecret"] ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_SECRET");
+
+        if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret))
+        {
+            builder.Services.AddAuthentication()
+                .AddGoogle(googleOptions =>
+                {
+                    googleOptions.ClientId = googleClientId;
+                    googleOptions.ClientSecret = googleClientSecret;
+                });
+        }
+
+        // 4. Application Services
+        builder.Services.AddScoped<IEmailService, EmailService>();
+        builder.Services.AddScoped<IDownloadHistoryService, DownloadHistoryService>();
+        builder.Services.AddScoped<IAdminSettingsService, AdminSettingsService>();
+
         builder.Services.AddControllersWithViews();
 
         var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
         builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
         var app = builder.Build();
+
+        // 5. Database Auto-Migration & Seeder
+        try
+        {
+            await DbSeeder.SeedAsync(app.Services, app.Configuration);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
+        }
 
         if (!app.Environment.IsDevelopment())
         {
@@ -108,6 +188,9 @@ public class Program
 
         app.UseStaticFiles();
         app.UseRouting();
+
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         // 1. Analyze Stream / Webpage API with Generic Extraction
         app.MapPost("/api/analyze", async (AnalyzeRequest req) =>
@@ -174,7 +257,7 @@ public class Program
         });
 
         // 2. Start Parallel Multi-Threaded Download API (Adaptive Concurrency up to 256)
-        app.MapPost("/api/download", (DownloadRequest req) =>
+        app.MapPost("/api/download", async (HttpContext httpContext, DownloadRequest req, IServiceProvider sp) =>
         {
             if (string.IsNullOrWhiteSpace(req.StreamUrl))
             {
@@ -185,9 +268,27 @@ public class Program
             int concurrency = Math.Clamp(req.Concurrency, 1, 256);
             var cts = new CancellationTokenSource();
 
+            // Extract authenticated user if present
+            string? currentUserId = null;
+            string? currentUserEmail = null;
+            string? currentUserName = null;
+
+            if (httpContext.User.Identity?.IsAuthenticated == true)
+            {
+                var userMgr = sp.GetRequiredService<UserManager<AppUser>>();
+                var user = await userMgr.GetUserAsync(httpContext.User);
+                if (user != null)
+                {
+                    currentUserId = user.Id;
+                    currentUserEmail = user.Email;
+                    currentUserName = user.FullName;
+                }
+            }
+
             var state = new DownloadTaskState
             {
                 TaskId = taskId,
+                UserId = currentUserId,
                 FileName = req.FileName,
                 Concurrency = concurrency,
                 ActiveThreads = concurrency,
@@ -196,8 +297,41 @@ public class Program
             };
             _tasks[taskId] = state;
 
+            // Create or update database download history record
+            string pageUrl = !string.IsNullOrEmpty(req.OriginalPageUrl) ? req.OriginalPageUrl : req.StreamUrl;
+            string videoTitle = !string.IsNullOrEmpty(req.Title) ? req.Title : "High-Definition Video Stream";
+            string platform = !string.IsNullOrEmpty(req.Platform) ? req.Platform : "Web Stream";
+            string quality = !string.IsNullOrEmpty(req.Quality) ? req.Quality : "1080p Full HD";
+            string format = !string.IsNullOrEmpty(req.Format) ? req.Format : "MP4";
+
+            using (var scope = sp.CreateScope())
+            {
+                var dlHistoryService = scope.ServiceProvider.GetRequiredService<IDownloadHistoryService>();
+                await dlHistoryService.CreateOrUpdateDownloadAsync(
+                    taskId,
+                    currentUserId,
+                    currentUserEmail,
+                    currentUserName,
+                    pageUrl,
+                    videoTitle,
+                    req.FileName,
+                    req.ThumbnailUrl,
+                    platform,
+                    "Video",
+                    format,
+                    quality,
+                    "H.264 / AAC",
+                    req.DurationSeconds,
+                    req.EstimatedSizeBytes,
+                    concurrency,
+                    req.IsDirectFile ? "Parallel Byte-Range" : "HLS Multi-Thread");
+            }
+
             _ = Task.Run(async () =>
             {
+                using var scope = sp.CreateScope();
+                var dlHistoryService = scope.ServiceProvider.GetRequiredService<IDownloadHistoryService>();
+
                 try
                 {
                     using var httpClient = CreateConfiguredHttpClient();
@@ -244,21 +378,29 @@ public class Program
 
                         if (!string.IsNullOrEmpty(req.AudioUrl))
                         {
-                            // 1. Download Video Track
-                            state.Status = "Downloading High-Res Video Track...";
+                            // Download High-Res Video & Studio Audio simultaneously in parallel
+                            state.Status = "⚡ Downloading Video + Audio Tracks in Parallel...";
                             string tempVideoFile = Path.Combine(tempDirectory, "raw_video.mp4");
-                            var videoChunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, Path.Combine(tempDirectory, "v_chunks"), req.EstimatedSizeBytes, concurrency, progress, cts.Token);
-                            await SegmentMerger.MergeSegmentsAsync(videoChunks, tempVideoFile, Path.Combine(tempDirectory, "v_chunks"));
-
-                            // 2. Download HQ Audio Track
-                            state.Status = "Downloading Studio Audio Track...";
                             string tempAudioFile = Path.Combine(tempDirectory, "raw_audio.m4a");
-                            var audioChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, Path.Combine(tempDirectory, "a_chunks"), 0, Math.Clamp(concurrency / 2, 8, 64), null, cts.Token);
-                            await SegmentMerger.MergeSegmentsAsync(audioChunks, tempAudioFile, Path.Combine(tempDirectory, "a_chunks"));
 
-                            // 3. Mux Video + Audio with FFmpeg
+                            var videoTask = Task.Run(async () =>
+                            {
+                                var vChunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, Path.Combine(tempDirectory, "v_chunks"), req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+                                await SegmentMerger.MergeSegmentsAsync(vChunks, tempVideoFile, Path.Combine(tempDirectory, "v_chunks"));
+                            });
+
+                            var audioTask = Task.Run(async () =>
+                            {
+                                var aChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, Path.Combine(tempDirectory, "a_chunks"), 0, Math.Clamp(concurrency / 2, 8, 64), null, cts.Token);
+                                await SegmentMerger.MergeSegmentsAsync(aChunks, tempAudioFile, Path.Combine(tempDirectory, "a_chunks"));
+                            });
+
+                            await Task.WhenAll(videoTask, audioTask);
+
+                            // Instant 0.1s Stream Copy Mux
                             state.IsMerging = true;
-                            state.Status = "Muxing Video + Audio with FFmpeg...";
+                            state.Percentage = 99.5;
+                            state.Status = "⚡ Finalizing & Assembling Video Container (99%)...";
                             var mergeSw = Stopwatch.StartNew();
                             bool muxed = await MuxVideoAndAudioAsync(tempVideoFile, tempAudioFile, outputFilePath);
                             mergeSw.Stop();
@@ -269,21 +411,27 @@ public class Program
                                 state.OutputPath = outputFilePath;
                                 state.IsCompleted = true;
                                 state.Status = "Download Complete (Video + Audio)";
+
+                                var fi = new FileInfo(outputFilePath);
+                                await dlHistoryService.MarkCompletedAsync(taskId, fi.Length, state.SpeedMBps, state.PeakSpeedMBps, state.ElapsedSeconds);
                             }
                             else
                             {
-                                // Fallback to raw video if muxing failed
                                 if (File.Exists(tempVideoFile))
                                 {
                                     File.Copy(tempVideoFile, outputFilePath, true);
                                     state.OutputPath = outputFilePath;
                                     state.IsCompleted = true;
                                     state.Status = "Download Complete (Raw Video)";
+
+                                    var fi = new FileInfo(outputFilePath);
+                                    await dlHistoryService.MarkCompletedAsync(taskId, fi.Length, state.SpeedMBps, state.PeakSpeedMBps, state.ElapsedSeconds);
                                 }
                                 else
                                 {
                                     state.IsError = true;
                                     state.ErrorMessage = "Failed to finalize video + audio streams.";
+                                    await dlHistoryService.MarkFailedAsync(taskId, state.ErrorMessage);
                                 }
                             }
                         }
@@ -303,11 +451,15 @@ public class Program
                                 state.OutputPath = outputFilePath;
                                 state.IsCompleted = true;
                                 state.Status = "Download Complete";
+
+                                var fi = new FileInfo(outputFilePath);
+                                await dlHistoryService.MarkCompletedAsync(taskId, fi.Length, state.SpeedMBps, state.PeakSpeedMBps, state.ElapsedSeconds);
                             }
                             else
                             {
                                 state.IsError = true;
                                 state.ErrorMessage = "Failed to assemble file.";
+                                await dlHistoryService.MarkFailedAsync(taskId, state.ErrorMessage);
                             }
                         }
                     }
@@ -327,6 +479,7 @@ public class Program
                         {
                             state.IsError = true;
                             state.ErrorMessage = "No downloadable video segments found in this stream.";
+                            await dlHistoryService.MarkFailedAsync(taskId, state.ErrorMessage);
                             return;
                         }
 
@@ -345,22 +498,28 @@ public class Program
                             state.OutputPath = outputFilePath;
                             state.IsCompleted = true;
                             state.Status = "Download Complete";
+
+                            var fi = new FileInfo(outputFilePath);
+                            await dlHistoryService.MarkCompletedAsync(taskId, fi.Length, state.SpeedMBps, state.PeakSpeedMBps, state.ElapsedSeconds);
                         }
                         else
                         {
                             state.IsError = true;
                             state.ErrorMessage = "Failed to merge video chunks into MP4 container.";
+                            await dlHistoryService.MarkFailedAsync(taskId, state.ErrorMessage);
                         }
                     }
                 }
                 catch (OperationCanceledException)
                 {
                     state.Status = "Download Cancelled/Paused";
+                    await dlHistoryService.MarkCancelledAsync(taskId);
                 }
                 catch (Exception ex)
                 {
                     state.IsError = true;
                     state.ErrorMessage = ex.Message;
+                    await dlHistoryService.MarkFailedAsync(taskId, ex.Message);
                 }
             });
 

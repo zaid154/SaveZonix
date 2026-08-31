@@ -1,66 +1,51 @@
-@{
-    ViewData["Title"] = "Privacy Policy & Zero-Telemetry Transparency";
+﻿@{
+    ViewData["Title"] = "Privacy Policy & Zero-Tracker Transparency";
 }
 
 <section class="legal-page">
     <div class="container container-narrow">
         <div class="legal-header">
             <div class="hero-tag">
-                <span class="badge-tag badge-green">🛡️ Privacy First Architecture</span>
+                <span class="badge-tag badge-green">🛡️ Privacy &amp; Data Transparency</span>
             </div>
             <h1 class="legal-title">Privacy Policy</h1>
             <div class="legal-meta">
                 <span>Effective Date: January 1, 2026</span>
-                <span>Last Updated: August 31, 2026</span>
-                <span>Compliance: GDPR &bull; CCPA &bull; Chrome Web Store Developer Policy</span>
+                <span>Last Updated: September 1, 2026</span>
+                <span>Compliance: GDPR • CCPA • Chrome Web Store Developer Agreement</span>
             </div>
         </div>
 
         <div class="legal-content">
             <div class="highlight-box">
-                <strong>Executive Summary:</strong> Stream Helper is built on a strict zero-telemetry, client-side execution model. We do not track your browsing history, we do not log the videos you download, we do not store your IP address, and we never sell data to advertisers or third parties.
+                <strong>Executive Summary:</strong> Stream Helper operates on a privacy-respecting model. We do not sell your personal data, we do not employ third-party advertising tracking networks, and we never perform device fingerprinting or harvest browser history. Download history is stored exclusively for authenticated users to manage their personal downloads, and can be cleared at any time.
             </div>
 
-            <h2>1. Information We Do NOT Collect</h2>
-            <p>Unlike conventional web services and commercial download utilities, Stream Helper operates without server-side analytics, session cookies, or user tracking mechanisms. Specifically:</p>
+            <h2>1. Information We Collect</h2>
+            <p>We collect only the minimum information necessary to provide account services and download tracking:</p>
             <ul>
-                <li><strong>No Browsing History:</strong> The software does not track, record, or transmit URLs of websites you visit.</li>
-                <li><strong>No Media Content Logs:</strong> Video streams, audio tracks, playlist manifests, and downloaded binary segments are processed directly on your local device and are never sent to external servers.</li>
-                <li><strong>No Personal Identifiable Information (PII):</strong> We do not collect names, email addresses, physical locations, or hardware fingerprints.</li>
-                <li><strong>No Third-Party Advertising Trackers:</strong> The application contains zero Google Analytics, Meta Pixels, or telemetry SDKs.</li>
+                <li><strong>Account Details:</strong> When you register an account or sign in with Google OAuth, we store your name, email address, password hash (salted via ASP.NET Core Identity PBKDF2), and creation date. We never ask for or store your Google password.</li>
+                <li><strong>Download History:</strong> When signed in, your download history records the video title, source webpage URL (with temporary authorization tokens stripped), quality, format, file size, and download performance metrics so you can view and manage your downloads.</li>
+                <li><strong>Session Cookies:</strong> We use secure, encrypted HTTP cookies strictly for authentication and security token validation (CSRF protection).</li>
             </ul>
 
-            <h2>2. Browser Extension Permissions &amp; Technical Justification</h2>
-            <p>In compliance with the Google Chrome Web Store Developer Program Policies, Stream Helper declares only the minimum necessary permissions required to fulfill its technical purpose:</p>
+            <h2>2. Information We Do NOT Collect</h2>
             <ul>
-                <li><code>webRequest</code> / <code>declarativeNetRequest</code>: Used exclusively to detect incoming media playlist manifests (<code>.m3u8</code>, <code>.mpd</code>) in real-time and attach required Origin/Referer headers to prevent CDN hotlinking errors (HTTP 403).</li>
-                <li><code>storage</code> / <code>chrome.storage.local</code>: Used solely on your local machine to remember user interface preferences (such as preferred parallel thread count and theme settings). This data never leaves your browser.</li>
-                <li><code>downloads</code>: Used strictly to save finalized, stitched MP4 video files directly into your operating system's designated Downloads folder upon user command.</li>
-                <li><code>activeTab</code>: Used to inspect the active media player element on the current tab when the user explicitly clicks the extension icon.</li>
+                <li><strong>No Device Fingerprinting:</strong> We do NOT collect MAC addresses, hardware IDs, Canvas/WebGL fingerprints, or advertising identifiers.</li>
+                <li><strong>No General Browsing History:</strong> The application and browser extension only process video stream manifests on pages where you explicitly trigger analysis.</li>
+                <li><strong>No Third-Party Ad Trackers:</strong> Zero Google Analytics, Meta Pixels, or telemetry SDKs are embedded.</li>
+                <li><strong>No Transmission of Account Data to Media Hosts:</strong> Third-party CDNs only receive standard stream requests; your account credentials are never shared.</li>
             </ul>
 
-            <h2>3. Local Data Storage &amp; Persistence</h2>
-            <p>Any temporary segment slices downloaded during an active session are cached in your browser's private in-memory buffer or isolated IndexedDB sandbox. Upon download completion or cancellation, all temporary binary data is immediately released and purged from memory.</p>
+            <h2>3. User Data Rights &amp; Deletion</h2>
+            <p>You have full ownership of your data under GDPR and CCPA:</p>
+            <ul>
+                <li><strong>Purge Download History:</strong> You can delete any or all download records instantly from your <a asp-controller="Account" asp-action="Downloads" class="auth-link">Downloads Dashboard</a>.</li>
+                <li><strong>Account Deletion:</strong> You can request full account erasure at any time by contacting our Grievance Officer.</li>
+            </ul>
 
-            <h2>4. Web Portal &amp; Server-Side Processing</h2>
-            <p>When utilizing the web-based downloader portal hosted on local or cloud runtime, the backend server acts as a transient pipeline to stream segments. Downloaded files are saved only in the server's local storage directory until downloaded by the client, after which temporary task caches are automatically garbage-collected.</p>
-
-            <h2>5. Third-Party Links &amp; Content Delivery Networks</h2>
-            <p>When downloading video streams, network requests travel directly between your device and the third-party Content Delivery Network (CDN) hosting the source media. We encourage users to review the privacy policies of third-party platforms whose content they access.</p>
-
-            <h2>6. User Rights (GDPR &amp; CCPA Compliance)</h2>
-            <p>Because we do not store, process, or transmit personal data on central servers, there is no personal user data to access, rectify, port, or erase. Users maintain complete sovereignty over their data and can clear all local settings at any time by clearing extension storage or uninstalling the software.</p>
-
-            <h2>7. Updates to This Privacy Policy</h2>
-            <p>We may update this Privacy Policy from time to time to reflect technological or regulatory advancements. Any revisions will be published on this page with an updated timestamp.</p>
-
-            <h2>8. Privacy Contact Information</h2>
-            <p>If you have any questions, concerns, or technical inquiries regarding our privacy practices, please contact our Compliance Officer:</p>
-            <p>
-                <strong>Stream Helper Privacy Team</strong><br>
-                Email: <a href="mailto:privacy@streamhelper.app">privacy@streamhelper.app</a><br>
-                Legal Portal: <a asp-controller="Legal" asp-action="Grievance">Grievance &amp; Compliance Office</a>
-            </p>
+            <h2>4. Security Architecture</h2>
+            <p>All authentication communications utilize HTTPS with TLS 1.3 encryption. Passwords are never logged or stored in plaintext.</p>
         </div>
     </div>
 </section>

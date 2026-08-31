@@ -1,0 +1,27 @@
+﻿@model StreamHelper.ViewModels.VerifyEmailViewModel
+@{
+    ViewData["Title"] = "Verify Email — Stream Helper";
+}
+
+<div class="auth-wrapper">
+    <div class="auth-card" style="text-align: center;">
+        @if (Model.IsSuccess)
+        {
+            <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+            <h1 class="auth-title">Email Verified!</h1>
+            <p class="auth-subtitle">@Model.Message</p>
+            <div style="margin-top: 28px;">
+                <a asp-action="Login" class="btn btn-primary">Proceed to Sign In</a>
+            </div>
+        }
+        else
+        {
+            <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+            <h1 class="auth-title">Verification Issue</h1>
+            <p class="auth-subtitle" style="color: var(--rose);">@Model.Message</p>
+            <div style="margin-top: 28px;">
+                <a asp-action="Login" class="btn btn-secondary">Return to Sign In</a>
+            </div>
+        }
+    </div>
+</div>

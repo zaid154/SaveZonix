@@ -1,0 +1,182 @@
+﻿@model StreamHelper.ViewModels.UserDownloadsViewModel
+@{
+    ViewData["Title"] = "My Download History — Stream Helper";
+}
+
+<div class="account-page">
+    <div class="container">
+        <div class="account-header">
+            <div>
+                <h1 class="page-title">Download History</h1>
+                <p class="page-subtitle">Your personal record of extracted media streams and parallel downloads</p>
+            </div>
+            <div class="account-actions">
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
+                    <span>⚡ New Download</span>
+                </a>
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert success" style="margin-bottom: 24px;">
+                <span class="alert-icon">✅</span>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+
+        <!-- Filter Bar -->
+        <div class="glass-card" style="margin-bottom: 24px; padding: 16px 20px;">
+            <form method="get" asp-action="Downloads" class="filter-form">
+                <div class="filter-grid">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control" placeholder="Search by title, file name or URL..." />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="status" class="form-control">
+                            <option value="">All Statuses</option>
+                            <option value="Completed" selected="@(Model.StatusFilter == "Completed")">Completed</option>
+                            <option value="Downloading" selected="@(Model.StatusFilter == "Downloading")">Downloading</option>
+                            <option value="Failed" selected="@(Model.StatusFilter == "Failed")">Failed</option>
+                            <option value="Cancelled" selected="@(Model.StatusFilter == "Cancelled")">Cancelled</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="platform" class="form-control">
+                            <option value="">All Platforms</option>
+                            <option value="YouTube" selected="@(Model.PlatformFilter == "YouTube")">YouTube</option>
+                            <option value="Instagram" selected="@(Model.PlatformFilter == "Instagram")">Instagram</option>
+                            <option value="PixelFlix" selected="@(Model.PlatformFilter == "PixelFlix")">PixelFlix</option>
+                            <option value="Web Stream" selected="@(Model.PlatformFilter == "Web Stream")">Web Stream</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="submit" class="btn btn-primary" style="flex: 1;">Filter</button>
+                        <a asp-action="Downloads" class="btn btn-secondary">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        @if (Model.Downloads.Count == 0)
+        {
+            <div class="glass-card empty-state">
+                <div style="font-size: 48px; margin-bottom: 16px;">📥</div>
+                <h3>No Downloads Found</h3>
+                <p style="color: var(--text-muted); margin-bottom: 24px;">You haven't initiated any downloads matching your criteria.</p>
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Start Downloading Now</a>
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive glass-card" style="padding: 0; overflow: hidden;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 70px;">Media</th>
+                            <th>Title &amp; Source</th>
+                            <th>Quality &amp; Format</th>
+                            <th>Size / Speed</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Downloads)
+                        {
+                            <tr>
+                                <td>
+                                    @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
+                                    {
+                                        <img src="@item.ThumbnailUrl" alt="Thumb" class="table-thumb" onerror="this.style.display='none'" />
+                                    }
+                                    else
+                                    {
+                                        <div class="table-thumb-fallback">🎬</div>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="table-title" title="@item.Title">@item.Title</div>
+                                    <div class="table-sub">
+                                        <span class="badge-tag badge-subtle">@item.Platform</span>
+                                        <span class="table-filename">@item.FileName</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 600; color: var(--text-main);">@item.Quality</div>
+                                    <div class="table-sub">@item.Format • @(item.Codec ?? "H.264")</div>
+                                </td>
+                                <td>
+                                    <div style="font-weight: 600;">@item.FormattedFileSize</div>
+                                    <div class="table-sub">
+                                        @if (item.AverageSpeedMBps > 0)
+                                        {
+                                            <span>⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                        }
+                                        else
+                                        {
+                                            <span>@item.ThreadsUsed Workers</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    @switch (item.Status)
+                                    {
+                                        case StreamHelper.Data.DownloadStatus.Completed:
+                                            <span class="status-badge status-completed">✅ Completed</span>
+                                            break;
+                                        case StreamHelper.Data.DownloadStatus.Downloading:
+                                            <span class="status-badge status-downloading">⚡ Downloading</span>
+                                            break;
+                                        case StreamHelper.Data.DownloadStatus.Failed:
+                                            <span class="status-badge status-failed" title="@item.ErrorReason">❌ Failed</span>
+                                            break;
+                                        case StreamHelper.Data.DownloadStatus.Cancelled:
+                                            <span class="status-badge status-cancelled">⏹️ Cancelled</span>
+                                            break;
+                                        default:
+                                            <span class="status-badge status-queued">⏳ @item.Status</span>
+                                            break;
+                                    }
+                                </td>
+                                <td>
+                                    <div style="font-size: 13px;">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                    <div class="table-sub">@item.CreatedAt.ToLocalTime().ToString("hh:mm tt")</div>
+                                </td>
+                                <td style="text-align: right;">
+                                    <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                        <a href="@(item.OriginalUrl)" target="_blank" class="btn btn-icon" title="Open Source Webpage">🔗</a>
+                                        <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Remove this download from your history?');">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-icon btn-danger-icon" title="Delete from history">🗑️</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            @if (Model.TotalPages > 1)
+            {
+                <div class="pagination">
+                    @if (Model.CurrentPage > 1)
+                    {
+                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link">&laquo; Prev</a>
+                    }
+                    @for (int p = 1; p <= Model.TotalPages; p++)
+                    {
+                        <a asp-action="Downloads" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link @(p == Model.CurrentPage ? "active" : "")">@p</a>
+                    }
+                    @if (Model.CurrentPage < Model.TotalPages)
+                    {
+                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link">Next &raquo;</a>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>

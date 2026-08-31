@@ -1,0 +1,151 @@
+﻿@model StreamHelper.ViewModels.AdminUsersViewModel
+@{
+    ViewData["Title"] = "User Management — Stream Helper Admin";
+}
+
+<div class="admin-page">
+    <div class="container">
+        <div class="admin-header">
+            <div>
+                <h1 class="page-title">User Management</h1>
+                <p class="page-subtitle">Inspect user accounts, manage security statuses, and view download metrics</p>
+            </div>
+            <div class="admin-nav-links">
+                <a asp-action="Index" class="btn btn-secondary">Dashboard</a>
+                <a asp-action="Users" class="btn btn-primary">Users</a>
+                <a asp-action="Downloads" class="btn btn-secondary">Downloads</a>
+                <a asp-action="Settings" class="btn btn-secondary">Settings</a>
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert success" style="margin-bottom: 24px;">
+                <span class="alert-icon">✅</span>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert error" style="margin-bottom: 24px;">
+                <span class="alert-icon">⚠️</span>
+                <span>@TempData["ErrorMessage"]</span>
+            </div>
+        }
+
+        <!-- Search Bar -->
+        <div class="glass-card" style="margin-bottom: 24px; padding: 16px 20px;">
+            <form method="get" asp-action="Users" class="filter-form">
+                <div class="filter-grid" style="grid-template-columns: 2fr 1fr 1fr;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control" placeholder="Search by name or email address..." />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <select name="status" class="form-control">
+                            <option value="">All Statuses</option>
+                            <option value="Active" selected="@(Model.StatusFilter == "Active")">Active</option>
+                            <option value="Inactive" selected="@(Model.StatusFilter == "Inactive")">Deactivated</option>
+                            <option value="Verified" selected="@(Model.StatusFilter == "Verified")">Email Verified</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="submit" class="btn btn-primary" style="flex: 1;">Search</button>
+                        <a asp-action="Users" class="btn btn-secondary">Reset</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-responsive glass-card" style="padding: 0; overflow: hidden;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Email &amp; Verification</th>
+                        <th>Roles</th>
+                        <th>Downloads</th>
+                        <th>Registered</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in Model.Users)
+                    {
+                        <tr>
+                            <td>
+                                <div style="font-weight: 600; color: var(--text-main);">@u.FullName</div>
+                                <div class="table-sub">ID: @u.Id.Substring(0, Math.Min(8, u.Id.Length))...</div>
+                            </td>
+                            <td>
+                                <div>@u.Email</div>
+                                <div class="table-sub">
+                                    @if (u.EmailConfirmed)
+                                    {
+                                        <span style="color: #10b981;">✓ Verified</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color: var(--amber);">⏳ Unverified</span>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                @foreach (var r in u.Roles)
+                                {
+                                    <span class="badge-tag @(r == "Admin" ? "badge-red" : "badge-subtle")">@r</span>
+                                }
+                            </td>
+                            <td>
+                                <strong>@u.DownloadCount</strong> tasks
+                            </td>
+                            <td>
+                                <div style="font-size: 13px;">@u.CreatedAt.ToString("MMM dd, yyyy")</div>
+                            </td>
+                            <td>
+                                <span class="status-badge @(u.IsActive ? "status-completed" : "status-failed")">
+                                    @(u.IsActive ? "Active" : "Disabled")
+                                </span>
+                            </td>
+                            <td style="text-align: right;">
+                                <div style="display: flex; gap: 6px; justify-content: flex-end;">
+                                    <a asp-action="UserDetails" asp-route-id="@u.Id" class="btn btn-sm btn-secondary">Details</a>
+                                    
+                                    <form asp-action="ToggleUserStatus" asp-route-id="@u.Id" method="post" style="display:inline;">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm @(u.IsActive ? "btn-warning" : "btn-primary")">
+                                            @(u.IsActive ? "Deactivate" : "Activate")
+                                        </button>
+                                    </form>
+
+                                    <form asp-action="DeleteUser" asp-route-id="@u.Id" method="post" onsubmit="return confirm('Permanently delete this user and all associated records?');" style="display:inline;">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (Model.TotalPages > 1)
+        {
+            <div class="pagination">
+                @if (Model.CurrentPage > 1)
+                {
+                    <a asp-action="Users" asp-route-page="@(Model.CurrentPage - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" class="page-link">&laquo; Prev</a>
+                }
+                @for (int p = 1; p <= Model.TotalPages; p++)
+                {
+                    <a asp-action="Users" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" class="page-link @(p == Model.CurrentPage ? "active" : "")">@p</a>
+                }
+                @if (Model.CurrentPage < Model.TotalPages)
+                {
+                    <a asp-action="Users" asp-route-page="@(Model.CurrentPage + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" class="page-link">Next &raquo;</a>
+                }
+            </div>
+        }
+    </div>
+</div>

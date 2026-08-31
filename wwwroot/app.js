@@ -407,10 +407,17 @@ btnStartDownload.addEventListener('click', async () => {
             body: JSON.stringify({
                 streamUrl: selectedUrl,
                 audioUrl: audioUrl,
+                originalPageUrl: streamUrlInput.value.trim(),
+                title: streamData.title || fileName,
+                thumbnailUrl: streamData.thumbnailUrl || '',
+                platform: streamData.platform || 'Web Stream',
+                quality: selectedOpt?.dataset.res || '1080p',
+                format: isDirectFile ? 'MP4' : 'HLS/MP4',
                 fileName,
                 concurrency,
                 estimatedSizeBytes,
-                isDirectFile
+                isDirectFile,
+                durationSeconds: streamData.durationSeconds || 0
             })
         });
 

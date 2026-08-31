@@ -1,0 +1,82 @@
+﻿@model StreamHelper.ViewModels.ProfileViewModel
+@{
+    ViewData["Title"] = "User Profile — Stream Helper";
+}
+
+<div class="account-page">
+    <div class="container">
+        <div class="account-header">
+            <div>
+                <h1 class="page-title">My Account</h1>
+                <p class="page-subtitle">Manage your profile information and view personal download statistics</p>
+            </div>
+            <div class="account-actions">
+                <a asp-action="Downloads" class="btn btn-secondary">
+                    <span>⚡ Download History</span>
+                </a>
+                <a asp-action="Settings" class="btn btn-secondary">
+                    <span>⚙️ Security &amp; Settings</span>
+                </a>
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert success" style="margin-bottom: 24px;">
+                <span class="alert-icon">✅</span>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+
+        <!-- Stats Overview Cards -->
+        <div class="stats-grid" style="margin-bottom: 32px;">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
+                <div class="stat-value">@Model.TotalDownloads</div>
+                <div class="stat-label">Total Downloads Initiated</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">✅</div>
+                <div class="stat-value">@Model.CompletedDownloads</div>
+                <div class="stat-label">Completed High-Res Files</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">💾</div>
+                <div class="stat-value">@Model.FormattedTotalSize</div>
+                <div class="stat-label">Total Data Processed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🛡️</div>
+                <div class="stat-value">@(Model.EmailConfirmed ? "Verified" : "Unverified")</div>
+                <div class="stat-label">Account Security Status</div>
+            </div>
+        </div>
+
+        <!-- Profile Form Card -->
+        <div class="glass-card" style="max-width: 640px;">
+            <h2 class="card-title" style="margin-bottom: 20px;">Profile Information</h2>
+            <form asp-action="UpdateProfile" method="post">
+                @Html.AntiForgeryToken()
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" name="fullName" value="@Model.FullName" class="form-control" required />
+                </div>
+
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="email" value="@Model.Email" class="form-control" disabled style="opacity: 0.7; cursor: not-allowed;" />
+                    <span style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 4px;">Email cannot be changed directly for security purposes.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Member Since</label>
+                    <input type="text" value="@Model.CreatedAt.ToString("MMMM dd, yyyy")" class="form-control" disabled style="opacity: 0.7; cursor: not-allowed;" />
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <span>Save Profile Changes</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>

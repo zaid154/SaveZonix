@@ -1,0 +1,95 @@
+﻿@model StreamHelper.ViewModels.AdminSettingsViewModel
+@{
+    ViewData["Title"] = "Platform Settings — Stream Helper Admin";
+}
+
+<div class="admin-page">
+    <div class="container">
+        <div class="admin-header">
+            <div>
+                <h1 class="page-title">Platform Configuration</h1>
+                <p class="page-subtitle">Configure operational parameters, security rules, and download engine defaults</p>
+            </div>
+            <div class="admin-nav-links">
+                <a asp-action="Index" class="btn btn-secondary">Dashboard</a>
+                <a asp-action="Users" class="btn btn-secondary">Users</a>
+                <a asp-action="Downloads" class="btn btn-secondary">Downloads</a>
+                <a asp-action="Settings" class="btn btn-primary">Settings</a>
+            </div>
+        </div>
+
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert success" style="margin-bottom: 24px;">
+                <span class="alert-icon">✅</span>
+                <span>@TempData["SuccessMessage"]</span>
+            </div>
+        }
+
+        <form asp-action="Settings" method="post">
+            @Html.AntiForgeryToken()
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                <!-- User Access & Authentication -->
+                <div class="glass-card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">🛡️ Access &amp; Authentication</h2>
+
+                    <div class="form-group">
+                        <label>User Registration</label>
+                        <select name="settings[RegistrationEnabled]" class="form-control">
+                            <option value="true" selected="@(Model.Settings.GetValueOrDefault("RegistrationEnabled", "true") == "true")">Enabled (Open to public)</option>
+                            <option value="false" selected="@(Model.Settings.GetValueOrDefault("RegistrationEnabled", "true") == "false")">Disabled (Invite/Admin only)</option>
+                        </select>
+                        <span style="font-size: 12px; color: var(--text-muted);">When disabled, visitors cannot create new accounts.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Email Verification Requirement</label>
+                        <select name="settings[EmailVerificationRequired]" class="form-control">
+                            <option value="false" selected="@(Model.Settings.GetValueOrDefault("EmailVerificationRequired", "false") == "false")">Optional (Instant Sign In)</option>
+                            <option value="true" selected="@(Model.Settings.GetValueOrDefault("EmailVerificationRequired", "false") == "true")">Strict (Must verify email before login)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Google OAuth Login</label>
+                        <select name="settings[GoogleLoginEnabled]" class="form-control">
+                            <option value="true" selected="@(Model.Settings.GetValueOrDefault("GoogleLoginEnabled", "true") == "true")">Enabled</option>
+                            <option value="false" selected="@(Model.Settings.GetValueOrDefault("GoogleLoginEnabled", "true") == "false")">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Download Engine Configuration -->
+                <div class="glass-card">
+                    <h2 class="card-title" style="margin-bottom: 20px;">⚡ Engine &amp; Performance</h2>
+
+                    <div class="form-group">
+                        <label>Default Parallel Threads</label>
+                        <input type="number" name="settings[DefaultThreads]" value="@Model.Settings.GetValueOrDefault("DefaultThreads", "64")" class="form-control" min="1" max="256" />
+                        <span style="font-size: 12px; color: var(--text-muted);">Default thread concurrency allocated to new downloads.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Max Allowed Threads</label>
+                        <input type="number" name="settings[MaxThreads]" value="@Model.Settings.GetValueOrDefault("MaxThreads", "256")" class="form-control" min="8" max="512" />
+                        <span style="font-size: 12px; color: var(--text-muted);">Hard maximum cap for simultaneous worker sockets per task.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Maintenance Mode</label>
+                        <select name="settings[MaintenanceMode]" class="form-control">
+                            <option value="false" selected="@(Model.Settings.GetValueOrDefault("MaintenanceMode", "false") == "false")">Operational (Live)</option>
+                            <option value="true" selected="@(Model.Settings.GetValueOrDefault("MaintenanceMode", "false") == "true")">Maintenance Mode Active</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 24px; text-align: right;">
+                <button type="submit" class="btn btn-primary" style="padding: 14px 32px;">
+                    <span>💾 Save Platform Configuration</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

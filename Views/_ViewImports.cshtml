@@ -1,3 +1,8 @@
-@using Zonix
+﻿@using Zonix
 @using Zonix.Core
+@using StreamHelper.Data
+@using StreamHelper.ViewModels
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<AppUser> SignInManager
+@inject UserManager<AppUser> UserManager
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers

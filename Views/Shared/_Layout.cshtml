@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -38,6 +38,65 @@
                     <li><a asp-controller="Home" asp-action="Contact" class="@(ViewData["ActiveNav"]?.ToString() == "Contact" ? "active" : "")">Support</a></li>
                 </ul>
                 <div class="nav-actions">
+                    @if (SignInManager.IsSignedIn(User))
+                    {
+                        var currentUser = await UserManager.GetUserAsync(User);
+                        bool isAdmin = User.IsInRole("Admin");
+
+                        if (isAdmin)
+                        {
+                            <a asp-controller="Admin" asp-action="Index" class="btn btn-sm btn-admin-badge" title="Admin Command Center">
+                                🛡️ <span>Admin</span>
+                            </a>
+                        }
+
+                        <div class="user-dropdown-container">
+                            <button class="btn btn-user-menu" id="userMenuBtn" type="button">
+                                <div class="user-avatar-initials">
+                                    @(currentUser?.FullName?.Length > 0 ? currentUser.FullName.Substring(0, 1).ToUpper() : "U")
+                                </div>
+                                <span class="user-menu-name">@(currentUser?.FullName ?? "Account")</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+
+                            <div class="user-dropdown-menu" id="userDropdownMenu">
+                                <div class="user-dropdown-header">
+                                    <div style="font-weight: 700; color: var(--text-main);">@(currentUser?.FullName ?? "User")</div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">@(currentUser?.Email ?? "")</div>
+                                </div>
+                                <div class="dropdown-divider"></div>
+                                <a asp-controller="Account" asp-action="Profile" class="dropdown-item">
+                                    <span>👤 My Profile</span>
+                                </a>
+                                <a asp-controller="Account" asp-action="Downloads" class="dropdown-item">
+                                    <span>⚡ Download History</span>
+                                </a>
+                                <a asp-controller="Account" asp-action="Settings" class="dropdown-item">
+                                    <span>⚙️ Account Settings</span>
+                                </a>
+                                @if (isAdmin)
+                                {
+                                    <div class="dropdown-divider"></div>
+                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item" style="color: #38bdf8;">
+                                        <span>🛡️ Admin Dashboard</span>
+                                    </a>
+                                }
+                                <div class="dropdown-divider"></div>
+                                <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0;">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item dropdown-item-danger" style="width: 100%; border: none; background: none; text-align: left; cursor: pointer;">
+                                        <span>🚪 Sign Out</span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <a asp-controller="Account" asp-action="Login" class="btn btn-secondary btn-sm">Sign In</a>
+                        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-sm">Sign Up</a>
+                    }
+                    
                     <a asp-controller="Home" asp-action="Download" class="btn btn-nav-cta">Get Extension</a>
                     <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Menu">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
@@ -52,6 +111,27 @@
                 <a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Download Hub</a>
                 <a asp-controller="Home" asp-action="FAQ" class="@(ViewData["ActiveNav"]?.ToString() == "FAQ" ? "active" : "")">FAQ</a>
                 <a asp-controller="Home" asp-action="Contact" class="@(ViewData["ActiveNav"]?.ToString() == "Contact" ? "active" : "")">Support</a>
+                
+                @if (SignInManager.IsSignedIn(User))
+                {
+                    <a asp-controller="Account" asp-action="Profile">👤 My Profile</a>
+                    <a asp-controller="Account" asp-action="Downloads">⚡ My Downloads</a>
+                    <a asp-controller="Account" asp-action="Settings">⚙️ Settings</a>
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <a asp-controller="Admin" asp-action="Index" style="color: #38bdf8;">🛡️ Admin Dashboard</a>
+                    }
+                    <form asp-controller="Account" asp-action="Logout" method="post" style="padding: 10px 0;">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-secondary" style="width: 100%;">Sign Out</button>
+                    </form>
+                }
+                else
+                {
+                    <a asp-controller="Account" asp-action="Login">Sign In</a>
+                    <a asp-controller="Account" asp-action="Register">Create Account</a>
+                }
+
                 <a asp-controller="Legal" asp-action="Privacy">Privacy Policy</a>
                 <a asp-controller="Legal" asp-action="Terms">Terms of Service</a>
                 <a asp-controller="Home" asp-action="Download" class="btn btn-primary" style="text-align: center; margin-top: 8px;">Install Extension</a>
@@ -86,12 +166,20 @@
                     </div>
 
                     <div class="footer-column">
-                        <h4>Support</h4>
+                        <h4>Account &amp; History</h4>
                         <ul>
+                            @if (SignInManager.IsSignedIn(User))
+                            {
+                                <li><a asp-controller="Account" asp-action="Profile">My Profile</a></li>
+                                <li><a asp-controller="Account" asp-action="Downloads">My Downloads</a></li>
+                                <li><a asp-controller="Account" asp-action="Settings">Security Settings</a></li>
+                            }
+                            else
+                            {
+                                <li><a asp-controller="Account" asp-action="Login">Sign In</a></li>
+                                <li><a asp-controller="Account" asp-action="Register">Create Free Account</a></li>
+                            }
                             <li><a asp-controller="Home" asp-action="Contact">Help Center</a></li>
-                            <li><a asp-controller="Home" asp-action="Contact">Report an Issue</a></li>
-                            <li><a asp-controller="Legal" asp-action="Grievance">Grievance Officer</a></li>
-                            <li><a asp-controller="Home" asp-action="FAQ">Troubleshooting</a></li>
                         </ul>
                     </div>
 
@@ -105,6 +193,7 @@
                             <li><a asp-controller="Legal" asp-action="Disclaimer">Legal Disclaimer</a></li>
                             <li><a asp-controller="Legal" asp-action="Cookies">Cookie Policy</a></li>
                             <li><a asp-controller="Legal" asp-action="AcceptableUse">Acceptable Use</a></li>
+                            <li><a asp-controller="Legal" asp-action="Grievance">Grievance Officer</a></li>
                         </ul>
                     </div>
                 </div>
@@ -118,6 +207,20 @@
     </div>
 
     <script src="~/nav.js" asp-append-version="true"></script>
+    <script>
+        // User Dropdown Interaction
+        const userMenuBtn = document.getElementById('userMenuBtn');
+        const userDropdownMenu = document.getElementById('userDropdownMenu');
+        if (userMenuBtn && userDropdownMenu) {
+            userMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdownMenu.classList.toggle('show');
+            });
+            document.addEventListener('click', () => {
+                userDropdownMenu.classList.remove('show');
+            });
+        }
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
