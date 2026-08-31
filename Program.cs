@@ -443,7 +443,15 @@ public class Program
             PooledConnectionLifetime = TimeSpan.FromMinutes(5),
             AutomaticDecompression = System.Net.DecompressionMethods.All,
             UseCookies = true,
-            CookieContainer = new System.Net.CookieContainer()
+            CookieContainer = new System.Net.CookieContainer(),
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
+                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls13 | 
+                                      System.Security.Authentication.SslProtocols.Tls12 | 
+                                      System.Security.Authentication.SslProtocols.Tls11 | 
+                                      System.Security.Authentication.SslProtocols.Tls
+            }
         };
 
         var client = new HttpClient(handler);
