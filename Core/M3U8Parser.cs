@@ -43,31 +43,24 @@ public class M3U8Parser
                 var bestAudio = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
                 string audioUrl = bestAudio?.Url ?? string.Empty;
 
-                var muxedStreams = streamManifest.GetMuxedStreams().OrderByDescending(s => s.VideoQuality).ToList();
-                foreach (var stream in muxedStreams)
-                {
-                    result.Qualities.Add(new StreamQuality
-                    {
-                        Resolution = $"{stream.VideoQuality.Label} HD (Video + Audio)",
-                        Url = stream.Url,
-                        AudioUrl = string.Empty, // Native muxed
-                        IsDirectFile = true,
-                        DurationSeconds = result.DurationSeconds,
-                        Bandwidth = stream.Bitrate.BitsPerSecond
-                    });
-                }
+                var allStreams = streamManifest.GetVideoStreams()
+                    .OrderByDescending(s => s.VideoQuality)
+                    .ThenByDescending(s => s.Bitrate)
+                    .GroupBy(s => s.VideoQuality.Label)
+                    .Select(g => g.First())
+                    .ToList();
 
-                var videoStreams = streamManifest.GetVideoOnlyStreams().Where(s => s.Container == Container.Mp4).OrderByDescending(s => s.VideoQuality).ToList();
-                foreach (var stream in videoStreams)
+                foreach (var stream in allStreams)
                 {
+                    bool isMuxed = stream is YoutubeExplode.Videos.Streams.MuxedStreamInfo;
                     result.Qualities.Add(new StreamQuality
                     {
-                        Resolution = $"{stream.VideoQuality.Label} (Video + Audio)",
+                        Resolution = $"{stream.VideoQuality.Label}",
                         Url = stream.Url,
-                        AudioUrl = audioUrl,
+                        AudioUrl = isMuxed ? string.Empty : audioUrl,
                         IsDirectFile = true,
                         DurationSeconds = result.DurationSeconds,
-                        Bandwidth = stream.Bitrate.BitsPerSecond + (bestAudio?.Bitrate.BitsPerSecond ?? 0)
+                        Bandwidth = stream.Bitrate.BitsPerSecond + (isMuxed ? 0 : (bestAudio?.Bitrate.BitsPerSecond ?? 0))
                     });
                 }
 

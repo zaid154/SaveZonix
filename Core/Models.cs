@@ -48,7 +48,7 @@ public class StreamQuality
             }
 
             string bwText = Bandwidth > 0 ? $" • {(Bandwidth / 1000000.0):F1} Mbps" : string.Empty;
-            string sizeText = !string.IsNullOrEmpty(FormattedEstimatedSize) ? $" • 📦 {FormattedEstimatedSize}" : string.Empty;
+            string sizeText = !string.IsNullOrEmpty(FormattedEstimatedSize) ? $" • {FormattedEstimatedSize}" : string.Empty;
             string directTag = IsDirectFile ? " • Direct Stream" : string.Empty;
 
             return $"{resLabel}{bwText}{sizeText}{directTag}";
