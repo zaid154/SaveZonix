@@ -1,0 +1,23 @@
+# Video and binary files
+*.mp4
+*.ts
+*.m4s
+*.m4a
+*.webm
+*.blob
+
+# Scratch and test files
+*.html.bak
+pixelflix_page.html
+embed_page.html
+static_chunks_*
+test_*.js
+test_*.ts
+inspect_*.js
+download_*.js
+analyze_*.js
+check_*.js
+search_*.js
+find_*.js
+*.json.bak
+next_data.json

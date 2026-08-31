@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Video Stream Downloader & Helper",
-  "version": "2.2.0",
-  "description": "Detects accessible video media and HLS/DASH streams for authorized local saving.",
+  "name": "Stream Helper — Video Downloader",
+  "version": "3.1.2",
+  "description": "Professional multi-site video stream detector and authorized local saver with dedicated high-speed downloader hub.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "webRequest",
+    "declarativeNetRequest",
     "storage",
     "activeTab",
     "scripting",
@@ -14,18 +20,40 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
   },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "js": [
+        "src/utils/helpers.js",
+        "src/utils/thumbnail.js",
+        "src/utils/metadata.js",
+        "src/detectors/media-detector.js",
+        "src/detectors/stream-detector.js",
+        "src/sites/youtube.js",
+        "src/sites/instagram.js",
+        "src/sites/generic.js",
+        "src/content/content.js"
+      ],
       "all_frames": true,
       "run_at": "document_idle"
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/**/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "Video Stream Helper"
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Stream Helper"
   }
 }

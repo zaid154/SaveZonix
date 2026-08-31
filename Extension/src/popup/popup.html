@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Helper</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <!-- Clean Header -->
+    <header class="app-header">
+        <div class="header-titles">
+            <h1 class="app-title">Stream Helper</h1>
+            <p class="app-subtitle">Multi-site video detection & helper</p>
+        </div>
+        <div class="header-controls">
+            <button id="btnRefresh" class="btn-icon" title="Refresh Detection">🔄</button>
+            <button id="btnSettingsToggle" class="btn-icon" title="Settings">⚙️</button>
+        </div>
+    </header>
+
+    <!-- Settings Panel (Collapsible) -->
+    <section id="settingsPanel" class="settings-panel hidden">
+        <div class="settings-title-row">
+            <h3>Settings</h3>
+            <button id="btnCloseSettings" class="btn-close-sm">&times;</button>
+        </div>
+        <div class="setting-item">
+            <label for="settingQuality">Default Quality</label>
+            <select id="settingQuality" class="select-input">
+                <option value="best">Best Available Quality</option>
+                <option value="1080p">1080p Full HD</option>
+                <option value="720p">720p HD</option>
+                <option value="480p">480p</option>
+            </select>
+        </div>
+        <div class="setting-checkbox">
+            <input type="checkbox" id="settingRemember" checked>
+            <label for="settingRemember">Remember selected quality</label>
+        </div>
+        <div class="setting-checkbox">
+            <input type="checkbox" id="settingAutoEpisode" checked>
+            <label for="settingAutoEpisode">Auto-detect episode and reel titles</label>
+        </div>
+        <button id="btnSaveSettings" class="btn-save-sm">Save Preferences</button>
+    </section>
+
+    <!-- Main Body Area -->
+    <main class="app-main">
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <span class="status-dot"></span>
+            <span id="statusLabel" class="status-text">Scanning for media stream...</span>
+        </div>
+
+        <!-- Detected Video Card Container -->
+        <section id="detectedSection" class="detected-section">
+            <div id="videoList" class="video-list">
+                <!-- Video Card Injected Here -->
+            </div>
+        </section>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+            <div class="empty-icon">📺</div>
+            <h3>No video detected</h3>
+            <p>Play a video on the current page to detect media automatically.</p>
+        </div>
+
+        <!-- Download History -->
+        <section id="completedSection" class="history-section hidden">
+            <div class="section-title">DOWNLOAD HISTORY</div>
+            <div id="completedList" class="history-list">
+                <!-- Completed History Injected Here -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <span class="footer-info">Multi-Site Video Downloader &bull; Non-DRM</span>
+    </footer>
+
+    <script src="../utils/helpers.js"></script>
+    <script src="../utils/thumbnail.js"></script>
+    <script src="../utils/metadata.js"></script>
+    <script src="../utils/storage.js"></script>
+    <script src="../detectors/stream-detector.js"></script>
+    <script src="../download/filename-generator.js"></script>
+    <script src="../download/quality-selector.js"></script>
+    <script src="../download/media-processor.js"></script>
+    <script src="../download/download-manager.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>
