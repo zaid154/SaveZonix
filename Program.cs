@@ -446,11 +446,7 @@ public class Program
             CookieContainer = new System.Net.CookieContainer(),
             SslOptions = new System.Net.Security.SslClientAuthenticationOptions
             {
-                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
-                EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls13 | 
-                                      System.Security.Authentication.SslProtocols.Tls12 | 
-                                      System.Security.Authentication.SslProtocols.Tls11 | 
-                                      System.Security.Authentication.SslProtocols.Tls
+                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
             }
         };
 

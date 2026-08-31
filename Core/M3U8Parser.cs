@@ -488,6 +488,74 @@ public class M3U8Parser
             }
         }
 
+        // 0. Parse JWPlayer / Custom Player Playlist & Sources JSON (e.g. window.playlist = { sources: [...] })
+        var playlistMatches = Regex.Matches(cleanedHtml, @"(?:window\.)?(?:playlist|playerConfig|videoData|playerSetup)\s*=\s*(\{[\s\S]*?\});", RegexOptions.IgnoreCase);
+        foreach (Match pm in playlistMatches)
+        {
+            try
+            {
+                string jsonText = pm.Groups[1].Value.Trim();
+                using var pDoc = JsonDocument.Parse(jsonText);
+                if (pDoc.RootElement.TryGetProperty("sources", out var sourcesEl) && sourcesEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var sItem in sourcesEl.EnumerateArray())
+                    {
+                        if (sItem.TryGetProperty("file", out var fileEl))
+                        {
+                            string fileUrl = fileEl.GetString() ?? "";
+                            string label = sItem.TryGetProperty("label", out var lblEl) ? lblEl.GetString() ?? "720" : "720";
+                            if (!string.IsNullOrEmpty(fileUrl) && (fileUrl.Contains(".mp4") || fileUrl.Contains(".m3u8") || fileUrl.Contains(".webm")))
+                            {
+                                string cleanFileUrl = Regex.Unescape(fileUrl);
+                                int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                                qualities.Add(new StreamQuality
+                                {
+                                    Resolution = $"{h}p HD",
+                                    Url = cleanFileUrl,
+                                    IsDirectFile = !cleanFileUrl.Contains(".m3u8"),
+                                    Bandwidth = h * 5000
+                                });
+                            }
+                        }
+                    }
+                    if (qualities.Count > 0)
+                    {
+                        return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // 0b. Parse Generic Source Objects: {"file":"https://...mp4", "label":"720"}
+        var genericSources = Regex.Matches(cleanedHtml, @"\{[^{}]*[""']file[""']\s*:\s*[""'](https?:[^""']+\.(?:mp4|m3u8|webm)[^""']*)[""'][^{}]*\}", RegexOptions.IgnoreCase);
+        foreach (Match gMatch in genericSources)
+        {
+            string block = gMatch.Value;
+            var fileMatch = Regex.Match(block, @"[""']file[""']\s*:\s*[""']([^""']+)[""']");
+            var labelMatch = Regex.Match(block, @"[""']label[""']\s*:\s*[""']?(\d+p?|\w+)[""']?");
+            if (fileMatch.Success)
+            {
+                string rawUrl = Regex.Unescape(fileMatch.Groups[1].Value);
+                string lbl = labelMatch.Success ? labelMatch.Groups[1].Value : "720";
+                int h = int.TryParse(Regex.Match(lbl, @"\d+").Value, out var ph) ? ph : 720;
+                if (!qualities.Any(q => q.Url == rawUrl))
+                {
+                    qualities.Add(new StreamQuality
+                    {
+                        Resolution = $"{h}p HD",
+                        Url = rawUrl,
+                        IsDirectFile = !rawUrl.Contains(".m3u8"),
+                        Bandwidth = h * 5000
+                    });
+                }
+            }
+        }
+        if (qualities.Count > 0)
+        {
+            return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+        }
+
         // 1. Check for Master Playlist in JSON (e.g. master.m3u8)
         var masterMatch = Regex.Match(cleanedHtml, @"[""']videoUrl[""']\s*:\s*[""']([^""']*master\.m3u8[^""']*)[""']", RegexOptions.IgnoreCase);
         if (masterMatch.Success)
