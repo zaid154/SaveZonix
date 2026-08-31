@@ -1,0 +1,306 @@
+@{
+    ViewData["Title"] = "Ultra High-Speed Video Stream Downloader";
+    ViewData["ActiveNav"] = "Home";
+}
+
+<!-- Hero Section -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-tag">
+            <span class="badge-tag badge-green">v5.5.0 Architecture &bull; 256-Thread Fiber Acceleration</span>
+        </div>
+        <h1 class="hero-title">
+            Download Any Video Stream at <span class="gradient">Maximum Wire Speed</span>
+        </h1>
+        <p class="hero-desc">
+            Parse fragmented HLS and DASH manifests, decrypt AES-128 streams on the fly, and assemble complete high-definition MP4 videos directly to your device with zero quality loss.
+        </p>
+
+        <!-- Core Video Downloader Card -->
+        <div class="downloader-wrapper">
+            <div class="downloader-card">
+                <div class="card-heading">
+                    <div class="heading-left">
+                        <h2 class="card-title">Stream Downloader</h2>
+                    </div>
+                </div>
+
+                <!-- Input Form -->
+                <div class="input-group">
+                    <label for="streamUrl">Paste Webpage or Stream URL (.m3u8 / .mp4)</label>
+                    <div class="input-wrapper">
+                        <input type="url" id="streamUrl" placeholder="https://pixelflix.cc/watch/tv/... or video link" autocomplete="off">
+                        <button id="btnPaste" class="btn btn-secondary btn-icon-text" type="button">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                            <span>Paste</span>
+                        </button>
+                        <button id="btnAnalyze" class="btn btn-primary btn-icon-text" type="button">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <span class="btn-text">Analyze</span>
+                            <div class="spinner hidden" id="analyzeSpinner"></div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error Alert -->
+                <div id="errorBox" class="alert error hidden">
+                    <span class="alert-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </span>
+                    <span id="errorMessage">Error analyzing stream URL</span>
+                </div>
+
+                <!-- Stream Details (Populated on Analyze) -->
+                <div id="streamDetails" class="stream-details hidden">
+                    <div class="divider"></div>
+                    
+                    <!-- Clean Video Preview Card -->
+                    <div class="video-preview-card">
+                        <div class="video-thumb" id="videoThumbWrapper">
+                            <img id="videoThumbImg" src="" alt="Thumbnail" style="display: none;">
+                            <div class="thumb-fallback" id="thumbFallback">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                            </div>
+                            <span class="thumb-duration-badge" id="thumbDuration" style="display: none;">00:00</span>
+                        </div>
+
+                        <div class="video-meta">
+                            <h3 class="video-title" id="videoTitleDisplay">Video Stream</h3>
+                            <div class="meta-line">
+                                <span class="meta-item platform" id="badgePlatform">Web Stream</span>
+                                <span class="meta-dot">&bull;</span>
+                                <span class="meta-item" id="badgeDuration" style="display: none;">00:00</span>
+                                <span class="meta-dot" id="dotDuration" style="display: none;">&bull;</span>
+                                <span class="meta-item" id="badgeEstSize" style="display: none;">0 MB</span>
+                                <span class="meta-dot" id="dotSize" style="display: none;">&bull;</span>
+                                <span class="meta-item" id="badgeSegments">0 Chunks</span>
+                            </div>
+                            <p class="video-desc" id="videoDescDisplay" style="display: none;"></p>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Grid -->
+                    <div class="config-grid">
+                        <div class="form-control">
+                            <label for="qualitySelect">Video Quality &amp; Resolution</label>
+                            <select id="qualitySelect" class="select-input">
+                                <option value="">Detecting qualities...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-control">
+                            <label for="fileNameInput">File Name (.mp4)</label>
+                            <input type="text" id="fileNameInput" class="text-input" placeholder="video_name.mp4">
+                        </div>
+                    </div>
+
+                    <!-- Destination Location -->
+                    <div class="dest-location-row">
+                        <div class="dest-info">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            <span class="dest-label">Save to:</span>
+                            <span class="dest-path" id="destPathDisplay">Downloads/</span>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnBrowseFolder">Open Folder</button>
+                    </div>
+
+                    <!-- Parallel Threads Selector (Clean Discrete Buttons) -->
+                    <div class="form-control thread-control">
+                        <div class="thread-label-wrapper">
+                            <label>Download Threads:</label>
+                            <span id="threadsValue" class="badge badge-threads">256x Hyper Max</span>
+                        </div>
+
+                        <div class="thread-presets">
+                            <button type="button" class="btn-thread-preset" data-threads="16">16 Threads</button>
+                            <button type="button" class="btn-thread-preset" data-threads="32">32 Threads</button>
+                            <button type="button" class="btn-thread-preset" data-threads="64">64 Threads</button>
+                            <button type="button" class="btn-thread-preset" data-threads="128">128 Threads</button>
+                            <button type="button" class="btn-thread-preset active" data-threads="256">256 Threads</button>
+                        </div>
+
+                        <input type="range" id="threadsRange" min="4" max="256" step="8" value="256" class="range-slider" style="display: none;">
+                    </div>
+
+                    <button id="btnStartDownload" class="btn-turbo">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        <span>Start Parallel Download</span>
+                    </button>
+                </div>
+
+                <!-- Progress Section with Live Throughput & 4 Clean Metric Cards -->
+                <div id="progressSection" class="progress-section hidden">
+                    <div class="divider"></div>
+
+                    <!-- Active Download Header -->
+                    <div class="active-download-banner">
+                        <div class="active-thumb-wrap">
+                            <img id="activeThumbImg" src="" alt="" style="display: none;">
+                            <div class="active-thumb-fallback" id="activeThumbFallback">▶</div>
+                        </div>
+                        <div class="active-info">
+                            <h4 class="active-title" id="activeTitleDisplay">Downloading Video Stream...</h4>
+                            <div class="meta-line">
+                                <span class="meta-item platform" id="activePlatformBadge">Web Stream</span>
+                                <span class="meta-dot">&bull;</span>
+                                <span class="meta-item" id="activeQualityBadge">1080p FHD</span>
+                                <span class="meta-dot">&bull;</span>
+                                <span class="meta-item" id="activeThreadsBadge">256 Workers</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Pause / Resume and Cancel Action Controls -->
+                        <div class="download-action-controls">
+                            <button type="button" class="btn btn-secondary btn-icon-text" id="btnPauseResume">
+                                <svg id="pauseResumeIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
+                                <span id="pauseResumeText">Pause</span>
+                            </button>
+                            <button type="button" class="btn btn-danger-subtle btn-icon-text" id="btnCancelDownload">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-header">
+                        <div class="status-indicator-group">
+                            <span class="status-dot pulsing"></span>
+                            <span class="status-badge" id="statusBadge">Downloading in Parallel...</span>
+                        </div>
+                        <span class="percentage-text" id="percentText">0%</span>
+                    </div>
+
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                    </div>
+
+                    <!-- Clean Real-Time Throughput Graph -->
+                    <div class="throughput-container">
+                        <div class="throughput-header">
+                            <span class="throughput-title">Transfer Throughput</span>
+                            <div class="throughput-stats">
+                                <span class="stat-tag" id="statCurSpeed">Current: 0.0 MB/s</span>
+                                <span class="stat-tag peak" id="statPeakSpeed">Peak: 0.0 MB/s</span>
+                                <span class="stat-tag avg" id="statAvgSpeed">Avg: 0.0 MB/s</span>
+                            </div>
+                        </div>
+                        <canvas id="speedSparklineCanvas" class="speed-sparkline-canvas" width="600" height="40"></canvas>
+                    </div>
+
+                    <!-- 4 Clean Essential Metric Cards -->
+                    <div class="metrics-grid four-cards">
+                        <div class="metric-card">
+                            <span class="metric-label">Transfer Speed</span>
+                            <span class="metric-value speed" id="metricSpeed">0.0 MB/s</span>
+                            <span class="metric-sub" id="metricPeakSpeedSub">Peak: 0.0 MB/s</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Downloaded / Total Size</span>
+                            <span class="metric-value" id="metricSize">0 MB / 0 MB</span>
+                            <span class="metric-sub" id="metricSizePct">0% written</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Completed Chunks</span>
+                            <span class="metric-value" id="metricChunks">0 / 0 Parts</span>
+                            <span class="metric-sub" id="metricChunksSub">0 Failed</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Time Remaining (ETA)</span>
+                            <span class="metric-value eta" id="metricEta">--:--</span>
+                            <span class="metric-sub" id="metricElapsedSub">Elapsed: 00:00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success Section -->
+                <div id="successSection" class="success-section hidden">
+                    <div class="divider"></div>
+                    <div class="success-card">
+                        <div class="success-icon-badge">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                        <h3>Download Complete</h3>
+                        <p id="successSummary">Your video has been downloaded and merged seamlessly into MP4 format.</p>
+                        <div class="success-actions">
+                            <a id="btnDirectSave" class="btn btn-primary btn-download-file btn-icon-text" href="#" download>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                <span>Save Video (.mp4)</span>
+                            </a>
+                            <button id="btnOpenFolder" class="btn btn-secondary btn-icon-text" type="button">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                <span>Open Folder</span>
+                            </button>
+                            <button id="btnReset" class="btn btn-secondary" type="button">Download Another</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Performance Stats Row -->
+        <div class="hero-stats">
+            <div class="stat-item">
+                <span class="stat-num">256&times;</span>
+                <span class="stat-title">Multi-Threading</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-num">100%</span>
+                <span class="stat-title">Lossless Quality</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-num">0 ms</span>
+                <span class="stat-title">Buffer Latency</span>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <span class="stat-num">Universal</span>
+                <span class="stat-title">HLS &bull; DASH &bull; MP4</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Grid Section -->
+<section class="features-section">
+    <div class="container">
+        <div class="section-header">
+            <span class="badge-tag">Engine Features</span>
+            <h2 class="section-title">Engineered for Wire-Speed Performance</h2>
+            <p class="section-desc">Traditional downloaders process single HTTP connections sequentially. Stream Helper splits manifests into concurrent stream channels.</p>
+        </div>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <h3>256-Thread Concurrency</h3>
+                <p>Spawns up to 256 parallel worker sockets to exhaust available bandwidth and saturate gigabit connections.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                </div>
+                <h3>Smart Manifest Parsing</h3>
+                <p>Decodes multi-bitrate HLS master playlists and DASH manifests, dynamically fetching 4K, 1080p, and 720p streams.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                </div>
+                <h3>Zero-Copy Segment Assembly</h3>
+                <p>Streams chunks directly to local storage and losslessly concatenates binary streams in sub-second time.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/app.js" asp-append-version="true"></script>
+}
+

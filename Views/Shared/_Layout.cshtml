@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>@ViewData["Title"] — Stream Helper</title>
+    <meta name="description" content="High-performance media stream analyzer and multi-threaded video downloader. Supports HLS, DASH, and direct video streams with up to 256 parallel connections.">
+    
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/png" sizes="16x16" href="~/icons/icon16.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="~/icons/icon48.png">
+    <link rel="icon" type="image/png" sizes="128x128" href="~/icons/icon128.png">
+    <link rel="apple-touch-icon" sizes="128x128" href="~/icons/icon128.png">
+    <link rel="shortcut icon" href="~/icons/icon48.png">
+
+    <!-- Fonts & Styling -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/style.css" asp-append-version="true">
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <div class="site-wrapper">
+        <!-- Navigation Header -->
+        <header class="navbar">
+            <div class="container nav-container">
+                <a asp-controller="Home" asp-action="Index" class="brand-link">
+                    <img src="~/icons/icon48.png" alt="Stream Helper Logo" class="brand-logo-img">
+                    <div class="brand-text">Stream<span>Helper</span></div>
+                </a>
+                <ul class="nav-links">
+                    <li><a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a></li>
+                    <li><a asp-controller="Home" asp-action="Features" class="@(ViewData["ActiveNav"]?.ToString() == "Features" ? "active" : "")">Features</a></li>
+                    <li><a asp-controller="Home" asp-action="HowItWorks" class="@(ViewData["ActiveNav"]?.ToString() == "HowItWorks" ? "active" : "")">How It Works</a></li>
+                    <li><a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Download</a></li>
+                    <li><a asp-controller="Home" asp-action="FAQ" class="@(ViewData["ActiveNav"]?.ToString() == "FAQ" ? "active" : "")">FAQ</a></li>
+                    <li><a asp-controller="Home" asp-action="Contact" class="@(ViewData["ActiveNav"]?.ToString() == "Contact" ? "active" : "")">Support</a></li>
+                </ul>
+                <div class="nav-actions">
+                    <a asp-controller="Home" asp-action="Download" class="btn btn-nav-cta">Get Extension</a>
+                    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Mobile Drawer -->
+            <div class="mobile-nav-drawer" id="mobileNavDrawer">
+                <a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a>
+                <a asp-controller="Home" asp-action="Features" class="@(ViewData["ActiveNav"]?.ToString() == "Features" ? "active" : "")">Features</a>
+                <a asp-controller="Home" asp-action="HowItWorks" class="@(ViewData["ActiveNav"]?.ToString() == "HowItWorks" ? "active" : "")">How It Works</a>
+                <a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Download Hub</a>
+                <a asp-controller="Home" asp-action="FAQ" class="@(ViewData["ActiveNav"]?.ToString() == "FAQ" ? "active" : "")">FAQ</a>
+                <a asp-controller="Home" asp-action="Contact" class="@(ViewData["ActiveNav"]?.ToString() == "Contact" ? "active" : "")">Support</a>
+                <a asp-controller="Legal" asp-action="Privacy">Privacy Policy</a>
+                <a asp-controller="Legal" asp-action="Terms">Terms of Service</a>
+                <a asp-controller="Home" asp-action="Download" class="btn btn-primary" style="text-align: center; margin-top: 8px;">Install Extension</a>
+            </div>
+        </header>
+
+        <!-- Main Content Body -->
+        <main role="main">
+            @RenderBody()
+        </main>
+
+        <!-- Production Footer -->
+        <footer class="footer">
+            <div class="container">
+                <div class="footer-grid">
+                    <div class="footer-brand">
+                        <div class="brand-link">
+                            <img src="~/icons/icon48.png" alt="Stream Helper Logo" class="brand-logo-img">
+                            <div class="brand-text">Stream<span>Helper</span></div>
+                        </div>
+                        <p>High-performance media stream analyzer and authorized local saver built with .NET 10 and Manifest V3 stealth architecture.</p>
+                    </div>
+
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <ul>
+                            <li><a asp-controller="Home" asp-action="Features">Features</a></li>
+                            <li><a asp-controller="Home" asp-action="HowItWorks">How It Works</a></li>
+                            <li><a asp-controller="Home" asp-action="Download">Download Hub</a></li>
+                            <li><a asp-controller="Home" asp-action="FAQ">FAQ</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer-column">
+                        <h4>Support</h4>
+                        <ul>
+                            <li><a asp-controller="Home" asp-action="Contact">Help Center</a></li>
+                            <li><a asp-controller="Home" asp-action="Contact">Report an Issue</a></li>
+                            <li><a asp-controller="Legal" asp-action="Grievance">Grievance Officer</a></li>
+                            <li><a asp-controller="Home" asp-action="FAQ">Troubleshooting</a></li>
+                        </ul>
+                    </div>
+
+                    <div class="footer-column">
+                        <h4>Legal &amp; Policy</h4>
+                        <ul>
+                            <li><a asp-controller="Legal" asp-action="Privacy">Privacy Policy</a></li>
+                            <li><a asp-controller="Legal" asp-action="Terms">Terms of Service</a></li>
+                            <li><a asp-controller="Legal" asp-action="Copyright">Copyright Policy</a></li>
+                            <li><a asp-controller="Legal" asp-action="DMCA">DMCA &amp; Takedown</a></li>
+                            <li><a asp-controller="Legal" asp-action="Disclaimer">Legal Disclaimer</a></li>
+                            <li><a asp-controller="Legal" asp-action="Cookies">Cookie Policy</a></li>
+                            <li><a asp-controller="Legal" asp-action="AcceptableUse">Acceptable Use</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="footer-bottom">
+                    <p>&copy; @DateTime.UtcNow.Year Stream Helper / Zonix. All rights reserved. Open-source personal utility tool.</p>
+                    <p>Stream Helper is a neutral protocol analyzer. All third-party trademarks belong to their respective owners.</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="~/nav.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

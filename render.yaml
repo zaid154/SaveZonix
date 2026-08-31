@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: zonix-downloader
+    env: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production

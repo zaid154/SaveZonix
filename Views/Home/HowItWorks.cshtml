@@ -1,0 +1,117 @@
+@{
+    ViewData["Title"] = "How It Works — Technical Architecture";
+    ViewData["ActiveNav"] = "HowItWorks";
+}
+
+<!-- Hero Section -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-tag">
+            <span class="badge-tag badge-green">Technical Pipeline</span>
+        </div>
+        <h1 class="hero-title">
+            How Stream Helper <span class="gradient">Downloads Video Streams</span>
+        </h1>
+        <p class="hero-desc">
+            Unlike standard browser downloaders that fail on adaptive HLS/DASH media, Stream Helper executes an automated 4-stage pipeline to reassemble fragmented streams into clean local MP4 files.
+        </p>
+    </div>
+</section>
+
+<!-- Workflow Steps -->
+<section class="section" style="padding-top: 0;">
+    <div class="container">
+        <div class="workflow-steps">
+            <!-- Step 1 -->
+            <div class="step-card">
+                <div class="step-num">01</div>
+                <div class="step-content">
+                    <h3>Stream Sniffing &amp; Manifest Extraction</h3>
+                    <p>When a video starts playing in your browser or when you paste a link into our web tool, the sniffer inspects network traffic for master playlist manifests (<code>.m3u8</code>, <code>.mpd</code>) and direct video containers. It extracts stream security tokens and session headers to authorize the connection.</p>
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="step-card">
+                <div class="step-num">02</div>
+                <div class="step-content">
+                    <h3>Adaptive Quality Selection &amp; URL Resolution</h3>
+                    <p>The parser analyzes the Master Playlist to uncover all available video bitrate tracks (e.g., 2160p 4K, 1080p Full HD, 720p HD). It resolves relative segment URLs, parses fMP4 initialization atoms (<code>#EXT-X-MAP</code>), and fetches encryption keys (<code>#EXT-X-KEY:AES-128</code>).</p>
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="step-card">
+                <div class="step-num">03</div>
+                <div class="step-content">
+                    <h3>Multi-Threaded Parallel Chunking (Up to 256 Threads)</h3>
+                    <p>The queue manager divides transport chunks across selected parallel worker connections. Each thread downloads independent byte ranges concurrently with automatic retries and exponential backoff, maximizing bandwidth utilization up to line capacity.</p>
+                </div>
+            </div>
+
+            <!-- Step 4 -->
+            <div class="step-card">
+                <div class="step-num">04</div>
+                <div class="step-content">
+                    <h3>Lossless Binary Stitching &amp; Auto-Save</h3>
+                    <p>Downloaded slices are decrypted in-memory and sequentially stitched into a standard MP4 file container. The completed video is cleanly named with metadata and saved directly to your device's Downloads folder.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Comparison Table -->
+        <div class="comparison-card" style="margin-top: 48px;">
+            <h3 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 20px; color: #f8fafc;">Standard Downloaders vs. Stream Helper</h3>
+            <div class="table-responsive">
+                <table class="policy-table">
+                    <thead>
+                        <tr>
+                            <th>Capability</th>
+                            <th>Generic Downloaders</th>
+                            <th>Stream Helper Engine</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Multi-Threaded Range Chunking</td>
+                            <td>No (Single socket 1x)</td>
+                            <td><strong style="color: #34d399;">Yes (Up to 256 Workers)</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Fragmented HLS / DASH Support</td>
+                            <td>Fails / Corrupts (.ts)</td>
+                            <td><strong style="color: #34d399;">Lossless MP4 Assembly</strong></td>
+                        </tr>
+                        <tr>
+                            <td>CDN Anti-Hotlink Negotiation</td>
+                            <td>403 Forbidden Errors</td>
+                            <td><strong style="color: #34d399;">Automatic Origin/Referer Spoofing</strong></td>
+                        </tr>
+                        <tr>
+                            <td>In-Memory AES-128 Decryption</td>
+                            <td>Requires External Software</td>
+                            <td><strong style="color: #34d399;">Zero-Setup Native Decryption</strong></td>
+                        </tr>
+                        <tr>
+                            <td>Memory Usage (Large Movies)</td>
+                            <td>Crashes Browser Heap (OOM)</td>
+                            <td><strong style="color: #34d399;">Streaming Disk Buffer</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Call to Action -->
+<section class="section" style="background: rgba(15, 23, 42, 0.4); border-top: 1px solid var(--border-color);">
+    <div class="container" style="text-align: center;">
+        <h2 class="section-title">Ready to Speed Up Your Downloads?</h2>
+        <p class="section-desc" style="max-width: 540px; margin: 0 auto 28px;">Install the browser extension or start using the web portal now.</p>
+        <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+            <a asp-controller="Home" asp-action="Download" class="btn btn-accent btn-lg">Install Extension</a>
+            <a asp-controller="Home" asp-action="Index" class="btn btn-secondary btn-lg">Open Web Portal</a>
+        </div>
+    </div>
+</section>

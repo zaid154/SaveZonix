@@ -1,0 +1,128 @@
+@{
+    ViewData["Title"] = "Frequently Asked Questions";
+    ViewData["ActiveNav"] = "FAQ";
+}
+
+<!-- FAQ Hero -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-tag">
+            <span class="badge-tag badge-tag">Help &amp; Troubleshooting</span>
+        </div>
+        <h1 class="hero-title">
+            Frequently Asked <span class="gradient">Questions</span>
+        </h1>
+        <p class="hero-desc">
+            Find answers to common questions about Stream Helper, performance tuning, download formats, and troubleshooting.
+        </p>
+    </div>
+</section>
+
+<!-- FAQ Accordion Section -->
+<section class="section" style="padding-top: 0;">
+    <div class="container">
+        <div class="faq-list">
+            <!-- Q1 -->
+            <div class="faq-item active">
+                <div class="faq-question">
+                    <span>How does multi-threading accelerate video downloads?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>Most streaming servers and Content Delivery Networks (CDNs) cap the maximum bandwidth allocated to any single TCP connection (typically 1–3 MB/s). By partitioning a video stream into up to 256 parallel byte ranges and downloading them simultaneously across independent threads, Stream Helper bypasses single-socket bottlenecks and fully utilizes available network bandwidth.</p>
+                </div>
+            </div>
+
+            <!-- Q2 -->
+            <div class="faq-item">
+                <div class="faq-question">
+                    <span>What video streaming formats are supported?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>Stream Helper supports HLS (HTTP Live Streaming / .m3u8 playlists), fragmented MP4 (fMP4 / .m4s / EXT-X-MAP), MPEG-TS (.ts segments), DASH (Dynamic Adaptive Streaming over HTTP / .mpd manifests), and direct video files (.mp4, .webm, .m4v). All streams are automatically merged and output as standard, playable MP4 containers.</p>
+                </div>
+            </div>
+
+            <!-- Q3 -->
+            <div class="faq-item">
+                <div class="faq-question">
+                    <span>How does the CDN Anti-Hotlink bypass work?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>Many streaming CDNs (like phncdn, pixelflix, and xnxx) enforce strict Anti-Hotlinking rules that reject download requests originating without matching <code>Referer</code> and <code>Origin</code> headers. Version 5.5.0 introduces automated declarative header negotiation that mirrors official site tokens, ensuring every segment request returns <code>200 OK</code>.</p>
+                </div>
+            </div>
+
+            <!-- Q4 -->
+            <div class="faq-item">
+                <div class="faq-question">
+                    <span>Can I use Stream Helper on mobile devices (Android / iPhone)?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>Yes. While browser extensions run on desktop browsers (Chrome, Edge, Brave, Opera), you can access the responsive Web Downloader portal from any mobile browser (Safari, Chrome Mobile). Simply paste the video link, choose your quality, and the downloaded MP4 file will be delivered directly into your phone's storage.</p>
+                </div>
+            </div>
+
+            <!-- Q5 -->
+            <div class="faq-item">
+                <div class="faq-question">
+                    <span>Does Stream Helper collect or store my downloaded videos?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>No. Stream Helper operates on a strict zero-telemetry, client-side privacy model. Downloaded video streams are processed locally in your browser's private memory or local disk sink. No video data, URLs, or browsing history are ever transmitted to external analytics or third-party tracking servers.</p>
+                </div>
+            </div>
+
+            <!-- Q6 -->
+            <div class="faq-item">
+                <div class="faq-question">
+                    <span>What should I do if a stream fails to download?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>If a stream fails to download, try the following steps:
+                    <br>1. Ensure the video is actively playing in your browser tab before clicking download.
+                    <br>2. Refresh the original video page to renew any expired session tokens.
+                    <br>3. Lower the thread concurrency to 16 or 32 threads if your network experiences packet drops.
+                    <br>4. Note that DRM-protected streams (e.g. Widevine, FairPlay, PlayReady) cannot be downloaded due to hardware encryption.</p>
+                </div>
+            </div>
+
+            <!-- Q7 -->
+            <div class="faq-item">
+                <div class="faq-question">
+                    <span>Is Stream Helper free and open-source?</span>
+                    <span class="faq-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </span>
+                </div>
+                <div class="faq-answer">
+                    <p>Yes, Stream Helper and the underlying Zonix .NET engine are 100% free and open-source under permissive licensing for personal, authorized backup and educational analysis.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Still have questions card -->
+        <div class="downloader-card" style="max-width: 860px; margin: 40px auto 0; text-align: center;">
+            <h3 style="font-size: 1.2rem; color: #fff; margin-bottom: 8px;">Still have questions or need technical support?</h3>
+            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px;">Our developer support team is happy to assist with bugs, feature requests, or troubleshooting.</p>
+            <a asp-controller="Home" asp-action="Contact" class="btn btn-primary">Contact Support &rarr;</a>
+        </div>
+    </div>
+</section>

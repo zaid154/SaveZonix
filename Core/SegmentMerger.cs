@@ -16,12 +16,23 @@ public class SegmentMerger
             Directory.CreateDirectory(outputDir);
         }
 
+        // Only merge segments that exist and have non-zero size
+        var validSegments = segments
+            .Where(s => File.Exists(s.LocalTempPath) && new FileInfo(s.LocalTempPath).Length > 0)
+            .OrderBy(s => s.Index)
+            .ToList();
+
+        if (validSegments.Count == 0)
+        {
+            return false;
+        }
+
         // Check if FFmpeg is available on system
         bool ffmpegAvailable = IsFFmpegAvailable();
 
         if (ffmpegAvailable)
         {
-            bool success = await MergeWithFFmpegAsync(segments, outputFilePath, tempDirectory);
+            bool success = await MergeWithFFmpegAsync(validSegments, outputFilePath, tempDirectory);
             if (success)
             {
                 if (cleanUpTemp) CleanUp(tempDirectory);
@@ -29,15 +40,15 @@ public class SegmentMerger
             }
         }
 
-        // Fast Direct Binary Merge (Zero-dependency fallback - Ultra Fast)
-        await DirectBinaryMergeAsync(segments, outputFilePath);
+        // Direct Binary Concatenation (High-speed, zero external dependencies)
+        await DirectBinaryMergeAsync(validSegments, outputFilePath);
 
         if (cleanUpTemp)
         {
             CleanUp(tempDirectory);
         }
 
-        return true;
+        return File.Exists(outputFilePath) && new FileInfo(outputFilePath).Length > 0;
     }
 
     private static async Task DirectBinaryMergeAsync(List<SegmentItem> segments, string outputFilePath)
@@ -51,6 +62,9 @@ public class SegmentMerger
         {
             if (File.Exists(seg.LocalTempPath))
             {
+                var fileInfo = new FileInfo(seg.LocalTempPath);
+                if (fileInfo.Length == 0) continue;
+
                 await using var inputStream = new FileStream(seg.LocalTempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 524288, true);
                 int bytesRead;
                 while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
@@ -84,7 +98,8 @@ public class SegmentMerger
             using var process = Process.Start(startInfo);
             if (process == null) return false;
 
-            await process.WaitForExitAsync();
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await process.WaitForExitAsync(cts.Token);
             return process.ExitCode == 0 && File.Exists(outputFilePath) && new FileInfo(outputFilePath).Length > 0;
         }
         catch
@@ -106,7 +121,7 @@ public class SegmentMerger
                 UseShellExecute = false,
                 CreateNoWindow = true
             });
-            process?.WaitForExit();
+            process?.WaitForExit(1000);
             return process?.ExitCode == 0;
         }
         catch
@@ -124,9 +139,6 @@ public class SegmentMerger
                 Directory.Delete(tempDirectory, true);
             }
         }
-        catch
-        {
-            // Ignore cleanup locks
-        }
+        catch { }
     }
 }

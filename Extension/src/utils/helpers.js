@@ -16,10 +16,14 @@
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     }
 
-    function formatEta(seconds) {
-        if (!seconds || seconds <= 0 || seconds === Infinity || isNaN(seconds)) return '';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
+    function formatEta(seconds, completedCount) {
+        if (completedCount !== undefined && completedCount < 2) return 'Calculating...';
+        if (!seconds || seconds <= 0 || seconds === Infinity || isNaN(seconds)) return 'Calculating...';
+        const total = Math.round(seconds);
+        const hours = Math.floor(total / 3600);
+        const mins = Math.floor((total % 3600) / 60);
+        const secs = total % 60;
+        if (hours > 0) return `~${hours}h ${mins}m remaining`;
         if (mins > 0) return `~${mins}m ${secs}s remaining`;
         return `~${secs}s remaining`;
     }

@@ -16,3 +16,12 @@ obj/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Downloads and Media Outputs
+Downloads/
+temp/
+*.mp4
+*.ts
+*.m3u8
+test_*.ps1
+test_*.js

@@ -1,0 +1,101 @@
+@{
+    ViewData["Title"] = "Download Hub — Extension & Server";
+    ViewData["ActiveNav"] = "Download";
+}
+
+<!-- Download Hero -->
+<section class="hero">
+    <div class="container">
+        <div class="hero-tag">
+            <span class="badge-tag badge-green">Official Releases &bull; Verified Safe</span>
+        </div>
+        <h1 class="hero-title">
+            Choose Your <span class="gradient">Stream Helper Platform</span>
+        </h1>
+        <p class="hero-desc">
+            Get the lightweight browser extension for one-click streaming downloads, or deploy the full ASP.NET Core turbo server for multi-device network downloading.
+        </p>
+    </div>
+</section>
+
+<!-- Download Cards Grid -->
+<section class="section" style="padding-top: 0;">
+    <div class="container">
+        <div class="download-grid">
+            <!-- Option 1: Chrome Extension -->
+            <div class="download-card highlighted">
+                <div class="download-card-header">
+                    <div class="download-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="4"></circle><line x1="21.17" y1="8" x2="12" y2="8"></line><line x1="3.95" y1="6.06" x2="8.54" y2="14"></line><line x1="10.88" y1="21.94" x2="15.46" y2="14"></line></svg>
+                    </div>
+                    <div>
+                        <h3 class="download-card-title">Browser Extension</h3>
+                        <span class="download-card-version">Latest: v5.5.0 (Manifest V3)</span>
+                    </div>
+                </div>
+
+                <p class="feature-text">
+                    Installs directly into Google Chrome, Brave, Edge, and Opera. Detects videos automatically on any active tab with live thumbnail and duration previews.
+                </p>
+
+                <ul class="download-feature-list">
+                    <li><span class="check">✓</span> 1-Click download popup on active video tab</li>
+                    <li><span class="check">✓</span> Parallel multi-threading acceleration</li>
+                    <li><span class="check">✓</span> Smart CDN Anti-Hotlink negotiation built-in</li>
+                    <li><span class="check">✓</span> Clean single-video badge with zero clutter</li>
+                </ul>
+
+                <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+                    <a href="https://github.com/zaid154/Zonix/tree/main/Extension" target="_blank" class="btn btn-accent btn-lg" style="text-align: center;">
+                        Download Extension (v5.5.0)
+                    </a>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); text-align: center;">Supports Chrome, Edge, Brave, Opera, Vivaldi</p>
+                </div>
+            </div>
+
+            <!-- Option 2: .NET Turbo Server -->
+            <div class="download-card">
+                <div class="download-card-header">
+                    <div class="download-icon" style="background: rgba(139, 92, 246, 0.12); color: #a78bfa; border-color: rgba(139, 92, 246, 0.25);">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+                    </div>
+                    <div>
+                        <h3 class="download-card-title">Zonix .NET Web Server</h3>
+                        <span class="download-card-version" style="color: #a78bfa;">v10.0 Turbo Core</span>
+                    </div>
+                </div>
+
+                <p class="feature-text">
+                    Standalone ASP.NET Core server and cross-platform web portal. Run locally or deploy to cloud hosting for full mobile &amp; desktop access.
+                </p>
+
+                <ul class="download-feature-list">
+                    <li><span class="check">✓</span> Universal URL analyze &amp; quality picker</li>
+                    <li><span class="check">✓</span> Direct mobile download delivery (Android/iOS)</li>
+                    <li><span class="check">✓</span> Ready for Docker &amp; Cloud Render deployment</li>
+                    <li><span class="check">✓</span> High-concurrency 256-worker C# pipeline</li>
+                </ul>
+
+                <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-secondary btn-lg" style="text-align: center;">
+                        Open Web Downloader
+                    </a>
+                    <a href="https://github.com/zaid154/Zonix" target="_blank" style="font-size: 0.85rem; color: #60a5fa; text-align: center; text-decoration: none;">View Source Code on GitHub &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Installation Guide -->
+        <div class="downloader-card" style="max-width: 920px; margin: 40px auto 0;">
+            <h3 style="font-size: 1.25rem; font-weight: 700; color: #fff; margin-bottom: 16px;">Quick Extension Installation Guide (Developer Mode)</h3>
+            
+            <ol style="margin-left: 20px; color: var(--text-secondary); line-height: 1.8; font-size: 0.95rem;">
+                <li>Download or clone the repository from <a href="https://github.com/zaid154/Zonix" target="_blank" style="color: #60a5fa;">GitHub</a>.</li>
+                <li>Open Google Chrome and navigate to <code>chrome://extensions</code>.</li>
+                <li>Toggle on <strong>"Developer mode"</strong> in the top-right corner.</li>
+                <li>Click <strong>"Load unpacked"</strong> and select the <code>Extension</code> folder.</li>
+                <li><strong>Done!</strong> Stream Helper will appear in your browser toolbar ready to use.</li>
+            </ol>
+        </div>
+    </div>
+</section>

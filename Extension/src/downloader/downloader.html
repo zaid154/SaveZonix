@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stream Helper — Downloader</title>
+    <link rel="icon" type="image/png" sizes="48x48" href="../../icons/icon48.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="../../icons/icon16.png">
+    <link rel="shortcut icon" href="../../icons/icon48.png">
     <link rel="stylesheet" href="downloader.css">
 </head>
 <body>
@@ -45,15 +48,16 @@
                 </div>
                 <div class="media-meta">
                     <div class="meta-tags">
-                        <span class="tag tag-platform" id="platformBadge">PixelFlix</span>
-                        <span class="tag tag-accent" id="qualityBadge">1080p</span>
-                        <span class="tag tag-duration" id="durationBadge" style="display: none;">⏱️ 00:00</span>
-                        <span class="tag tag-size" id="sizeBadge" style="display: none;">📦 Estimating...</span>
+                        <span class="tag tag-platform" id="platformBadge">Web Stream</span>
+                        <span class="tag tag-accent" id="qualityBadge">1080p FHD</span>
+                        <span class="tag tag-strategy" id="strategyBadge">HLS Segment Download</span>
+                        <span class="tag tag-duration" id="durationBadge" style="display: none;">00:00</span>
+                        <span class="tag tag-size" id="sizeBadge" style="display: none;">0 MB</span>
                         <span class="tag" id="formatBadge">MP4 Container</span>
                         <span class="tag tag-dim" id="codecBadge">H.264 / AAC</span>
-                        <span class="tag tag-threads" id="threadsBadge">⚡ 64 Threads</span>
+                        <span class="tag tag-threads" id="threadsBadge">64 Workers</span>
                     </div>
-                    <h1 class="title" id="videoTitle">Connecting...</h1>
+                    <h1 class="title" id="videoTitle">Connecting to stream...</h1>
                     <div class="file-path">
                         <span class="file-label">Destination:</span>
                         <span class="file-val" id="targetFilename">Video.mp4</span>
@@ -74,23 +78,37 @@
                 </div>
             </div>
 
-            <!-- Stats Metrics -->
-            <div class="stats-row">
-                <div class="stat-item">
-                    <span class="stat-label">Downloaded</span>
-                    <span class="stat-value" id="valSize">0 MB</span>
-                </div>
+            <!-- Enhanced 6 Stats Metrics Cards (Clear Chunks vs Workers Distinction) -->
+            <div class="stats-row six-stats">
                 <div class="stat-item">
                     <span class="stat-label">Transfer Speed</span>
                     <span class="stat-value stat-speed" id="valSpeed">0.0 MB/s</span>
+                    <span class="stat-sub" id="valPeakSpeedSub">Peak: 0.0 MB/s</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Segments</span>
-                    <span class="stat-value" id="valSegments">0 / 0</span>
+                    <span class="stat-label">Downloaded / Total</span>
+                    <span class="stat-value" id="valSize">0 MB</span>
+                    <span class="stat-sub" id="valSizePct">0% written</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-label">Time Left</span>
-                    <span class="stat-value" id="valEta">--</span>
+                    <span class="stat-label">Completed Chunks</span>
+                    <span class="stat-value" id="valSegments">0 / 0 Parts</span>
+                    <span class="stat-sub" id="valSegmentsSub">0 Failed &bull; 0 Retrying</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active Connections</span>
+                    <span class="stat-value" id="valActiveWorkers">16 Workers</span>
+                    <span class="stat-sub" id="valMaxConcurrencySub">Max: 64 Concurrency</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Time Remaining (ETA)</span>
+                    <span class="stat-value" id="valEta">Calculating...</span>
+                    <span class="stat-sub" id="valElapsedSub">Elapsed: 00:00</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Connection Health</span>
+                    <span class="stat-value" style="color: #34d399;" id="valHealth">Optimal</span>
+                    <span class="stat-sub" id="valRetrySub">Retries: 0 &bull; 100% OK</span>
                 </div>
             </div>
 
@@ -98,7 +116,11 @@
             <div class="sparkline-wrapper">
                 <div class="sparkline-header">
                     <span class="sparkline-title">Real-Time Throughput</span>
-                    <span class="sparkline-peak" id="valPeakSpeed">Peak: 0.0 MB/s</span>
+                    <div class="throughput-tags">
+                        <span class="sparkline-stat" id="valCurSpeedTag">Cur: 0.0 MB/s</span>
+                        <span class="sparkline-peak" id="valPeakSpeed">Peak: 0.0 MB/s</span>
+                        <span class="sparkline-avg" id="valAvgSpeedTag">Avg: 0.0 MB/s</span>
+                    </div>
                 </div>
                 <canvas id="speedCanvas" class="speed-canvas" width="600" height="42"></canvas>
             </div>
@@ -114,11 +136,11 @@
 
             <!-- Success Notice -->
             <div class="alert alert-success hidden" id="successBox">
-                <span class="alert-msg">✓ Download complete. File saved to your Downloads folder.</span>
+                <span class="alert-msg">&#x2713; Download complete. File saved to your Downloads folder.</span>
                 <button class="btn btn-sm btn-primary" id="btnOpenFolder">Show in folder</button>
             </div>
 
-            <!-- Actions & Keyboard Shortcuts Hint -->
+            <!-- Actions & Keyboard Shortcuts Hint (Visible Pause/Resume & Cancel Buttons) -->
             <div class="actions-row">
                 <div class="keyboard-hints">
                     <span class="hint-pill"><kbd>Space</kbd> Pause/Resume</span>
@@ -129,7 +151,7 @@
                         <span>Save Partial (0%)</span>
                     </button>
                     <button class="btn btn-secondary" id="btnPause">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                        <svg id="btnPauseIcon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                             <rect x="5" y="4" width="4" height="16" rx="1"></rect>
                             <rect x="15" y="4" width="4" height="16" rx="1"></rect>
                         </svg>

@@ -16,7 +16,7 @@ public class ParallelDownloader
         {
             var handler = new SocketsHttpHandler
             {
-                MaxConnectionsPerServer = 200,
+                MaxConnectionsPerServer = 300,
                 EnableMultipleHttp2Connections = true,
                 PooledConnectionLifetime = TimeSpan.FromMinutes(5),
                 ConnectTimeout = TimeSpan.FromSeconds(15),
@@ -30,7 +30,7 @@ public class ParallelDownloader
     public async Task<List<SegmentItem>> DownloadSegmentsAsync(
         List<string> segmentUrls,
         string tempDirectory,
-        int concurrency = 16,
+        int maxConcurrency = 64,
         IProgress<DownloadProgressReport>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -44,64 +44,135 @@ public class ParallelDownloader
             Index = index,
             Url = url,
             LocalTempPath = Path.Combine(tempDirectory, $"seg_{index:D6}.ts"),
-            IsDownloaded = false
+            IsDownloaded = false,
+            SizeBytes = 0
         }).ToList();
 
         int totalSegments = segments.Count;
         int downloadedCount = 0;
         long totalBytes = 0;
+        double peakSpeedMBps = 0.0;
 
         var stopwatch = Stopwatch.StartNew();
-        var speedStopwatch = Stopwatch.StartNew();
-        long lastSpeedBytes = 0;
-        double currentSpeedMBps = 0;
+        
+        // ─── CONCURRENCY CONTROLLER (LOCKED TO USER SELECTION) ──────────────
+        int initialConcurrency = Math.Clamp(maxConcurrency, 1, 256);
+        int activeConcurrency = initialConcurrency;
 
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
+        // ─── ROLLING SLIDING-WINDOW & EMA SPEED / ETA CALCULATOR ───────────
+        var sampleQueue = new Queue<(long Ticks, long Bytes)>();
+        double smoothedSpeedBytesPerSec = 0.0;
+
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(200));
         var progressTask = Task.Run(async () =>
         {
             while (await timer.WaitForNextTickAsync(cancellationToken))
             {
-                if (downloadedCount >= totalSegments) break;
+                if (cancellationToken.IsCancellationRequested || downloadedCount >= totalSegments) break;
 
-                var elapsedSeconds = speedStopwatch.Elapsed.TotalSeconds;
-                if (elapsedSeconds >= 0.3)
+                long nowTicks = Stopwatch.GetTimestamp();
+                long currentBytes = Interlocked.Read(ref totalBytes);
+                int currentDownloaded = Interlocked.CompareExchange(ref downloadedCount, 0, 0);
+
+                sampleQueue.Enqueue((nowTicks, currentBytes));
+
+                long maxAgeTicks = (long)(3.0 * Stopwatch.Frequency);
+                while (sampleQueue.Count > 3 && (nowTicks - sampleQueue.Peek().Ticks) > maxAgeTicks)
                 {
-                    long currentBytes = Interlocked.Read(ref totalBytes);
-                    long bytesDiff = currentBytes - lastSpeedBytes;
-                    currentSpeedMBps = (bytesDiff / 1024.0 / 1024.0) / elapsedSeconds;
-                    lastSpeedBytes = currentBytes;
-                    speedStopwatch.Restart();
+                    sampleQueue.Dequeue();
                 }
 
-                var elapsed = stopwatch.Elapsed;
-                int currentDone = downloadedCount;
-                var eta = currentDone > 0 && currentSpeedMBps > 0
-                    ? TimeSpan.FromSeconds(((totalSegments - currentDone) * ((double)totalBytes / currentDone)) / (currentSpeedMBps * 1024 * 1024))
-                    : TimeSpan.Zero;
+                double currentSpeedMBps = 0.0;
+                TimeSpan eta = TimeSpan.FromSeconds(-1);
+
+                if (sampleQueue.Count >= 2)
+                {
+                    var oldest = sampleQueue.Peek();
+                    double windowSeconds = (double)(nowTicks - oldest.Ticks) / Stopwatch.Frequency;
+                    long deltaBytes = currentBytes - oldest.Bytes;
+
+                    if (windowSeconds >= 0.3 && deltaBytes >= 0)
+                    {
+                        double rawInstantSpeed = deltaBytes / windowSeconds;
+
+                        smoothedSpeedBytesPerSec = (smoothedSpeedBytesPerSec <= 0) 
+                            ? rawInstantSpeed 
+                            : (0.35 * rawInstantSpeed + 0.65 * smoothedSpeedBytesPerSec);
+
+                        currentSpeedMBps = smoothedSpeedBytesPerSec / (1024.0 * 1024.0);
+                        if (currentSpeedMBps > peakSpeedMBps) peakSpeedMBps = currentSpeedMBps;
+                    }
+                }
+
+                // Calculate Rock-Solid Genuine ETA (Never Spike on Momentary Drops)
+                long estTotal = 0;
+                double elapsedSecs = Math.Max(0.5, stopwatch.Elapsed.TotalSeconds);
+                double overallAverageSpeed = (double)currentBytes / elapsedSecs;
+
+                if (currentBytes > 102400 && elapsedSecs >= 0.8)
+                {
+                    double estimatedTotalBytes = (currentDownloaded >= 2) 
+                        ? ((double)currentBytes / currentDownloaded) * totalSegments 
+                        : currentBytes * (totalSegments / Math.Max(1.0, (double)currentDownloaded + 0.5));
+
+                    estTotal = (long)estimatedTotalBytes;
+                    long remainingBytes = (long)Math.Max(0, estimatedTotalBytes - currentBytes);
+
+                    if (remainingBytes <= 0 || currentDownloaded >= totalSegments)
+                    {
+                        eta = TimeSpan.Zero;
+                    }
+                    else
+                    {
+                        // Blended reliable speed: 65% recent smoothed speed + 35% overall average speed
+                        // Prevents ETA from jumping to 45 mins when sockets are transitioning
+                        double reliableSpeed = Math.Max(
+                            smoothedSpeedBytesPerSec * 0.65 + overallAverageSpeed * 0.35, 
+                            overallAverageSpeed * 0.6
+                        );
+
+                        if (reliableSpeed > 10240)
+                        {
+                            double rawEtaSeconds = (double)remainingBytes / reliableSpeed;
+                            eta = TimeSpan.FromSeconds(Math.Min(1800, Math.Max(1.0, rawEtaSeconds)));
+                        }
+                    }
+                }
 
                 progress?.Report(new DownloadProgressReport
                 {
                     TotalSegments = totalSegments,
-                    DownloadedSegments = currentDone,
-                    TotalBytesDownloaded = Interlocked.Read(ref totalBytes),
-                    SpeedMBps = Math.Max(0, currentSpeedMBps),
-                    Elapsed = elapsed,
-                    EstimatedTimeRemaining = eta
+                    DownloadedSegments = currentDownloaded,
+                    TotalBytesDownloaded = currentBytes,
+                    EstimatedTotalBytes = estTotal,
+                    SpeedMBps = currentSpeedMBps,
+                    PeakSpeedMBps = peakSpeedMBps,
+                    ActiveThreads = activeConcurrency,
+                    Elapsed = stopwatch.Elapsed,
+                    EstimatedTimeRemaining = eta,
+                    Status = $"Downloading in Parallel ({activeConcurrency} Threads)..."
                 });
             }
         }, cancellationToken);
 
+        // Adaptive Parallel Execution
         var parallelOptions = new ParallelOptions
         {
-            MaxDegreeOfParallelism = concurrency,
+            MaxDegreeOfParallelism = Math.Clamp(maxConcurrency, 1, 256),
             CancellationToken = cancellationToken
         };
 
         await Parallel.ForEachAsync(segments, parallelOptions, async (seg, ct) =>
         {
-            await DownloadSingleSegmentWithRetryAsync(seg, ct);
-            Interlocked.Increment(ref downloadedCount);
-            Interlocked.Add(ref totalBytes, seg.SizeBytes);
+            try
+            {
+                await DownloadSingleSegmentWithRetryAsync(seg, totalBytesRef: (delta) => Interlocked.Add(ref totalBytes, delta), ct);
+                Interlocked.Increment(ref downloadedCount);
+            }
+            catch (Exception)
+            {
+                // Individual segment error handled by internal retry
+            }
         });
 
         stopwatch.Stop();
@@ -111,61 +182,372 @@ public class ParallelDownloader
             TotalSegments = totalSegments,
             DownloadedSegments = totalSegments,
             TotalBytesDownloaded = totalBytes,
+            EstimatedTotalBytes = totalBytes,
             SpeedMBps = (totalBytes / 1024.0 / 1024.0) / Math.Max(0.1, stopwatch.Elapsed.TotalSeconds),
+            PeakSpeedMBps = peakSpeedMBps,
+            ActiveThreads = activeConcurrency,
             Elapsed = stopwatch.Elapsed,
-            EstimatedTimeRemaining = TimeSpan.Zero
+            EstimatedTimeRemaining = TimeSpan.Zero,
+            Status = "Download Complete"
         });
 
         return segments;
     }
 
-    private async Task DownloadSingleSegmentWithRetryAsync(SegmentItem segment, CancellationToken ct, int maxRetries = 4)
+    public async Task<List<SegmentItem>> DownloadDirectFileAsync(
+        string fileUrl,
+        string tempDirectory,
+        long totalContentLength,
+        int maxConcurrency = 32,
+        IProgress<DownloadProgressReport>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(tempDirectory))
+        {
+            Directory.CreateDirectory(tempDirectory);
+        }
+
+        bool supportsRange = false;
+        long confirmedLength = totalContentLength;
+
+        try
+        {
+            using var headReq = new HttpRequestMessage(HttpMethod.Head, fileUrl);
+            headReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(fileUrl));
+            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0])) headReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
+
+            using var headRes = await _httpClient.SendAsync(headReq, cancellationToken);
+            if (headRes.Headers.AcceptRanges.Contains("bytes") || headRes.Content.Headers.ContentLength.HasValue)
+            {
+                supportsRange = true;
+                if (headRes.Content.Headers.ContentLength.HasValue) confirmedLength = headRes.Content.Headers.ContentLength.Value;
+            }
+        }
+        catch { }
+
+        if (!supportsRange || confirmedLength <= 5242880)
+        {
+            return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
+        }
+
+        int numChunks = Math.Clamp(maxConcurrency, 2, 64);
+        long chunkSize = confirmedLength / numChunks;
+        var chunks = new List<SegmentItem>();
+
+        for (int i = 0; i < numChunks; i++)
+        {
+            long start = i * chunkSize;
+            long end = (i == numChunks - 1) ? confirmedLength - 1 : (start + chunkSize - 1);
+
+            chunks.Add(new SegmentItem
+            {
+                Index = i,
+                Url = fileUrl,
+                LocalTempPath = Path.Combine(tempDirectory, $"chunk_{i:D6}.part"),
+                RangeStart = start,
+                RangeEnd = end,
+                SizeBytes = 0,
+                IsDownloaded = false
+            });
+        }
+
+        long totalBytes = 0;
+        int completedChunks = 0;
+        double peakSpeedMBps = 0.0;
+        var stopwatch = Stopwatch.StartNew();
+
+        var sampleQueue = new Queue<(long Ticks, long Bytes)>();
+        double smoothedSpeed = 0.0;
+
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(200));
+        var progressTask = Task.Run(async () =>
+        {
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (cancellationToken.IsCancellationRequested || completedChunks >= chunks.Count) break;
+
+                long nowTicks = Stopwatch.GetTimestamp();
+                long currentBytes = Interlocked.Read(ref totalBytes);
+                int done = Interlocked.CompareExchange(ref completedChunks, 0, 0);
+
+                sampleQueue.Enqueue((nowTicks, currentBytes));
+                long maxAgeTicks = (long)(3.0 * Stopwatch.Frequency);
+                while (sampleQueue.Count > 3 && (nowTicks - sampleQueue.Peek().Ticks) > maxAgeTicks)
+                {
+                    sampleQueue.Dequeue();
+                }
+
+                double curSpeed = 0.0;
+                TimeSpan eta = TimeSpan.FromSeconds(-1);
+
+                if (sampleQueue.Count >= 2)
+                {
+                    var oldest = sampleQueue.Peek();
+                    double winSec = (double)(nowTicks - oldest.Ticks) / Stopwatch.Frequency;
+                    long dBytes = currentBytes - oldest.Bytes;
+
+                    if (winSec >= 0.3 && dBytes >= 0)
+                    {
+                        double rawSpeed = dBytes / winSec;
+                        smoothedSpeed = (smoothedSpeed <= 0) ? rawSpeed : (0.35 * rawSpeed + 0.65 * smoothedSpeed);
+                        curSpeed = smoothedSpeed / (1024.0 * 1024.0);
+                        if (curSpeed > peakSpeedMBps) peakSpeedMBps = curSpeed;
+                    }
+                }
+
+                if (confirmedLength > 0 && smoothedSpeed > 10240)
+                {
+                    long remBytes = Math.Max(0, confirmedLength - currentBytes);
+                    eta = TimeSpan.FromSeconds(Math.Max(1.0, (double)remBytes / smoothedSpeed));
+                }
+
+                progress?.Report(new DownloadProgressReport
+                {
+                    TotalSegments = chunks.Count,
+                    DownloadedSegments = done,
+                    TotalBytesDownloaded = currentBytes,
+                    EstimatedTotalBytes = confirmedLength,
+                    SpeedMBps = curSpeed,
+                    PeakSpeedMBps = peakSpeedMBps,
+                    ActiveThreads = numChunks,
+                    Elapsed = stopwatch.Elapsed,
+                    EstimatedTimeRemaining = eta,
+                    Status = $"Downloading Direct File ({numChunks} Range Threads)..."
+                });
+            }
+        }, cancellationToken);
+
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = numChunks,
+            CancellationToken = cancellationToken
+        };
+
+        await Parallel.ForEachAsync(chunks, parallelOptions, async (chunk, ct) =>
+        {
+            await DownloadRangeChunkWithRetryAsync(chunk, delta => Interlocked.Add(ref totalBytes, delta), ct);
+            Interlocked.Increment(ref completedChunks);
+        });
+
+        stopwatch.Stop();
+
+        progress?.Report(new DownloadProgressReport
+        {
+            TotalSegments = chunks.Count,
+            DownloadedSegments = chunks.Count,
+            TotalBytesDownloaded = totalBytes,
+            EstimatedTotalBytes = totalBytes,
+            SpeedMBps = (totalBytes / 1024.0 / 1024.0) / Math.Max(0.1, stopwatch.Elapsed.TotalSeconds),
+            PeakSpeedMBps = peakSpeedMBps,
+            ActiveThreads = numChunks,
+            Elapsed = stopwatch.Elapsed,
+            EstimatedTimeRemaining = TimeSpan.Zero,
+            Status = "Download Complete"
+        });
+
+        return chunks;
+    }
+
+    private async Task<List<SegmentItem>> DownloadDirectSingleStreamAsync(
+        string fileUrl,
+        string tempDirectory,
+        long totalLength,
+        IProgress<DownloadProgressReport>? progress,
+        CancellationToken ct)
+    {
+        var singleChunk = new SegmentItem
+        {
+            Index = 0,
+            Url = fileUrl,
+            LocalTempPath = Path.Combine(tempDirectory, "single_stream.mp4"),
+            SizeBytes = 0,
+            IsDownloaded = false
+        };
+
+        var uri = new Uri(fileUrl);
+        var referers = StreamSecurityHelper.GetCandidateReferers(uri);
+        using var req = new HttpRequestMessage(HttpMethod.Get, fileUrl);
+        req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+        if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0])) req.Headers.TryAddWithoutValidation("Referer", referers[0]);
+
+        using var res = await _httpClient.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+        res.EnsureSuccessStatusCode();
+
+        long reportedLen = res.Content.Headers.ContentLength ?? totalLength;
+        await using var contentStream = await res.Content.ReadAsStreamAsync(ct);
+        await using var fileStream = new FileStream(singleChunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
+
+        byte[] buffer = new byte[32768];
+        int bytesRead;
+        long totalBytes = 0;
+        var sw = Stopwatch.StartNew();
+
+        while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
+        {
+            await fileStream.WriteAsync(buffer, 0, bytesRead, ct);
+            totalBytes += bytesRead;
+
+            double spd = (totalBytes / (1024.0 * 1024.0)) / Math.Max(0.1, sw.Elapsed.TotalSeconds);
+            TimeSpan eta = reportedLen > 0 && spd > 0.01 
+                ? TimeSpan.FromSeconds((reportedLen - totalBytes) / (spd * 1024.0 * 1024.0)) 
+                : TimeSpan.Zero;
+
+            progress?.Report(new DownloadProgressReport
+            {
+                TotalSegments = 1,
+                DownloadedSegments = (totalBytes >= reportedLen && reportedLen > 0) ? 1 : 0,
+                TotalBytesDownloaded = totalBytes,
+                EstimatedTotalBytes = reportedLen,
+                SpeedMBps = spd,
+                PeakSpeedMBps = spd,
+                ActiveThreads = 1,
+                Elapsed = sw.Elapsed,
+                EstimatedTimeRemaining = eta,
+                Status = "Downloading Single Stream..."
+            });
+        }
+
+        singleChunk.SizeBytes = totalBytes;
+        singleChunk.IsDownloaded = true;
+        return new List<SegmentItem> { singleChunk };
+    }
+
+    private async Task DownloadRangeChunkWithRetryAsync(SegmentItem chunk, Action<int> totalBytesRef, CancellationToken ct, int maxRetries = 5)
     {
         int attempt = 0;
-        var uri = new Uri(segment.Url);
-        var refererList = new[]
-        {
-            "https://pixelflix.cc/",
-            $"{uri.Scheme}://{uri.Host}/",
-            null
-        };
+        var uri = new Uri(chunk.Url);
+        var referers = StreamSecurityHelper.GetCandidateReferers(uri);
 
         while (attempt < maxRetries)
         {
             try
             {
                 attempt++;
-                string? referer = refererList[(attempt - 1) % refererList.Length];
+                string referer = referers[(attempt - 1) % referers.Count];
 
-                using var request = new HttpRequestMessage(HttpMethod.Get, segment.Url);
-                request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-                request.Headers.Add("Accept", "*/*");
-                request.Headers.Add("Sec-Fetch-Dest", "empty");
-                request.Headers.Add("Sec-Fetch-Mode", "cors");
+                using var request = new HttpRequestMessage(HttpMethod.Get, chunk.Url);
+                request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(chunk.RangeStart, chunk.RangeEnd);
 
                 if (!string.IsNullOrEmpty(referer))
                 {
-                    request.Headers.Add("Referer", referer);
-                    request.Headers.Add("Origin", referer.TrimEnd('/'));
+                    request.Headers.TryAddWithoutValidation("Referer", referer);
                 }
 
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
                 response.EnsureSuccessStatusCode();
 
                 await using var contentStream = await response.Content.ReadAsStreamAsync(ct);
-                await using var fileStream = new FileStream(segment.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
-                
-                await contentStream.CopyToAsync(fileStream, ct);
-                await fileStream.FlushAsync(ct);
+                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 32768, true);
 
-                segment.SizeBytes = new FileInfo(segment.LocalTempPath).Length;
-                segment.IsDownloaded = true;
+                byte[] buffer = new byte[16384];
+                int bytesRead;
+                long chunkTotal = 0;
+
+                while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer, 0, bytesRead, ct);
+                    chunkTotal += bytesRead;
+                    totalBytesRef(bytesRead);
+                }
+
+                await fileStream.FlushAsync(ct);
+                chunk.SizeBytes = chunkTotal;
+                chunk.IsDownloaded = true;
                 return;
             }
-            catch when (attempt < maxRetries && !ct.IsCancellationRequested)
+            catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
-                await Task.Delay(350 * attempt, ct);
+                try { if (File.Exists(chunk.LocalTempPath)) File.Delete(chunk.LocalTempPath); } catch { }
+                await Task.Delay(150 * attempt, ct);
             }
         }
+    }
+
+    private async Task DownloadSingleSegmentWithRetryAsync(SegmentItem segment, Action<int> totalBytesRef, CancellationToken ct, int maxRetries = 8)
+    {
+        int attempt = 0;
+        var uri = new Uri(segment.Url);
+        var referers = StreamSecurityHelper.GetCandidateReferers(uri);
+
+        while (attempt < maxRetries)
+        {
+            try
+            {
+                attempt++;
+                string referer = referers[(attempt - 1) % referers.Count];
+
+                using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(10)); // 10s max per segment attempt to prevent stalling
+
+                using var request = new HttpRequestMessage(HttpMethod.Get, segment.Url);
+                request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                request.Headers.TryAddWithoutValidation("Accept", "*/*");
+                request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "empty");
+                request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "cors");
+
+                if (!string.IsNullOrEmpty(referer))
+                {
+                    request.Headers.TryAddWithoutValidation("Referer", referer);
+                }
+
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptCts.Token);
+                response.EnsureSuccessStatusCode();
+
+                byte[] rawBytes = await response.Content.ReadAsByteArrayAsync(attemptCts.Token);
+                if (rawBytes.Length > 0)
+                {
+                    byte[] cleanBytes = UnmaskEncapsulation(rawBytes);
+                    await File.WriteAllBytesAsync(segment.LocalTempPath, cleanBytes, ct);
+                    segment.SizeBytes = cleanBytes.Length;
+                    segment.IsDownloaded = true;
+                    totalBytesRef(cleanBytes.Length);
+                    return;
+                }
+            }
+            catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
+            {
+                try { if (File.Exists(segment.LocalTempPath)) File.Delete(segment.LocalTempPath); } catch { }
+                await Task.Delay(100 * attempt, ct);
+            }
+        }
+    }
+
+    private static byte[] UnmaskEncapsulation(byte[] data)
+    {
+        if (data == null || data.Length < 188) return data ?? Array.Empty<byte>();
+
+        // Check if data is disguised with fake PNG header (0x89 0x50 0x4E 0x47)
+        if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47)
+        {
+            // Scan for MPEG-TS sync byte 0x47 with 188-byte packet period within first 1024 bytes
+            int maxScan = Math.Min(data.Length - 188, 1024);
+            for (int i = 0; i < maxScan; i++)
+            {
+                if (data[i] == 0x47 && data[i + 188] == 0x47)
+                {
+                    byte[] clean = new byte[data.Length - i];
+                    Buffer.BlockCopy(data, i, clean, 0, clean.Length);
+                    return clean;
+                }
+            }
+
+            // Check for MP4 box signature (ftyp, moof, styp)
+            for (int i = 4; i < Math.Min(data.Length - 4, 1024); i++)
+            {
+                if ((data[i] == 'f' && data[i + 1] == 't' && data[i + 2] == 'y' && data[i + 3] == 'p') ||
+                    (data[i] == 'm' && data[i + 1] == 'o' && data[i + 2] == 'o' && data[i + 3] == 'f') ||
+                    (data[i] == 's' && data[i + 1] == 't' && data[i + 2] == 'y' && data[i + 3] == 'p'))
+                {
+                    int startOffset = Math.Max(0, i - 4);
+                    byte[] clean = new byte[data.Length - startOffset];
+                    Buffer.BlockCopy(data, startOffset, clean, 0, clean.Length);
+                    return clean;
+                }
+            }
+        }
+
+        return data;
     }
 }

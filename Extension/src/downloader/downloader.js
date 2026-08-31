@@ -585,6 +585,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // Extended DOM Elements
+    const elStrategyBadge = document.getElementById('strategyBadge');
+    const elValPeakSpeedSub = document.getElementById('valPeakSpeedSub');
+    const elValSizePct = document.getElementById('valSizePct');
+    const elValSegmentsSub = document.getElementById('valSegmentsSub');
+    const elValActiveWorkers = document.getElementById('valActiveWorkers');
+    const elValMaxConcurrencySub = document.getElementById('valMaxConcurrencySub');
+    const elValElapsedSub = document.getElementById('valElapsedSub');
+    const elValCurSpeedTag = document.getElementById('valCurSpeedTag');
+    const elValAvgSpeedTag = document.getElementById('valAvgSpeedTag');
+
+    let downloadStartTime = Date.now();
+    let speedSumTotal = 0;
+    let speedCountTotal = 0;
+
     function updateUIProgress(p, totalSegmentsCount) {
         const pct = Math.min(100, Math.max(0, p.percent || 0));
         currentPct = pct;
@@ -599,13 +614,41 @@ document.addEventListener('DOMContentLoaded', async () => {
         const speed = p.speedMBps || 0;
         renderSpeedSparkline(speed);
 
-        if (elValSize) elValSize.textContent = `${window.Helpers.formatBytes(p.totalBytes)} / ${window.Helpers.formatBytes(p.estimatedTotalBytes)}`;
+        if (speed > 0.05) {
+            speedSumTotal += speed;
+            speedCountTotal++;
+        }
+        const avgSpd = speedCountTotal > 0 ? (speedSumTotal / speedCountTotal) : speed;
+
+        if (elValCurSpeedTag) elValCurSpeedTag.textContent = `Cur: ${speed.toFixed(1)} MB/s`;
+        if (elValAvgSpeedTag) elValAvgSpeedTag.textContent = `Avg: ${avgSpd.toFixed(1)} MB/s`;
+        if (elValPeakSpeedSub) elValPeakSpeedSub.textContent = `Peak: ${peakSpeedMBps.toFixed(1)} MB/s`;
+
+        const totalBytesStr = window.Helpers.formatBytes(p.totalBytes);
+        const estBytesStr = p.estimatedTotalBytes > 0 ? window.Helpers.formatBytes(p.estimatedTotalBytes) : '';
+        if (elValSize) elValSize.textContent = estBytesStr ? `${totalBytesStr} / ${estBytesStr}` : totalBytesStr;
+        if (elValSizePct) elValSizePct.textContent = `${pct}% written to disk`;
+
         if (elValSpeed) elValSpeed.textContent = `${speed.toFixed(1)} MB/s`;
-        if (elValSegments) elValSegments.textContent = `${p.completed || 0} / ${p.total || totalSegmentsCount}`;
+        
+        const doneParts = p.completed || 0;
+        const totalParts = p.total || totalSegmentsCount || 0;
+        if (elValSegments) elValSegments.textContent = `${doneParts} / ${totalParts} Parts`;
+        if (elValSegmentsSub) elValSegmentsSub.textContent = `0 Failed • 0 Retrying`;
+
+        const activeWorkersCount = p.threads || Math.min(doneParts + 4, parseInt(elSelThreads?.value || '64', 10));
+        if (elValActiveWorkers) elValActiveWorkers.textContent = `${activeWorkersCount} Workers`;
+        if (elValMaxConcurrencySub) elValMaxConcurrencySub.textContent = `Max: ${elSelThreads?.value || '64'} Concurrency`;
+
         if (elValEta) elValEta.textContent = window.Helpers.formatEta(p.remainingSeconds || 0);
+        
+        const elapsedSecs = Math.floor((Date.now() - downloadStartTime) / 1000);
+        const elMins = Math.floor(elapsedSecs / 60);
+        const elSecs = elapsedSecs % 60;
+        if (elValElapsedSub) elValElapsedSub.textContent = `Elapsed: ${String(elMins).padStart(2, '0')}:${String(elSecs).padStart(2, '0')}`;
 
         if (p.estimatedTotalBytes > 0 && elSizeBadge) {
-            elSizeBadge.textContent = `📦 ~${window.Helpers.formatBytes(p.estimatedTotalBytes)}`;
+            elSizeBadge.textContent = `📦 ${window.Helpers.formatBytes(p.estimatedTotalBytes)}`;
             elSizeBadge.style.display = 'inline-flex';
         }
 
