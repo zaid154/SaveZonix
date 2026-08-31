@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -43,13 +43,6 @@
                         var currentUser = await UserManager.GetUserAsync(User);
                         bool isAdmin = User.IsInRole("Admin");
 
-                        if (isAdmin)
-                        {
-                            <a asp-controller="Admin" asp-action="Index" class="btn btn-sm btn-admin-badge" title="Admin Command Center">
-                                🛡️ <span>Admin</span>
-                            </a>
-                        }
-
                         <div class="user-dropdown-container">
                             <button class="btn btn-user-menu" id="userMenuBtn" type="button">
                                 <div class="user-avatar-initials">
@@ -77,8 +70,8 @@
                                 @if (isAdmin)
                                 {
                                     <div class="dropdown-divider"></div>
-                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item" style="color: #38bdf8;">
-                                        <span>🛡️ Admin Dashboard</span>
+                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item dropdown-item-admin">
+                                        <span>🛡️ Admin Command Center</span>
                                     </a>
                                 }
                                 <div class="dropdown-divider"></div>
