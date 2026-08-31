@@ -240,7 +240,7 @@ public class Program
 
                     if (req.IsDirectFile || req.StreamUrl.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || req.StreamUrl.EndsWith(".webm", StringComparison.OrdinalIgnoreCase))
                     {
-                        state.TotalSegments = Math.Clamp(concurrency, 1, 64);
+                        state.TotalSegments = Math.Clamp(concurrency, 1, 256);
 
                         if (!string.IsNullOrEmpty(req.AudioUrl))
                         {
@@ -253,7 +253,7 @@ public class Program
                             // 2. Download HQ Audio Track
                             state.Status = "Downloading Studio Audio Track...";
                             string tempAudioFile = Path.Combine(tempDirectory, "raw_audio.m4a");
-                            var audioChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, Path.Combine(tempDirectory, "a_chunks"), 0, Math.Clamp(concurrency / 2, 8, 32), null, cts.Token);
+                            var audioChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, Path.Combine(tempDirectory, "a_chunks"), 0, Math.Clamp(concurrency / 2, 8, 64), null, cts.Token);
                             await SegmentMerger.MergeSegmentsAsync(audioChunks, tempAudioFile, Path.Combine(tempDirectory, "a_chunks"));
 
                             // 3. Mux Video + Audio with FFmpeg
@@ -436,18 +436,13 @@ public class Program
 
     private static HttpClient CreateConfiguredHttpClient()
     {
-        var handler = new SocketsHttpHandler
+        var handler = new HttpClientHandler
         {
-            MaxConnectionsPerServer = 300,
-            EnableMultipleHttp2Connections = true,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
             AutomaticDecompression = System.Net.DecompressionMethods.All,
             UseCookies = true,
             CookieContainer = new System.Net.CookieContainer(),
-            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-            {
-                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
-            }
+            MaxConnectionsPerServer = 300
         };
 
         var client = new HttpClient(handler);

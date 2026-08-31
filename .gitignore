@@ -16,3 +16,8 @@ obj/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# App Distribution & Binaries
+app_dist/
+ffmpeg.exe
+temp_*.html

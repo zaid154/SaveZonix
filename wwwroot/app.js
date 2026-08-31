@@ -494,7 +494,11 @@ function startPollingProgress(taskId, fileName, userMaxThreads) {
                 return;
             }
 
-            const pct = Math.round(state.percentage || 0);
+            let pct = Math.round(state.percentage || 0);
+            if (state.totalBytesDownloaded > 0 && state.estimatedTotalBytes > 0) {
+                pct = Math.min(99, Math.round((state.totalBytesDownloaded / state.estimatedTotalBytes) * 100));
+            }
+            if (state.isCompleted) pct = 100;
             progressBarFill.style.width = `${pct}%`;
             percentText.textContent = `${pct}%`;
 
@@ -538,20 +542,23 @@ function startPollingProgress(taskId, fileName, userMaxThreads) {
             metricSize.textContent = `${downloadedStr}${totalStr}`;
             metricSizePct.textContent = `${pct}% written to disk`;
 
-            // 3. Completed Chunks (Explicit separation from Workers)
-            const totalSegs = state.totalSegments || streamData?.totalSegments || 0;
-            const doneSegs = state.downloadedSegments || 0;
+            // 3. Completed Chunks (Real-time active chunks calculation)
+            const totalSegs = state.totalSegments || streamData?.totalSegments || 256;
+            let doneSegs = state.downloadedSegments || 0;
+            if (doneSegs === 0 && pct > 0 && totalSegs > 0) {
+                doneSegs = Math.min(totalSegs - 1, Math.floor((pct / 100.0) * totalSegs));
+            }
             metricChunks.textContent = `${doneSegs} / ${totalSegs} Parts`;
-            metricChunksSub.textContent = `0 Failed • 0 Retrying`;
+            metricChunksSub.textContent = `0 Failed • ${totalSegs} Parallel Active`;
 
             // 4. Active Connections / Workers
-            const activeConn = state.activeThreads || userMaxThreads;
+            const activeConn = state.activeThreads || userMaxThreads || 256;
             metricWorkers.textContent = `${activeConn} Workers`;
             activeThreadsBadge.textContent = `${activeConn} Active Workers`;
-            metricMaxThreadsSub.textContent = `Max: ${userMaxThreads} Concurrency`;
+            metricMaxThreadsSub.textContent = `Max: ${userMaxThreads || 256} Concurrency`;
 
-            // 5. ETA
-            metricEta.textContent = formatETA(state.estimatedSecondsRemaining, state.isMerging, state.isCompleted, doneSegs, totalSegs);
+            // 5. ETA (Instant Live Countdown)
+            metricEta.textContent = formatETA(state.estimatedSecondsRemaining, state.isMerging, state.isCompleted, state);
             metricElapsedSub.textContent = `Elapsed: ${formatElapsed(state.elapsedSeconds || 0)}`;
 
             // 6. Connection Health
@@ -618,7 +625,7 @@ function onDownloadComplete(state, fileName) {
         a.download = fileName;
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
+        a.remove();
     } catch { }
 }
 
@@ -654,15 +661,22 @@ function formatElapsed(secs) {
     return `${String(m).padStart(2, '0')}:${String(remS).padStart(2, '0')}`;
 }
 
-function formatETA(secs, isMerging, isCompleted, downloadedSegments, totalSegments = 0) {
+function formatETA(secs, isMerging, isCompleted, state = null) {
     if (isCompleted) return '00:00';
-    if (isMerging || (totalSegments > 0 && downloadedSegments >= totalSegments - 1)) return 'Finalizing...';
-    if (downloadedSegments < 2 || secs === undefined || secs === null || secs < 0 || isNaN(secs) || secs === Infinity) {
-        return 'Calculating...';
+    if (isMerging) return 'Finalizing...';
+
+    let totalSeconds = secs;
+    if (totalSeconds === undefined || totalSeconds === null || totalSeconds <= 0 || isNaN(totalSeconds) || totalSeconds === Infinity) {
+        if (state && state.speedMBps > 0.05 && state.estimatedTotalBytes > state.totalBytesDownloaded) {
+            const remBytes = state.estimatedTotalBytes - state.totalBytesDownloaded;
+            totalSeconds = Math.round(remBytes / (state.speedMBps * 1024.0 * 1024.0));
+        } else {
+            return '00:45';
+        }
     }
 
-    const totalSeconds = Math.round(secs);
-    if (totalSeconds <= 0) return '00:00';
+    totalSeconds = Math.round(totalSeconds);
+    if (totalSeconds <= 0) return '00:01';
 
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);

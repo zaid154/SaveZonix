@@ -107,7 +107,10 @@ public class DownloadProgressReport
     public double PeakSpeedMBps { get; set; }
     public int ActiveThreads { get; set; }
     public string Status { get; set; } = "Downloading in Parallel...";
-    public double Percentage => TotalSegments > 0 ? (double)DownloadedSegments / TotalSegments * 100.0 : 0.0;
+    public double Percentage => 
+        (EstimatedTotalBytes > 0 && TotalBytesDownloaded > 0)
+            ? Math.Clamp((double)TotalBytesDownloaded / EstimatedTotalBytes * 100.0, 0.0, 100.0)
+            : (TotalSegments > 0 ? Math.Clamp((double)DownloadedSegments / TotalSegments * 100.0, 0.0, 100.0) : 0.0);
     public TimeSpan Elapsed { get; set; }
     public TimeSpan EstimatedTimeRemaining { get; set; }
 }

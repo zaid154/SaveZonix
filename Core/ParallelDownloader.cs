@@ -240,7 +240,7 @@ public class ParallelDownloader
             return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
         }
 
-        int numChunks = Math.Clamp(maxConcurrency, 2, 64);
+        int numChunks = Math.Clamp(maxConcurrency, 2, 256);
         long chunkSize = confirmedLength / numChunks;
         var chunks = new List<SegmentItem>();
 
