@@ -80,7 +80,7 @@ body {
 
 .container {
     width: 100%;
-    max-width: 1180px;
+    max-width: 1320px;
     margin: 0 auto;
     padding: 0 24px;
 }
@@ -96,17 +96,18 @@ body {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(7, 10, 19, 0.9);
+    background: rgba(7, 10, 19, 0.92);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-bottom: 1px solid var(--border-color);
-    padding: 12px 0;
+    padding: 14px 0;
 }
 
 .nav-container {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 32px;
 }
 
 .brand-link {
@@ -114,6 +115,7 @@ body {
     align-items: center;
     gap: 10px;
     text-decoration: none;
+    flex-shrink: 0;
 }
 
 .brand-logo-img {
@@ -167,8 +169,39 @@ body {
 .nav-links {
     display: flex;
     align-items: center;
-    gap: 28px;
+    gap: 22px;
     list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.btn-admin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 9999px;
+    color: #f87171;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.btn-admin-badge:hover {
+    background: rgba(239, 68, 68, 0.22);
+    border-color: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
 }
 
 .nav-links a {
@@ -194,12 +227,6 @@ body {
     height: 2px;
     background: var(--primary);
     border-radius: 2px;
-}
-
-.nav-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
 }
 
 .mobile-menu-btn {
@@ -1982,6 +2009,13 @@ textarea.form-control-input {
 .btn-user-menu:hover {
     background: rgba(255, 255, 255, 0.12);
     border-color: var(--border-hover);
+}
+
+.user-menu-name {
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .user-avatar-initials {
