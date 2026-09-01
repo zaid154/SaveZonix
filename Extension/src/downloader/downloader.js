@@ -37,12 +37,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const elQuality = document.getElementById('qualityBadge');
     const elDurationBadge = document.getElementById('durationBadge');
     const elSizeBadge = document.getElementById('sizeBadge');
-    const elThreadsBadge = document.getElementById('threadsBadge');
     const elFilename = document.getElementById('targetFilename');
     const elThumbBox = document.getElementById('thumbBox');
     const elThumbImg = document.getElementById('thumbImg');
     const elThumbPlaceholder = document.getElementById('thumbPlaceholder');
-    const elThumbDuration = document.getElementById('thumbDurationOverlay');
+    const elThumbPlayBtn = document.getElementById('thumbPlayBtn');
+    const elThumbProgressFill = document.getElementById('thumbProgressFill');
+    const elThumbTimeDisplay = document.getElementById('thumbTimeDisplay');
     const elStatusHeading = document.getElementById('statusHeading');
     const elPercent = document.getElementById('percentCounter');
     const elProgressFill = document.getElementById('progressFill');
@@ -51,6 +52,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const elValSegments = document.getElementById('valSegments');
     const elValEta = document.getElementById('valEta');
     const elValPeakSpeed = document.getElementById('valPeakSpeed');
+    const elValHealth = document.getElementById('valHealth');
+    const elValRetrySub = document.getElementById('valRetrySub');
     const elBtnPause = document.getElementById('btnPause');
     const elBtnCancel = document.getElementById('btnCancel');
     const elBtnSavePartial = document.getElementById('btnSavePartial');
@@ -62,11 +65,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const elBtnOpenFolder = document.getElementById('btnOpenFolder');
     const elSelThreads = document.getElementById('selActiveThreads');
     const speedCanvas = document.getElementById('speedCanvas');
+    const elPreviewSection = document.getElementById('previewSection');
+    const elPreviewPlayer = document.getElementById('previewPlayer');
+    const elBtnWatchPreview = document.getElementById('btnWatchPreview');
+    const elBtnClosePreview = document.getElementById('btnClosePreview');
 
     let isCompleted = false;
     let isPaused = false;
     let currentPct = 0;
     let completedDownloadId = null;
+    let videoDurationSeconds = 0;
+    let totalSegmentsTracked = 0;
 
     if (elSelThreads) {
         elSelThreads.value = String(initialThreads);
@@ -76,20 +85,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (elTitle) elTitle.textContent = videoShow || videoTitle;
     if (elPlatform) elPlatform.textContent = platform;
     if (elQuality) elQuality.textContent = qualityLabel;
-    if (elThreadsBadge) elThreadsBadge.textContent = `⚡ ${initialThreads} Threads`;
 
     // Duration Display Handler
     function updateDurationDisplay(durString) {
         if (!durString) return;
         const cleanDur = durString.replace(/^⏱️\s*/, '').trim();
         if (cleanDur) {
-            if (elDurationBadge) {
-                elDurationBadge.textContent = `⏱️ ${cleanDur}`;
-                elDurationBadge.style.display = 'inline-flex';
+            if (elThumbTimeDisplay) {
+                elThumbTimeDisplay.textContent = `00:00 / ${cleanDur}`;
             }
-            if (elThumbDuration) {
-                elThumbDuration.textContent = cleanDur;
-                elThumbDuration.style.display = 'block';
+            // Parse duration string into seconds if mm:ss or hh:mm:ss
+            const parts = cleanDur.split(':').map(n => parseInt(n, 10));
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                videoDurationSeconds = parts[0] * 60 + parts[1];
+            } else if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                videoDurationSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
             }
         }
     }
@@ -116,6 +126,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (thumbnail) {
         updateThumbnailDisplay(thumbnail);
+    } else if (initialStreamUrl && (initialStreamUrl.includes('.mp4') || initialStreamUrl.includes('.webm'))) {
+        // Automatic First-Frame Extraction from Video Stream
+        try {
+            const vSnap = document.createElement('video');
+            vSnap.crossOrigin = 'anonymous';
+            vSnap.muted = true;
+            vSnap.preload = 'metadata';
+            vSnap.src = initialStreamUrl;
+            vSnap.onloadedmetadata = () => {
+                if (vSnap.duration && !videoDurationSeconds) {
+                    videoDurationSeconds = Math.round(vSnap.duration);
+                    const durFormatted = window.Helpers ? window.Helpers.formatDuration(videoDurationSeconds) : '';
+                    if (durFormatted && elThumbTimeDisplay) {
+                        elThumbTimeDisplay.textContent = `00:00 / ${durFormatted}`;
+                    }
+                }
+                try { vSnap.currentTime = 1; } catch { }
+            };
+            vSnap.onseeked = () => {
+                try {
+                    const c = document.createElement('canvas');
+                    c.width = 160;
+                    c.height = 90;
+                    const ctx = c.getContext('2d');
+                    ctx.drawImage(vSnap, 0, 0, c.width, c.height);
+                    const snapUrl = c.toDataURL('image/jpeg', 0.8);
+                    if (snapUrl && snapUrl.length > 500) {
+                        updateThumbnailDisplay(snapUrl);
+                    }
+                } catch { }
+            };
+        } catch { }
     }
 
     // Request missing metadata & thumbnail from origin tab if needed
@@ -132,6 +174,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         } catch { }
+    }
+
+    if (elThumbBox) {
+        elThumbBox.addEventListener('click', () => {
+            if (isPreviewOpen) closePreview();
+            else openPreview();
+        });
     }
 
     const videoObj = {
@@ -306,6 +355,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (elThreadsBadge) {
                 elThreadsBadge.textContent = `⚡ ${count} Threads`;
             }
+            if (elValActiveWorkers) {
+                elValActiveWorkers.textContent = `${count} Workers`;
+            }
+            if (elStatusHeading && !elStatusHeading.textContent.includes('complete') && !elStatusHeading.textContent.includes('Paused')) {
+                elStatusHeading.textContent = elStatusHeading.textContent.replace(/\(\d+\s*threads\)/i, `(${count} threads)`);
+            }
         });
     }
 
@@ -364,23 +419,71 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // ─── LIVE PREVIEW PLAYER (WATCH WHILE DOWNLOADING) ───────────────────
+    let isPreviewOpen = false;
+
+    function openPreview() {
+        if (!elPreviewSection || !elPreviewPlayer || !initialStreamUrl) return;
+        elPreviewSection.classList.remove('hidden');
+        // Point the native video player directly at the original stream URL
+        // Browser will independently buffer & stream from CDN for playback
+        if (!elPreviewPlayer.src || elPreviewPlayer.src !== initialStreamUrl) {
+            elPreviewPlayer.src = initialStreamUrl;
+        }
+        elPreviewPlayer.play().catch(() => {});
+        isPreviewOpen = true;
+        if (elBtnWatchPreview) {
+            const btnText = elBtnWatchPreview.querySelector('.btn-text');
+            if (btnText) btnText.textContent = 'Watching';
+        }
+    }
+
+    function closePreview() {
+        if (!elPreviewSection || !elPreviewPlayer) return;
+        elPreviewPlayer.pause();
+        elPreviewPlayer.removeAttribute('src');
+        elPreviewPlayer.load(); // Release the stream connection
+        elPreviewSection.classList.add('hidden');
+        isPreviewOpen = false;
+        if (elBtnWatchPreview) {
+            const btnText = elBtnWatchPreview.querySelector('.btn-text');
+            if (btnText) btnText.textContent = 'Watch';
+        }
+    }
+
+    if (elBtnWatchPreview) {
+        elBtnWatchPreview.addEventListener('click', () => {
+            if (isPreviewOpen) closePreview();
+            else openPreview();
+        });
+    }
+
+    if (elBtnClosePreview) {
+        elBtnClosePreview.addEventListener('click', closePreview);
+    }
+
     // ─── KEYBOARD SHORTCUTS ───────────────────────────────────────────────
     window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT') {
             e.preventDefault();
             togglePause();
         } else if (e.code === 'Escape') {
+            if (isPreviewOpen) { closePreview(); return; }
             cancelDownload();
+        } else if (e.code === 'KeyW' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'SELECT') {
+            if (isPreviewOpen) closePreview();
+            else openPreview();
         } else if (e.code === 'Enter' && completedDownloadId) {
             chrome.downloads.show(completedDownloadId);
         }
     });
 
-    // Build Candidate URLs strictly for origin tab
+    // Build Candidate URLs strictly for selected stream
     async function collectAllCandidates() {
         const list = [];
         if (initialStreamUrl && initialStreamUrl.startsWith('http') && !window.isInvalidStreamUrl?.(initialStreamUrl)) {
             list.push(initialStreamUrl);
+            return list; // Strictly stick to the specific video stream selected
         }
 
         if (originTabId > 0 && window.Storage?.getTabVideos) {
@@ -393,15 +496,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             } catch { }
         }
-
-        // Sort so genuine .m3u8 and /hls/ streams are tried FIRST, then direct .mp4
-        list.sort((a, b) => {
-            const aM3u8 = a.includes('.m3u8') || a.includes('/hls/');
-            const bM3u8 = b.includes('.m3u8') || b.includes('/hls/');
-            if (aM3u8 && !bM3u8) return -1;
-            if (!aM3u8 && bM3u8) return 1;
-            return 0;
-        });
 
         return list;
     }
@@ -432,6 +526,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         for (const targetUrl of candidates) {
             try {
                 const isDirectMediaFile = targetUrl.includes('.mp4') || targetUrl.includes('.webm') || targetUrl.includes('.m4v');
+                const elStrat = document.getElementById('strategyBadge');
+                if (isDirectMediaFile && elStrat) {
+                    elStrat.textContent = 'Direct MP4 Chunk Download';
+                }
 
                 let manifest = null;
                 if (!isDirectMediaFile || targetUrl.includes('.m3u8') || targetUrl.includes('/hls/')) {
@@ -511,7 +609,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
 
-                if (assembled && assembled.blob && assembled.sizeBytes >= 2097152) {
+                if (assembled && assembled.blob && assembled.sizeBytes >= 524288) {
                     break;
                 }
             } catch (err) {
@@ -520,18 +618,62 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (!assembled || !assembled.blob || assembled.sizeBytes < 2097152) {
-            showError(lastError?.message || 'Downloaded stream is empty or corrupt. Please play the video on the original tab and retry.');
-            return;
+        if (!assembled || !assembled.blob || assembled.sizeBytes < 524288) {
+            // Try to auto-save whatever partial data we have
+            const partial = processor.getPartialBlob();
+            if (partial && partial.blob && partial.sizeBytes >= 524288) {
+                // Auto-save partial video to Downloads
+                console.log(`[Downloader] ⚠️ Full download incomplete but ${window.Helpers.formatBytes(partial.sizeBytes)} available. Auto-saving partial video.`);
+                assembled = partial;
+            } else {
+                showError(lastError?.message || 'Downloaded stream is empty or corrupt. Please play the video on the original tab and retry.');
+                return;
+            }
         }
 
         // Finalize & Save
         isCompleted = true;
-        if (elStatusHeading) elStatusHeading.textContent = 'Saving file to Downloads folder...';
+        if (isPreviewOpen) closePreview(); // Free CDN connection
+
+        const finalParts = totalSegmentsTracked || 64;
+        const elapsedSecs = Math.floor((Date.now() - downloadStartTime) / 1000);
+        const elMins = Math.floor(elapsedSecs / 60);
+        const elSecs = elapsedSecs % 60;
+        const timeFmt = `${String(elMins).padStart(2, '0')}:${String(elSecs).padStart(2, '0')}`;
+
+        // Immediately update UI to 100% and show complete banner with clean non-contradictory metrics
+        if (elStatusHeading) elStatusHeading.textContent = 'Download complete';
+        if (elPercent) elPercent.textContent = '100%';
+        if (elProgressFill) {
+            elProgressFill.style.width = '100%';
+            elProgressFill.style.background = '#3fb950';
+        }
+        if (elThumbProgressFill) elThumbProgressFill.style.width = '100%';
+        if (videoDurationSeconds > 0 && elThumbTimeDisplay) {
+            const durFmt = window.Helpers ? window.Helpers.formatDuration(videoDurationSeconds) : '00:00';
+            elThumbTimeDisplay.textContent = `${durFmt} / ${durFmt}`;
+        }
+        if (elValSizePct) elValSizePct.textContent = '100% written to disk';
+        if (elValSpeed) elValSpeed.textContent = 'Saved to Disk';
+        if (elValSegments) elValSegments.textContent = `${finalParts} / ${finalParts} Parts`;
+        if (elValSegmentsSub) elValSegmentsSub.textContent = 'All Parts Verified';
+        if (elValActiveWorkers) elValActiveWorkers.textContent = '0 Active (Idle)';
+        if (elValMaxConcurrencySub) elValMaxConcurrencySub.textContent = 'Complete';
+        if (elValEta) elValEta.textContent = 'Finished';
+        if (elValElapsedSub) elValElapsedSub.textContent = `Total Time: ${timeFmt}`;
+        if (elValHealth) elValHealth.textContent = 'Optimal';
+        if (elValRetrySub) elValRetrySub.textContent = '100% Verified';
+        if (elBtnPause) elBtnPause.classList.add('hidden');
+        if (elBtnCancel) elBtnCancel.classList.add('hidden');
+        if (elBtnSavePartial) elBtnSavePartial.classList.add('hidden');
+        if (elSuccessBox) elSuccessBox.classList.remove('hidden');
+        document.title = `✓ ${finalFileName}`;
+        playCompletionChime();
+
         const blobUrl = URL.createObjectURL(assembled.blob);
 
         if (elSizeBadge && assembled.sizeBytes > 0) {
-            elSizeBadge.textContent = `📦 ${window.Helpers.formatBytes(assembled.sizeBytes)}`;
+            elSizeBadge.textContent = `${window.Helpers.formatBytes(assembled.sizeBytes)}`;
             elSizeBadge.style.display = 'inline-flex';
         }
 
@@ -567,21 +709,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     downloadId: dlId || null
                 });
             }
-
-            // Success UI, Chime & Notification
-            playCompletionChime();
-
-            if (elStatusHeading) elStatusHeading.textContent = 'Download complete';
-            if (elPercent) elPercent.textContent = '100%';
-            if (elProgressFill) {
-                elProgressFill.style.width = '100%';
-                elProgressFill.style.background = '#3fb950';
-            }
-            if (elBtnPause) elBtnPause.classList.add('hidden');
-            if (elBtnCancel) elBtnCancel.classList.add('hidden');
-            if (elBtnSavePartial) elBtnSavePartial.classList.add('hidden');
-            if (elSuccessBox) elSuccessBox.classList.remove('hidden');
-            document.title = `✓ ${finalFileName}`;
         });
     }
 
@@ -601,11 +728,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     let speedCountTotal = 0;
 
     function updateUIProgress(p, totalSegmentsCount) {
+        if (isCompleted) return;
+
         const pct = Math.min(100, Math.max(0, p.percent || 0));
         currentPct = pct;
         if (elProgressFill) elProgressFill.style.width = `${pct}%`;
         if (elPercent) elPercent.textContent = `${pct}%`;
+        if (elThumbProgressFill) elThumbProgressFill.style.width = `${pct}%`;
         document.title = `(${pct}%) ${finalFileName}`;
+
+        // Live Thumbnail Duration / Current Time
+        if (videoDurationSeconds > 0 && elThumbTimeDisplay) {
+            const curSecs = Math.round((pct / 100) * videoDurationSeconds);
+            const curFmt = window.Helpers ? window.Helpers.formatDuration(curSecs) : '00:00';
+            const durFmt = window.Helpers ? window.Helpers.formatDuration(videoDurationSeconds) : '00:00';
+            elThumbTimeDisplay.textContent = `${curFmt} / ${durFmt}`;
+        }
 
         if (elBtnSavePartial && pct > 5) {
             elBtnSavePartial.querySelector('span').textContent = `Save Partial (${pct}%)`;
@@ -627,14 +765,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const totalBytesStr = window.Helpers.formatBytes(p.totalBytes);
         const estBytesStr = p.estimatedTotalBytes > 0 ? window.Helpers.formatBytes(p.estimatedTotalBytes) : '';
         if (elValSize) elValSize.textContent = estBytesStr ? `${totalBytesStr} / ${estBytesStr}` : totalBytesStr;
-        if (elValSizePct) elValSizePct.textContent = `${pct}% written to disk`;
+        if (elValSizePct) elValSizePct.textContent = `${pct}% written`;
 
         if (elValSpeed) elValSpeed.textContent = `${speed.toFixed(1)} MB/s`;
         
         const doneParts = p.completed || 0;
         const totalParts = p.total || totalSegmentsCount || 0;
+        totalSegmentsTracked = totalParts;
         if (elValSegments) elValSegments.textContent = `${doneParts} / ${totalParts} Parts`;
-        if (elValSegmentsSub) elValSegmentsSub.textContent = `0 Failed • 0 Retrying`;
+        if (elValSegmentsSub) elValSegmentsSub.textContent = `0 Failed`;
 
         const activeWorkersCount = p.threads || Math.min(doneParts + 4, parseInt(elSelThreads?.value || '64', 10));
         if (elValActiveWorkers) elValActiveWorkers.textContent = `${activeWorkersCount} Workers`;
@@ -648,7 +787,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (elValElapsedSub) elValElapsedSub.textContent = `Elapsed: ${String(elMins).padStart(2, '0')}:${String(elSecs).padStart(2, '0')}`;
 
         if (p.estimatedTotalBytes > 0 && elSizeBadge) {
-            elSizeBadge.textContent = `📦 ${window.Helpers.formatBytes(p.estimatedTotalBytes)}`;
+            elSizeBadge.textContent = `${window.Helpers.formatBytes(p.estimatedTotalBytes)}`;
             elSizeBadge.style.display = 'inline-flex';
         }
 

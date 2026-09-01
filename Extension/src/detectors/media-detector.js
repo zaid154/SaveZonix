@@ -2,7 +2,7 @@
 
 (function (root) {
     // Strictly match genuine media stream extensions and patterns (NEVER bare 'index' or 'master' without .m3u8)
-    const MEDIA_STREAM_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\.mpd|videoplayback|serve_m3u8|proxy\.php\?url=)/i;
+    const MEDIA_STREAM_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\.mpd|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
 
     function isInvalidStreamUrl(url) {
         if (!url || typeof url !== 'string' || !url.startsWith('http')) return true;
@@ -19,6 +19,8 @@
             lower.includes('/segment') || 
             lower.includes('/fragment') || 
             lower.includes('/chunk_') || 
+            lower.includes('bytestart=') ||
+            lower.includes('byteend=') ||
             lower.includes('range=')) {
             return true;
         }
@@ -53,6 +55,8 @@
 
         // 2. Reject Ad Networks, Preroll Video Ads & Sponsored Clips
         if (lower.includes('trafficjunky') || 
+            lower.includes('goadserver') ||
+            lower.includes('adserver') ||
             lower.includes('doubleclick.net') || 
             lower.includes('googlesyndication') || 
             lower.includes('exoclick') || 
@@ -61,6 +65,10 @@
             lower.includes('ero-advertising') || 
             lower.includes('adxpansion') || 
             lower.includes('etahub') || 
+            lower.includes('propellerads') ||
+            lower.includes('adsterra') ||
+            lower.includes('clickadu') ||
+            lower.includes('popads') ||
             lower.includes('/preroll') || 
             lower.includes('/midroll') || 
             lower.includes('/postroll') || 

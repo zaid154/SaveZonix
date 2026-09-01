@@ -501,7 +501,81 @@ public class M3U8Parser
             }
         }
 
-        // 0. Parse JWPlayer / Custom Player Playlist & Sources JSON (e.g. window.playlist = { sources: [...] })
+        // 0a. Parse SpankBang & Tube stream_data: var stream_data = { "240p": ["https://...mp4"], "720p": ["https://...mp4"] }
+        var streamDataMatches = Regex.Matches(cleanedHtml, @"(?:var\s+)?(?:stream_data|play_streams|video_sources|sources_data|streams)\s*=\s*(\{[\s\S]*?\});", RegexOptions.IgnoreCase);
+        foreach (Match sdm in streamDataMatches)
+        {
+            try
+            {
+                string jsonText = sdm.Groups[1].Value.Trim();
+                using var sDoc = JsonDocument.Parse(jsonText);
+                foreach (var prop in sDoc.RootElement.EnumerateObject())
+                {
+                    string qLabel = prop.Name;
+                    string? sUrl = null;
+                    if (prop.Value.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in prop.Value.EnumerateArray())
+                        {
+                            var strVal = item.GetString();
+                            if (!string.IsNullOrEmpty(strVal) && (strVal.Contains(".mp4") || strVal.Contains(".m3u8") || strVal.Contains(".webm") || strVal.Contains("http")))
+                            {
+                                sUrl = strVal;
+                                break;
+                            }
+                        }
+                    }
+                    else if (prop.Value.ValueKind == JsonValueKind.String)
+                    {
+                        sUrl = prop.Value.GetString();
+                    }
+
+                    if (!string.IsNullOrEmpty(sUrl) && (sUrl.Contains(".mp4") || sUrl.Contains(".m3u8") || sUrl.Contains(".webm") || sUrl.StartsWith("http")))
+                    {
+                        string cleanUrl = Regex.Unescape(sUrl);
+                        int h = int.TryParse(Regex.Match(qLabel, @"\d+").Value, out var ph) ? ph : 720;
+                        if (!qualities.Any(q => q.Url == cleanUrl))
+                        {
+                            qualities.Add(new StreamQuality
+                            {
+                                Resolution = $"{qLabel.ToUpper()} (Direct)",
+                                Url = cleanUrl,
+                                IsDirectFile = !cleanUrl.Contains(".m3u8"),
+                                Bandwidth = h * 5000
+                            });
+                        }
+                    }
+                }
+                if (qualities.Count > 0)
+                {
+                    return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+                }
+            }
+            catch { }
+        }
+
+        // 0b. Parse Direct stream_url assignments: var stream_url = 'https://...';
+        var directStreamUrlMatches = Regex.Matches(cleanedHtml, @"(?:var\s+)?(?:stream_url|main_stream|video_stream|streamUrl|mediaUrl)\s*=\s*[""'](https?:[^""']+\.(?:mp4|m3u8|webm)[^""']*)[""']", RegexOptions.IgnoreCase);
+        foreach (Match dsu in directStreamUrlMatches)
+        {
+            string cleanUrl = Regex.Unescape(dsu.Groups[1].Value);
+            if (!qualities.Any(q => q.Url == cleanUrl))
+            {
+                qualities.Add(new StreamQuality
+                {
+                    Resolution = "1080p Full HD (Direct)",
+                    Url = cleanUrl,
+                    IsDirectFile = !cleanUrl.Contains(".m3u8"),
+                    Bandwidth = 4500000
+                });
+            }
+        }
+        if (qualities.Count > 0)
+        {
+            return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+        }
+
+        // 0c. Parse JWPlayer / Custom Player Playlist & Sources JSON (e.g. window.playlist = { sources: [...] })
         var playlistMatches = Regex.Matches(cleanedHtml, @"(?:window\.)?(?:playlist|playerConfig|videoData|playerSetup)\s*=\s*(\{[\s\S]*?\});", RegexOptions.IgnoreCase);
         foreach (Match pm in playlistMatches)
         {

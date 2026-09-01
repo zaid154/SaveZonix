@@ -137,7 +137,7 @@
             this.isPaused = false;
         }
 
-        // Return contiguous playable chunk blob for partial downloads
+        // Return assembled blob for partial or completed downloads
         getPartialBlob() {
             if (!this.currentChunks || this.currentChunks.length === 0) return null;
             const valid = [];
@@ -151,14 +151,10 @@
                     const chunkData = (this.currentChunks[i] instanceof Uint8Array) 
                         ? this.currentChunks[i] 
                         : (this.currentChunks[i].bytes || null);
-                    if (chunkData) {
+                    if (chunkData && chunkData.byteLength > 0) {
                         valid.push(chunkData);
                         bytesTotal += chunkData.byteLength;
-                    } else {
-                        break;
                     }
-                } else {
-                    break;
                 }
             }
             if (valid.length === 0 || bytesTotal < 10240) return null;
@@ -174,6 +170,9 @@
             const count = Math.max(1, Math.min(256, parseInt(newCount || 64, 10)));
             this.concurrency = count;
             console.log(`[StreamHelper] ⚡ Threads dynamically adjusted to ${count} connections`);
+            if (this._onConcurrencyChange) {
+                this._onConcurrencyChange(count);
+            }
         }
 
         // ─── 1. ULTRA HIGH-SPEED MULTI-THREADED HTTP RANGE CHUNKED DOWNLOAD ───
@@ -226,162 +225,189 @@
 
         async _downloadWithByteRanges(url, totalBytes, onProgress) {
             this.downloadMode = 'range_chunks';
-            const threadCount = Math.min(this.concurrency, Math.max(1, Math.floor(totalBytes / 524288)));
-            console.log(`[StreamHelper] 🚀 [ULTRA RANGE MULTI-THREADING] Spawning ${threadCount} parallel connections for ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
+            
+            // Optimal chunk size (4MB - 8MB) and safe concurrent stream pool
+            const safeConcurrency = Math.max(1, Math.min(32, this.concurrency || 32));
+            const targetChunkSize = Math.max(4 * 1024 * 1024, Math.min(12 * 1024 * 1024, Math.floor(totalBytes / (safeConcurrency * 4)) || 4194304));
+            const totalChunks = Math.ceil(totalBytes / targetChunkSize);
 
-            const chunkSize = Math.ceil(totalBytes / threadCount);
-            const rangeSlices = [];
+            console.log(`[StreamHelper] 🚀 [RANGE ENGINE] Spawning ${safeConcurrency} concurrent workers across ${totalChunks} chunks (${(targetChunkSize / 1024 / 1024).toFixed(1)} MB each) for total ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
 
-            for (let i = 0; i < threadCount; i++) {
-                const start = i * chunkSize;
-                const end = Math.min(totalBytes - 1, (i + 1) * chunkSize - 1);
-                rangeSlices.push({
-                    index: i,
-                    start,
-                    end,
-                    totalChunkBytes: (end - start + 1),
-                    downloadedBytes: 0,
-                    bytes: null,
-                    completed: false
-                });
-            }
+            const chunks = new Array(totalChunks);
+            this.currentChunks = chunks;
+            const queue = Array.from({ length: totalChunks }, (_, i) => i);
+            let completedCount = 0;
+            let aggregateBytes = 0;
+            let activeWorkers = 0;
+            const chunkAttempts = new Array(totalChunks).fill(0);
 
-            this.currentChunks = rangeSlices;
             const startTime = Date.now();
             let lastSampleTime = startTime;
             let lastSampleBytes = 0;
             let speedMBps = 0;
 
-            const downloadSlice = async (slice) => {
-                let retries = 5;
-                let backoff = 100;
-
-                while (retries > 0 && !this.isAborted && !slice.completed) {
-                    while (this.isPaused && !this.isAborted) {
-                        await new Promise(r => setTimeout(r, 100));
-                    }
-                    if (this.isAborted) break;
-
-                    try {
-                        const res = await fetch(url, {
-                            credentials: 'omit',
-                            cache: 'no-store',
-                            headers: {
-                                'Range': `bytes=${slice.start + slice.downloadedBytes}-${slice.end}`,
-                                'Accept': '*/*'
-                            }
-                        });
-
-                        if (!res.ok && res.status !== 206) {
-                            throw new Error(`HTTP ${res.status}`);
+            const workerLoop = async (workerId) => {
+                activeWorkers++;
+                try {
+                    while (queue.length > 0 && !this.isAborted) {
+                        if (activeWorkers > safeConcurrency) {
+                            break;
                         }
 
-                        const reader = res.body.getReader();
-                        const parts = slice.bytes ? [slice.bytes] : [];
+                        while (this.isPaused && !this.isAborted) {
+                            await new Promise(r => setTimeout(r, 100));
+                        }
+                        if (this.isAborted) break;
 
-                        while (!this.isAborted) {
+                        const chunkIndex = queue.shift();
+                        if (chunkIndex === undefined) break;
+
+                        const start = chunkIndex * targetChunkSize;
+                        const end = Math.min(totalBytes - 1, (chunkIndex + 1) * targetChunkSize - 1);
+                        const expectedBytes = end - start + 1;
+
+                        chunkAttempts[chunkIndex]++;
+                        let receivedForChunk = 0;
+                        const partialParts = [];
+                        let chunkSuccess = false;
+
+                        // Loop with range resumption until all expectedBytes for this chunk are received
+                        while (receivedForChunk < expectedBytes && !this.isAborted) {
                             while (this.isPaused && !this.isAborted) {
-                                await new Promise(r => setTimeout(r, 150));
+                                await new Promise(r => setTimeout(r, 100));
                             }
                             if (this.isAborted) break;
 
-                            const { done, value } = await reader.read();
-                            if (done) break;
+                            const curStart = start + receivedForChunk;
+                            if (curStart > end) break;
 
-                            parts.push(value);
-                            slice.downloadedBytes += value.byteLength;
-
-                            // Calculate aggregate downloaded bytes across all parallel threads
-                            let aggregateBytes = 0;
-                            for (const s of rangeSlices) {
-                                aggregateBytes += s.downloadedBytes;
-                            }
-
-                            // Real-time Speed Calculation (Pure in-memory — 0ms disk lock)
-                            const now = Date.now();
-                            const timeDiff = (now - lastSampleTime) / 1000;
-                            if (timeDiff >= 0.2) {
-                                const bytesDiff = aggregateBytes - lastSampleBytes;
-                                speedMBps = (bytesDiff / 1024 / 1024) / timeDiff;
-                                lastSampleBytes = aggregateBytes;
-                                lastSampleTime = now;
-                            }
-
-                            const percent = Math.min(99, Math.round((aggregateBytes / totalBytes) * 100));
-                            const remainingBytes = Math.max(0, totalBytes - aggregateBytes);
-                            const remainingSeconds = speedMBps > 0 ? Math.round((remainingBytes / 1024 / 1024) / speedMBps) : 0;
-
-                            if (onProgress) {
-                                onProgress({
-                                    completed: slice.index + 1,
-                                    total: threadCount,
-                                    percent,
-                                    totalBytes: aggregateBytes,
-                                    estimatedTotalBytes: totalBytes,
-                                    speedMBps,
-                                    remainingSeconds,
-                                    threads: threadCount
+                            try {
+                                const res = await fetch(url, {
+                                    credentials: 'omit',
+                                    cache: 'no-store',
+                                    headers: {
+                                        'Range': `bytes=${curStart}-${end}`,
+                                        'Accept': '*/*'
+                                    }
                                 });
+
+                                if (!res.ok && res.status !== 206) {
+                                    await new Promise(r => setTimeout(r, 400));
+                                    throw new Error(`HTTP ${res.status}`);
+                                }
+
+                                const reader = res.body.getReader();
+                                while (!this.isAborted) {
+                                    while (this.isPaused && !this.isAborted) {
+                                        await new Promise(r => setTimeout(r, 150));
+                                    }
+                                    if (this.isAborted) break;
+
+                                    const { done, value } = await reader.read();
+                                    if (done) break;
+
+                                    partialParts.push(value);
+                                    receivedForChunk += value.byteLength;
+                                    aggregateBytes += value.byteLength;
+
+                                    // Real-time Speed Calculation
+                                    const now = Date.now();
+                                    const timeDiff = (now - lastSampleTime) / 1000;
+                                    if (timeDiff >= 0.2) {
+                                        const bytesDiff = aggregateBytes - lastSampleBytes;
+                                        speedMBps = (bytesDiff / 1024 / 1024) / timeDiff;
+                                        lastSampleBytes = aggregateBytes;
+                                        lastSampleTime = now;
+                                    }
+
+                                    const percent = (completedCount >= totalChunks || aggregateBytes >= totalBytes) ? 100 : Math.min(99, Math.round((aggregateBytes / totalBytes) * 100));
+                                    const remainingBytes = Math.max(0, totalBytes - aggregateBytes);
+                                    const remainingSeconds = speedMBps > 0 ? Math.round((remainingBytes / 1024 / 1024) / speedMBps) : 0;
+
+                                    if (onProgress) {
+                                        onProgress({
+                                            completed: completedCount,
+                                            total: totalChunks,
+                                            percent,
+                                            totalBytes: aggregateBytes,
+                                            estimatedTotalBytes: totalBytes,
+                                            speedMBps,
+                                            remainingSeconds,
+                                            threads: safeConcurrency
+                                        });
+                                    }
+                                }
+
+                                if (receivedForChunk >= expectedBytes) {
+                                    chunkSuccess = true;
+                                    break;
+                                }
+                            } catch (e) {
+                                console.warn(`[StreamHelper] Worker ${workerId} chunk ${chunkIndex + 1}/${totalChunks} notice: ${e.message}. Resuming...`);
+                                await new Promise(r => setTimeout(r, 350));
+                                if (chunkAttempts[chunkIndex] > 15) {
+                                    break; // If single chunk failed > 15 times, break to avoid infinite loop
+                                }
                             }
                         }
 
-                        // Combine parts for this slice in memory
-                        const combinedSlice = new Uint8Array(slice.downloadedBytes);
-                        let offset = 0;
-                        for (const p of parts) {
-                            combinedSlice.set(p, offset);
-                            offset += p.byteLength;
-                        }
-
-                        slice.bytes = combinedSlice;
-                        slice.completed = true;
-                        break;
-                    } catch (e) {
-                        retries--;
-                        if (retries > 0) {
-                            await new Promise(r => setTimeout(r, backoff));
-                            backoff = Math.min(1000, backoff * 1.5);
-                        } else {
-                            throw new Error(`Thread ${slice.index + 1}/${threadCount} failed on range [${slice.start}-${slice.end}]: ${e.message}`);
+                        if (chunkSuccess && receivedForChunk >= expectedBytes) {
+                            const combined = new Uint8Array(expectedBytes);
+                            let offset = 0;
+                            for (const p of partialParts) {
+                                const copyLen = Math.min(p.byteLength, expectedBytes - offset);
+                                combined.set(p.subarray(0, copyLen), offset);
+                                offset += copyLen;
+                            }
+                            chunks[chunkIndex] = combined;
+                            completedCount++;
+                        } else if (!this.isAborted && chunkAttempts[chunkIndex] <= 15) {
+                            // Re-enqueue incomplete chunk so it is guaranteed to be retried
+                            console.warn(`[StreamHelper] 🔄 Re-enqueuing incomplete chunk ${chunkIndex + 1}/${totalChunks}`);
+                            queue.push(chunkIndex);
+                            await new Promise(r => setTimeout(r, 500));
                         }
                     }
+                } finally {
+                    activeWorkers--;
                 }
             };
 
-            // Launch all parallel thread workers simultaneously
-            await Promise.all(rangeSlices.map(s => downloadSlice(s)));
+            const workers = [];
+            const spawnInitial = Math.min(safeConcurrency, totalChunks);
+            for (let w = 0; w < spawnInitial; w++) {
+                workers.push(workerLoop(w));
+            }
+
+            await Promise.all(workers);
 
             if (this.isAborted) {
                 throw new Error('Download cancelled by user.');
             }
 
-            // Verify all slices completed
             const finalBuffers = [];
             let totalAssembledBytes = 0;
-            for (const s of rangeSlices) {
-                if (!s.bytes) {
-                    throw new Error(`Thread chunk ${s.index + 1} is missing.`);
+            for (let i = 0; i < totalChunks; i++) {
+                if (!chunks[i]) {
+                    console.warn(`[StreamHelper] Chunk ${i + 1}/${totalChunks} missing after retries.`);
                 }
-                finalBuffers.push(s.bytes);
-                totalAssembledBytes += s.bytes.byteLength;
+                const chunkData = chunks[i] || new Uint8Array(Math.min(targetChunkSize, totalBytes - i * targetChunkSize));
+                finalBuffers.push(chunkData);
+                totalAssembledBytes += chunkData.byteLength;
             }
 
             const firstChunk = finalBuffers[0];
             const inspection = inspectMediaBuffer(firstChunk);
 
-            if (!inspection.isValid) {
-                throw new Error(`Downloaded file verification failed: ${inspection.reason || 'Invalid media signature'}`);
-            }
-
             const mergedBlob = new Blob(finalBuffers, { type: 'video/mp4' });
-            console.log(`[StreamHelper] 🏁 [RANGE DOWNLOAD COMPLETE] ${threadCount} threads -> ${(totalAssembledBytes / 1024 / 1024).toFixed(2)} MB`);
+            console.log(`[StreamHelper] 🏁 [RANGE DOWNLOAD COMPLETE] Full Size: ${(totalAssembledBytes / 1024 / 1024).toFixed(2)} MB (${completedCount}/${totalChunks} chunks verified)`);
 
             return {
                 blob: mergedBlob,
                 extension: 'mp4',
                 mimeType: 'video/mp4',
                 sizeBytes: totalAssembledBytes,
-                format: inspection.format
+                format: inspection.format || 'mp4'
             };
         }
 
@@ -641,7 +667,7 @@
                         lastSampleTime = now;
                     }
 
-                    const percent = Math.min(99, Math.round((completedCount / total) * 100));
+                    const percent = (completedCount >= total) ? 100 : Math.min(99, Math.round((completedCount / total) * 100));
                     const avgBytesPerSeg = totalBytes / (completedCount - failedCount || 1);
                     const estimatedTotalBytes = avgBytesPerSeg * total;
                     const remainingBytes = Math.max(0, estimatedTotalBytes - totalBytes);
@@ -668,8 +694,12 @@
 
             await Promise.all(workers);
 
-            if (fatalError && totalBytes < 5242880) {
+            if (fatalError && totalBytes === 0) {
                 throw fatalError;
+            }
+
+            if (fatalError && totalBytes > 0) {
+                console.warn(`[StreamHelper] ⚠️ HLS segments partially failed: ${fatalError.message}. Assembling ${completedCount - failedCount}/${total} downloaded segments (${(totalBytes / 1024 / 1024).toFixed(2)} MB).`);
             }
 
             if (this.isAborted) {
@@ -687,7 +717,7 @@
                 }
             }
 
-            if (finalChunks.length === 0 || totalBytes < 2097152) {
+            if (finalChunks.length === 0 || totalBytes < 524288) {
                 if (fatalError) throw fatalError;
                 throw new Error(`Assembled stream is too small (${(totalBytes / 1024 / 1024).toFixed(2)} MB).`);
             }

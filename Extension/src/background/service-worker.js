@@ -14,8 +14,8 @@ if (chrome.declarativeNetRequest) {
                     action: {
                         type: 'modifyHeaders',
                         requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://www.pornhub.org' },
-                            { header: 'Referer', operation: 'set', value: 'https://www.pornhub.org/' }
+                            { header: 'Origin', operation: 'set', value: 'https://www.pornhub.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://www.pornhub.com/' }
                         ]
                     },
                     condition: {
@@ -41,26 +41,77 @@ if (chrome.declarativeNetRequest) {
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
-                // 3. PixelFlix / PvrPlay Rule
+                // 3. xHamster CDN Rule
                 {
                     id: 2003,
                     priority: 2,
                     action: {
                         type: 'modifyHeaders',
                         requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://pixelflix.cc' },
-                            { header: 'Referer', operation: 'set', value: 'https://pixelflix.cc/' }
+                            { header: 'Origin', operation: 'set', value: 'https://xhamster.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://xhamster.com/' }
                         ]
                     },
                     condition: {
                         initiatorDomains: [chrome.runtime.id],
-                        urlFilter: 'pixelflix.cc',
+                        urlFilter: 'xhcdn.com',
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
-                // 4. Generic Rule (Strip extension origin for all other CDNs)
+                // 4. Instagram CDN Rule
                 {
                     id: 2004,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://www.instagram.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://www.instagram.com/' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'cdninstagram.com',
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 5. SpankBang CDN Rule
+                {
+                    id: 2005,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://spankbang.party' },
+                            { header: 'Referer', operation: 'set', value: 'https://spankbang.party/' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'sb-cd.com',
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 6. Mat6tube / PvvStream Rule
+                {
+                    id: 2006,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://mat6tube.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://mat6tube.com/' }
+                        ]
+                    },
+                    condition: {
+                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'pvvstream.pro',
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 7. Generic Strip Rule
+                {
+                    id: 2007,
                     priority: 1,
                     action: {
                         type: 'modifyHeaders',
@@ -80,7 +131,7 @@ if (chrome.declarativeNetRequest) {
 }
 
 // Strictly match genuine video master manifests and direct video containers
-const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|videoplayback|serve_m3u8|proxy\.php\?url=)/i;
+const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
 
 function getStreamPriorityScore(url) {
     if (!url || typeof url !== 'string') return 0;
@@ -111,6 +162,8 @@ function isSegmentOrInvalid(url) {
         lower.includes('/segment') || 
         lower.includes('/fragment') || 
         lower.includes('/chunk_') || 
+        lower.includes('bytestart=') ||
+        lower.includes('byteend=') ||
         lower.includes('range=')) {
         return true;
     }

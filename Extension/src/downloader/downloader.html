@@ -16,18 +16,18 @@
             <div class="brand">
                 <img src="../../icons/icon48.png" alt="" class="logo">
                 <span class="app-name">Stream Helper</span>
-                <span class="version-tag">v5.5.0</span>
+                <span class="version-tag">v6.4.0</span>
             </div>
             <div class="header-right">
                 <div class="thread-picker">
-                    <label for="selActiveThreads">Threads</label>
+                    <span class="thread-label">Workers</span>
                     <select id="selActiveThreads">
                         <option value="8">8 Threads (Standard)</option>
                         <option value="16">16 Threads (Fast)</option>
                         <option value="32">32 Threads (Turbo)</option>
-                        <option value="64" selected>64 Threads (Extreme Max — Recommended)</option>
-                        <option value="128">128 Threads (Ultra Fiber)</option>
-                        <option value="256">256 Threads (Hyper Max)</option>
+                        <option value="64">64 Threads (Extreme)</option>
+                        <option value="128">128 Threads (Ultra)</option>
+                        <option value="256" selected>256 Threads (Hyper Max)</option>
                     </select>
                 </div>
             </div>
@@ -36,119 +36,149 @@
         <!-- Main Panel -->
         <main class="panel">
             <!-- Media Info Row -->
-            <div class="media-row">
-                <div class="media-thumb" id="thumbBox">
-                    <img id="thumbImg" src="" alt="Thumbnail" style="display: none;">
-                    <div class="thumb-empty" id="thumbPlaceholder">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <div class="media-card">
+                <div class="media-thumb-wrap" id="thumbBox" title="Click to watch preview">
+                    <img id="thumbImg" src="" alt="Thumbnail" class="thumb-img" style="display: none;">
+                    <div class="thumb-fallback" id="thumbPlaceholder">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M8 5v14l11-7z"/>
+                        </svg>
+                    </div>
+                    <div class="thumb-play-overlay" id="thumbPlayBtn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <polygon points="5 3 19 12 5 21 5 3"></polygon>
                         </svg>
                     </div>
-                    <span class="thumb-duration" id="thumbDurationOverlay" style="display: none;">00:00</span>
-                </div>
-                <div class="media-meta">
-                    <div class="meta-tags">
-                        <span class="tag tag-platform" id="platformBadge">Web Stream</span>
-                        <span class="tag tag-accent" id="qualityBadge">1080p FHD</span>
-                        <span class="tag tag-strategy" id="strategyBadge">HLS Segment Download</span>
-                        <span class="tag tag-duration" id="durationBadge" style="display: none;">00:00</span>
-                        <span class="tag tag-size" id="sizeBadge" style="display: none;">0 MB</span>
-                        <span class="tag" id="formatBadge">MP4 Container</span>
-                        <span class="tag tag-dim" id="codecBadge">H.264 / AAC</span>
-                        <span class="tag tag-threads" id="threadsBadge">64 Workers</span>
+                    <div class="thumb-timeline">
+                        <div class="thumb-timeline-bar">
+                            <div class="thumb-timeline-fill" id="thumbProgressFill" style="width: 0%;"></div>
+                        </div>
+                        <span class="thumb-time-text" id="thumbTimeDisplay">00:00 / --:--</span>
                     </div>
-                    <h1 class="title" id="videoTitle">Connecting to stream...</h1>
-                    <div class="file-path">
-                        <span class="file-label">Destination:</span>
-                        <span class="file-val" id="targetFilename">Video.mp4</span>
+                </div>
+
+                <div class="media-meta">
+                    <!-- Clean Single Metadata Row -->
+                    <div class="meta-pills">
+                        <span class="pill pill-platform" id="platformBadge">Web Stream</span>
+                        <span class="pill pill-quality" id="qualityBadge">1080p FHD</span>
+                        <span class="pill pill-type" id="strategyBadge">Direct MP4</span>
+                        <span class="pill pill-size" id="sizeBadge">0 MB</span>
+                    </div>
+                    <h1 class="media-title" id="videoTitle">Connecting to stream...</h1>
+                    <div class="media-dest">
+                        <span class="dest-icon">📁</span>
+                        <span class="dest-path" id="targetFilename">Video.mp4</span>
                     </div>
                 </div>
             </div>
 
             <!-- Progress Block -->
-            <div class="progress-wrap">
-                <div class="progress-info">
-                    <div class="status-col">
-                        <span class="status-msg" id="statusHeading">Connecting to stream...</span>
-                    </div>
-                    <span class="percent" id="percentCounter">0%</span>
+            <div class="progress-section">
+                <div class="progress-header">
+                    <span class="status-text" id="statusHeading">Connecting to stream...</span>
+                    <span class="percent-val" id="percentCounter">0%</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                <div class="progress-track">
+                    <div class="progress-bar-fill" id="progressFill" style="width: 0%;"></div>
                 </div>
             </div>
 
-            <!-- Enhanced 6 Stats Metrics Cards (Clear Chunks vs Workers Distinction) -->
-            <div class="stats-row six-stats">
-                <div class="stat-item">
-                    <span class="stat-label">Transfer Speed</span>
-                    <span class="stat-value stat-speed" id="valSpeed">0.0 MB/s</span>
+            <!-- Compact Professional 6-Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-cell">
+                    <span class="stat-title">Transfer Speed</span>
+                    <span class="stat-main text-green" id="valSpeed">0.0 MB/s</span>
                     <span class="stat-sub" id="valPeakSpeedSub">Peak: 0.0 MB/s</span>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Downloaded / Total</span>
-                    <span class="stat-value" id="valSize">0 MB</span>
+                <div class="stat-cell">
+                    <span class="stat-title">Downloaded / Size</span>
+                    <span class="stat-main" id="valSize">0 MB</span>
                     <span class="stat-sub" id="valSizePct">0% written</span>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Completed Chunks</span>
-                    <span class="stat-value" id="valSegments">0 / 0 Parts</span>
-                    <span class="stat-sub" id="valSegmentsSub">0 Failed &bull; 0 Retrying</span>
+                <div class="stat-cell">
+                    <span class="stat-title">Completed Chunks</span>
+                    <span class="stat-main" id="valSegments">0 / 0 Parts</span>
+                    <span class="stat-sub" id="valSegmentsSub">0 Failed</span>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Active Connections</span>
-                    <span class="stat-value" id="valActiveWorkers">16 Workers</span>
-                    <span class="stat-sub" id="valMaxConcurrencySub">Max: 64 Concurrency</span>
+                <div class="stat-cell">
+                    <span class="stat-title">Active Connections</span>
+                    <span class="stat-main" id="valActiveWorkers">256 Workers</span>
+                    <span class="stat-sub" id="valMaxConcurrencySub">Max: 256 Concurrency</span>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Time Remaining (ETA)</span>
-                    <span class="stat-value" id="valEta">Calculating...</span>
+                <div class="stat-cell">
+                    <span class="stat-title">Time Remaining</span>
+                    <span class="stat-main" id="valEta">Calculating...</span>
                     <span class="stat-sub" id="valElapsedSub">Elapsed: 00:00</span>
                 </div>
-                <div class="stat-item">
-                    <span class="stat-label">Connection Health</span>
-                    <span class="stat-value" style="color: #34d399;" id="valHealth">Optimal</span>
-                    <span class="stat-sub" id="valRetrySub">Retries: 0 &bull; 100% OK</span>
+                <div class="stat-cell">
+                    <span class="stat-title">Connection Status</span>
+                    <span class="stat-main text-green" id="valHealth">Optimal</span>
+                    <span class="stat-sub" id="valRetrySub">100% Verified</span>
                 </div>
             </div>
 
-            <!-- Live Speed Sparkline Canvas -->
-            <div class="sparkline-wrapper">
-                <div class="sparkline-header">
-                    <span class="sparkline-title">Real-Time Throughput</span>
-                    <div class="throughput-tags">
-                        <span class="sparkline-stat" id="valCurSpeedTag">Cur: 0.0 MB/s</span>
-                        <span class="sparkline-peak" id="valPeakSpeed">Peak: 0.0 MB/s</span>
-                        <span class="sparkline-avg" id="valAvgSpeedTag">Avg: 0.0 MB/s</span>
+            <!-- Minimal Compact Throughput Sparkline -->
+            <div class="sparkline-box">
+                <div class="sparkline-meta">
+                    <span class="sparkline-lbl">Throughput</span>
+                    <div class="sparkline-stats">
+                        <span id="valCurSpeedTag">Cur: 0.0 MB/s</span>
+                        <span class="text-blue" id="valPeakSpeed">Peak: 0.0 MB/s</span>
+                        <span class="text-purple" id="valAvgSpeedTag">Avg: 0.0 MB/s</span>
                     </div>
                 </div>
-                <canvas id="speedCanvas" class="speed-canvas" width="600" height="42"></canvas>
+                <canvas id="speedCanvas" class="sparkline-canvas" width="620" height="32"></canvas>
+            </div>
+
+            <!-- Live Preview Video Player (Collapsible) -->
+            <div class="preview-panel hidden" id="previewSection">
+                <div class="preview-panel-header">
+                    <span class="preview-panel-title">▶ Live Video Preview</span>
+                    <button class="btn-icon" id="btnClosePreview" title="Close Preview">✕</button>
+                </div>
+                <video id="previewPlayer" class="preview-element" controls preload="auto" playsinline>
+                    Your browser does not support HTML5 video.
+                </video>
+            </div>
+
+            <!-- Compact Success Notice -->
+            <div class="alert alert-success hidden" id="successBox">
+                <div class="alert-left">
+                    <span class="alert-check">✓</span>
+                    <span class="alert-text">Download complete. File saved to your Downloads folder.</span>
+                </div>
+                <button class="btn btn-sm btn-primary" id="btnOpenFolder">Show in folder</button>
             </div>
 
             <!-- Error Notice -->
             <div class="alert alert-error hidden" id="errorBox">
-                <span class="alert-msg" id="errorMessage">Download failed.</span>
-                <div style="display:flex;gap:6px;">
+                <div class="alert-left">
+                    <span class="alert-icon">⚠️</span>
+                    <span class="alert-text" id="errorMessage">Download failed.</span>
+                </div>
+                <div class="alert-actions">
                     <button class="btn btn-sm btn-secondary hidden" id="btnSavePartialError">Save Partial Video</button>
                     <button class="btn btn-sm btn-danger" id="btnRetry">Retry</button>
                 </div>
             </div>
 
-            <!-- Success Notice -->
-            <div class="alert alert-success hidden" id="successBox">
-                <span class="alert-msg">&#x2713; Download complete. File saved to your Downloads folder.</span>
-                <button class="btn btn-sm btn-primary" id="btnOpenFolder">Show in folder</button>
-            </div>
-
-            <!-- Actions & Keyboard Shortcuts Hint (Visible Pause/Resume & Cancel Buttons) -->
-            <div class="actions-row">
-                <div class="keyboard-hints">
-                    <span class="hint-pill"><kbd>Space</kbd> Pause/Resume</span>
-                    <span class="hint-pill"><kbd>Esc</kbd> Cancel</span>
+            <!-- Compact Actions Row -->
+            <div class="footer-actions">
+                <div class="hints-group">
+                    <span class="hint-item"><kbd>W</kbd> Watch</span>
+                    <span class="hint-item"><kbd>Space</kbd> Pause</span>
+                    <span class="hint-item"><kbd>Esc</kbd> Cancel</span>
                 </div>
-                <div class="actions">
+                <div class="btn-group">
                     <button class="btn btn-secondary hidden" id="btnSavePartial">
-                        <span>Save Partial (0%)</span>
+                        <span>Save Partial</span>
+                    </button>
+                    <button class="btn btn-watch" id="btnWatchPreview" title="Watch video while downloading">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                        <span class="btn-text">Watch</span>
                     </button>
                     <button class="btn btn-secondary" id="btnPause">
                         <svg id="btnPauseIcon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">

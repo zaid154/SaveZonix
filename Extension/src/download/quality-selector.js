@@ -14,17 +14,13 @@
                 return;
             }
 
-            const best = variants[0];
-            const bestOpt = document.createElement('option');
-            bestOpt.value = best.url;
-            bestOpt.textContent = `⭐ Best Quality — ${best.label}`;
-            bestOpt.selected = true;
-            selectElement.appendChild(bestOpt);
-
-            variants.forEach(v => {
+            variants.forEach((v, idx) => {
                 const opt = document.createElement('option');
                 opt.value = v.url;
-                opt.textContent = v.label;
+                opt.textContent = idx === 0 ? `⭐ Max Quality — ${v.label}` : v.label;
+                if (idx === 0) {
+                    opt.selected = true;
+                }
                 selectElement.appendChild(opt);
             });
         },

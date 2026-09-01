@@ -165,36 +165,80 @@
 
             const activeVideo = document.querySelector('video');
 
-            // 1. Inspect DOM Video Elements for direct progressive MP4 source
-            const videos = document.querySelectorAll('video');
-            for (const video of videos) {
-                const src = video.currentSrc || video.src || video.querySelector('source')?.src;
-                if (src && src.startsWith('http') && !src.startsWith('blob:')) {
-                    if (src.includes('.mp4') || src.includes('cdninstagram') || src.includes('fbcdn')) {
+            // 1. Inspect Inlined JSON State / Scripts for genuine full 1080p/720p progressive MP4
+            const scripts = document.querySelectorAll('script[type="application/json"], script[type="application/ld+json"], script:not([src])');
+            for (const s of scripts) {
+                try {
+                    const text = s.textContent || '';
+                    if (!text) continue;
+
+                    // Match video_versions array (Instagram native HD multiplexed MP4)
+                    const vvMatch = text.match(/"video_versions":\s*\[\s*\{[^}]*?"url":\s*"([^"]+)"/i) ||
+                                    text.match(/"playable_url_quality_hd":\s*"([^"]+)"/i) ||
+                                    text.match(/"playable_url":\s*"([^"]+)"/i) ||
+                                    text.match(/"video_url":\s*"([^"]+)"/i);
+
+                    if (vvMatch && vvMatch[1]) {
+                        const rawUrl = vvMatch[1].replace(/\\u0025/g, '%').replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+                        if (rawUrl.startsWith('http') && !isAudioOnlyUrl(rawUrl)) {
+                            confirmedVideoUrl = rawUrl;
+                            break;
+                        }
+                    }
+                } catch { }
+            }
+
+            // 2. Check OpenGraph Video Meta tags
+            if (!confirmedVideoUrl) {
+                const ogVideo = document.querySelector('meta[property="og:video:secure_url"], meta[property="og:video"], meta[property="og:video:url"], meta[name="twitter:player:stream"]')?.getAttribute('content');
+                if (ogVideo && ogVideo.startsWith('http') && !isAudioOnlyUrl(ogVideo)) {
+                    confirmedVideoUrl = ogVideo;
+                }
+            }
+
+            // 3. Check Preload Link tags
+            if (!confirmedVideoUrl) {
+                const preloadVideo = document.querySelector('link[rel="preload"][as="video"]')?.getAttribute('href');
+                if (preloadVideo && preloadVideo.startsWith('http') && !isAudioOnlyUrl(preloadVideo) && !preloadVideo.includes('bytestart=')) {
+                    confirmedVideoUrl = preloadVideo;
+                }
+            }
+
+            // 4. Inspect DOM Video Elements
+            if (!confirmedVideoUrl) {
+                const videos = document.querySelectorAll('video');
+                for (const video of videos) {
+                    const src = video.currentSrc || video.src || video.querySelector('source')?.src;
+                    if (src && src.startsWith('http') && !src.startsWith('blob:') && !src.includes('bytestart=')) {
                         if (!isAudioOnlyUrl(src)) {
-                            confirmedVideoUrl = sanitizeMediaUrl(src);
+                            confirmedVideoUrl = src;
                             break;
                         }
                     }
                 }
             }
 
-            // 2. Inspect Performance Resource Timeline for accessible video and audio tracks
-            try {
-                const entries = performance.getEntriesByType('resource');
-                for (let i = entries.length - 1; i >= 0; i--) {
-                    const url = entries[i].name;
-                    if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
+            // 5. Inspect Performance Resource Timeline (only full streams, never chunk slices)
+            if (!confirmedVideoUrl) {
+                try {
+                    const entries = performance.getEntriesByType('resource');
+                    for (let i = entries.length - 1; i >= 0; i--) {
+                        const url = entries[i].name;
+                        if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
 
-                    if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
-                        if (isAudioOnlyUrl(url)) {
-                            if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
-                        } else if (url.includes('.mp4') || url.includes('/v/t')) {
-                            if (!confirmedVideoUrl) confirmedVideoUrl = sanitizeMediaUrl(url);
+                        if ((url.includes('cdninstagram.com') || url.includes('fbcdn.net')) && !url.includes('bytestart=')) {
+                            if (isAudioOnlyUrl(url)) {
+                                if (!confirmedAudioUrl) confirmedAudioUrl = url;
+                            } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
+                                if (!confirmedVideoUrl) {
+                                    confirmedVideoUrl = url;
+                                    break;
+                                }
+                            }
                         }
                     }
-                }
-            } catch { }
+                } catch { }
+            }
 
             let durationStr = '';
             if (activeVideo && activeVideo.duration && !isNaN(activeVideo.duration) && activeVideo.duration !== Infinity) {
@@ -209,7 +253,7 @@
 
             const thumb = meta.thumbnail || (activeVideo?.poster) || '';
 
-            // ONLY mark downloadable if a confirmed VIDEO stream is present (never audio-only)
+            // Mark downloadable if a confirmed VIDEO stream is present
             if (confirmedVideoUrl && !isAudioOnlyUrl(confirmedVideoUrl)) {
                 streams.push({
                     url: confirmedVideoUrl,
@@ -217,7 +261,7 @@
                     duration: durationStr,
                     thumbnail: thumb,
                     format: 'MP4',
-                    resolution: resolutionStr,
+                    resolution: resolutionStr || '1080x1920 (HD)',
                     platform: 'Instagram',
                     isDirectMp4: true,
                     isDownloadable: true
@@ -233,7 +277,7 @@
                     platform: 'Instagram',
                     isDirectMp4: false,
                     isDownloadable: false,
-                    downloadNotice: 'Video detected — direct stream is protected by Instagram.'
+                    downloadNotice: 'Video detected — play the reel once to unlock direct stream.'
                 });
             }
 
