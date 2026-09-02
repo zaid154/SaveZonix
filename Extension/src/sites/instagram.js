@@ -199,7 +199,7 @@
             const shortId = meta.shortId || getInstagramShortId();
             let streamCameFromActiveVideo = false;
 
-            // 1. Active Visible / Playing <video> element (Always authoritative for CURRENT reel on screen!)
+            // 1. Active Visible / Playing <video> element (Authoritative for CURRENT reel)
             if (activeVideo) {
                 const src = getVideoSource(activeVideo);
                 if (src && src.startsWith('http') && !src.startsWith('blob:') && !isAudioOnlyUrl(src)) {
@@ -208,13 +208,35 @@
                 }
             }
 
-            // 2. Check inlined JSON scripts matching this specific shortId
-            if (shortId) {
+            // 2. Check Performance Resource Timeline for recently requested reel MP4s
+            if (!confirmedVideoUrl) {
+                try {
+                    const entries = performance.getEntriesByType('resource');
+                    for (let i = entries.length - 1; i >= 0; i--) {
+                        const url = entries[i].name;
+                        if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
+
+                        if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
+                            if (isAudioOnlyUrl(url)) {
+                                if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
+                            } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
+                                if (!confirmedVideoUrl) {
+                                    confirmedVideoUrl = sanitizeMediaUrl(url);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } catch { }
+            }
+
+            // 3. Check inlined JSON scripts matching this specific shortId
+            if (!confirmedVideoUrl && shortId) {
                 const scripts = document.querySelectorAll('script[type="application/json"], script[type="application/ld+json"], script:not([src])');
                 for (const s of scripts) {
                     try {
                         const text = s.textContent || '';
-                        if (!text || !text.includes(shortId)) continue;
+                        if (!text || (!text.includes(shortId) && !text.includes('cdninstagram'))) continue;
 
                         const matches = text.matchAll(/(?:"playable_url_quality_hd"|"playable_url"|"video_url"|"url")\s*:\s*"((?:https?:\\\/\\\/|https?:\/\/)[^"]+)"/gi);
                         for (const m of matches) {
@@ -236,7 +258,7 @@
                 }
             }
 
-            // 3. Fallback to all video elements in DOM
+            // 4. Fallback to all video elements in DOM
             if (!confirmedVideoUrl) {
                 const videos = Array.from(document.querySelectorAll('video'));
                 for (const video of videos) {
@@ -248,32 +270,13 @@
                 }
             }
 
-            // 4. Fallback to preload link
+            // 5. Fallback to preload link
             if (!confirmedVideoUrl) {
                 const preloadVideo = document.querySelector('link[rel="preload"][as="video"]')?.getAttribute('href');
                 if (preloadVideo && preloadVideo.startsWith('http') && !isAudioOnlyUrl(preloadVideo)) {
                     confirmedVideoUrl = sanitizeMediaUrl(preloadVideo);
                 }
             }
-
-            // 5. Inspect Performance Resource Timeline for Video and Audio streams
-            try {
-                const entries = performance.getEntriesByType('resource');
-                for (let i = entries.length - 1; i >= 0; i--) {
-                    const url = entries[i].name;
-                    if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
-
-                    if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
-                        if (isAudioOnlyUrl(url)) {
-                            if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
-                        } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
-                            if (!confirmedVideoUrl) {
-                                confirmedVideoUrl = sanitizeMediaUrl(url);
-                            }
-                        }
-                    }
-                }
-            } catch { }
 
             let durationStr = '';
             if (activeVideo && activeVideo.duration && !isNaN(activeVideo.duration) && activeVideo.duration !== Infinity) {

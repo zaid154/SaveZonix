@@ -130,8 +130,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 thumbnail: res.thumbnail || res.metadata?.thumbnail || st.thumbnail || '',
                 platform: 'Instagram',
                 isDirectMp4: true,
-                isDownloadable: true
+                isDownloadable: st.isDownloadable !== false
             }));
+        } else if (isInsta && rawVideos.length > 0) {
+            videos = rawVideos.filter(v => (v.platform === 'Instagram' || v.domain?.includes('instagram')) && (!v.url || !window.isInvalidStreamUrl || !window.isInvalidStreamUrl(v.url)));
+            if (videos.length > 1) {
+                videos = [videos[videos.length - 1]]; // latest detected
+            }
         } else {
             videos = rawVideos.filter(v => {
                 if (v.url && window.isInvalidStreamUrl && window.isInvalidStreamUrl(v.url)) return false;
