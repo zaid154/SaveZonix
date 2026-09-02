@@ -341,11 +341,20 @@ public class ParallelDownloader
             await Parallel.ForEachAsync(chunks, parallelOptions, async (chunk, ct) =>
             {
                 await DownloadRangeChunkWithRetryAsync(chunk, delta => Interlocked.Add(ref totalBytes, delta), ct);
-                Interlocked.Increment(ref completedChunks);
+                if (chunk.IsDownloaded)
+                {
+                    Interlocked.Increment(ref completedChunks);
+                }
             });
         }
         catch
         {
+            return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
+        }
+
+        if (chunks.Any(c => !c.IsDownloaded || !File.Exists(c.LocalTempPath) || new FileInfo(c.LocalTempPath).Length == 0))
+        {
+            Console.WriteLine("[Downloader] Range chunks incomplete or blocked by CDN — falling back to single progressive stream.");
             return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
         }
 

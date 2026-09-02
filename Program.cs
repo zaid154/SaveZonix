@@ -418,21 +418,20 @@ public class Program
             try
             {
                 using var client = CreateConfiguredHttpClient();
-                using var req = new HttpRequestMessage(HttpMethod.Get, url);
-                req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-                req.Headers.TryAddWithoutValidation("Referer", $"{uri.Scheme}://{uri.Host}/");
-
-                using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                var resp = await client.GetAsync(url);
                 if (resp.IsSuccessStatusCode)
                 {
-                    var stream = await resp.Content.ReadAsStreamAsync();
+                    var bytes = await resp.Content.ReadAsByteArrayAsync();
                     string contentType = resp.Content.Headers.ContentType?.MediaType ?? "image/jpeg";
                     ctx.Response.Headers.AccessControlAllowOrigin = "*";
                     ctx.Response.Headers.CacheControl = "public, max-age=86400";
-                    return Results.Stream(stream, contentType);
+                    return Results.Bytes(bytes, contentType);
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Proxy Image Notice] {ex.Message}");
+            }
 
             return Results.Redirect(url);
         });
