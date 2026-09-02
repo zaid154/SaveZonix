@@ -216,33 +216,38 @@
             const activeVideo = getActiveInstagramVideo();
             let streamCameFromActiveVideo = false;
 
-            // 1. Inspect inlined JSON state & scripts for FULL MULTIPLEXED HD MP4 first!
-            const scripts = document.querySelectorAll('script[type="application/json"], script[type="application/ld+json"], script:not([src])');
-            for (const s of scripts) {
-                try {
-                    const text = s.textContent || '';
-                    if (!text || (!text.includes('video') && !text.includes('playable_url'))) continue;
-
-                    const hdMatch = text.match(/"playable_url_quality_hd":\s*"([^"]+)"/i) ||
-                                    text.match(/"playable_url":\s*"([^"]+)"/i) ||
-                                    text.match(/"video_versions":\s*\[\s*\{[^}]*?"url":\s*"([^"]+)"/i) ||
-                                    text.match(/"video_url":\s*"([^"]+)"/i);
-
-                    if (hdMatch && hdMatch[1]) {
-                        const rawUrl = sanitizeMediaUrl(hdMatch[1].replace(/\\u0025/g, '%').replace(/\\\//g, '/').replace(/\\u0026/g, '&'));
-                        if (rawUrl.startsWith('http') && !isAudioOnlyUrl(rawUrl)) {
-                            confirmedVideoUrl = rawUrl;
-                            break;
-                        }
-                    }
-                } catch { }
+            // 1. Check OpenGraph Video Meta tags (Instagram puts the FULL MP4 WITH AUDIO in og:video)
+            const ogVideo = document.querySelector('meta[property="og:video:secure_url"], meta[property="og:video"], meta[property="og:video:url"], meta[name="twitter:player:stream"]')?.getAttribute('content');
+            if (ogVideo && ogVideo.startsWith('http') && !isAudioOnlyUrl(ogVideo)) {
+                confirmedVideoUrl = sanitizeMediaUrl(ogVideo);
             }
 
-            // 2. Check OpenGraph Video Meta tags
+            // 2. Inspect inlined JSON state & scripts for FULL MULTIPLEXED HD MP4 WITH AUDIO
             if (!confirmedVideoUrl) {
-                const ogVideo = document.querySelector('meta[property="og:video:secure_url"], meta[property="og:video"], meta[property="og:video:url"], meta[name="twitter:player:stream"]')?.getAttribute('content');
-                if (ogVideo && ogVideo.startsWith('http') && !isAudioOnlyUrl(ogVideo)) {
-                    confirmedVideoUrl = sanitizeMediaUrl(ogVideo);
+                const scripts = document.querySelectorAll('script[type="application/json"], script[type="application/ld+json"], script:not([src])');
+                for (const s of scripts) {
+                    try {
+                        const text = s.textContent || '';
+                        if (!text || (!text.includes('video') && !text.includes('playable_url') && !text.includes('cdninstagram'))) continue;
+
+                        // Match all MP4 video URLs in script JSON
+                        const matches = text.matchAll(/(?:"playable_url_quality_hd"|"playable_url"|"video_url"|"url")\s*:\s*"((?:https?:\\\/\\\/|https?:\/\/)[^"]+)"/gi);
+                        for (const m of matches) {
+                            let raw = m[1];
+                            try { raw = JSON.parse(`"${raw}"`); }
+                            catch { raw = raw.replace(/\\u0025/g, '%').replace(/\\\//g, '/').replace(/\\u0026/g, '&').replace(/\\/g, ''); }
+
+                            if (raw.startsWith('http') && (raw.includes('cdninstagram.com') || raw.includes('fbcdn.net')) && !raw.includes('.htm')) {
+                                if (isAudioOnlyUrl(raw)) {
+                                    if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(raw);
+                                } else if (!confirmedVideoUrl) {
+                                    confirmedVideoUrl = sanitizeMediaUrl(raw);
+                                    break;
+                                }
+                            }
+                        }
+                        if (confirmedVideoUrl) break;
+                    } catch { }
                 }
             }
 
@@ -259,7 +264,7 @@
                 }
             }
 
-            // 3. Check preload link tags
+            // 4. Check preload link tags
             if (!confirmedVideoUrl) {
                 const preloadVideo = document.querySelector('link[rel="preload"][as="video"]')?.getAttribute('href');
                 if (preloadVideo && preloadVideo.startsWith('http') && !isAudioOnlyUrl(preloadVideo)) {
@@ -267,27 +272,24 @@
                 }
             }
 
-            // 4. Inspect Performance Resource Timeline (only full streams, never chunk slices)
-            if (!confirmedVideoUrl) {
-                try {
-                    const entries = performance.getEntriesByType('resource');
-                    for (let i = entries.length - 1; i >= 0; i--) {
-                        const url = entries[i].name;
-                        if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
+            // 5. Inspect Performance Resource Timeline for Video and Audio streams
+            try {
+                const entries = performance.getEntriesByType('resource');
+                for (let i = entries.length - 1; i >= 0; i--) {
+                    const url = entries[i].name;
+                    if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
 
-                        if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
-                            if (isAudioOnlyUrl(url)) {
-                                if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
-                            } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
-                                if (!confirmedVideoUrl) {
-                                    confirmedVideoUrl = sanitizeMediaUrl(url);
-                                    break;
-                                }
+                    if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
+                        if (isAudioOnlyUrl(url)) {
+                            if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
+                        } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
+                            if (!confirmedVideoUrl) {
+                                confirmedVideoUrl = sanitizeMediaUrl(url);
                             }
                         }
                     }
-                } catch { }
-            }
+                }
+            } catch { }
 
             let durationStr = '';
             if (activeVideo && activeVideo.duration && !isNaN(activeVideo.duration) && activeVideo.duration !== Infinity) {
