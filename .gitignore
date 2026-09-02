@@ -25,3 +25,6 @@ temp_*.html
 *.db-shm
 *.db-wal
 Microsoft/
+Downloads/
+app_data/
+
