@@ -88,6 +88,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 livePageMetadata = res.metadata;
                 liveThumbnail = res.thumbnail || res.metadata.thumbnail;
                 if (res.streams && res.streams.length > 0) {
+                    if (isInsta && window.Storage?.clearTabVideos) {
+                        await window.Storage.clearTabVideos(tab.id);
+                    }
                     for (const st of res.streams) {
                         await window.Storage.addVideo(tab.id, {
                             ...st,
@@ -95,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             showName: res.metadata.showName,
                             subtitle: res.metadata.subtitle,
                             thumbnail: res.thumbnail || res.metadata.thumbnail,
-                            platform: res.site
+                            platform: res.site || 'Instagram'
                         });
                     }
                 }

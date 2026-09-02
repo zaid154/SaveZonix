@@ -486,7 +486,7 @@
                 throw new Error('Download cancelled by user.');
             }
 
-            if (chunks.length === 0 || receivedBytes < 1048576) {
+            if (chunks.length === 0 || receivedBytes < 32768) {
                 throw new Error(`Downloaded stream is too small (${(receivedBytes / 1024).toFixed(0)} KB).`);
             }
 

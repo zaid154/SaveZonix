@@ -99,12 +99,9 @@
         triggerDebouncedScan(300);
     }
 
-    // Instagram is a single-page app: the reel <video>, its source, and its
-    // preload metadata are commonly inserted *after* document_idle (and can
-    // change again when the user scrolls).  Keep the detector in sync without
-    // touching the player or page JavaScript.
+    // Instagram SPA Scroll & Active Reel Change Detector
     if (isTopFrame && window.location.hostname.toLowerCase().includes('instagram.com')) {
-        const scheduleInstagramScan = () => triggerDebouncedScan(450);
+        const scheduleInstagramScan = () => triggerDebouncedScan(200);
         const observer = new MutationObserver(scheduleInstagramScan);
 
         const observePage = () => {
@@ -120,13 +117,43 @@
         if (document.documentElement) observePage();
         else document.addEventListener('DOMContentLoaded', observePage, { once: true });
 
+        // Listen for scroll & wheel events
         window.addEventListener('scroll', scheduleInstagramScan, { passive: true });
+        window.addEventListener('wheel', scheduleInstagramScan, { passive: true });
+        window.addEventListener('touchmove', scheduleInstagramScan, { passive: true });
         window.addEventListener('playing', scheduleInstagramScan, { capture: true, passive: true });
         window.addEventListener('loadedmetadata', scheduleInstagramScan, { capture: true, passive: true });
 
-        // `video.currentSrc` changes without necessarily mutating an HTML
-        // attribute, so check its identity periodically while the reel tab is
-        // open. Duplicate URLs are ignored by the background store.
+        // IntersectionObserver on all videos to instantly detect active in-view reel
+        let videoIo = null;
+        try {
+            videoIo = new IntersectionObserver((entries) => {
+                for (const entry of entries) {
+                    if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+                        triggerDebouncedScan(100);
+                    }
+                }
+            }, { threshold: [0.5, 0.8] });
+
+            const registerVideos = () => {
+                document.querySelectorAll('video').forEach(v => {
+                    try { videoIo.observe(v); } catch { }
+                });
+            };
+            registerVideos();
+            setInterval(registerVideos, 1000);
+        } catch { }
+
+        // Fast URL Pathname Poller (Detects Instagram Next Reel transitions in 300ms)
+        let lastKnownPath = window.location.pathname;
+        setInterval(() => {
+            if (window.location.pathname !== lastKnownPath) {
+                lastKnownPath = window.location.pathname;
+                triggerDebouncedScan(150);
+            }
+        }, 300);
+
+        // Check video signature
         let lastVideoSignature = '';
         setInterval(() => {
             const adapter = getActiveAdapter();
@@ -136,7 +163,7 @@
                 lastVideoSignature = signature;
                 triggerDebouncedScan(100);
             }
-        }, 1500);
+        }, 600);
     }
 
     // Respond on-demand to popup or background queries

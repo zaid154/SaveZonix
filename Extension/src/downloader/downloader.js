@@ -668,10 +668,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (!assembled || !assembled.blob || assembled.sizeBytes < 524288) {
+        if (!assembled || !assembled.blob || assembled.sizeBytes < 32768) {
             // Try to auto-save whatever partial data we have
             const partial = processor.getPartialBlob();
-            if (partial && partial.blob && partial.sizeBytes >= 524288) {
+            if (partial && partial.blob && partial.sizeBytes >= 32768) {
                 // Auto-save partial video to Downloads
                 console.log(`[Downloader] ⚠️ Full download incomplete but ${window.Helpers.formatBytes(partial.sizeBytes)} available. Auto-saving partial video.`);
                 assembled = partial;
