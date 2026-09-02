@@ -21,3 +21,7 @@ Desktop.ini
 app_dist/
 ffmpeg.exe
 temp_*.html
+*.db
+*.db-shm
+*.db-wal
+Microsoft/

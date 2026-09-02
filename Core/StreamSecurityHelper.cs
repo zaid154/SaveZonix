@@ -76,7 +76,11 @@ public static class StreamSecurityHelper
         {
             candidates.Add("https://pixelflix.cc/");
         }
-        else if (host.Contains("youtube") || host.Contains("googlevideo"))
+        else if (host.Contains("googlevideo"))
+        {
+            candidates.Add(string.Empty);
+        }
+        else if (host.Contains("youtube"))
         {
             candidates.Add("https://www.youtube.com/");
         }

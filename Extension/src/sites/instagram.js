@@ -25,7 +25,10 @@
         if (!url || typeof url !== 'string') return '';
         try {
             const u = new URL(url);
-            // Remove byte-range restrictions to request full-length media file
+            // Instagram first loads a small preview using bytestart/byteend.
+            // Those values describe a slice, not a standalone video.  Keep the
+            // signed CDN URL but remove only the slice parameters before it is
+            // passed to the downloader.
             u.searchParams.delete('bytestart');
             u.searchParams.delete('byteend');
             u.searchParams.delete('range');
@@ -44,6 +47,48 @@
                lower.includes('audio/mp4');
     }
 
+    // Instagram keeps the previous and next reels mounted in the DOM. Using
+    // document.querySelector('video') therefore often returns the reel that
+    // was visible before the user scrolled. Choose the video that is actually
+    // in view (and prefer the one currently playing) instead.
+    function getActiveInstagramVideo() {
+        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        const viewportCenterY = viewportHeight / 2;
+        let bestVideo = null;
+        let bestScore = -Infinity;
+
+        for (const video of document.querySelectorAll('video')) {
+            const rect = video.getBoundingClientRect();
+            if (rect.width <= 0 || rect.height <= 0) continue;
+
+            const visibleWidth = Math.max(0, Math.min(rect.right, viewportWidth) - Math.max(rect.left, 0));
+            const visibleHeight = Math.max(0, Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0));
+            const visibleArea = visibleWidth * visibleHeight;
+            if (visibleArea <= 0) continue;
+
+            const visibleRatio = visibleArea / Math.max(1, rect.width * rect.height);
+            const centerDistance = Math.abs((rect.top + rect.height / 2) - viewportCenterY);
+            let score = (visibleRatio * 10000) - Math.min(centerDistance, viewportHeight) * 2;
+
+            if (!video.paused && !video.ended) score += 2500;
+            if (video.currentTime > 0) score += 700;
+            if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) score += 250;
+            if (video.currentSrc || video.src || video.querySelector('source')?.src) score += 150;
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestVideo = video;
+            }
+        }
+
+        return bestVideo || document.querySelector('video');
+    }
+
+    function getVideoSource(video) {
+        return video?.currentSrc || video?.src || video?.querySelector('source')?.src || '';
+    }
+
     const InstagramAdapter = {
         name: 'Instagram',
 
@@ -51,11 +96,16 @@
             return hostname.includes('instagram.com');
         },
 
+        getActiveVideo() {
+            return getActiveInstagramVideo();
+        },
+
         extractMetadata() {
             let author = '';
             let caption = '';
             let thumbnail = '';
             const shortId = getInstagramShortId();
+            const activeVideo = getActiveInstagramVideo();
 
             // 1. Extract from Document Title
             const docTitle = document.title || '';
@@ -100,18 +150,18 @@
 
             // Sanitize Author & Caption
             author = cleanText(author);
-            if (!author || author.toLowerCase() === 'instagram') {
+            if (!author || author.toLowerCase() === 'instagram' || author.toLowerCase() === '@reels' || author.toLowerCase() === '@reel') {
                 const parts = window.location.pathname.split('/').filter(Boolean);
                 if (parts.length > 0 && !['reel', 'reels', 'p', 'stories', 'explore'].includes(parts[0])) {
                     author = `@${parts[0]}`;
                 } else {
-                    author = shortId ? `Instagram Reel (${shortId})` : 'Instagram Reel';
+                    author = shortId ? `@instagram_user` : 'Instagram Reel';
                 }
             } else if (!author.startsWith('@') && !author.toLowerCase().includes('reel')) {
                 author = `@${author}`;
             }
 
-            caption = cleanText(caption).slice(0, 55);
+            caption = cleanText(caption).slice(0, 60);
 
             // 5. Extract Real High-Res Thumbnail
             const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
@@ -120,7 +170,6 @@
             }
 
             if (!thumbnail) {
-                const activeVideo = document.querySelector('video');
                 if (activeVideo?.poster && activeVideo.poster.startsWith('http')) {
                     thumbnail = activeVideo.poster;
                 }
@@ -136,20 +185,22 @@
             let displayTitle = '';
             let subtitle = '';
 
+            const authorLabel = (author && author !== 'Instagram Reel') ? author : '';
+
             if (caption && caption.length > 2) {
-                displayTitle = `Instagram - ${caption}`;
-                subtitle = author;
+                displayTitle = authorLabel ? `Instagram - ${authorLabel} - ${caption}` : `Instagram - ${caption}`;
+                subtitle = authorLabel || 'Instagram Reel';
             } else if (shortId) {
-                displayTitle = `Instagram Reel - ${shortId}`;
-                subtitle = author;
+                displayTitle = authorLabel ? `Instagram - ${authorLabel} - Reel_${shortId}` : `Instagram Reel - ${shortId}`;
+                subtitle = authorLabel || `Reel (${shortId})`;
             } else {
-                displayTitle = `Instagram - ${author}`;
+                displayTitle = authorLabel ? `Instagram - ${authorLabel}` : `Instagram Reel`;
                 subtitle = 'Instagram Reel';
             }
 
             return {
                 platform: 'Instagram',
-                showName: author,
+                showName: authorLabel || (shortId ? `Instagram Reel (${shortId})` : 'Instagram Reel'),
                 subtitle: caption || 'Instagram Reel',
                 title: displayTitle,
                 thumbnail: thumbnail,
@@ -162,24 +213,23 @@
             let confirmedVideoUrl = '';
             let confirmedAudioUrl = '';
             let resolutionStr = '';
+            const activeVideo = getActiveInstagramVideo();
+            let streamCameFromActiveVideo = false;
 
-            const activeVideo = document.querySelector('video');
-
-            // 1. Inspect Inlined JSON State / Scripts for genuine full 1080p/720p progressive MP4
+            // 1. Inspect inlined JSON state & scripts for FULL MULTIPLEXED HD MP4 first!
             const scripts = document.querySelectorAll('script[type="application/json"], script[type="application/ld+json"], script:not([src])');
             for (const s of scripts) {
                 try {
                     const text = s.textContent || '';
-                    if (!text) continue;
+                    if (!text || (!text.includes('video') && !text.includes('playable_url'))) continue;
 
-                    // Match video_versions array (Instagram native HD multiplexed MP4)
-                    const vvMatch = text.match(/"video_versions":\s*\[\s*\{[^}]*?"url":\s*"([^"]+)"/i) ||
-                                    text.match(/"playable_url_quality_hd":\s*"([^"]+)"/i) ||
+                    const hdMatch = text.match(/"playable_url_quality_hd":\s*"([^"]+)"/i) ||
                                     text.match(/"playable_url":\s*"([^"]+)"/i) ||
+                                    text.match(/"video_versions":\s*\[\s*\{[^}]*?"url":\s*"([^"]+)"/i) ||
                                     text.match(/"video_url":\s*"([^"]+)"/i);
 
-                    if (vvMatch && vvMatch[1]) {
-                        const rawUrl = vvMatch[1].replace(/\\u0025/g, '%').replace(/\\\//g, '/').replace(/\\u0026/g, '&');
+                    if (hdMatch && hdMatch[1]) {
+                        const rawUrl = sanitizeMediaUrl(hdMatch[1].replace(/\\u0025/g, '%').replace(/\\\//g, '/').replace(/\\u0026/g, '&'));
                         if (rawUrl.startsWith('http') && !isAudioOnlyUrl(rawUrl)) {
                             confirmedVideoUrl = rawUrl;
                             break;
@@ -192,33 +242,32 @@
             if (!confirmedVideoUrl) {
                 const ogVideo = document.querySelector('meta[property="og:video:secure_url"], meta[property="og:video"], meta[property="og:video:url"], meta[name="twitter:player:stream"]')?.getAttribute('content');
                 if (ogVideo && ogVideo.startsWith('http') && !isAudioOnlyUrl(ogVideo)) {
-                    confirmedVideoUrl = ogVideo;
+                    confirmedVideoUrl = sanitizeMediaUrl(ogVideo);
                 }
             }
 
-            // 3. Check Preload Link tags
+            // 3. Fallback to active DOM <video> element
             if (!confirmedVideoUrl) {
-                const preloadVideo = document.querySelector('link[rel="preload"][as="video"]')?.getAttribute('href');
-                if (preloadVideo && preloadVideo.startsWith('http') && !isAudioOnlyUrl(preloadVideo) && !preloadVideo.includes('bytestart=')) {
-                    confirmedVideoUrl = preloadVideo;
-                }
-            }
-
-            // 4. Inspect DOM Video Elements
-            if (!confirmedVideoUrl) {
-                const videos = document.querySelectorAll('video');
+                const videos = [activeVideo, ...Array.from(document.querySelectorAll('video')).filter(video => video !== activeVideo)];
                 for (const video of videos) {
-                    const src = video.currentSrc || video.src || video.querySelector('source')?.src;
-                    if (src && src.startsWith('http') && !src.startsWith('blob:') && !src.includes('bytestart=')) {
-                        if (!isAudioOnlyUrl(src)) {
-                            confirmedVideoUrl = src;
-                            break;
-                        }
+                    const src = getVideoSource(video);
+                    if (src && src.startsWith('http') && !src.startsWith('blob:') && !isAudioOnlyUrl(src)) {
+                        confirmedVideoUrl = sanitizeMediaUrl(src);
+                        streamCameFromActiveVideo = video === activeVideo;
+                        break;
                     }
                 }
             }
 
-            // 5. Inspect Performance Resource Timeline (only full streams, never chunk slices)
+            // 3. Check preload link tags
+            if (!confirmedVideoUrl) {
+                const preloadVideo = document.querySelector('link[rel="preload"][as="video"]')?.getAttribute('href');
+                if (preloadVideo && preloadVideo.startsWith('http') && !isAudioOnlyUrl(preloadVideo)) {
+                    confirmedVideoUrl = sanitizeMediaUrl(preloadVideo);
+                }
+            }
+
+            // 4. Inspect Performance Resource Timeline (only full streams, never chunk slices)
             if (!confirmedVideoUrl) {
                 try {
                     const entries = performance.getEntriesByType('resource');
@@ -226,12 +275,12 @@
                         const url = entries[i].name;
                         if (!url || !url.startsWith('http') || url.includes('.htm')) continue;
 
-                        if ((url.includes('cdninstagram.com') || url.includes('fbcdn.net')) && !url.includes('bytestart=')) {
+                        if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
                             if (isAudioOnlyUrl(url)) {
-                                if (!confirmedAudioUrl) confirmedAudioUrl = url;
+                                if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
                             } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
                                 if (!confirmedVideoUrl) {
-                                    confirmedVideoUrl = url;
+                                    confirmedVideoUrl = sanitizeMediaUrl(url);
                                     break;
                                 }
                             }
@@ -264,7 +313,8 @@
                     resolution: resolutionStr || '1080x1920 (HD)',
                     platform: 'Instagram',
                     isDirectMp4: true,
-                    isDownloadable: true
+                    isDownloadable: true,
+                    isActivePageStream: streamCameFromActiveVideo
                 });
             } else if (activeVideo) {
                 streams.push({

@@ -12,6 +12,7 @@
     "webRequest",
     "declarativeNetRequest",
     "storage",
+    "tabs",
     "activeTab",
     "scripting",
     "downloads"

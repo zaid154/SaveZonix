@@ -99,6 +99,46 @@
         triggerDebouncedScan(300);
     }
 
+    // Instagram is a single-page app: the reel <video>, its source, and its
+    // preload metadata are commonly inserted *after* document_idle (and can
+    // change again when the user scrolls).  Keep the detector in sync without
+    // touching the player or page JavaScript.
+    if (isTopFrame && window.location.hostname.toLowerCase().includes('instagram.com')) {
+        const scheduleInstagramScan = () => triggerDebouncedScan(450);
+        const observer = new MutationObserver(scheduleInstagramScan);
+
+        const observePage = () => {
+            if (!document.documentElement) return;
+            observer.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['src', 'poster', 'href']
+            });
+        };
+
+        if (document.documentElement) observePage();
+        else document.addEventListener('DOMContentLoaded', observePage, { once: true });
+
+        window.addEventListener('scroll', scheduleInstagramScan, { passive: true });
+        window.addEventListener('playing', scheduleInstagramScan, { capture: true, passive: true });
+        window.addEventListener('loadedmetadata', scheduleInstagramScan, { capture: true, passive: true });
+
+        // `video.currentSrc` changes without necessarily mutating an HTML
+        // attribute, so check its identity periodically while the reel tab is
+        // open. Duplicate URLs are ignored by the background store.
+        let lastVideoSignature = '';
+        setInterval(() => {
+            const adapter = getActiveAdapter();
+            const video = adapter?.getActiveVideo ? adapter.getActiveVideo() : document.querySelector('video');
+            const signature = video ? `${video.currentSrc || video.src || ''}|${video.poster || ''}` : '';
+            if (signature && signature !== lastVideoSignature) {
+                lastVideoSignature = signature;
+                triggerDebouncedScan(100);
+            }
+        }, 1500);
+    }
+
     // Respond on-demand to popup or background queries
     chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         if (req.action === 'scanPage' || req.action === 'getPageMetadata') {
@@ -138,4 +178,28 @@
         }
         return true;
     });
+
+    // Bridge the SaveZonix dashboard to the extension. A server (local or
+    // Render) cannot read the user's Instagram cookies or network resources,
+    // but the extension can obtain the fresh signed stream from the
+    // already-open reel tab. Keep this restricted to the dashboard origins so
+    // arbitrary web pages cannot request the user's captured media URLs.
+    const dashboardHosts = new Set(['localhost', '127.0.0.1', 'zonix-downloader.onrender.com']);
+    const isSaveZonixDashboard = dashboardHosts.has(window.location.hostname);
+    if (isTopFrame && isSaveZonixDashboard) {
+        window.addEventListener('message', (event) => {
+            if (event.source !== window || event.origin !== window.location.origin) return;
+            const data = event.data;
+            if (!data || data.source !== 'SaveZonixDashboard' || data.type !== 'resolveInstagram' || !data.url) return;
+
+            chrome.runtime.sendMessage({ action: 'resolveInstagramForDashboard', url: data.url }, (response) => {
+                window.postMessage({
+                    source: 'SaveZonixExtension',
+                    type: 'instagramResolved',
+                    requestId: data.requestId,
+                    response: response || { success: false, message: chrome.runtime.lastError?.message || 'Extension did not return a stream.' }
+                }, window.location.origin);
+            });
+        });
+    }
 })();

@@ -25,107 +25,28 @@ public class M3U8Parser
             Platform = DetectPlatformName(targetUri)
         };
 
-        // 0. Dedicated YouTube Video Extractor via YoutubeExplode
+        // 0. Dedicated YouTube Video Extractor via YoutubeExplode (with retry logic)
         if (targetUri.Host.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) || 
             targetUri.Host.Contains("youtu.be", StringComparison.OrdinalIgnoreCase))
         {
-            try
+            return await ExtractYouTubeWithRetryAsync(url, result, retryCount);
+        }
+
+        // Instagram's normal reel page redirects server-side clients to login,
+        // even for public posts. Its public embed document is still available
+        // without a browser session and contains the signed progressive URL.
+        // Resolve it before requesting the regular webpage.
+        if (targetUri.Host.Contains("instagram.com", StringComparison.OrdinalIgnoreCase))
+        {
+            var embedResult = await ExtractInstagramFromPublicEmbedAsync(targetUri, url, result);
+            if (embedResult != null)
             {
-                string cleanYtUrl = url;
-                var vMatch = Regex.Match(url, @"(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})");
-                string videoId = vMatch.Success ? vMatch.Groups[1].Value : url;
-                cleanYtUrl = $"https://www.youtube.com/watch?v={videoId}";
-
-                var video = await _youtubeClient.Videos.GetAsync(cleanYtUrl);
-                var streamManifest = await _youtubeClient.Videos.Streams.GetManifestAsync(video.Id);
-
-                result.Title = video.Title;
-                result.Description = video.Description;
-                result.DurationSeconds = (int)(video.Duration?.TotalSeconds ?? 0);
-                result.ThumbnailUrl = $"https://i.ytimg.com/vi/{video.Id}/maxresdefault.jpg";
-                result.Platform = "YouTube";
-
-                var bestAudio = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
-                string audioUrl = bestAudio?.Url ?? string.Empty;
-
-                var allStreams = streamManifest.GetVideoStreams()
-                    .OrderByDescending(s => s.VideoQuality)
-                    .ThenByDescending(s => s.Bitrate)
-                    .GroupBy(s => s.VideoQuality.Label)
-                    .Select(g => g.First())
-                    .ToList();
-
-                foreach (var stream in allStreams)
-                {
-                    bool isMuxed = stream is YoutubeExplode.Videos.Streams.MuxedStreamInfo;
-                    result.Qualities.Add(new StreamQuality
-                    {
-                        Resolution = $"{stream.VideoQuality.Label}",
-                        Url = stream.Url,
-                        AudioUrl = isMuxed ? string.Empty : audioUrl,
-                        IsDirectFile = true,
-                        DurationSeconds = result.DurationSeconds,
-                        Bandwidth = stream.Bitrate.BitsPerSecond + (isMuxed ? 0 : (bestAudio?.Bitrate.BitsPerSecond ?? 0))
-                    });
-                }
-
-                if (bestAudio != null)
-                {
-                    result.Qualities.Add(new StreamQuality
-                    {
-                        Resolution = "Audio Only (HQ M4A)",
-                        Url = bestAudio.Url,
-                        AudioUrl = string.Empty,
-                        IsDirectFile = true,
-                        DurationSeconds = result.DurationSeconds,
-                        Bandwidth = bestAudio.Bitrate.BitsPerSecond
-                    });
-                }
-
-                if (result.Qualities.Count > 0)
-                {
-                    result.Qualities = result.Qualities.OrderByDescending(q => q.Bandwidth).ToList();
-                    return result;
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[YouTube Parser Notice] {ex.Message}");
-                try
-                {
-                    var oembedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(url)}&format=json";
-                    var oembedRes = await _httpClient.GetStringAsync(oembedUrl);
-                    using var doc = JsonDocument.Parse(oembedRes);
-                    if (doc.RootElement.TryGetProperty("title", out var tProp)) result.Title = tProp.GetString() ?? result.Title;
-                    if (doc.RootElement.TryGetProperty("author_name", out var aProp)) result.Platform = $"YouTube • {aProp.GetString()}";
-                    if (doc.RootElement.TryGetProperty("thumbnail_url", out var thProp)) result.ThumbnailUrl = thProp.GetString() ?? result.ThumbnailUrl;
-
-                    result.Qualities.Add(new StreamQuality
-                    {
-                        Resolution = "1080p Full HD (Desktop)",
-                        Url = url,
-                        IsDirectFile = true,
-                        Bandwidth = 4500000
-                    });
-                    result.Qualities.Add(new StreamQuality
-                    {
-                        Resolution = "720p HD (Desktop)",
-                        Url = url,
-                        IsDirectFile = true,
-                        Bandwidth = 2200000
-                    });
-
-                    return result;
-                }
-                catch
-                {
-                    throw new Exception("Unable to extract YouTube video. Please verify the URL and ensure the video is not private or restricted.");
-                }
+                return embedResult;
             }
         }
 
         // 1. Direct video file extension check (.mp4, .webm, .m4v)
-        if (IsDirectMediaExtension(targetUri))
+        if (IsDirectMediaExtension(targetUri) || IsKnownProgressiveMediaUri(targetUri))
         {
             return await AnalyzeDirectMediaUrlAsync(url, result);
         }
@@ -211,6 +132,16 @@ public class M3U8Parser
             }
             else
             {
+                // Special handling for Instagram
+                if (targetUri.Host.Contains("instagram"))
+                {
+                    var instagramResult = await ExtractInstagramVideoAsync(url, content, result);
+                    if (instagramResult != null)
+                    {
+                        return instagramResult;
+                    }
+                }
+
                 // Delayed source check for SPAs (Next.js / client-side players)
                 if (retryCount < 2 && (content.Contains("__NEXT_DATA__") || content.Contains("react") || content.Contains("nextjs")))
                 {
@@ -218,7 +149,7 @@ public class M3U8Parser
                     return await ParseAsync(url, retryCount + 1);
                 }
 
-                if (content.Contains("__NEXT_DATA__") || targetUri.Host.Contains("pixelflix") || targetUri.Host.Contains("instagram") || targetUri.Host.Contains("youtube"))
+                if (content.Contains("__NEXT_DATA__") || targetUri.Host.Contains("pixelflix") || targetUri.Host.Contains("youtube"))
                 {
                     result.RequiresBrowserContext = true;
                     result.StatusMessage = $"This streaming player loads dynamically via browser JavaScript. Please open the link in your browser and use the Stream Helper extension to download at full speed.";
@@ -263,6 +194,17 @@ public class M3U8Parser
     {
         string path = uri.AbsolutePath.ToLowerInvariant();
         return path.EndsWith(".mp4") || path.EndsWith(".webm") || path.EndsWith(".m4v") || path.EndsWith(".mkv");
+    }
+
+    private static bool IsKnownProgressiveMediaUri(Uri uri)
+    {
+        string host = uri.Host.ToLowerInvariant();
+        string path = uri.AbsolutePath.ToLowerInvariant();
+
+        // Instagram CDN URLs intentionally omit a .mp4 filename extension,
+        // e.g. ...fbcdn.net/o1/v/t16/....  They are still progressive MP4s.
+        return (host.Contains("cdninstagram.com") || host.Contains("fbcdn.net")) &&
+               (path.Contains("/o1/v/") || path.Contains("/v/t"));
     }
 
     private async Task<StreamAnalysisResult> AnalyzeDirectMediaUrlAsync(string url, StreamAnalysisResult result)
@@ -1190,5 +1132,377 @@ public class M3U8Parser
         }
 
         return resolved.ToString();
+    }
+
+    private async Task<StreamAnalysisResult> ExtractYouTubeWithRetryAsync(string url, StreamAnalysisResult result, int retryCount = 0)
+    {
+        const int maxRetries = 2;
+        Exception? lastException = null;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                string cleanYtUrl = url;
+                var vMatch = Regex.Match(url, @"(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})");
+                string videoId = vMatch.Success ? vMatch.Groups[1].Value : url;
+                cleanYtUrl = $"https://www.youtube.com/watch?v={videoId}";
+
+                Console.WriteLine($"[YouTube Extractor] Attempt {attempt + 1}/{maxRetries + 1}: Extracting video ID: {videoId}");
+
+                var video = await _youtubeClient.Videos.GetAsync(cleanYtUrl);
+                var streamManifest = await _youtubeClient.Videos.Streams.GetManifestAsync(video.Id);
+
+                result.Title = video.Title;
+                result.Description = video.Description;
+                result.DurationSeconds = (int)(video.Duration?.TotalSeconds ?? 0);
+                result.ThumbnailUrl = $"https://i.ytimg.com/vi/{video.Id}/maxresdefault.jpg";
+                result.Platform = "YouTube";
+
+                var bestAudio = streamManifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+                string audioUrl = bestAudio?.Url ?? string.Empty;
+
+                var allStreams = streamManifest.GetVideoStreams()
+                    .OrderByDescending(s => s.VideoQuality)
+                    .ThenByDescending(s => s.Bitrate)
+                    .GroupBy(s => s.VideoQuality.Label)
+                    .Select(g => g.First())
+                    .ToList();
+
+                foreach (var stream in allStreams)
+                {
+                    bool isMuxed = stream is YoutubeExplode.Videos.Streams.MuxedStreamInfo;
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = $"{stream.VideoQuality.Label}",
+                        Url = stream.Url,
+                        AudioUrl = isMuxed ? string.Empty : audioUrl,
+                        IsDirectFile = true,
+                        DurationSeconds = result.DurationSeconds,
+                        Bandwidth = stream.Bitrate.BitsPerSecond + (isMuxed ? 0 : (bestAudio?.Bitrate.BitsPerSecond ?? 0))
+                    });
+                }
+
+                if (bestAudio != null)
+                {
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = "Audio Only (HQ M4A)",
+                        Url = bestAudio.Url,
+                        AudioUrl = string.Empty,
+                        IsDirectFile = true,
+                        DurationSeconds = result.DurationSeconds,
+                        Bandwidth = bestAudio.Bitrate.BitsPerSecond
+                    });
+                }
+
+                if (result.Qualities.Count > 0)
+                {
+                    result.Qualities = result.Qualities.OrderByDescending(q => q.Bandwidth).ToList();
+                    Console.WriteLine($"[YouTube Extractor] SUCCESS: Extracted {result.Qualities.Count} quality options");
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                Console.WriteLine($"[YouTube Extractor] Attempt {attempt + 1} failed: {ex.GetType().Name} - {ex.Message}");
+                
+                if (attempt < maxRetries)
+                {
+                    // Wait before retrying (exponential backoff: 1s, 2s)
+                    await Task.Delay((int)Math.Pow(2, attempt) * 1000);
+                    continue;
+                }
+            }
+        }
+
+        // All retry attempts failed, try fallback methods
+        Console.WriteLine($"[YouTube Extractor] All extraction attempts failed. Trying fallback method...");
+        
+        try
+        {
+            return await ExtractYouTubeFallbackAsync(url, result);
+        }
+        catch (Exception fallbackEx)
+        {
+            Console.WriteLine($"[YouTube Extractor] Fallback also failed: {fallbackEx.Message}");
+            throw new Exception($"Unable to extract YouTube video after {maxRetries + 1} attempts. Last error: {lastException?.Message ?? fallbackEx.Message}");
+        }
+    }
+
+    private async Task<StreamAnalysisResult> ExtractYouTubeFallbackAsync(string url, StreamAnalysisResult result)
+    {
+        Console.WriteLine("[YouTube Extractor] Using oEmbed fallback method...");
+        
+        try
+        {
+            var oembedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(url)}&format=json";
+            
+            using var req = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            
+            using var resp = await _httpClient.SendAsync(req);
+            
+            if (resp.IsSuccessStatusCode)
+            {
+                var oembedRes = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(oembedRes);
+                
+                if (doc.RootElement.TryGetProperty("title", out var tProp)) 
+                    result.Title = tProp.GetString() ?? result.Title;
+                if (doc.RootElement.TryGetProperty("author_name", out var aProp)) 
+                    result.Platform = $"YouTube • {aProp.GetString()}";
+                if (doc.RootElement.TryGetProperty("thumbnail_url", out var thProp)) 
+                    result.ThumbnailUrl = thProp.GetString() ?? result.ThumbnailUrl;
+
+                // Add placeholder quality options
+                result.Qualities.Add(new StreamQuality
+                {
+                    Resolution = "1080p Full HD (Desktop - Requires browser context)",
+                    Url = url,
+                    IsDirectFile = false,
+                    Bandwidth = 4500000
+                });
+                result.Qualities.Add(new StreamQuality
+                {
+                    Resolution = "720p HD (Desktop - Requires browser context)",
+                    Url = url,
+                    IsDirectFile = false,
+                    Bandwidth = 2200000
+                });
+
+                result.RequiresBrowserContext = true;
+                result.StatusMessage = "This video requires browser-based playback. Please use the SaveZonix Browser Extension for best results.";
+                
+                Console.WriteLine("[YouTube Extractor] Fallback method succeeded with limited quality options");
+                return result;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[YouTube Extractor] oEmbed fallback failed: {ex.Message}");
+        }
+
+        throw new Exception("Unable to extract YouTube video. Please verify the URL and ensure the video is not private, age-restricted, or deleted.");
+    }
+
+    private async Task<StreamAnalysisResult?> ExtractInstagramVideoAsync(string url, string htmlContent, StreamAnalysisResult result)
+    {
+        try
+        {
+            Console.WriteLine("[Instagram Extractor] Attempting to extract video from Instagram page...");
+
+            // Try to extract from __NEXT_DATA__ JSON
+            var nextDataMatch = Regex.Match(htmlContent, @"<script\s+id=[""']__NEXT_DATA__[""'][^>]*>([^<]+)</script>", RegexOptions.IgnoreCase);
+            if (nextDataMatch.Success)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(nextDataMatch.Groups[1].Value);
+                    var videoUrl = ExtractVideoUrlFromInstagramJson(doc.RootElement);
+                    if (!string.IsNullOrEmpty(videoUrl))
+                    {
+                        Console.WriteLine($"[Instagram Extractor] Found video URL in __NEXT_DATA__");
+                        result.Title = ExtractInstagramTitle(htmlContent) ?? "Instagram Video";
+                        result.Platform = "Instagram";
+                        result.IsDirectMediaFile = true;
+                        result.Qualities.Add(new StreamQuality
+                        {
+                            Resolution = "1080p Full HD",
+                            Url = videoUrl,
+                            IsDirectFile = true,
+                            Bandwidth = 4500000
+                        });
+                        return result;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Instagram Extractor] JSON parsing failed: {ex.Message}");
+                }
+            }
+
+            // Try extracting from meta og:video
+            var ogVideoMatch = Regex.Match(htmlContent, @"<meta\s+property=[""']og:video[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+            if (ogVideoMatch.Success)
+            {
+                string videoUrl = ogVideoMatch.Groups[1].Value;
+                if (!string.IsNullOrEmpty(videoUrl) && (videoUrl.Contains(".mp4") || videoUrl.Contains("video")))
+                {
+                    Console.WriteLine($"[Instagram Extractor] Found video URL in og:video meta tag");
+                    result.Title = ExtractInstagramTitle(htmlContent) ?? "Instagram Video";
+                    result.Platform = "Instagram";
+                    result.IsDirectMediaFile = true;
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = "1080p Full HD",
+                        Url = videoUrl,
+                        IsDirectFile = true,
+                        Bandwidth = 4500000
+                    });
+                    return result;
+                }
+            }
+
+            // Instagram also embeds video data in shared JSON outside __NEXT_DATA__.
+            var embeddedVideoMatch = Regex.Match(
+                htmlContent,
+                @"\\?[\x22']video_url\\?[\x22']\s*:\s*\\?[\x22']([^\x22']+)[\x22']|\\?[\x22']video_versions\\?[\x22'][^\]]*?\\?[\x22']url\\?[\x22']\s*:\s*\\?[\x22']([^\x22']+)[\x22']",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline);
+            if (embeddedVideoMatch.Success)
+            {
+                string videoUrl = embeddedVideoMatch.Groups[1].Success
+                    ? embeddedVideoMatch.Groups[1].Value
+                    : embeddedVideoMatch.Groups[2].Value;
+                videoUrl = NormalizeInstagramEmbeddedUrl(videoUrl);
+
+                if (Uri.TryCreate(videoUrl, UriKind.Absolute, out var parsedVideoUri) &&
+                    (parsedVideoUri.Scheme == Uri.UriSchemeHttp || parsedVideoUri.Scheme == Uri.UriSchemeHttps))
+                {
+                    Console.WriteLine("[Instagram Extractor] Found video URL in embedded Instagram JSON");
+                    result.Title = ExtractInstagramTitle(htmlContent) ?? "Instagram Video";
+                    result.Platform = "Instagram";
+                    result.IsDirectMediaFile = true;
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = "1080p Full HD",
+                        Url = videoUrl,
+                        IsDirectFile = true,
+                        Bandwidth = 4500000
+                    });
+                    return result;
+                }
+            }
+
+            Console.WriteLine("[Instagram Extractor] Could not extract Instagram video - requires browser");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Instagram Extractor] Exception: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<StreamAnalysisResult?> ExtractInstagramFromPublicEmbedAsync(Uri targetUri, string originalUrl, StreamAnalysisResult result)
+    {
+        try
+        {
+            var parts = targetUri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            int mediaIndex = Array.FindIndex(parts, p =>
+                p.Equals("reel", StringComparison.OrdinalIgnoreCase) ||
+                p.Equals("reels", StringComparison.OrdinalIgnoreCase) ||
+                p.Equals("p", StringComparison.OrdinalIgnoreCase));
+
+            if (mediaIndex < 0 || mediaIndex + 1 >= parts.Length) return null;
+
+            string shortcode = parts[mediaIndex + 1];
+            if (string.IsNullOrWhiteSpace(shortcode)) return null;
+
+            string embedUrl = $"https://www.instagram.com/reel/{Uri.EscapeDataString(shortcode)}/embed/captioned/";
+            var (embedHtml, _, _) = await FetchContentWithNegotiationAsync(embedUrl);
+            if (string.IsNullOrWhiteSpace(embedHtml)) return null;
+
+            ExtractMetadataFromHtml(embedHtml, result);
+            var extracted = await ExtractInstagramVideoAsync(originalUrl, embedHtml, result);
+            if (extracted != null)
+            {
+                Console.WriteLine("[Instagram Extractor] Public embed extraction succeeded.");
+            }
+            return extracted;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Instagram Extractor] Public embed fallback failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    private static string NormalizeInstagramEmbeddedUrl(string value)
+    {
+        string url = WebUtility.HtmlDecode(value);
+        for (int i = 0; i < 3; i++)
+        {
+            url = url
+                .Replace("\\\\/", "/", StringComparison.Ordinal)
+                .Replace("\\/", "/", StringComparison.Ordinal)
+                .Replace("\\u0026", "&", StringComparison.OrdinalIgnoreCase)
+                .Replace("\\u0025", "%", StringComparison.OrdinalIgnoreCase)
+                .Replace("&amp;", "&", StringComparison.OrdinalIgnoreCase);
+        }
+        return url.Trim();
+    }
+
+    private string? ExtractVideoUrlFromInstagramJson(JsonElement element)
+    {
+        try
+        {
+            if (element.TryGetProperty("video_url", out var videoUrl) && videoUrl.ValueKind == JsonValueKind.String)
+            {
+                string url = videoUrl.GetString() ?? string.Empty;
+                if (!string.IsNullOrEmpty(url) && (url.StartsWith("http") || url.StartsWith("//")))
+                {
+                    return url.StartsWith("//") ? $"https:{url}" : url;
+                }
+            }
+
+            if (element.TryGetProperty("video", out var video) && video.ValueKind == JsonValueKind.Object)
+            {
+                return ExtractVideoUrlFromInstagramJson(video);
+            }
+
+            if (element.TryGetProperty("media", out var media) && media.ValueKind == JsonValueKind.Object)
+            {
+                return ExtractVideoUrlFromInstagramJson(media);
+            }
+
+            // Recursively search in object
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in element.EnumerateObject())
+                {
+                    if (prop.Name.Contains("video", StringComparison.OrdinalIgnoreCase) && prop.Value.ValueKind == JsonValueKind.String)
+                    {
+                        string url = prop.Value.GetString() ?? string.Empty;
+                        if (!string.IsNullOrEmpty(url) && url.StartsWith("http"))
+                        {
+                            return url;
+                        }
+                    }
+
+                    if (prop.Value.ValueKind == JsonValueKind.Object)
+                    {
+                        var result = ExtractVideoUrlFromInstagramJson(prop.Value);
+                        if (!string.IsNullOrEmpty(result))
+                        {
+                            return result;
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private string? ExtractInstagramTitle(string html)
+    {
+        // Try meta og:title
+        var titleMatch = Regex.Match(html, @"<meta\s+property=[""']og:title[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+        if (titleMatch.Success)
+        {
+            return titleMatch.Groups[1].Value;
+        }
+
+        // Try og:description
+        var descMatch = Regex.Match(html, @"<meta\s+property=[""']og:description[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+        if (descMatch.Success)
+        {
+            return descMatch.Groups[1].Value;
+        }
+
+        return null;
     }
 }

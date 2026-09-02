@@ -167,7 +167,20 @@ if (chrome.declarativeNetRequest) {
 }
 
 // Strictly match genuine video master manifests and direct video containers
-const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\/get_file\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
+const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\/get_file\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/(?:o1\/)?v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
+
+function normalizeInstagramMediaUrl(url) {
+    if (!url || (!url.includes('cdninstagram.com') && !url.includes('fbcdn.net'))) return url;
+    try {
+        const parsed = new URL(url);
+        parsed.searchParams.delete('bytestart');
+        parsed.searchParams.delete('byteend');
+        parsed.searchParams.delete('range');
+        return parsed.href;
+    } catch {
+        return url;
+    }
+}
 
 function getStreamPriorityScore(url) {
     if (!url || typeof url !== 'string') return 0;
@@ -189,7 +202,11 @@ function isSegmentOrInvalid(url) {
     const lower = url.toLowerCase();
     const clean = lower.split('?')[0].replace(/\/+$/, '');
     
-    // 1. Strict rejection of individual transport stream segments & chunk slices
+    const isInstagramMedia = lower.includes('cdninstagram.com') || lower.includes('fbcdn.net');
+
+    // 1. Strict rejection of individual transport stream segments & chunk slices.
+    // Instagram's progressive MP4 URLs legitimately use bytestart/byteend for
+    // its initial player request, so they must be normalized rather than dropped.
     if (clean.endsWith('.ts') || 
         clean.endsWith('.m4s') || 
         clean.endsWith('.mp4s') || 
@@ -198,8 +215,8 @@ function isSegmentOrInvalid(url) {
         lower.includes('/segment') || 
         lower.includes('/fragment') || 
         lower.includes('/chunk_') || 
-        lower.includes('bytestart=') ||
-        lower.includes('byteend=') ||
+        (!isInstagramMedia && lower.includes('bytestart=')) ||
+        (!isInstagramMedia && lower.includes('byteend=')) ||
         lower.includes('range=')) {
         return true;
     }
@@ -297,6 +314,35 @@ async function addDetectedVideo(tabId, videoData) {
         }
     } catch { }
 
+    const isInstagramStream = videoData.platform === 'Instagram' ||
+        videoData.url.includes('cdninstagram.com') || videoData.url.includes('fbcdn.net');
+
+    // Instagram may request a separate audio rendition after the visible MP4.
+    // It is not a standalone reel and must never replace the video card.
+    const isInstagramAudioOnly = isInstagramStream && /(?:mime=audio|audio_only|audio\.mp4|audio\/mp4)/i.test(videoData.url);
+    if (isInstagramAudioOnly) return;
+
+    const isExistingInstagram = item => {
+        const url = item?.url || '';
+        return item?.platform === 'Instagram' || url.includes('cdninstagram.com') || url.includes('fbcdn.net');
+    };
+
+    // A DOM scan of the visible reel is more reliable than a delayed network
+    // request from the previous/next preloaded reel. Do not let such a request
+    // overwrite the stream that the active Instagram player already reported.
+    if (isInstagramStream && !videoData.isActivePageStream && list.some(item => isExistingInstagram(item) && item.isActivePageStream)) {
+        return;
+    }
+
+    // Reels pages retain adjacent videos in the DOM while scrolling. Keep the
+    // current Instagram stream as the single candidate instead of showing a
+    // stale reel from the previous viewport in the popup.
+    if (isInstagramStream) {
+        list = list.filter(item => {
+            return !isExistingInstagram(item);
+        });
+    }
+
     const exists = list.some(item => item.url === videoData.url);
     if (!exists) {
         if (!videoData.title && tabTitles[tabId]) {
@@ -323,6 +369,50 @@ async function addDetectedVideo(tabId, videoData) {
             chrome.runtime.sendMessage({ action: 'videosUpdated', tabId, videos: list }).catch(() => { });
         } catch { }
     }
+}
+
+async function resolveInstagramForDashboard(pageUrl) {
+    let shortcode = '';
+    try {
+        const parts = new URL(pageUrl).pathname.split('/').filter(Boolean);
+        const idx = parts.findIndex(p => p === 'reel' || p === 'reels' || p === 'p');
+        shortcode = idx >= 0 ? (parts[idx + 1] || '') : '';
+    } catch { }
+
+    if (!shortcode) return { success: false, message: 'Invalid Instagram reel URL.' };
+
+    const tabs = await chrome.tabs.query({ url: ['*://*.instagram.com/*'] });
+    const reelTab = tabs.find(tab => (tab.url || '').includes(shortcode));
+    if (!reelTab?.id) {
+        return { success: false, message: 'Open this reel in Instagram, play it briefly, then retry here.' };
+    }
+
+    const scan = await new Promise(resolve => {
+        chrome.tabs.sendMessage(reelTab.id, { action: 'scanPage' }, response => {
+            resolve(chrome.runtime.lastError ? null : response);
+        });
+    });
+
+    let stream = scan?.streams?.find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false);
+    if (!stream) {
+        try {
+            const key = `tab_media_${reelTab.id}`;
+            const stored = await chrome.storage.local.get([key]);
+            stream = (stored[key] || []).find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false);
+        } catch { }
+    }
+    if (!stream) {
+        return { success: false, message: 'The reel stream is not ready yet. Play it for 2 seconds and retry.' };
+    }
+
+    return {
+        success: true,
+        url: normalizeInstagramMediaUrl(stream.url),
+        title: scan.metadata?.title || 'Instagram Reel',
+        thumbnail: stream.thumbnail || scan.thumbnail || scan.metadata?.thumbnail || '',
+        duration: stream.duration || '',
+        platform: 'Instagram'
+    };
 }
 
 // ─── TAB LIFECYCLE MANAGEMENT ─────────────────────────────────────────────
@@ -377,7 +467,7 @@ chrome.webRequest.onBeforeRequest.addListener(
             else if (isXnxxCdn) platformName = 'XNXX';
 
             addDetectedVideo(details.tabId, {
-                url: details.url,
+                url: normalizeInstagramMediaUrl(details.url),
                 domain: domain,
                 format: (details.url.includes('.m3u8') || details.url.includes('/hls/') || details.url.includes('serve_m3u8')) ? 'HLS' : (details.url.includes('.mpd') ? 'DASH' : 'MP4'),
                 platform: platformName,
@@ -435,7 +525,7 @@ chrome.webRequest.onHeadersReceived.addListener(
             else if (isXnxxCdn) platformName = 'XNXX';
 
             addDetectedVideo(details.tabId, {
-                url: details.url,
+                url: normalizeInstagramMediaUrl(details.url),
                 domain: domain,
                 format: isHls ? 'HLS' : 'MP4',
                 platform: platformName,
@@ -478,9 +568,11 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         p.set('url', req.url || '');
         p.set('title', req.title || 'Video');
         p.set('showName', req.showName || req.title || 'Video');
+        p.set('subtitle', req.subtitle || '');
         p.set('quality', req.quality || '1080p Full HD');
         p.set('platform', req.platform || 'PixelFlix');
         p.set('thumbnail', req.thumbnail || '');
+        p.set('duration', req.duration || '');
         p.set('threads', req.threads || '4');
         if (req.season) p.set('season', String(req.season));
         if (req.episode) p.set('episode', String(req.episode));
@@ -490,6 +582,10 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         const hubUrl = chrome.runtime.getURL(`src/downloader/downloader.html?${p.toString()}`);
         chrome.tabs.create({ url: hubUrl });
         sendResponse({ success: true });
+    } else if (req.action === 'resolveInstagramForDashboard') {
+        resolveInstagramForDashboard(req.url)
+            .then(sendResponse)
+            .catch(() => sendResponse({ success: false, message: 'Unable to read the Instagram tab.' }));
     }
     return true;
 });

@@ -199,6 +199,32 @@ function setConcurrency(threads) {
     });
 }
 
+function isInstagramPageUrl(url) {
+    try { return new URL(url).hostname.toLowerCase().includes('instagram.com'); }
+    catch { return false; }
+}
+
+function requestInstagramStreamFromExtension(url) {
+    return new Promise((resolve) => {
+        const requestId = `ig_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const cleanup = () => window.removeEventListener('message', handler);
+        const timeout = setTimeout(() => {
+            cleanup();
+            resolve(null);
+        }, 7000);
+        const handler = (event) => {
+            if (event.origin !== window.location.origin || event.source !== window) return;
+            const data = event.data;
+            if (!data || data.source !== 'SaveZonixExtension' || data.type !== 'instagramResolved' || data.requestId !== requestId) return;
+            clearTimeout(timeout);
+            cleanup();
+            resolve(data.response || null);
+        };
+        window.addEventListener('message', handler);
+        window.postMessage({ source: 'SaveZonixDashboard', type: 'resolveInstagram', requestId, url }, window.location.origin);
+    });
+}
+
 // Analyze Video / Stream URL with progressive status messages
 btnAnalyze.addEventListener('click', async () => {
     const url = streamUrlInput.value.trim();
@@ -222,6 +248,34 @@ btnAnalyze.addEventListener('click', async () => {
     const t2 = setTimeout(() => { if (btnAnalyze.disabled) setLoading(true, 'Connecting...'); }, 2800);
 
     try {
+        // A server cannot use the user's Instagram session.  Ask the installed
+        // extension first, before making any request for the reel webpage, so
+        // a normal Instagram paste does not deliberately generate a 400.
+        if (isInstagramPageUrl(url)) {
+            setLoading(true, 'Reading Instagram stream from extension...');
+            const bridge = await requestInstagramStreamFromExtension(url);
+            if (!bridge?.success || !bridge.url) {
+                throw new Error(bridge?.message || 'Reload SaveZonix at chrome://extensions, open this reel, play it for 2 seconds, then retry.');
+            }
+
+            const directResponse = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: bridge.url })
+            });
+            const directData = await directResponse.json();
+            if (!directResponse.ok || !directData.success) {
+                throw new Error(directData.message || 'The captured Instagram stream has expired. Play the reel and retry.');
+            }
+
+            directData.title = bridge.title || directData.title;
+            directData.thumbnailUrl = bridge.thumbnail || directData.thumbnailUrl;
+            directData.platform = 'Instagram';
+            streamData = directData;
+            renderStreamDetails(directData);
+            return;
+        }
+
         const response = await fetch('/api/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

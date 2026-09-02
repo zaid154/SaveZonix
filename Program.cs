@@ -800,6 +800,34 @@ public class Program
                 {
                     state.Status = "Download Cancelled/Paused";
                 }
+                catch (HttpRequestException hEx) when (hEx.Message.Contains("401") || hEx.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    state.IsCompleted = false;
+                    state.IsError = true;
+                    state.ErrorMessage = "Video stream expired or access denied (401). This may happen with age-restricted YouTube videos or after 6+ hours. Please re-analyze the video to get fresh stream links.";
+                    state.Status = "Stream Expired – Please Re-analyze";
+                    
+                    Console.WriteLine($"[Download Manager] 401 Unauthorized error for platform: {platform}. Stream URLs may be expired.");
+                    
+                    try
+                    {
+                        using var scope = scopeFactory.CreateScope();
+                        var scopedAnalytics = scope.ServiceProvider.GetRequiredService<IDownloadAnalyticsService>();
+                        await scopedAnalytics.LogErrorDiagnosticAsync(new ErrorDiagnosticLog
+                        {
+                            TaskId = taskId,
+                            Url = pageUrl,
+                            ErrorType = "StreamExpired_401",
+                            ErrorMessage = state.ErrorMessage,
+                            StackTrace = hEx.StackTrace,
+                            UserAgent = userAgent,
+                            ClientIp = clientIp,
+                            AppVersion = Zonix.Core.MediaValidator.CurrentAppVersion,
+                            SystemVersion = Zonix.Core.MediaValidator.CurrentSystemVersion
+                        });
+                    }
+                    catch { }
+                }
                 catch (Exception ex)
                 {
                     state.IsCompleted = false;

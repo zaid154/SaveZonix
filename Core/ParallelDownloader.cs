@@ -336,11 +336,18 @@ public class ParallelDownloader
             CancellationToken = cancellationToken
         };
 
-        await Parallel.ForEachAsync(chunks, parallelOptions, async (chunk, ct) =>
+        try
         {
-            await DownloadRangeChunkWithRetryAsync(chunk, delta => Interlocked.Add(ref totalBytes, delta), ct);
-            Interlocked.Increment(ref completedChunks);
-        });
+            await Parallel.ForEachAsync(chunks, parallelOptions, async (chunk, ct) =>
+            {
+                await DownloadRangeChunkWithRetryAsync(chunk, delta => Interlocked.Add(ref totalBytes, delta), ct);
+                Interlocked.Increment(ref completedChunks);
+            });
+        }
+        catch
+        {
+            return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
+        }
 
         stopwatch.Stop();
 

@@ -436,16 +436,37 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // Launch SaveZonix Unified Web Downloader
+        // Use the captured media URL.  Sending the Instagram webpage URL to
+        // localhost loses the signed CDN URL (and the user's logged-in browser
+        // session), so the desktop analyser can only see Instagram's login
+        // page.  The extension downloader retains the freshly captured URL.
         dlBtn.addEventListener('click', async () => {
             if (dlBtn.disabled) return;
 
-            const targetUrl = (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome'))
-                ? currentTabUrl
-                : (qualSelect.value || video.url);
+            const targetUrl = qualSelect.value || video.url;
+            if (targetUrl && targetUrl.startsWith('http')) {
+                chrome.runtime.sendMessage({
+                    action: 'openDownloaderTab',
+                    url: targetUrl,
+                    title: video.title || currentTabTitle || 'Instagram Reel',
+                    showName: video.showName || video.title || currentTabTitle || 'Instagram Reel',
+                    subtitle: video.subtitle || '',
+                    quality: qualSelect.options[qualSelect.selectedIndex]?.text || 'Original Quality (MP4)',
+                    platform: video.platform || currentSiteName,
+                    thumbnail: video.thumbnail || liveThumbnail || '',
+                    duration: video.duration || '',
+                    threads: userSettings.threads || '32',
+                    tabId: tab.id
+                }, () => window.close());
+                return;
+            }
 
-            chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(targetUrl)}` });
-            window.close();
+            // A webpage fallback remains useful for sites where no direct
+            // stream was detected yet.
+            if (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome')) {
+                chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(currentTabUrl)}` });
+                window.close();
+            }
         });
     }
 

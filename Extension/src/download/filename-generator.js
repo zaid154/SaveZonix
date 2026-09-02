@@ -57,17 +57,19 @@
             }
             // 2. INSTAGRAM
             else if (platform === 'instagram' || video.isDirectMp4) {
-                let clean = title.replace(/^Instagram\s*-\s*/i, '').trim();
-                if (clean.toLowerCase().startsWith('reel -') || clean.toLowerCase().startsWith('@')) {
+                let clean = title.replace(/^Instagram\s*[-–—]\s*/i, '').replace(/^Instagram\s*/i, '').trim();
+                if (clean.toLowerCase() === 'instagram') clean = '';
+
+                if (clean && clean.length > 2 && !CDN_NAMES_REGEX.test(clean) && clean.toLowerCase() !== 'video') {
                     baseName = `Instagram - ${clean}`;
-                } else if (clean && !CDN_NAMES_REGEX.test(clean) && clean.toLowerCase() !== 'video') {
-                    baseName = `Instagram - ${clean}`;
+                } else if (showName && showName.toLowerCase() !== 'instagram' && showName.length > 2) {
+                    baseName = `Instagram - ${showName.replace(/^Instagram\s*[-–—]\s*/i, '')}`;
                 } else if (video.subtitle && video.subtitle.length > 2 && video.subtitle !== 'Instagram Reel') {
                     baseName = `Instagram - ${video.subtitle}`;
                 } else if (video.shortId) {
                     baseName = `Instagram Reel - ${video.shortId}`;
                 } else {
-                    baseName = `Instagram - Reel`;
+                    baseName = `Instagram Reel`;
                 }
             }
             // 3. EPISODIC SERIES (With strict NaN prevention)
