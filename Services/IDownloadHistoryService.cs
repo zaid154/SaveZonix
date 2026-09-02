@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -31,6 +31,9 @@ public interface IDownloadHistoryService
 
     Task UpdateProgressAsync(string taskId, DownloadStatus status, long downloadedBytes, double avgSpeed, double peakSpeed, double elapsedSeconds);
     Task MarkCompletedAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds);
+    Task MarkCompletedWithValidationAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds, string validationStatus, string validationDetails, double probedDuration, string audioVideoDetails);
+    Task MarkCorruptedAsync(string taskId, string errorReason, string validationStatus, string validationDetails, int retryCount);
+    Task MarkRetryingAsync(string taskId, int retryCount, string retryReason);
     Task MarkFailedAsync(string taskId, string errorReason);
     Task MarkCancelledAsync(string taskId);
     Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform);
@@ -160,6 +163,11 @@ public class DownloadHistoryService : IDownloadHistoryService
 
     public async Task MarkCompletedAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds)
     {
+        await MarkCompletedWithValidationAsync(taskId, finalSize, avgSpeed, peakSpeed, totalSeconds, "Passed", "Verified media structure", 0, "Standard Container");
+    }
+
+    public async Task MarkCompletedWithValidationAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds, string validationStatus, string validationDetails, double probedDuration, string audioVideoDetails)
+    {
         var record = await _context.DownloadHistories.FirstOrDefaultAsync(d => d.Id == taskId);
         if (record != null)
         {
@@ -170,6 +178,39 @@ public class DownloadHistoryService : IDownloadHistoryService
             record.AverageSpeedMBps = avgSpeed;
             record.PeakSpeedMBps = Math.Max(record.PeakSpeedMBps, peakSpeed);
             record.DownloadDurationSeconds = totalSeconds;
+            record.ValidationStatus = validationStatus;
+            record.ValidationDetails = validationDetails;
+            if (probedDuration > 0) record.ProbedDurationSeconds = probedDuration;
+            if (!string.IsNullOrEmpty(audioVideoDetails)) record.AudioVideoDetails = audioVideoDetails;
+            record.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task MarkCorruptedAsync(string taskId, string errorReason, string validationStatus, string validationDetails, int retryCount)
+    {
+        var record = await _context.DownloadHistories.FirstOrDefaultAsync(d => d.Id == taskId);
+        if (record != null)
+        {
+            record.Status = DownloadStatus.Corrupted;
+            record.ErrorReason = errorReason;
+            record.ValidationStatus = validationStatus;
+            record.ValidationDetails = validationDetails;
+            record.RetryCount = retryCount;
+            record.CompletionTime = DateTime.UtcNow;
+            record.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+    }
+
+    public async Task MarkRetryingAsync(string taskId, int retryCount, string retryReason)
+    {
+        var record = await _context.DownloadHistories.FirstOrDefaultAsync(d => d.Id == taskId);
+        if (record != null)
+        {
+            record.Status = DownloadStatus.Retrying;
+            record.RetryCount = retryCount;
+            record.ErrorReason = $"Retry {retryCount}: {retryReason}";
             record.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
@@ -182,6 +223,7 @@ public class DownloadHistoryService : IDownloadHistoryService
         {
             record.Status = DownloadStatus.Failed;
             record.ErrorReason = errorReason;
+            record.ValidationStatus = "Failed";
             record.CompletionTime = DateTime.UtcNow;
             record.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();

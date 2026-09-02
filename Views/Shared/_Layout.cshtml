@@ -26,22 +26,20 @@
         <header class="navbar">
             <div class="container nav-container">
                 <a asp-controller="Home" asp-action="Index" class="brand-link">
-                    <img src="~/icons/icon48.png" alt="Stream Helper Logo" class="brand-logo-img">
-                    <div class="brand-text">Stream<span>Helper</span></div>
+                    <img src="~/icons/icon48.png" alt="SaveZonix Logo" class="brand-logo-img">
+                    <div class="brand-text">Save<span>Zonix</span></div>
                 </a>
                 <ul class="nav-links">
                     <li><a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a></li>
                     <li><a asp-controller="Home" asp-action="Features" class="@(ViewData["ActiveNav"]?.ToString() == "Features" ? "active" : "")">Features</a></li>
                     <li><a asp-controller="Home" asp-action="HowItWorks" class="@(ViewData["ActiveNav"]?.ToString() == "HowItWorks" ? "active" : "")">How It Works</a></li>
-                    <li><a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Download</a></li>
-                    <li><a asp-controller="Home" asp-action="FAQ" class="@(ViewData["ActiveNav"]?.ToString() == "FAQ" ? "active" : "")">FAQ</a></li>
-                    <li><a asp-controller="Home" asp-action="Contact" class="@(ViewData["ActiveNav"]?.ToString() == "Contact" ? "active" : "")">Support</a></li>
+                    <li><a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Get Extension</a></li>
                 </ul>
                 <div class="nav-actions">
                     @if (SignInManager.IsSignedIn(User))
                     {
                         var currentUser = await UserManager.GetUserAsync(User);
-                        bool isAdmin = User.IsInRole("Admin");
+                        bool isAdmin = User.IsInRole("Admin") || (currentUser?.Email?.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) == true);
 
                         <div class="user-dropdown-container">
                             <button class="btn btn-user-menu" id="userMenuBtn" type="button">
@@ -64,20 +62,13 @@
                                 <a asp-controller="Account" asp-action="Downloads" class="dropdown-item">
                                     <span>⚡ Download History</span>
                                 </a>
-                                <a asp-controller="Account" asp-action="Settings" class="dropdown-item">
-                                    <span>⚙️ Account Settings</span>
+                                <a href="/admin.html" class="dropdown-item">
+                                    <span>👑 Admin Dashboard</span>
                                 </a>
-                                @if (isAdmin)
-                                {
-                                    <div class="dropdown-divider"></div>
-                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item dropdown-item-admin">
-                                        <span>🛡️ Admin Command Center</span>
-                                    </a>
-                                }
                                 <div class="dropdown-divider"></div>
                                 <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0;">
                                     @Html.AntiForgeryToken()
-                                    <button type="submit" class="dropdown-item dropdown-item-danger" style="width: 100%; border: none; background: none; text-align: left; cursor: pointer;">
+                                    <button type="submit" class="dropdown-item text-danger" style="width: 100%; text-align: left; background: none; border: none; font-family: inherit; cursor: pointer;">
                                         <span>🚪 Sign Out</span>
                                     </button>
                                 </form>
@@ -86,8 +77,8 @@
                     }
                     else
                     {
-                        <a asp-controller="Account" asp-action="Login" class="btn btn-secondary btn-sm">Sign In</a>
-                        <a asp-controller="Account" asp-action="Register" class="btn btn-primary btn-sm">Sign Up</a>
+                        <a asp-controller="Account" asp-action="Login" class="btn btn-subtle">Sign In</a>
+                        <a asp-controller="Account" asp-action="Register" class="btn btn-primary">Sign Up</a>
                     }
                     
                     <a asp-controller="Home" asp-action="Download" class="btn btn-nav-cta">Get Extension</a>

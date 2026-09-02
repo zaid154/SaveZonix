@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -13,7 +13,9 @@ public enum DownloadStatus
     Retrying = 4,
     Completed = 5,
     Failed = 6,
-    Cancelled = 7
+    Cancelled = 7,
+    Corrupted = 8,
+    Validating = 9
 }
 
 public class DownloadHistory
@@ -88,6 +90,24 @@ public class DownloadHistory
 
     [MaxLength(2048)]
     public string? ErrorReason { get; set; }
+
+    // Media Validation & System Diagnostics
+    [MaxLength(64)]
+    public string ValidationStatus { get; set; } = "Passed"; // Passed, Corrupted, Truncated, ZeroBytes, Failed
+
+    [MaxLength(2048)]
+    public string? ValidationDetails { get; set; }
+
+    public double ProbedDurationSeconds { get; set; }
+
+    [MaxLength(128)]
+    public string? AudioVideoDetails { get; set; }
+
+    [MaxLength(64)]
+    public string AppVersion { get; set; } = "SaveZonix v2.5.0";
+
+    [MaxLength(128)]
+    public string SystemVersion { get; set; } = ".NET 10.0 Windows";
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

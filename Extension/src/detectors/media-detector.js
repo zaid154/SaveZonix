@@ -2,13 +2,13 @@
 
 (function (root) {
     // Strictly match genuine media stream extensions and patterns (NEVER bare 'index' or 'master' without .m3u8)
-    const MEDIA_STREAM_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\.mpd|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
+    const MEDIA_STREAM_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\.mpd|\/get_file\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
 
     function isInvalidStreamUrl(url) {
         if (!url || typeof url !== 'string' || !url.startsWith('http')) return true;
         
         const lower = url.toLowerCase();
-        const clean = lower.split('?')[0];
+        const clean = lower.split('?')[0].replace(/\/+$/, '');
         
         // 1. Strict rejection of individual transport stream segments & chunk slices
         if (clean.endsWith('.ts') || 

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using StreamHelper.Data;
 using StreamHelper.Services;
+using SaveZonix.Services;
 using StreamHelper.ViewModels;
 
 namespace StreamHelper.Controllers;
@@ -18,19 +19,22 @@ public class AccountController : Controller
     private readonly IEmailService _emailService;
     private readonly IDownloadHistoryService _downloadHistoryService;
     private readonly IAdminSettingsService _adminSettingsService;
+    private readonly SaveZonix.Services.IDownloadAnalyticsService _analyticsService;
 
     public AccountController(
         UserManager<AppUser> userManager,
         SignInManager<AppUser> signInManager,
         IEmailService emailService,
         IDownloadHistoryService downloadHistoryService,
-        IAdminSettingsService adminSettingsService)
+        IAdminSettingsService adminSettingsService,
+        SaveZonix.Services.IDownloadAnalyticsService analyticsService)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _emailService = emailService;
         _downloadHistoryService = downloadHistoryService;
         _adminSettingsService = adminSettingsService;
+        _analyticsService = analyticsService;
     }
 
     [HttpGet]
@@ -149,6 +153,16 @@ public class AccountController : Controller
         if (result.Succeeded)
         {
             await _userManager.AddToRoleAsync(user, "User");
+
+            await _analyticsService.CreateOrUpdateUserAsync(new SaveZonix.Models.SaveZonixUser
+            {
+                Email = user.Email,
+                FullName = user.FullName,
+                Role = "User",
+                AuthProvider = "Local",
+                IsActive = true,
+                CreatedAt = user.CreatedAt
+            });
 
             var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             var confirmationLink = Url.Action("VerifyEmail", "Account", new { userId = user.Id, code = token }, Request.Scheme);

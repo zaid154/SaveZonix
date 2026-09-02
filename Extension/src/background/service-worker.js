@@ -7,10 +7,10 @@ if (chrome.declarativeNetRequest) {
         chrome.declarativeNetRequest.updateDynamicRules({
             removeRuleIds: ids,
             addRules: [
-                // 1. Pornhub CDN Rule
+                // 1. Pornhub CDN Rule (only for non-pornhub initiators like extension downloader)
                 {
                     id: 2001,
-                    priority: 2,
+                    priority: 5,
                     action: {
                         type: 'modifyHeaders',
                         requestHeaders: [
@@ -19,8 +19,8 @@ if (chrome.declarativeNetRequest) {
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
                         urlFilter: 'phncdn.com',
+                        excludedInitiatorDomains: ['pornhub.com', 'pornhub.org', 'phncdn.com', 'pornhubpremium.com'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
@@ -36,12 +36,12 @@ if (chrome.declarativeNetRequest) {
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
                         urlFilter: 'xnxx-cdn.com',
+                        excludedInitiatorDomains: ['xnxx.com', 'xnxx-cdn.com', 'xvideos.com', 'xvideos-cdn.com'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
-                // 3. xHamster CDN Rule
+                // 3. xHamster xhcdn CDN Rule
                 {
                     id: 2003,
                     priority: 2,
@@ -53,8 +53,8 @@ if (chrome.declarativeNetRequest) {
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
                         urlFilter: 'xhcdn.com',
+                        excludedInitiatorDomains: ['xhamster.com', 'xhamster.desi', 'xhamster1.desi', 'xhamster2.com', 'xhamster3.com', 'xhcdn.com', 'xhpingcdn.com'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
@@ -70,8 +70,8 @@ if (chrome.declarativeNetRequest) {
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
                         urlFilter: 'cdninstagram.com',
+                        excludedInitiatorDomains: ['instagram.com', 'cdninstagram.com', 'facebook.com'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
@@ -87,8 +87,8 @@ if (chrome.declarativeNetRequest) {
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
                         urlFilter: 'sb-cd.com',
+                        excludedInitiatorDomains: ['spankbang.com', 'spankbang.party', 'sb-cd.com'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
@@ -104,24 +104,60 @@ if (chrome.declarativeNetRequest) {
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
                         urlFilter: 'pvvstream.pro',
+                        excludedInitiatorDomains: ['mat6tube.com', 'pvvstream.pro'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 },
-                // 7. Generic Strip Rule
+                // 7. OKXXX Rule
                 {
                     id: 2007,
+                    priority: 2,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://okxxx1.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://okxxx1.com/' }
+                        ]
+                    },
+                    condition: {
+                        urlFilter: 'okxxx1.com',
+                        excludedInitiatorDomains: ['okxxx1.com', 'ok.xxx', 'okxxx.com'],
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 8. OKXXX PhCdn Segment Rule
+                {
+                    id: 2008,
                     priority: 1,
                     action: {
                         type: 'modifyHeaders',
                         requestHeaders: [
-                            { header: 'Origin', operation: 'remove' },
-                            { header: 'Referer', operation: 'remove' }
+                            { header: 'Origin', operation: 'set', value: 'https://okxxx1.com' },
+                            { header: 'Referer', operation: 'set', value: 'https://okxxx1.com/' }
                         ]
                     },
                     condition: {
-                        initiatorDomains: [chrome.runtime.id],
+                        urlFilter: 'phcdn',
+                        excludedRequestDomains: ['phncdn.com'],
+                        excludedInitiatorDomains: ['okxxx1.com', 'ok.xxx', 'pornhub.com', 'pornhub.org', 'phncdn.com'],
+                        resourceTypes: ['xmlhttprequest', 'media', 'other']
+                    }
+                },
+                // 9. xHamster xhpingcdn CDN Rule
+                {
+                    id: 2009,
+                    priority: 3,
+                    action: {
+                        type: 'modifyHeaders',
+                        requestHeaders: [
+                            { header: 'Origin', operation: 'set', value: 'https://xhamster1.desi' },
+                            { header: 'Referer', operation: 'set', value: 'https://xhamster1.desi/' }
+                        ]
+                    },
+                    condition: {
+                        urlFilter: 'xhpingcdn.com',
+                        excludedInitiatorDomains: ['xhamster.com', 'xhamster.desi', 'xhamster1.desi', 'xhamster2.com', 'xhamster3.com', 'xhcdn.com', 'xhpingcdn.com'],
                         resourceTypes: ['xmlhttprequest', 'media', 'other']
                     }
                 }
@@ -131,16 +167,16 @@ if (chrome.declarativeNetRequest) {
 }
 
 // Strictly match genuine video master manifests and direct video containers
-const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
+const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\/get_file\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
 
 function getStreamPriorityScore(url) {
     if (!url || typeof url !== 'string') return 0;
-    const clean = url.split('?')[0].toLowerCase();
+    const clean = url.split('?')[0].replace(/\/+$/, '').toLowerCase();
     
     // Higher priority for full main movie / episode HLS playlists
     if (url.includes('/videos/') && (clean.endsWith('.m3u8') || url.includes('/hls/'))) return 120;
     if (clean.endsWith('.m3u8') || url.includes('.m3u8') || url.includes('/hls/') || url.includes('serve_m3u8')) return 100;
-    if (url.includes('/videos/') && (clean.endsWith('.mp4') || clean.endsWith('.webm'))) return 95;
+    if ((url.includes('/videos/') || url.includes('/get_file/')) && (clean.endsWith('.mp4') || clean.endsWith('.webm'))) return 95;
     if (clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.m4v')) return 90;
     if (url.includes('googlevideo.com/videoplayback')) return 80;
     if (clean.endsWith('.mpd') || url.includes('.mpd')) return 70;
@@ -151,7 +187,7 @@ function isSegmentOrInvalid(url) {
     if (!url || typeof url !== 'string' || !url.startsWith('http')) return true;
     
     const lower = url.toLowerCase();
-    const clean = lower.split('?')[0];
+    const clean = lower.split('?')[0].replace(/\/+$/, '');
     
     // 1. Strict rejection of individual transport stream segments & chunk slices
     if (clean.endsWith('.ts') || 

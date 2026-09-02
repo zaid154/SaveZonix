@@ -31,7 +31,12 @@ public class M3U8Parser
         {
             try
             {
-                var video = await _youtubeClient.Videos.GetAsync(url);
+                string cleanYtUrl = url;
+                var vMatch = Regex.Match(url, @"(?:v=|youtu\.be\/|embed\/|shorts\/)([a-zA-Z0-9_-]{11})");
+                string videoId = vMatch.Success ? vMatch.Groups[1].Value : url;
+                cleanYtUrl = $"https://www.youtube.com/watch?v={videoId}";
+
+                var video = await _youtubeClient.Videos.GetAsync(cleanYtUrl);
                 var streamManifest = await _youtubeClient.Videos.Streams.GetManifestAsync(video.Id);
 
                 result.Title = video.Title;
@@ -79,13 +84,43 @@ public class M3U8Parser
 
                 if (result.Qualities.Count > 0)
                 {
+                    result.Qualities = result.Qualities.OrderByDescending(q => q.Bandwidth).ToList();
                     return result;
                 }
             }
             catch (Exception ex)
             {
-                // Fallback to HTML analysis if API is throttled
                 Console.WriteLine($"[YouTube Parser Notice] {ex.Message}");
+                try
+                {
+                    var oembedUrl = $"https://www.youtube.com/oembed?url={Uri.EscapeDataString(url)}&format=json";
+                    var oembedRes = await _httpClient.GetStringAsync(oembedUrl);
+                    using var doc = JsonDocument.Parse(oembedRes);
+                    if (doc.RootElement.TryGetProperty("title", out var tProp)) result.Title = tProp.GetString() ?? result.Title;
+                    if (doc.RootElement.TryGetProperty("author_name", out var aProp)) result.Platform = $"YouTube • {aProp.GetString()}";
+                    if (doc.RootElement.TryGetProperty("thumbnail_url", out var thProp)) result.ThumbnailUrl = thProp.GetString() ?? result.ThumbnailUrl;
+
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = "1080p Full HD (Desktop)",
+                        Url = url,
+                        IsDirectFile = true,
+                        Bandwidth = 4500000
+                    });
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = "720p HD (Desktop)",
+                        Url = url,
+                        IsDirectFile = true,
+                        Bandwidth = 2200000
+                    });
+
+                    return result;
+                }
+                catch
+                {
+                    throw new Exception("Unable to extract YouTube video. Please verify the URL and ensure the video is not private or restricted.");
+                }
             }
         }
 
@@ -247,17 +282,45 @@ public class M3U8Parser
             }
 
             using var res = await _httpClient.SendAsync(req);
-            if (res.Content.Headers.ContentLength.HasValue)
+            if (res.Content.Headers.ContentLength.HasValue && res.Content.Headers.ContentLength.Value > 0)
             {
                 length = res.Content.Headers.ContentLength.Value;
             }
         }
         catch { }
 
+        // Fallback: Ranged GET (bytes 0-0) if HEAD returned 0 or was blocked
+        if (length == 0)
+        {
+            try
+            {
+                using var rangeReq = new HttpRequestMessage(HttpMethod.Get, url);
+                rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                rangeReq.Headers.TryAddWithoutValidation("Range", "bytes=0-0");
+                var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(url));
+                if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0]))
+                {
+                    rangeReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
+                }
+
+                using var rangeRes = await _httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead);
+                if (rangeRes.Content.Headers.ContentRange?.Length.HasValue == true && rangeRes.Content.Headers.ContentRange.Length.Value > 0)
+                {
+                    length = rangeRes.Content.Headers.ContentRange.Length.Value;
+                }
+            }
+            catch { }
+        }
+
+        if (length == 0 && result.ContentLengthBytes > 0)
+        {
+            length = result.ContentLengthBytes;
+        }
+
         result.ContentLengthBytes = length;
         long calcBw = (length > 0 && result.DurationSeconds > 0) 
             ? (long)((length * 8.0) / result.DurationSeconds) 
-            : ((length > 0) ? (long)((length * 8.0) / 1800.0) : 4000000);
+            : ((length > 0) ? (long)((length * 8.0) / 1800.0) : 0);
 
         result.Qualities = new List<StreamQuality>
         {
@@ -277,27 +340,54 @@ public class M3U8Parser
 
     private void ExtractMetadataFromHtml(string html, StreamAnalysisResult result)
     {
-        // 1. Extract Exact Title (Priority: JSON video_title -> og:title -> twitter:title -> <title>)
-        var jsonTitleMatch = Regex.Match(html, @"[""']video_title[""']\s*:\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-        if (jsonTitleMatch.Success && !string.IsNullOrWhiteSpace(jsonTitleMatch.Groups[1].Value))
+        // 1. Extract Exact Title (Priority: og:title -> twitter:title -> inlineFree/h1 -> JSON video_title -> <title>)
+        string? candidateTitle = null;
+
+        var ogTitleMatch = Regex.Match(html, @"<meta\s+(?:property|name)=[""'](?:og:title|twitter:title)[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+        if (ogTitleMatch.Success && !string.IsNullOrWhiteSpace(ogTitleMatch.Groups[1].Value))
         {
-            result.Title = CleanTitle(jsonTitleMatch.Groups[1].Value);
+            candidateTitle = ogTitleMatch.Groups[1].Value;
         }
-        else
+
+        if (string.IsNullOrWhiteSpace(candidateTitle))
         {
-            var ogTitleMatch = Regex.Match(html, @"<meta\s+(?:property|name)=[""'](?:og:title|twitter:title)[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-            if (ogTitleMatch.Success)
+            var inlineFreeMatch = Regex.Match(html, @"<span[^>]*class=[""'][^""']*inlineFree[^""']*[""'][^>]*>([^<]+)</span>", RegexOptions.IgnoreCase);
+            if (inlineFreeMatch.Success && !string.IsNullOrWhiteSpace(inlineFreeMatch.Groups[1].Value))
             {
-                result.Title = CleanTitle(ogTitleMatch.Groups[1].Value);
+                candidateTitle = inlineFreeMatch.Groups[1].Value;
             }
-            else
+        }
+
+        if (string.IsNullOrWhiteSpace(candidateTitle))
+        {
+            var h1Match = Regex.Match(html, @"<h1[^>]*>(?:<span[^>]*>)?([^<]+)(?:</span>)?</h1>", RegexOptions.IgnoreCase);
+            if (h1Match.Success && !string.IsNullOrWhiteSpace(h1Match.Groups[1].Value))
             {
-                var titleMatch = Regex.Match(html, @"<title>([^<]+)</title>", RegexOptions.IgnoreCase);
-                if (titleMatch.Success)
-                {
-                    result.Title = CleanTitle(titleMatch.Groups[1].Value);
-                }
+                candidateTitle = h1Match.Groups[1].Value;
             }
+        }
+
+        if (string.IsNullOrWhiteSpace(candidateTitle))
+        {
+            var jsonTitleMatch = Regex.Match(html, @"[""']video_title[""']\s*:\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+            if (jsonTitleMatch.Success && !string.IsNullOrWhiteSpace(jsonTitleMatch.Groups[1].Value))
+            {
+                candidateTitle = jsonTitleMatch.Groups[1].Value;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(candidateTitle))
+        {
+            var titleMatch = Regex.Match(html, @"<title>([^<]+)</title>", RegexOptions.IgnoreCase);
+            if (titleMatch.Success)
+            {
+                candidateTitle = titleMatch.Groups[1].Value;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(candidateTitle))
+        {
+            result.Title = CleanTitle(candidateTitle);
         }
 
         // 2. Extract Description
@@ -336,7 +426,8 @@ public class M3U8Parser
         
         string decoded = WebUtility.HtmlDecode(rawTitle).Trim();
         decoded = Regex.Replace(decoded, @"^Watch\s+(?:Free\s+)?(?:Full\s+Video\s+)?", "", RegexOptions.IgnoreCase);
-        decoded = Regex.Replace(decoded, @"\s*[-|–—/•]\s*(?:Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay|Twitter|TikTok)\s*$", "", RegexOptions.IgnoreCase);
+        // Correct regex without character range bug:
+        decoded = Regex.Replace(decoded, @"\s*(?:[-–—|/•]|\s-\s)\s*(?:Pornhub(?:\.com|\.org)?|XNXX(?:\.COM)?|XVideos(?:\.com)?|xHamster(?:\.com)?|PixelFlix|YouTube|Instagram|PvrPlay|Twitter|TikTok|SpankBang|OKXXX)\s*$", "", RegexOptions.IgnoreCase);
         
         return string.IsNullOrWhiteSpace(decoded) ? "High-Definition Video" : decoded.Trim();
     }
@@ -501,7 +592,67 @@ public class M3U8Parser
             }
         }
 
-        // 0a. Parse SpankBang & Tube stream_data: var stream_data = { "240p": ["https://...mp4"], "720p": ["https://...mp4"] }
+        // 0a. xHamster Multi-Resolution HLS Template Parser (e.g. multi=..._TPL_.av1.mp4.m3u8)
+        var xhMultiMatch = Regex.Match(cleanedHtml, @"(https?:\/\/[^\s""'<>]+multi=[^\s""'<>]+\/[^\s""'<>]+_TPL_[^\s""'<>]+\.m3u8)", RegexOptions.IgnoreCase);
+        if (xhMultiMatch.Success)
+        {
+            string masterTplUrl = xhMultiMatch.Groups[1].Value;
+            var multiPartMatch = Regex.Match(masterTplUrl, @"multi=([^/]+)");
+            if (multiPartMatch.Success)
+            {
+                string multiPart = multiPartMatch.Groups[1].Value;
+                var qEntries = Regex.Matches(multiPart, @"(\d+x\d+):(\w+):");
+                foreach (Match qe in qEntries)
+                {
+                    string res = qe.Groups[1].Value;
+                    string label = qe.Groups[2].Value; // e.g. 1080p, 720p, 480p
+                    string specificPlaylistUrl = masterTplUrl.Replace("_TPL_", label);
+                    int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                    qualities.Add(new StreamQuality
+                    {
+                        Resolution = $"{label} HD ({res})",
+                        Url = specificPlaylistUrl,
+                        Bandwidth = h * 5000,
+                        IsDirectFile = false
+                    });
+                }
+                if (qualities.Count > 0)
+                {
+                    return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+                }
+            }
+        }
+
+        // 0b. mat6tube & pvvstream direct MP4 Full Video Extractor (strictly exclude 'tr_' preview trailers)
+        var mat6Matches = Regex.Matches(cleanedHtml, @"(https?:\/\/[^""'\s<>]*(?:pvvstream\.pro\/videos\/)[^""'\s<>]*(?:vid_)(?:\d+p)\.mp4[^""'\s<>]*)", RegexOptions.IgnoreCase);
+        foreach (Match m6 in mat6Matches)
+        {
+            string streamUrl = Regex.Unescape(m6.Groups[1].Value).Replace("\\u0026", "&").Replace("&amp;", "&");
+            string label = "720p HD";
+            if (streamUrl.Contains("1080p")) label = "1080p Full HD";
+            else if (streamUrl.Contains("720p")) label = "720p HD";
+            else if (streamUrl.Contains("480p")) label = "480p SD";
+            else if (streamUrl.Contains("360p")) label = "360p SD";
+            else if (streamUrl.Contains("240p")) label = "240p SD";
+
+            if (!qualities.Any(q => q.Url == streamUrl))
+            {
+                int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                qualities.Add(new StreamQuality
+                {
+                    Resolution = label,
+                    Url = streamUrl,
+                    IsDirectFile = true,
+                    Bandwidth = h * 5000
+                });
+            }
+        }
+        if (qualities.Count > 0)
+        {
+            return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+        }
+
+        // 0c. Parse SpankBang & Tube stream_data: var stream_data = { "240p": ["https://...mp4"], "720p": ["https://...mp4"] }
         var streamDataMatches = Regex.Matches(cleanedHtml, @"(?:var\s+)?(?:stream_data|play_streams|video_sources|sources_data|streams)\s*=\s*(\{[\s\S]*?\});", RegexOptions.IgnoreCase);
         foreach (Match sdm in streamDataMatches)
         {
@@ -624,6 +775,7 @@ public class M3U8Parser
             if (fileMatch.Success)
             {
                 string rawUrl = Regex.Unescape(fileMatch.Groups[1].Value);
+                if (rawUrl.Contains("/tr_") || rawUrl.Contains("_tr.")) continue;
                 string lbl = labelMatch.Success ? labelMatch.Groups[1].Value : "720";
                 int h = int.TryParse(Regex.Match(lbl, @"\d+").Value, out var ph) ? ph : 720;
                 if (!qualities.Any(q => q.Url == rawUrl))
@@ -805,12 +957,73 @@ public class M3U8Parser
             }
         }
 
-        // 9. Direct MP4 link match in page
-        var mp4Match = Regex.Match(cleanedHtml, @"(https?://[^\s""'<>]+\.(?:mp4|webm)[^\s""'<>]*)", RegexOptions.IgnoreCase);
-        if (mp4Match.Success)
+        // 9. Multi-Quality MP4 Stream Matcher & Resolution Optimizer
+        var allMp4Matches = Regex.Matches(cleanedHtml, @"(https?://[^\s""'<>]+\.(?:mp4|webm)[^\s""'<>]*)", RegexOptions.IgnoreCase);
+        foreach (Match m in allMp4Matches)
         {
-            qualities.Add(new StreamQuality { Resolution = "1080p Full HD (Direct File)", Url = mp4Match.Groups[1].Value, IsDirectFile = true });
-            return (mp4Match.Groups[1].Value, qualities);
+            string vUrl = m.Groups[1].Value.Replace("&amp;", "&");
+            if (vUrl.Contains("preview") && !vUrl.Contains("video") && allMp4Matches.Count > 1) continue;
+
+            int height = 720;
+            if (vUrl.Contains("2160") || vUrl.Contains("4k")) height = 2160;
+            else if (vUrl.Contains("1440") || vUrl.Contains("2k")) height = 1440;
+            else if (vUrl.Contains("1080")) height = 1080;
+            else if (vUrl.Contains("720")) height = 720;
+            else if (vUrl.Contains("480")) height = 480;
+            else if (vUrl.Contains("360")) height = 360;
+
+            string resName = height switch
+            {
+                2160 => "4K Ultra HD (3840x2160)",
+                1440 => "2K QHD (2560x1440)",
+                1080 => "1080p Full HD (1920x1080)",
+                720 => "720p HD (1280x720)",
+                480 => "480p SD (854x480)",
+                360 => "360p (640x360)",
+                _ => $"{height}p HD"
+            };
+
+            long bw = height switch
+            {
+                2160 => 14000000,
+                1440 => 8500000,
+                1080 => 4500000,
+                720 => 2400000,
+                480 => 1200000,
+                _ => 800000
+            };
+
+            if (!qualities.Any(q => q.Url == vUrl))
+            {
+                qualities.Add(new StreamQuality
+                {
+                    Resolution = resName,
+                    Url = vUrl,
+                    IsDirectFile = true,
+                    Bandwidth = bw
+                });
+            }
+
+            // If lower tier found (e.g. 480p on xHamster), probe 720p and 1080p variants
+            if (height == 480 && (vUrl.Contains("xhpingcdn") || vUrl.Contains("xhcdn") || vUrl.Contains("480p")))
+            {
+                string url720 = vUrl.Replace("480p", "720p");
+                if (!qualities.Any(q => q.Url == url720))
+                {
+                    qualities.Add(new StreamQuality { Resolution = "720p HD (1280x720)", Url = url720, IsDirectFile = true, Bandwidth = 2400000 });
+                }
+                string url1080 = vUrl.Replace("480p", "1080p");
+                if (!qualities.Any(q => q.Url == url1080))
+                {
+                    qualities.Add(new StreamQuality { Resolution = "1080p Full HD (1920x1080)", Url = url1080, IsDirectFile = true, Bandwidth = 4500000 });
+                }
+            }
+        }
+
+        if (qualities.Count > 0)
+        {
+            var sorted = qualities.OrderByDescending(q => q.Bandwidth).ToList();
+            return (sorted[0].Url, sorted);
         }
 
         return (null, qualities);
@@ -867,8 +1080,12 @@ public class M3U8Parser
     {
         var segments = new List<string>();
         double totalDuration = 0;
+        long currentByteOffset = 0;
+        string? pendingByteRange = null;
+
         var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
+        // 1. Check Initialization Map (fMP4)
         foreach (var line in lines)
         {
             var trimmed = line.Trim();
@@ -877,15 +1094,29 @@ public class M3U8Parser
                 var uriMatch = Regex.Match(trimmed, @"URI=""([^""]+)""");
                 if (uriMatch.Success)
                 {
-                    segments.Add(ResolveUrl(baseUri, uriMatch.Groups[1].Value));
+                    string mapUrl = ResolveUrl(baseUri, uriMatch.Groups[1].Value);
+                    var byteMatch = Regex.Match(trimmed, @"BYTERANGE=""(\d+)(?:@(\d+))?""");
+                    if (byteMatch.Success)
+                    {
+                        long len = long.Parse(byteMatch.Groups[1].Value);
+                        long off = byteMatch.Groups[2].Success ? long.Parse(byteMatch.Groups[2].Value) : 0;
+                        mapUrl += $"#range={off}-{off + len - 1}";
+                    }
+                    segments.Add(mapUrl);
                 }
             }
         }
 
+        // 2. Parse Segments with EXTINF and EXT-X-BYTERANGE
         for (int i = 0; i < lines.Length; i++)
         {
             var line = lines[i].Trim();
-            if (line.StartsWith("#EXTINF"))
+
+            if (line.StartsWith("#EXT-X-BYTERANGE:"))
+            {
+                pendingByteRange = line.Substring("#EXT-X-BYTERANGE:".Length).Trim();
+            }
+            else if (line.StartsWith("#EXTINF"))
             {
                 var dMatch = Regex.Match(line, @"#EXTINF:([\d.]+)");
                 if (dMatch.Success && double.TryParse(dMatch.Groups[1].Value, out var d))
@@ -896,30 +1127,68 @@ public class M3U8Parser
                 for (int j = i + 1; j < lines.Length; j++)
                 {
                     var nextLine = lines[j].Trim();
-                    if (!string.IsNullOrEmpty(nextLine) && !nextLine.StartsWith("#"))
+                    if (nextLine.StartsWith("#EXT-X-BYTERANGE:"))
                     {
-                        segments.Add(ResolveUrl(baseUri, nextLine));
+                        pendingByteRange = nextLine.Substring("#EXT-X-BYTERANGE:".Length).Trim();
+                    }
+                    else if (!string.IsNullOrEmpty(nextLine) && !nextLine.StartsWith("#"))
+                    {
+                        string segUrl = ResolveUrl(baseUri, nextLine);
+                        if (!string.IsNullOrEmpty(pendingByteRange))
+                        {
+                            var parts = pendingByteRange.Split('@');
+                            long len = long.Parse(parts[0]);
+                            long off = parts.Length > 1 ? long.Parse(parts[1]) : currentByteOffset;
+                            segUrl += $"#range={off}-{off + len - 1}";
+                            currentByteOffset = off + len;
+                            pendingByteRange = null;
+                        }
+                        segments.Add(segUrl);
                         i = j;
                         break;
                     }
                 }
             }
-            else if (!line.StartsWith("#") && (line.EndsWith(".ts") || line.EndsWith(".m4s") || line.Contains(".ts?") || line.Contains(".m4s?")))
+            else if (!line.StartsWith("#") && (line.EndsWith(".ts") || line.EndsWith(".m4s") || line.EndsWith(".mp4") || line.Contains(".ts?") || line.Contains(".m4s?") || line.Contains(".mp4?")))
             {
-                segments.Add(ResolveUrl(baseUri, line));
+                string segUrl = ResolveUrl(baseUri, line);
+                if (!string.IsNullOrEmpty(pendingByteRange))
+                {
+                    var parts = pendingByteRange.Split('@');
+                    long len = long.Parse(parts[0]);
+                    long off = parts.Length > 1 ? long.Parse(parts[1]) : currentByteOffset;
+                    segUrl += $"#range={off}-{off + len - 1}";
+                    currentByteOffset = off + len;
+                    pendingByteRange = null;
+                }
+                segments.Add(segUrl);
             }
         }
 
-        return (segments.Distinct().ToList(), (int)Math.Round(totalDuration));
+        return (segments, (int)Math.Round(totalDuration));
     }
 
     private static string ResolveUrl(Uri baseUri, string relativeOrAbsolute)
     {
+        string parentQuery = baseUri.Query?.TrimStart('?') ?? string.Empty;
+
         if (Uri.TryCreate(relativeOrAbsolute, UriKind.Absolute, out var absUri))
         {
+            if (string.IsNullOrEmpty(absUri.Query) && !string.IsNullOrEmpty(parentQuery))
+            {
+                var builder = new UriBuilder(absUri) { Query = parentQuery };
+                return builder.Uri.ToString();
+            }
             return absUri.ToString();
         }
 
-        return new Uri(baseUri, relativeOrAbsolute).ToString();
+        var resolved = new Uri(baseUri, relativeOrAbsolute);
+        if (string.IsNullOrEmpty(resolved.Query) && !string.IsNullOrEmpty(parentQuery))
+        {
+            var builder = new UriBuilder(resolved) { Query = parentQuery };
+            return builder.Uri.ToString();
+        }
+
+        return resolved.ToString();
     }
 }

@@ -194,6 +194,11 @@
                     headers: { 'Range': 'bytes=0-1', 'Accept': '*/*' }
                 });
 
+                const cType = (probeRes.headers.get('content-type') || '').toLowerCase();
+                if (cType.includes('mpegurl') || cType.includes('application/x-mpegurl')) {
+                    throw new Error('M3U8_MANIFEST_DETECTED');
+                }
+
                 if (probeRes.status === 206) {
                     rangeSupported = true;
                     const contentRange = probeRes.headers.get('content-range') || '';
@@ -209,7 +214,8 @@
                         rangeSupported = true;
                     }
                 }
-            } catch {
+            } catch (err) {
+                if (err.message === 'M3U8_MANIFEST_DETECTED') throw err;
                 rangeSupported = false;
             }
 
@@ -504,6 +510,14 @@
 
         // ─── 2. ULTRA FAST WORKER QUEUE FOR HLS SEGMENTS (Up to 256 Threads) ───
         async processSegments(videoUrls, audioUrls, onProgress, initSegmentUrl, keyInfo, requestedConcurrency = 64) {
+            // Support alternate parameter ordering (concurrency passed at pos 4)
+            if (typeof initSegmentUrl === 'number') {
+                const tempConc = initSegmentUrl;
+                initSegmentUrl = typeof keyInfo === 'string' ? keyInfo : '';
+                keyInfo = (arguments.length > 5 && typeof arguments[5] === 'object') ? arguments[5] : null;
+                requestedConcurrency = tempConc;
+            }
+
             this.isAborted = false;
             this.isPaused = false;
             this.concurrency = Math.max(1, Math.min(256, parseInt(requestedConcurrency || 64, 10)));

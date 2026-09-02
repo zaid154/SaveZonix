@@ -58,114 +58,96 @@
                 <div id="streamDetails" class="stream-details hidden">
                     <div class="divider"></div>
                     
-                    <!-- Video Preview Card with Rich Details -->
-                    <div class="video-preview-card">
-                        <div class="video-thumb" id="videoThumbWrapper">
-                            <img id="videoThumbImg" src="" alt="Thumbnail" style="display: none;">
-                            <div class="thumb-fallback" id="thumbFallback">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                            </div>
-                            <span class="thumb-duration-badge" id="thumbDuration" style="display: none;">00:00</span>
+                    <!-- Clean Video & Audio Preview Card -->
+                    <div class="video-preview-card" style="display: flex; gap: 18px; align-items: center; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                        <div class="video-thumb" id="videoThumbWrapper" style="position: relative; width: 140px; height: 85px; border-radius: 8px; overflow: hidden; background: #0d1117; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #30363d;">
+                            <img id="videoThumbImg" src="" alt="Thumbnail" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            <div class="thumb-fallback" id="thumbFallback" style="font-size: 28px; color: #58a6ff;">🎬</div>
+                            <span class="thumb-duration-badge" id="thumbDuration" style="position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">00:00</span>
                         </div>
 
-                        <div class="video-meta">
-                            <div class="meta-badges">
-                                <span class="badge badge-platform" id="badgePlatform">Web Stream</span>
-                                <span class="badge badge-duration" id="badgeDuration" style="display: none;">00:00</span>
-                                <span class="badge badge-size" id="badgeEstSize" style="display: none;">0 MB</span>
-                                <span class="badge badge-segments" id="badgeSegments">0 Chunks</span>
-                                <span class="badge badge-server" id="badgeStrategyType">HLS Segment Stream</span>
+                        <div class="video-meta" style="flex: 1; min-width: 0;">
+                            <div class="meta-badges" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                                <span class="badge badge-platform" id="badgePlatform" style="background: #21262d; color: #58a6ff; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Web Stream</span>
+                                <span class="badge badge-duration" id="badgeDuration" style="background: #21262d; color: #8b949e; font-size: 11px; padding: 2px 8px; border-radius: 4px;">--:--</span>
+                                <span class="badge badge-size" id="badgeEstSize" style="background: #238636; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">0 MB</span>
                             </div>
-                            <h3 class="video-title" id="videoTitleDisplay">Video Stream</h3>
-                            <div class="desc-container">
-                                <p class="video-desc" id="videoDescDisplay" style="display: none;"></p>
-                                <button type="button" class="btn-read-more" id="btnReadMore" style="display: none;">Read more ▾</button>
-                            </div>
+                            <h3 class="video-title" id="videoTitleDisplay" style="font-size: 15px; font-weight: 700; color: #f0f6fc; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Video Title</h3>
+                            <p class="video-desc" id="videoDescDisplay" style="font-size: 12px; color: #8b949e; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none;"></p>
                         </div>
                     </div>
 
-                    <!-- Comprehensive Pre-Download Technical Specifications Grid -->
-                    <div class="specs-grid" id="specsGrid">
-                        <div class="spec-card">
-                            <span class="spec-label">Source Type</span>
-                            <span class="spec-val" id="specSourceType">HLS Master</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">Format / Codec</span>
-                            <span class="spec-val" id="specCodec">MP4 &bull; H.264/AAC</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">Duration</span>
-                            <span class="spec-val" id="specDuration">--:--</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">File Size</span>
-                            <span class="spec-val" id="specSize">Calculating...</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">Stream Bitrate</span>
-                            <span class="spec-val" id="specBitrate">Auto</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">Total Parts</span>
-                            <span class="spec-val" id="specChunks">0 Chunks</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">Range Support</span>
-                            <span class="spec-val" id="specRange">Byte-Range Enabled</span>
-                        </div>
-                        <div class="spec-card">
-                            <span class="spec-label">Disk Storage</span>
-                            <span class="spec-val" id="specStorage">Storage Ready</span>
-                        </div>
+                    <!-- Modern Format Switcher Tabs (Video vs Audio MP3) -->
+                    <div class="format-switcher" style="display: flex; gap: 10px; margin-bottom: 18px;">
+                        <button type="button" id="tabModeVideo" class="btn-format-tab active" onclick="switchFormatMode('video')" style="flex: 1; padding: 12px; border-radius: 8px; border: 1.5px solid #38bdf8; background: #1e293b; color: #38bdf8; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
+                            <span>🎬 Video (MP4)</span>
+                        </button>
+                        <button type="button" id="tabModeAudio" class="btn-format-tab" onclick="switchFormatMode('audio')" style="flex: 1; padding: 12px; border-radius: 8px; border: 1.5px solid #30363d; background: #0f172a; color: #94a3b8; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
+                            <span>🎵 Audio Only (MP3)</span>
+                        </button>
                     </div>
 
                     <!-- Configuration Grid -->
-                    <div class="config-grid">
+                    <div class="config-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
                         <div class="form-control">
-                            <label for="qualitySelect">Available Qualities &amp; Bitrates</label>
-                            <select id="qualitySelect" class="select-input">
+                            <label for="qualitySelect" id="lblQualitySelect" style="font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; display: block;">Video Quality</label>
+                            <select id="qualitySelect" class="select-input" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 10px 12px; border-radius: 8px; font-size: 13px;">
                                 <option value="">Detecting qualities...</option>
                             </select>
                         </div>
 
                         <div class="form-control">
-                            <label for="fileNameInput">Destination File Name (.mp4)</label>
-                            <input type="text" id="fileNameInput" class="text-input" placeholder="video_name.mp4">
+                            <label for="fileNameInput" style="font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; display: block;">File Name</label>
+                            <input type="text" id="fileNameInput" class="text-input" placeholder="video_name.mp4" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 10px 12px; border-radius: 8px; font-size: 13px;">
                         </div>
                     </div>
 
-                    <!-- Destination Location with Browse Option -->
-                    <div class="dest-location-row">
-                        <div class="dest-info">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                            <span class="dest-label">Destination Directory:</span>
-                            <span class="dest-path" id="destPathDisplay">/Downloads/ (Default Storage)</span>
-                        </div>
-                        <button type="button" class="btn btn-secondary btn-sm" id="btnBrowseFolder">Open Destination</button>
-                    </div>
-
-                    <!-- Thread Concurrency Controls (Up to 256 Threads) -->
-                    <div class="form-control thread-control">
-                        <div class="thread-label-wrapper">
-                            <label>Parallel Worker Connections (Adaptive Engine):</label>
-                            <span id="threadsValue" class="badge badge-threads">64 Workers (Turbo Speed)</span>
+                    <!-- Multi-Thread Concurrency & Connection Status Control -->
+                    <div class="concurrency-control-box" style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <label style="font-size: 13px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px; margin: 0;">
+                                <span>⚡ Parallel Threads (Hyper Engine)</span>
+                            </label>
+                            <span id="threadsValue" style="font-size: 12px; font-weight: 700; color: #38bdf8; font-family: monospace; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 8px; border-radius: 6px;">64 Workers (Extreme Turbo)</span>
                         </div>
 
-                        <!-- Discrete Thread Buttons (16x to 256x) -->
-                        <div class="thread-presets">
-                            <button type="button" class="btn-thread-preset" data-threads="16">16x Fast</button>
-                            <button type="button" class="btn-thread-preset" data-threads="32">32x Turbo</button>
-                            <button type="button" class="btn-thread-preset active" data-threads="64">64x Extreme</button>
+                        <!-- Thread Preset Buttons -->
+                        <div class="thread-presets" style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
+                            <button type="button" class="btn-thread-preset" data-threads="16">16x</button>
+                            <button type="button" class="btn-thread-preset" data-threads="32">32x</button>
+                            <button type="button" class="btn-thread-preset active" data-threads="64">64x Turbo</button>
                             <button type="button" class="btn-thread-preset" data-threads="128">128x Ultra</button>
-                            <button type="button" class="btn-thread-preset" data-threads="256">256x Hyper Max</button>
+                            <button type="button" class="btn-thread-preset" data-threads="256">256x Hyper</button>
                         </div>
 
-                        <input type="range" id="threadsRange" min="4" max="256" step="8" value="64" class="range-slider" style="margin-top: 10px;">
+                        <!-- Range Slider -->
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                            <input type="range" id="threadsRange" min="16" max="256" step="16" value="64" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+                        </div>
+
+                        <!-- Connection Status Live Strip -->
+                        <div class="connection-status-strip" style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 6px;">
+                            <span style="display: flex; align-items: center; gap: 6px;">
+                                <span style="width: 7px; height: 7px; background: #10b981; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #10b981;"></span>
+                                <span style="color: #10b981; font-weight: 600;">Sockets Engine: Active</span>
+                            </span>
+                            <span style="color: #94a3b8;">Multi-Segment Chunking: <strong style="color: #f8fafc;">Enabled</strong></span>
+                        </div>
                     </div>
 
-                    <button id="btnStartDownload" class="btn-turbo">
-                        <span>Start Parallel Download</span>
+                    <!-- Destination Directory -->
+                    <div class="dest-location-row" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px;">
+                        <div class="dest-info" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            <span>Save Location:</span>
+                            <span class="dest-path" id="destPathDisplay" style="color: #94a3b8; font-family: monospace;">/Downloads/</span>
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnBrowseFolder" style="padding: 4px 10px; font-size: 11px;">Open Folder</button>
+                    </div>
+
+                    <!-- Main Action Download Button -->
+                    <button id="btnStartDownload" class="btn-turbo" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 700; border-radius: 10px;">
+                        <span id="btnDownloadText">⬇️ Download Video (MP4)</span>
                     </button>
                 </div>
 

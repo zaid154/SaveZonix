@@ -15,16 +15,18 @@ public class ParallelDownloader
         }
         else
         {
-            var handler = new SocketsHttpHandler
+            var handler = new HttpClientHandler
             {
-                MaxConnectionsPerServer = 300,
-                EnableMultipleHttp2Connections = true,
-                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-                ConnectTimeout = TimeSpan.FromSeconds(15),
-                AutomaticDecompression = System.Net.DecompressionMethods.All
+                ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => true,
+                AutomaticDecompression = DecompressionMethods.All,
+                UseCookies = false,
+                MaxConnectionsPerServer = 300
             };
 
-            _httpClient = new HttpClient(handler);
+            _httpClient = new HttpClient(handler)
+            {
+                Timeout = TimeSpan.FromSeconds(30)
+            };
         }
     }
 
@@ -56,8 +58,9 @@ public class ParallelDownloader
 
         var stopwatch = Stopwatch.StartNew();
         
-        // ─── CONCURRENCY CONTROLLER (LOCKED TO USER SELECTION) ──────────────
-        int initialConcurrency = Math.Clamp(maxConcurrency, 1, 256);
+        // ─── SMART SITE-ADAPTIVE CONCURRENCY PROFILER ──────────────
+        string sampleUrl = segmentUrls.FirstOrDefault() ?? string.Empty;
+        int initialConcurrency = GetOptimizedConcurrency(sampleUrl, maxConcurrency);
         int activeConcurrency = initialConcurrency;
 
         // ─── ROLLING SLIDING-WINDOW & EMA SPEED / ETA CALCULATOR ───────────
@@ -159,7 +162,7 @@ public class ParallelDownloader
         // Adaptive Parallel Execution
         var parallelOptions = new ParallelOptions
         {
-            MaxDegreeOfParallelism = Math.Clamp(maxConcurrency, 1, 256),
+            MaxDegreeOfParallelism = activeConcurrency,
             CancellationToken = cancellationToken
         };
 
@@ -507,7 +510,22 @@ public class ParallelDownloader
     private async Task DownloadSingleSegmentWithRetryAsync(SegmentItem segment, Action<int> totalBytesRef, CancellationToken ct, int maxRetries = 8)
     {
         int attempt = 0;
-        var uri = new Uri(segment.Url);
+        string rawUrl = segment.Url;
+        long rangeStart = -1;
+        long rangeEnd = -1;
+
+        if (rawUrl.Contains("#range="))
+        {
+            var rangeMatch = System.Text.RegularExpressions.Regex.Match(rawUrl, @"#range=(\d+)-(\d+)");
+            if (rangeMatch.Success && long.TryParse(rangeMatch.Groups[1].Value, out var s) && long.TryParse(rangeMatch.Groups[2].Value, out var e))
+            {
+                rangeStart = s;
+                rangeEnd = e;
+            }
+            rawUrl = rawUrl.Split('#')[0];
+        }
+
+        var uri = new Uri(rawUrl);
         var referers = StreamSecurityHelper.GetCandidateReferers(uri);
 
         while (attempt < maxRetries)
@@ -518,20 +536,29 @@ public class ParallelDownloader
                 string referer = referers[(attempt - 1) % referers.Count];
 
                 using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                attemptCts.CancelAfter(TimeSpan.FromSeconds(10)); // 10s max per segment attempt to prevent stalling
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15s max per segment attempt
 
-                using var request = new HttpRequestMessage(HttpMethod.Get, segment.Url);
+                using var request = new HttpRequestMessage(HttpMethod.Get, rawUrl);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
                 request.Headers.TryAddWithoutValidation("Accept", "*/*");
                 request.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "empty");
                 request.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "cors");
 
+                if (rangeStart >= 0 && rangeEnd >= rangeStart)
+                {
+                    request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(rangeStart, rangeEnd);
+                }
+
                 if (!string.IsNullOrEmpty(referer))
                 {
                     request.Headers.TryAddWithoutValidation("Referer", referer);
+                    if (Uri.TryCreate(referer, UriKind.Absolute, out var rUri))
+                    {
+                        request.Headers.TryAddWithoutValidation("Origin", $"{rUri.Scheme}://{rUri.Host}");
+                    }
                 }
 
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptCts.Token);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, attemptCts.Token);
                 response.EnsureSuccessStatusCode();
 
                 byte[] rawBytes = await response.Content.ReadAsByteArrayAsync(attemptCts.Token);
@@ -548,7 +575,7 @@ public class ParallelDownloader
             catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
                 try { if (File.Exists(segment.LocalTempPath)) File.Delete(segment.LocalTempPath); } catch { }
-                await Task.Delay(100 * attempt, ct);
+                await Task.Delay(50 * attempt, ct);
             }
         }
     }
@@ -588,5 +615,24 @@ public class ParallelDownloader
         }
 
         return data;
+    }
+
+    public int StrictCdnMaxThreads { get; set; } = 32;
+    public int OpenCdnMaxThreads { get; set; } = 256;
+    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream";
+
+    private int GetOptimizedConcurrency(string? sampleUrl, int requestedConcurrency)
+    {
+        if (string.IsNullOrEmpty(sampleUrl)) return Math.Clamp(requestedConcurrency, 1, 64);
+
+        string lower = sampleUrl.ToLowerInvariant();
+
+        var strictList = (StrictCdnDomains ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        if (strictList.Any(d => lower.Contains(d.Trim().ToLowerInvariant())))
+        {
+            return Math.Clamp(requestedConcurrency, 1, StrictCdnMaxThreads > 0 ? StrictCdnMaxThreads : 32);
+        }
+
+        return Math.Clamp(requestedConcurrency, 1, OpenCdnMaxThreads > 0 ? OpenCdnMaxThreads : 256);
     }
 }

@@ -1,4 +1,4 @@
-﻿@model StreamHelper.ViewModels.AdminDownloadsViewModel
+@model StreamHelper.ViewModels.AdminDownloadsViewModel
 @{
     ViewData["Title"] = "Global Downloads — Stream Helper Admin";
 }
@@ -14,7 +14,9 @@
                 <a asp-action="Index" class="btn btn-secondary">Dashboard</a>
                 <a asp-action="Users" class="btn btn-secondary">Users</a>
                 <a asp-action="Downloads" class="btn btn-primary">Downloads</a>
+                <a asp-action="Diagnostics" class="btn btn-secondary">Diagnostics & Logs</a>
                 <a asp-action="Settings" class="btn btn-secondary">Settings</a>
+                <a asp-action="Security" class="btn btn-secondary">Security</a>
             </div>
         </div>
 
@@ -40,6 +42,7 @@
                         <select name="status" class="form-control">
                             <option value="">All Statuses</option>
                             <option value="Completed" selected="@(Model.StatusFilter == "Completed")">Completed</option>
+                            <option value="Corrupted" selected="@(Model.StatusFilter == "Corrupted")">Corrupted / Truncated</option>
                             <option value="Downloading" selected="@(Model.StatusFilter == "Downloading")">Downloading</option>
                             <option value="Failed" selected="@(Model.StatusFilter == "Failed")">Failed</option>
                             <option value="Cancelled" selected="@(Model.StatusFilter == "Cancelled")">Cancelled</option>
@@ -127,6 +130,18 @@
                             </td>
                             <td>
                                 <span class="status-badge status-@(item.Status.ToString().ToLower())">@item.Status</span>
+                                @if (item.Status == StreamHelper.Data.DownloadStatus.Corrupted || item.Status == StreamHelper.Data.DownloadStatus.Failed)
+                                {
+                                    <div style="font-size: 10px; color: #f87171; max-width: 140px; margin-top: 4px; line-height: 1.2;" title="@item.ErrorReason">
+                                        @(item.ErrorReason ?? "Integrity error")
+                                    </div>
+                                }
+                                else if (!string.IsNullOrEmpty(item.ValidationStatus))
+                                {
+                                    <div style="font-size: 10px; color: #10b981; margin-top: 2px;">
+                                        ✓ @item.ValidationStatus
+                                    </div>
+                                }
                             </td>
                             <td>
                                 <div style="font-size: 13px;">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>

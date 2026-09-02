@@ -139,6 +139,7 @@ btnPaste.addEventListener('click', async () => {
 if (btnReadMore) {
     btnReadMore.addEventListener('click', () => {
         const isExp = videoDescDisplay.classList.toggle('expanded');
+        videoDescDisplay.style.display = isExp ? 'block' : '-webkit-box';
         btnReadMore.textContent = isExp ? 'Read less ▴' : 'Read more ▾';
     });
 }
@@ -146,9 +147,22 @@ if (btnReadMore) {
 // Browse / Open Destination Folder
 if (btnBrowseFolder) {
     btnBrowseFolder.addEventListener('click', async () => {
+        const oldText = btnBrowseFolder.textContent;
+        btnBrowseFolder.textContent = '✓ Opening...';
+        btnBrowseFolder.disabled = true;
         try {
-            await fetch('/api/open-folder', { method: 'POST' });
+            const res = await fetch('/api/open-folder', { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.path && destPathDisplay) {
+                    destPathDisplay.textContent = data.path;
+                }
+            }
         } catch { }
+        setTimeout(() => {
+            btnBrowseFolder.textContent = oldText;
+            btnBrowseFolder.disabled = false;
+        }, 1200);
     });
 }
 
@@ -180,7 +194,8 @@ function setConcurrency(threads) {
     threadsValue.textContent = `${threads} Workers (${tierLabel})`;
 
     threadPresetBtns.forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.threads, 10) === threads);
+        const isMatch = parseInt(btn.dataset.threads, 10) === threads;
+        btn.classList.toggle('active', isMatch);
     });
 }
 
@@ -191,6 +206,14 @@ btnAnalyze.addEventListener('click', async () => {
         showError('Please enter a valid video or stream URL.');
         return;
     }
+
+    // Reset previous task polling and enable download button for new media
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+    }
+    currentTaskId = null;
+    if (btnStartDownload) btnStartDownload.disabled = false;
 
     hideError();
     setLoading(true, 'Resolving media...');
@@ -224,78 +247,74 @@ btnAnalyze.addEventListener('click', async () => {
     }
 });
 
-function renderStreamDetails(data) {
-    videoTitleDisplay.textContent = data.title || 'High-Definition Video Stream';
-    badgePlatform.textContent = data.platform || 'Web Stream';
+let currentFormatMode = 'video';
 
-    // Strategy determination
-    let stratText = 'HLS Segment Download';
-    let srcText = 'HLS Master Playlist';
-    let rangeText = 'Supported (TS Chunks)';
-    if (data.isDirectMediaFile) {
-        stratText = 'Parallel Range Download';
-        srcText = 'Direct Media Stream';
-        rangeText = 'HTTP Range Byte-Level';
-    }
-    strategyBadge.textContent = stratText;
-    badgeStrategyType.textContent = stratText;
-    specSourceType.textContent = srcText;
-    specRange.textContent = rangeText;
-    specCodec.textContent = 'MP4 • H.264 / AAC';
+function switchFormatMode(mode) {
+    currentFormatMode = mode;
+    const tabVideo = document.getElementById('tabModeVideo');
+    const tabAudio = document.getElementById('tabModeAudio');
+    const lblQuality = document.getElementById('lblQualitySelect');
+    const btnDownloadText = document.getElementById('btnDownloadText');
 
-    // Video Description
-    if (data.description && data.description.trim().length > 0) {
-        videoDescDisplay.textContent = data.description.trim();
-        videoDescDisplay.style.display = 'block';
-        videoDescDisplay.classList.remove('expanded');
-        if (data.description.trim().length > 100) {
-            btnReadMore.style.display = 'inline-flex';
-            btnReadMore.textContent = 'Read more ▾';
-        } else {
-            btnReadMore.style.display = 'none';
+    if (mode === 'audio') {
+        if (tabAudio) {
+            tabAudio.style.borderColor = '#38bdf8';
+            tabAudio.style.background = '#1e293b';
+            tabAudio.style.color = '#38bdf8';
         }
+        if (tabVideo) {
+            tabVideo.style.borderColor = '#30363d';
+            tabVideo.style.background = '#0f172a';
+            tabVideo.style.color = '#94a3b8';
+        }
+        if (lblQuality) lblQuality.textContent = 'Audio Format & Bitrate';
+        if (btnDownloadText) btnDownloadText.textContent = '🎵 Download Audio (MP3)';
+
+        // Populate Audio Options
+        qualitySelect.innerHTML = `
+            <option value="320" data-format="mp3" data-bitrate="320" selected>320 kbps MP3 (Ultra High Quality Audio)</option>
+            <option value="192" data-format="mp3" data-bitrate="192">192 kbps MP3 (High Quality Audio)</option>
+            <option value="128" data-format="mp3" data-bitrate="128">128 kbps MP3 (Standard Audio)</option>
+            <option value="256" data-format="m4a" data-bitrate="256">256 kbps M4A / AAC (Apple Audio)</option>
+        `;
+
+        const rawTitle = (streamData?.title || 'Audio').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').slice(0, 60);
+        fileNameInput.value = `${rawTitle}.mp3`;
+        badgeEstSize.textContent = '~12 MB';
     } else {
-        videoDescDisplay.style.display = 'none';
-        btnReadMore.style.display = 'none';
+        if (tabVideo) {
+            tabVideo.style.borderColor = '#38bdf8';
+            tabVideo.style.background = '#1e293b';
+            tabVideo.style.color = '#38bdf8';
+        }
+        if (tabAudio) {
+            tabAudio.style.borderColor = '#30363d';
+            tabAudio.style.background = '#0f172a';
+            tabAudio.style.color = '#94a3b8';
+        }
+        if (lblQuality) lblQuality.textContent = 'Video Quality';
+        if (btnDownloadText) btnDownloadText.textContent = '⬇️ Download Video (MP4)';
+
+        renderVideoQualities();
     }
+}
 
-    // Duration & Chunks
-    const durFormatted = data.formattedDuration || '--:--';
-    if (data.formattedDuration) {
-        badgeDuration.textContent = data.formattedDuration;
-        badgeDuration.style.display = 'inline-flex';
-        thumbDuration.textContent = data.formattedDuration;
-        thumbDuration.style.display = 'block';
-    } else {
-        badgeDuration.style.display = 'none';
-        thumbDuration.style.display = 'none';
-    }
-
-    specDuration.textContent = durFormatted;
-    const partsCount = data.isDirectMediaFile ? 'Direct Container' : `${data.totalSegments || 'Auto'} Chunks`;
-    specChunks.textContent = partsCount;
-    badgeSegments.textContent = data.isDirectMediaFile ? 'Direct Stream' : `${data.totalSegments || 'Auto'} Chunks`;
-
-    // Thumbnail Picture
-    if (data.thumbnailUrl && data.thumbnailUrl.startsWith('http')) {
-        videoThumbImg.src = data.thumbnailUrl;
-        videoThumbImg.onload = () => {
-            videoThumbImg.style.display = 'block';
-            thumbFallback.style.display = 'none';
-        };
-        videoThumbImg.onerror = () => {
-            videoThumbImg.style.display = 'none';
-            thumbFallback.style.display = 'flex';
-        };
-    } else {
-        videoThumbImg.style.display = 'none';
-        thumbFallback.style.display = 'flex';
-    }
-
-    // Qualities Dropdown & Size Estimation
+function renderVideoQualities() {
+    if (!streamData) return;
     qualitySelect.innerHTML = '';
-    if (data.qualities && data.qualities.length > 0) {
-        data.qualities.forEach((q, i) => {
+    const prefQuality = (streamData.defaultQuality || 'Highest').toLowerCase();
+
+    if (streamData.qualities && streamData.qualities.length > 0) {
+        let bestIndex = 0;
+        if (prefQuality !== 'highest') {
+            const foundIdx = streamData.qualities.findIndex(q => 
+                (q.resolution && q.resolution.toLowerCase().includes(prefQuality)) ||
+                (q.displayName && q.displayName.toLowerCase().includes(prefQuality))
+            );
+            if (foundIdx !== -1) bestIndex = foundIdx;
+        }
+
+        streamData.qualities.forEach((q, i) => {
             const opt = document.createElement('option');
             opt.value = q.url;
             opt.textContent = q.displayName;
@@ -305,7 +324,7 @@ function renderStreamDetails(data) {
             opt.dataset.isDirect = q.isDirectFile ? '1' : '0';
             opt.dataset.audioUrl = q.audioUrl || '';
             opt.dataset.bw = q.bandwidth ? `${(q.bandwidth / 1000000.0).toFixed(1)} Mbps` : 'Auto';
-            if (i === 0) opt.selected = true;
+            if (i === bestIndex) opt.selected = true;
             qualitySelect.appendChild(opt);
         });
     } else {
@@ -320,37 +339,91 @@ function renderStreamDetails(data) {
         opt.dataset.bw = 'Adaptive';
         qualitySelect.appendChild(opt);
     }
-
     updateSelectedQualitySpecs();
+}
 
+function renderStreamDetails(data) {
+    videoTitleDisplay.textContent = data.title || 'High-Definition Video Stream';
+    badgePlatform.textContent = data.platform || 'Web Stream';
+
+    // Duration & Format Badges
+    if (data.formattedDuration && data.formattedDuration !== '00:00') {
+        badgeDuration.textContent = data.formattedDuration;
+        badgeDuration.style.display = 'inline-flex';
+        thumbDuration.textContent = data.formattedDuration;
+        thumbDuration.style.display = 'block';
+    } else {
+        badgeDuration.textContent = 'HD Video';
+        badgeDuration.style.display = 'inline-flex';
+        thumbDuration.textContent = 'HD';
+        thumbDuration.style.display = 'block';
+    }
+
+    // Thumbnail Picture with Stealth Proxy (Zero CORS / Zero 403)
+    if (data.thumbnailUrl && data.thumbnailUrl.length > 0) {
+        videoThumbImg.src = data.thumbnailUrl;
+        videoThumbImg.onload = () => {
+            videoThumbImg.style.display = 'block';
+            thumbFallback.style.display = 'none';
+        };
+        videoThumbImg.onerror = () => {
+            videoThumbImg.style.display = 'none';
+            thumbFallback.style.display = 'flex';
+        };
+    } else {
+        videoThumbImg.style.display = 'none';
+        thumbFallback.style.display = 'flex';
+    }
+
+    // Reset to Video Tab & Render
+    currentFormatMode = 'video';
+    renderVideoQualities();
+
+    if (btnStartDownload) btnStartDownload.disabled = false;
     streamDetails.classList.remove('hidden');
     progressSection.classList.add('hidden');
     successSection.classList.add('hidden');
 }
 
-qualitySelect.addEventListener('change', updateSelectedQualitySpecs);
+qualitySelect.addEventListener('change', () => {
+    if (currentFormatMode === 'video') {
+        updateSelectedQualitySpecs();
+    } else {
+        const sel = qualitySelect.options[qualitySelect.selectedIndex];
+        const fmt = sel?.dataset.format || 'mp3';
+        const rawTitle = (streamData?.title || 'Audio').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').slice(0, 60);
+        fileNameInput.value = `${rawTitle}.${fmt}`;
+    }
+});
 
 function updateSelectedQualitySpecs() {
+    if (currentFormatMode !== 'video') return;
     const selectedOpt = qualitySelect.options[qualitySelect.selectedIndex];
     if (!selectedOpt) return;
 
     const res = selectedOpt.dataset.res || '1080p';
     const estSize = selectedOpt.dataset.estSize || '';
-    const bw = selectedOpt.dataset.bw || 'Auto';
 
-    specBitrate.textContent = bw;
-
-    // Clean size display without ~ when exact bytes known
-    if (estSize) {
+    if (estSize && !estSize.includes('~0 MB')) {
         const cleanSize = estSize.startsWith('~') ? estSize.substring(1).trim() : estSize;
-        specSize.textContent = cleanSize;
         badgeEstSize.textContent = cleanSize;
         badgeEstSize.style.display = 'inline-flex';
-        specStorage.textContent = `Req: ${cleanSize} • OK`;
     } else {
-        specSize.textContent = 'Stream Dependent';
-        badgeEstSize.style.display = 'none';
-        specStorage.textContent = 'Available Space: OK';
+        // Fallback calculation
+        let computedMb = 0;
+        if (streamData?.durationSeconds > 0) {
+            computedMb = Math.round((streamData.durationSeconds * 2800000) / (8 * 1024 * 1024));
+        } else if (streamData?.totalSegments > 0) {
+            computedMb = Math.round(streamData.totalSegments * 1.5);
+        }
+        
+        if (computedMb > 0) {
+            badgeEstSize.textContent = `${computedMb} MB`;
+            badgeEstSize.style.display = 'inline-flex';
+        } else {
+            badgeEstSize.textContent = 'HD Stream';
+            badgeEstSize.style.display = 'inline-flex';
+        }
     }
 
     const rawTitle = (streamData?.title || 'Video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').slice(0, 60);
@@ -363,25 +436,44 @@ btnStartDownload.addEventListener('click', async () => {
     if (!streamData) return;
 
     hideError();
+    const isAudioMode = currentFormatMode === 'audio';
     const selectedOpt = qualitySelect.options[qualitySelect.selectedIndex];
-    const selectedUrl = qualitySelect.value || streamUrlInput.value.trim();
+    
+    // In audio mode, use the stream source URL and target format
+    const selectedUrl = isAudioMode 
+        ? (streamData.qualities?.[0]?.url || streamUrlInput.value.trim())
+        : (qualitySelect.value || streamUrlInput.value.trim());
+
     const audioUrl = selectedOpt ? (selectedOpt.dataset.audioUrl || '') : '';
-    const fileName = fileNameInput.value.trim() || 'video.mp4';
-    const concurrency = currentConcurrency || 64;
+    const fileName = fileNameInput.value.trim() || (isAudioMode ? 'audio.mp3' : 'video.mp4');
+    const concurrency = currentConcurrency || 16;
     const estimatedSizeBytes = selectedOpt ? parseInt(selectedOpt.dataset.estBytes || 0, 10) : 0;
-    const isDirectFile = selectedOpt ? (selectedOpt.dataset.isDirect === '1') : false;
+    const isDirectFile = !isAudioMode && selectedOpt ? (selectedOpt.dataset.isDirect === '1') : false;
+    const selectedFormat = isAudioMode ? (selectedOpt?.dataset.format?.toUpperCase() || 'MP3') : 'MP4';
+    const audioBitrate = isAudioMode ? parseInt(selectedOpt?.dataset.bitrate || '320', 10) : 0;
 
     // Populate Active Mini Video Banner
     activeTitleDisplay.textContent = streamData.title || fileName;
     activePlatformBadge.textContent = streamData.platform || 'Web Stream';
     activeThreadsBadge.textContent = `${concurrency} Max Workers`;
-    activeQualityBadge.textContent = selectedOpt?.dataset.res || '1080p FHD';
-    activeStrategyBadge.textContent = isDirectFile ? 'Parallel Range Download' : 'HLS Segment Download';
+    activeQualityBadge.textContent = isAudioMode ? `${audioBitrate} kbps ${selectedFormat}` : (selectedOpt?.dataset.res || '1080p FHD');
+    activeStrategyBadge.textContent = isAudioMode ? 'Extracting High-Quality Audio' : (isDirectFile ? 'Parallel Range Download' : 'HLS Segment Download');
 
     if (streamData.thumbnailUrl && streamData.thumbnailUrl.startsWith('http')) {
+        activeThumbImg.referrerPolicy = 'no-referrer';
+        activeThumbImg.crossOrigin = 'anonymous';
         activeThumbImg.src = streamData.thumbnailUrl;
-        activeThumbImg.style.display = 'block';
-        activeThumbFallback.style.display = 'none';
+        activeThumbImg.onload = () => {
+            activeThumbImg.style.display = 'block';
+            activeThumbFallback.style.display = 'none';
+        };
+        activeThumbImg.onerror = () => {
+            activeThumbImg.onerror = () => {
+                activeThumbImg.style.display = 'none';
+                activeThumbFallback.style.display = 'flex';
+            };
+            activeThumbImg.src = `/api/proxy-image?url=${encodeURIComponent(streamData.thumbnailUrl)}`;
+        };
     } else {
         activeThumbImg.style.display = 'none';
         activeThumbFallback.style.display = 'block';
@@ -399,6 +491,14 @@ btnStartDownload.addEventListener('click', async () => {
     btnStartDownload.disabled = true;
     streamDetails.classList.add('hidden');
     progressSection.classList.remove('hidden');
+
+    // Smoothly anchor viewport directly to the downloader progress card
+    const cardEl = document.querySelector('.downloader-card');
+    if (cardEl) {
+        cardEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     try {
         const response = await fetch('/api/download', {
@@ -423,6 +523,13 @@ btnStartDownload.addEventListener('click', async () => {
 
         const data = await response.json();
         if (!response.ok || !data.taskId) {
+            if (data.requireAuth) {
+                showError(`${data.message} <br><br><div style="display:flex; gap:10px; margin-top:10px; justify-content:center;"><a href="/Account/Login" class="btn btn-sm btn-primary" style="text-decoration:none;">🔑 Sign In to Continue</a> <a href="/Account/Register" class="btn btn-sm btn-subtle" style="text-decoration:none;">✨ Create Free Account</a></div>`);
+                btnStartDownload.disabled = false;
+                streamDetails.classList.remove('hidden');
+                progressSection.classList.add('hidden');
+                return;
+            }
             throw new Error(data.message || 'Failed to initiate download.');
         }
 
@@ -488,10 +595,25 @@ function startPollingProgress(taskId, fileName, userMaxThreads) {
 
             if (state.isError) {
                 clearInterval(pollInterval);
-                showError(state.errorMessage || 'An error occurred during download.');
+                const errMsg = state.errorMessage || state.status || 'Download Failed/Corrupted – Please Redownload';
+                showError(`⚠️ <strong>Download Failed/Corrupted – Please Redownload</strong><br><span style="font-size:13px; color:#fca5a5;">${errMsg}</span><br><br><span style="font-size:12px; color:var(--text-muted);">The stream was intercepted and failed media validation before saving. Please try again.</span>`);
                 progressSection.classList.add('hidden');
                 btnStartDownload.disabled = false;
                 streamDetails.classList.remove('hidden');
+
+                try {
+                    fetch('/api/analytics/client-error', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            taskId: taskId,
+                            url: streamUrlInput?.value || '',
+                            errorType: 'DownloadValidationError',
+                            errorMessage: errMsg,
+                            userAgent: navigator.userAgent
+                        })
+                    });
+                } catch { }
                 return;
             }
 
@@ -625,15 +747,6 @@ function onDownloadComplete(state, fileName) {
 
     const peakText = state.peakSpeedMBps > 0 ? ` • Peak: ${state.peakSpeedMBps.toFixed(1)} MB/s` : '';
     successSummary.textContent = `Completed in ${state.mergeSeconds ? state.mergeSeconds.toFixed(1) : '1'}s • File Size: ${formatBytes(state.totalBytesDownloaded || 0, false)}${peakText}`;
-
-    try {
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-    } catch { }
 }
 
 btnOpenFolder.addEventListener('click', async () => {
@@ -708,7 +821,7 @@ function setLoading(loading, text = 'Analyzing...') {
 }
 
 function showError(msg) {
-    errorMessage.textContent = msg;
+    errorMessage.innerHTML = msg;
     errorBox.classList.remove('hidden');
 }
 
@@ -719,6 +832,14 @@ function hideError() {
 // Auto-populate & analyze from URL query parameters (e.g. http://localhost:5000/?url=https://...)
 document.addEventListener('DOMContentLoaded', () => {
     try {
+        fetch('/api/downloads-directory')
+            .then(r => r.json())
+            .then(d => {
+                if (d.path && destPathDisplay) {
+                    destPathDisplay.textContent = d.path;
+                }
+            }).catch(() => {});
+
         const params = new URLSearchParams(window.location.search);
         const autoUrl = params.get('url');
         if (autoUrl && streamUrlInput) {
@@ -727,5 +848,38 @@ document.addEventListener('DOMContentLoaded', () => {
                 analyzeStream(autoUrl);
             }
         }
+    } catch { }
+});
+
+// Global Telemetry & Client Exception Logger
+window.addEventListener('error', (event) => {
+    try {
+        fetch('/api/analytics/client-error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: window.location.href,
+                errorType: 'ClientUncaughtError',
+                errorMessage: event.message || 'Uncaught script error',
+                stackTrace: event.error ? event.error.stack : `${event.filename}:${event.lineno}:${event.colno}`,
+                userAgent: navigator.userAgent
+            })
+        });
+    } catch { }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    try {
+        fetch('/api/analytics/client-error', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                url: window.location.href,
+                errorType: 'UnhandledPromiseRejection',
+                errorMessage: event.reason?.message || String(event.reason),
+                stackTrace: event.reason?.stack || '',
+                userAgent: navigator.userAgent
+            })
+        });
     } catch { }
 });

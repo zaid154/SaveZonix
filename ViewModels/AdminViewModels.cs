@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using StreamHelper.Data;
 
@@ -83,4 +83,26 @@ public class AdminSettingsViewModel
     public Dictionary<string, string> Settings { get; set; } = new();
     public string? SuccessMessage { get; set; }
     public string? ErrorMessage { get; set; }
+}
+
+public class AdminDiagnosticsViewModel
+{
+    public List<DownloadHistory> DiagnosticDownloads { get; set; } = new();
+    public List<SaveZonix.Models.ErrorDiagnosticLog> ErrorLogs { get; set; } = new();
+    public int TotalDownloads { get; set; }
+    public int CompletedCount { get; set; }
+    public int CorruptedCount { get; set; }
+    public int FailedCount { get; set; }
+    public double ValidationPassRate { get; set; }
+    public string AppVersion { get; set; } = "SaveZonix v2.5.0";
+    public string SystemVersion { get; set; } = ".NET 10.0 Windows";
+    public string OsDescription { get; set; } = string.Empty;
+    public string DotNetVersion { get; set; } = string.Empty;
+    public bool IsFfmpegAvailable { get; set; }
+    public string? SearchTerm { get; set; }
+    public string? StatusFilter { get; set; }
+    public int CurrentPage { get; set; } = 1;
+    public int TotalPages { get; set; } = 1;
+    public int TotalCount { get; set; } = 0;
+    public int PageSize { get; set; } = 25;
 }

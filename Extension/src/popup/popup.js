@@ -325,15 +325,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </div>
 
-                    <div class="card-action-row" style="display: flex; gap: 8px; margin-top: 8px;">
-                        <button class="btn-primary-download" id="btn_dl_${video.id}" style="flex: 1;">
+                    <div class="card-action-row" style="margin-top: 10px;">
+                        <button class="btn-primary-download" id="btn_dl_${video.id}" style="width: 100%;">
                             <span>${buttonLabel}</span>
-                        </button>
-                        <button class="btn-zonix" id="btn_zonix_${video.id}" title="Send to Zonix (256x Fiber Speed)" style="padding: 0 12px; background: #238636; border: 1px solid #2ea043; border-radius: 6px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
-                            ⚡ Zonix
-                        </button>
-                        <button class="btn-secondary" id="btn_copy_${video.id}" title="Copy Direct Stream URL" style="padding: 0 12px; background: #21262d; border: 1px solid #30363d; border-radius: 6px; color: #c9d1d9; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
-                            📋 Copy
                         </button>
                     </div>
                     <div class="error-banner ${isDownloadPossible ? 'hidden' : ''}" id="err_${video.id}">
@@ -371,45 +365,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Bind Card Actions
     function bindCardActions(video, card, siteName) {
         const dlBtn = card.querySelector(`#btn_dl_${video.id}`);
-        const copyBtn = card.querySelector(`#btn_copy_${video.id}`);
-        const zonixBtn = card.querySelector(`#btn_zonix_${video.id}`);
         const qualSelect = card.querySelector(`#qual_${video.id}`);
         const resTag = card.querySelector(`#res_tag_${video.id}`);
         const errBanner = card.querySelector(`#err_${video.id}`);
 
-        if (zonixBtn) {
-            zonixBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                const sendUrl = (isYT || siteName === 'YouTube' || currentTabDomain.includes('youtube'))
-                    ? currentTabUrl
-                    : (qualSelect.value || video.url || currentTabUrl);
-                if (sendUrl) {
-                    chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(sendUrl)}` });
-                    window.close();
-                }
-            });
-        }
-
-        if (copyBtn) {
-            copyBtn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                let targetUrl = (isYT || siteName === 'YouTube' || currentTabDomain.includes('youtube'))
-                    ? currentTabUrl
-                    : (qualSelect.value || video.url || currentTabUrl);
-                if (targetUrl && targetUrl.startsWith('http')) {
-                    try {
-                        await navigator.clipboard.writeText(targetUrl);
-                        copyBtn.textContent = '✅ Copied!';
-                        setTimeout(() => { copyBtn.textContent = '📋 Copy'; }, 2000);
-                    } catch { }
-                }
-            });
-        }
-
         if (video.isYouTube || siteName === 'YouTube' || isYT) {
             const qOpt = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
             qualSelect.innerHTML = `<option value="${currentTabUrl}">${qOpt}</option>`;
-            dlBtn.innerHTML = `<span>🚀 Download in Zonix (256x Speed)</span>`;
+            dlBtn.innerHTML = `<span>🚀 Download with Zonix (Desktop)</span>`;
             dlBtn.disabled = false;
             resTag.textContent = 'Ready';
             errBanner.classList.add('hidden');
@@ -428,7 +391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (video.isDirectMp4 && video.url && video.url.startsWith('http') && !video.url.includes('.m3u8')) {
             const qOpt = video.qualityLabel || (video.resolution ? `Original MP4 (${video.resolution})` : 'Original Quality (MP4)');
             qualSelect.innerHTML = `<option value="">${qOpt}</option>`;
-            dlBtn.innerHTML = `<span>Download ${siteName === 'Instagram' ? 'Reel' : 'Video'}</span>`;
+            dlBtn.innerHTML = `<span>⬇️ Download ${siteName === 'Instagram' ? 'Reel' : 'Video'}</span>`;
             dlBtn.disabled = false;
             resTag.textContent = 'Ready';
             errBanner.classList.add('hidden');
@@ -473,65 +436,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        // Launch Downloader Tab / Zonix Main App
+        // Launch SaveZonix Unified Web Downloader
         dlBtn.addEventListener('click', async () => {
             if (dlBtn.disabled) return;
 
-            if (isYT || siteName === 'YouTube' || currentTabDomain.includes('youtube')) {
-                chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(currentTabUrl)}` });
-                window.close();
-                return;
-            }
+            const targetUrl = (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome'))
+                ? currentTabUrl
+                : (qualSelect.value || video.url);
 
-            let targetUrl = qualSelect.value || video.url;
-            if (!targetUrl || !targetUrl.startsWith('http')) {
-                const key = `tab_media_${tab.id}`;
-                const stored = await chrome.storage.local.get(key);
-                const list = stored[key] || [];
-                const found = list.find(item => item.url && item.url.startsWith('http'));
-                if (found) {
-                    targetUrl = found.url;
-                }
-            }
-
-            if (!targetUrl || !targetUrl.startsWith('http')) {
-                errBanner.textContent = 'Waiting for media stream to buffer in player. Please play the video for 2 seconds and retry.';
-                errBanner.classList.remove('hidden');
-                return;
-            }
-
-            const currentTitle = video.title || getFallbackTitle();
-            const currentShow = video.showName || currentTitle;
-            const currentSub = video.subtitle || '';
-            const selectedQualityLabel = qualSelect.options[qualSelect.selectedIndex]?.text || '1080p Full HD';
-            const thumbUrl = video.thumbnail || liveThumbnail || (livePageMetadata ? livePageMetadata.thumbnail : '') || '';
-            const durationStr = video.duration || (livePageMetadata ? livePageMetadata.duration : '') || '';
-
-            const params = new URLSearchParams({
-                url: targetUrl,
-                title: currentTitle,
-                showName: currentShow,
-                subtitle: currentSub,
-                quality: selectedQualityLabel,
-                platform: siteName,
-                thumbnail: thumbUrl,
-                duration: durationStr,
-                tabId: String(tab.id),
-                threads: userSettings.threads || '64'
-            });
-
-            if (video.season !== undefined && video.season !== null && !isNaN(Number(video.season))) {
-                params.set('season', String(video.season));
-            }
-            if (video.episode !== undefined && video.episode !== null && !isNaN(Number(video.episode))) {
-                params.set('episode', String(video.episode));
-            }
-            if (video.episodeTitle && typeof video.episodeTitle === 'string' && !video.episodeTitle.toLowerCase().includes('nan')) {
-                params.set('episodeTitle', video.episodeTitle);
-            }
-
-            const downloaderUrl = chrome.runtime.getURL(`src/downloader/downloader.html?${params.toString()}`);
-            chrome.tabs.create({ url: downloaderUrl });
+            chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(targetUrl)}` });
             window.close();
         });
     }

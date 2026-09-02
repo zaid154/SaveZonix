@@ -1,4 +1,4 @@
-﻿@model StreamHelper.ViewModels.AdminSettingsViewModel
+@model StreamHelper.ViewModels.AdminSettingsViewModel
 @{
     ViewData["Title"] = "Platform Settings — Stream Helper Admin";
 }
@@ -14,7 +14,9 @@
                 <a asp-action="Index" class="btn btn-secondary">Dashboard</a>
                 <a asp-action="Users" class="btn btn-secondary">Users</a>
                 <a asp-action="Downloads" class="btn btn-secondary">Downloads</a>
+                <a asp-action="Diagnostics" class="btn btn-secondary">Diagnostics & Logs</a>
                 <a asp-action="Settings" class="btn btn-primary">Settings</a>
+                <a asp-action="Security" class="btn btn-secondary">Security</a>
             </div>
         </div>
 
@@ -63,19 +65,63 @@
                 <div class="glass-card">
                     <h2 class="card-title" style="margin-bottom: 20px;">⚡ Engine &amp; Performance</h2>
 
+                    <!-- Preset Quick Profile Buttons -->
+                    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+                        <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-primary);">🎯 Quick Concurrency Profiles:</div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="applyProfile(24, 128, 64)">🛡️ Balanced (Safe 24 / 128)</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="applyProfile(32, 256, 128)">⚡ Hyper (Optimal 32 / 256)</button>
+                            <button type="button" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="applyProfile(16, 64, 32)">🐢 Conservative (Stealth 16 / 64)</button>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label>Default Parallel Threads</label>
-                        <input type="number" name="settings[DefaultThreads]" value="@Model.Settings.GetValueOrDefault("DefaultThreads", "64")" class="form-control" min="1" max="256" />
+                        <input type="number" id="inpDefaultThreads" name="settings[DefaultThreads]" value="@Model.Settings.GetValueOrDefault("DefaultThreads", "64")" class="form-control" min="1" max="256" />
                         <span style="font-size: 12px; color: var(--text-muted);">Default thread concurrency allocated to new downloads.</span>
                     </div>
 
                     <div class="form-group">
-                        <label>Max Allowed Threads</label>
-                        <input type="number" name="settings[MaxThreads]" value="@Model.Settings.GetValueOrDefault("MaxThreads", "256")" class="form-control" min="8" max="512" />
-                        <span style="font-size: 12px; color: var(--text-muted);">Hard maximum cap for simultaneous worker sockets per task.</span>
+                        <label>🛡️ Strict / Rate-Limited Sites Max Threads (PornHub, xHamster, SpankBang, OKXXX, etc.)</label>
+                        <input type="number" id="inpStrictThreads" name="settings[StrictCdnMaxThreads]" value="@Model.Settings.GetValueOrDefault("StrictCdnMaxThreads", "32")" class="form-control" min="4" max="64" />
+                        <span style="font-size: 12px; color: var(--text-muted);">Safe connection cap (Recommended: 24 - 32) to prevent CDN IP bans or 429 throttling.</span>
                     </div>
 
                     <div class="form-group">
+                        <label>🚀 Open / High-Capacity Sites Max Threads (YouTube, PixelFlix, Direct Range MP4s)</label>
+                        <input type="number" id="inpOpenThreads" name="settings[OpenCdnMaxThreads]" value="@Model.Settings.GetValueOrDefault("OpenCdnMaxThreads", "256")" class="form-control" min="16" max="512" />
+                        <span style="font-size: 12px; color: var(--text-muted);">Full Hyper-Engine multi-threading limit for fast open networks.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🎬 Default Download Quality for All Sites</label>
+                        <select name="settings[DefaultDownloadQuality]" class="form-control">
+                            <option value="Highest" selected="@(Model.Settings.GetValueOrDefault("DefaultDownloadQuality", "Highest") == "Highest")">🏆 Highest Available (Auto 4K / 1080p Full HD)</option>
+                            <option value="1080p" selected="@(Model.Settings.GetValueOrDefault("DefaultDownloadQuality", "Highest") == "1080p")">💎 1080p Full HD</option>
+                            <option value="720p" selected="@(Model.Settings.GetValueOrDefault("DefaultDownloadQuality", "Highest") == "720p")">⚡ 720p HD</option>
+                            <option value="480p" selected="@(Model.Settings.GetValueOrDefault("DefaultDownloadQuality", "Highest") == "480p")">📱 480p SD (Data Saver)</option>
+                        </select>
+                        <span style="font-size: 12px; color: var(--text-muted);">When analyzing any video from any site, this quality tier is auto-selected by default.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>🌐 Rate-Limited CDN Domain Filters (Comma-separated)</label>
+                        <input type="text" id="inpStrictDomains" name="settings[StrictCdnDomains]" value="@Model.Settings.GetValueOrDefault("StrictCdnDomains", "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream")" class="form-control" />
+                        <span style="font-size: 12px; color: var(--text-muted);">Domains and URL keywords that automatically trigger the strict rate-limit protection cap.</span>
+                    </div>
+
+                    <!-- AI / Auto Detector Assistant -->
+                    <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 14px; margin-top: 15px;">
+                        <div style="font-weight: 600; font-size: 13px; color: #60a5fa; margin-bottom: 6px;">🤖 Auto-Detector &amp; AI Concurrency Advisor</div>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Type any site URL or domain to test its CDN profile and get instant thread suggestions:</p>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="detectorInput" placeholder="e.g. pornhub.com, youtube.com, spankbang.com" class="form-control" style="font-size: 13px;" />
+                            <button type="button" class="btn btn-secondary" onclick="analyzeDomainSuggestion()" style="white-space: nowrap; font-size: 12px;">🔍 Analyze</button>
+                        </div>
+                        <div id="detectorResult" style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 6px; font-size: 12px;"></div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
                         <label>Maintenance Mode</label>
                         <select name="settings[MaintenanceMode]" class="form-control">
                             <option value="false" selected="@(Model.Settings.GetValueOrDefault("MaintenanceMode", "false") == "false")">Operational (Live)</option>
@@ -93,3 +139,41 @@
         </form>
     </div>
 </div>
+
+<script>
+function applyProfile(strict, open, def) {
+    document.getElementById('inpStrictThreads').value = strict;
+    document.getElementById('inpOpenThreads').value = open;
+    document.getElementById('inpDefaultThreads').value = def;
+}
+
+function analyzeDomainSuggestion() {
+    const raw = (document.getElementById('detectorInput').value || '').trim().toLowerCase();
+    const resDiv = document.getElementById('detectorResult');
+    if (!raw) {
+        resDiv.style.display = 'block';
+        resDiv.innerHTML = '<span style="color: #ef4444;">Please enter a domain or URL.</span>';
+        return;
+    }
+
+    const strictDomains = (document.getElementById('inpStrictDomains').value || '').toLowerCase();
+    const isStrict = strictDomains.split(',').some(d => d.trim() && raw.includes(d.trim()));
+
+    resDiv.style.display = 'block';
+    if (isStrict || raw.includes('phncdn') || raw.includes('pornhub') || raw.includes('xhamster') || raw.includes('spankbang') || raw.includes('okxxx')) {
+        resDiv.innerHTML = `
+            <div style="color: #fbbf24; font-weight: 600;">🛡️ Strict Rate-Limiting CDN Detected</div>
+            <div style="color: var(--text-muted); margin-top: 4px;">This platform enforces concurrent connection throttling and signature validation.</div>
+            <div style="margin-top: 6px;"><b>AI Recommendation:</b> Set Strict Threads to <b>24–32</b> (Optimal speed ~25 MB/s without 429 errors).</div>
+            <button type="button" class="btn btn-primary" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;" onclick="applyProfile(24, 256, 64)">⚡ Apply Safe Strict Cap (24 Threads)</button>
+        `;
+    } else {
+        resDiv.innerHTML = `
+            <div style="color: #34d399; font-weight: 600;">🚀 Open High-Capacity Multi-Stream CDN Detected</div>
+            <div style="color: var(--text-muted); margin-top: 4px;">This platform (or direct MP4 range CDN) supports massive parallel range requests.</div>
+            <div style="margin-top: 6px;"><b>AI Recommendation:</b> Set Open Threads to <b>128–256</b> for maximum download acceleration.</div>
+            <button type="button" class="btn btn-primary" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;" onclick="applyProfile(32, 256, 128)">⚡ Apply Hyper Open Cap (256 Threads)</button>
+        `;
+    }
+}
+</script>

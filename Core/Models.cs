@@ -24,6 +24,7 @@ public class StreamQuality
         {
             if (EstimatedSizeBytes <= 0) return string.Empty;
             double mb = EstimatedSizeBytes / (1024.0 * 1024.0);
+            if (mb < 1.0) return string.Empty;
             return mb >= 1024 
                 ? $"~{(mb / 1024.0):F2} GB" 
                 : $"~{mb:F0} MB";
@@ -35,20 +36,25 @@ public class StreamQuality
         get
         {
             string resLabel = Resolution;
-            if (Resolution.Contains('x'))
+            if (!Resolution.Contains("Full HD") && !Resolution.Contains("HD") && !Resolution.Contains("UHD"))
             {
                 var height = GetHeight(Resolution);
-                string tier = height >= 2160 ? "4K UHD" :
-                              height >= 1440 ? "2K QHD" :
-                              height >= 1080 ? "1080p Full HD" :
-                              height >= 720 ? "720p HD" :
-                              height >= 480 ? "480p SD" : $"{height}p";
+                if (height > 0)
+                {
+                    string tier = height >= 2160 ? "4K UHD" :
+                                  height >= 1440 ? "2K QHD" :
+                                  height >= 1080 ? "1080p Full HD" :
+                                  height >= 720 ? "720p HD" :
+                                  height >= 480 ? "480p SD" : $"{height}p";
 
-                resLabel = $"{tier} ({Resolution})";
+                    resLabel = Resolution.Contains('x') ? $"{tier} ({Resolution})" : $"{tier}";
+                }
             }
 
             string bwText = Bandwidth > 0 ? $" • {(Bandwidth / 1000000.0):F1} Mbps" : string.Empty;
-            string sizeText = !string.IsNullOrEmpty(FormattedEstimatedSize) ? $" • {FormattedEstimatedSize}" : string.Empty;
+            string sizeText = (!string.IsNullOrEmpty(FormattedEstimatedSize) && !FormattedEstimatedSize.Contains("~0 MB")) 
+                ? $" • {FormattedEstimatedSize}" 
+                : string.Empty;
             string directTag = IsDirectFile ? " • Direct Stream" : string.Empty;
 
             return $"{resLabel}{bwText}{sizeText}{directTag}";
@@ -58,13 +64,13 @@ public class StreamQuality
     private static int GetHeight(string resolution)
     {
         if (string.IsNullOrEmpty(resolution)) return 0;
-        if (resolution.Contains('x'))
-        {
-            var parts = resolution.Split('x');
-            return parts.Length > 1 && int.TryParse(parts[1], out var h) ? h : 0;
-        }
-        var m = System.Text.RegularExpressions.Regex.Match(resolution, @"(\d+)p");
-        return m.Success && int.TryParse(m.Groups[1].Value, out var num) ? num : 0;
+        var xyMatch = System.Text.RegularExpressions.Regex.Match(resolution, @"\d+x(\d+)");
+        if (xyMatch.Success && int.TryParse(xyMatch.Groups[1].Value, out var hXy)) return hXy;
+
+        var pMatch = System.Text.RegularExpressions.Regex.Match(resolution, @"(\d+)p");
+        if (pMatch.Success && int.TryParse(pMatch.Groups[1].Value, out var num)) return num;
+
+        return 0;
     }
 }
 

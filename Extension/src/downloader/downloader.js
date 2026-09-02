@@ -520,6 +520,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        if (platform === 'YouTube' || (candidates[0] && candidates[0].includes('googlevideo.com'))) {
+            const ytUrl = candidates[0].includes('googlevideo.com') ? (window.location.href.split('url=')[1] ? decodeURIComponent(window.location.href.split('url=')[1].split('&')[0]) : '') : '';
+            showError(`YouTube uses adaptive DASH streams with separate video & audio channels.<br><a href="http://localhost:5000/?url=${encodeURIComponent(ytUrl || 'https://www.youtube.com')}" target="_blank" style="display:inline-block; margin-top:8px; padding:6px 14px; background:#2563eb; color:#fff; border-radius:6px; font-weight:700; text-decoration:none;">🚀 Download 1080p with Zonix Desktop</a>`);
+            return;
+        }
+
         let assembled = null;
         let lastError = null;
 
@@ -532,17 +538,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 let manifest = null;
-                if (!isDirectMediaFile || targetUrl.includes('.m3u8') || targetUrl.includes('/hls/')) {
-                    try {
-                        manifest = await window.StreamDetector.parseHls(targetUrl, originTabId);
-                    } catch { }
-                }
+                try {
+                    manifest = await window.StreamDetector.parseHls(targetUrl, originTabId);
+                } catch { }
 
                 // 1. If parsed as valid HLS / DASH manifest with segments:
                 if (manifest && !manifest.isInvalid) {
                     if (manifest.isDrmProtected) {
                         throw new Error('This stream is DRM-protected and cannot be downloaded.');
                     }
+
+                    const elStrat = document.getElementById('strategyBadge');
+                    if (elStrat) elStrat.textContent = 'HLS Segment Stream';
 
                     let segmentUrls = manifest.segments || [];
                     let initSegmentUrl = manifest.initSegmentUrl || '';
@@ -551,6 +558,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     if (manifest.isMaster && manifest.variants?.length > 0) {
                         const lockedVariant = manifest.variants.find(v => v.url === targetUrl) || manifest.bestVariant || manifest.variants[0];
+                        if (elQuality && lockedVariant?.label) {
+                            elQuality.textContent = lockedVariant.label.split(' • ')[0];
+                        }
                         
                         const mediaManifest = await window.StreamDetector.parseHls(lockedVariant.url, originTabId);
                         if (mediaManifest && !mediaManifest.isInvalid) {
@@ -605,7 +615,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                             updateUIProgress(p, 1);
                         }, currentConcurrency);
                     } catch (directErr) {
-                        console.warn(`[Downloader] Direct stream fallback notice:`, directErr.message);
+                        if (directErr.message === 'M3U8_MANIFEST_DETECTED') {
+                            const elStrat = document.getElementById('strategyBadge');
+                            if (elStrat) elStrat.textContent = 'HLS Segment Stream';
+
+                            const dynManifest = await window.StreamDetector.parseHls(targetUrl, originTabId);
+                            if (dynManifest && !dynManifest.isInvalid) {
+                                let segs = dynManifest.segments || [];
+                                let initSeg = dynManifest.initSegmentUrl || '';
+                                let kInfo = dynManifest.keyInfo || null;
+
+                                if (dynManifest.isMaster && dynManifest.variants?.length > 0) {
+                                    const bestVar = dynManifest.variants.find(v => v.url === targetUrl) || dynManifest.bestVariant || dynManifest.variants[0];
+                                    if (elQuality && bestVar?.label) {
+                                        elQuality.textContent = bestVar.label.split(' • ')[0];
+                                    }
+                                    const mVar = await window.StreamDetector.parseHls(bestVar.url, originTabId);
+                                    if (mVar?.segments?.length > 0) {
+                                        segs = mVar.segments;
+                                        initSeg = mVar.initSegmentUrl || initSeg;
+                                        kInfo = mVar.keyInfo || kInfo;
+                                    }
+                                }
+                                if (segs.length > 0) {
+                                    if (elStatusHeading) elStatusHeading.textContent = `Downloading ${segs.length} segments (${currentConcurrency} threads)...`;
+                                    if (elValSegments) elValSegments.textContent = `0 / ${segs.length}`;
+
+                                    assembled = await processor.processSegments(
+                                        segs,
+                                        [],
+                                        (p) => {
+                                            updateUIProgress(p, segs.length);
+                                        },
+                                        initSeg,
+                                        kInfo,
+                                        currentConcurrency
+                                    );
+                                }
+                            }
+                        } else {
+                            console.warn(`[Downloader] Direct stream fallback notice:`, directErr.message);
+                        }
                     }
                 }
 

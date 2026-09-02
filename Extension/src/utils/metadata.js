@@ -5,7 +5,7 @@
         if (!title || typeof title !== 'string') return '';
         return title
             .replace(/^Watch\s+/i, '')
-            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|OK\.XXX|OKXXX|SpankBang|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
             .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
             .trim()
             .replace(/[:\-–—\s]+$/, '');
@@ -66,15 +66,17 @@
             } catch { }
         }
 
-        // ─── TIER 2: Page Visible Headings & Video Title ─────────────────────────
+        // ─── TIER 2: Page Main Video Heading (H1 first, never bare H2) ─────────
         if (!showName) {
-            const heading = document.querySelector('h1, h2, .watch-title, .title, .video-title, .main-title, .entry-title');
-            if (heading) {
-                const text = heading.innerText.trim();
-                if (text && text.length >= 2) {
-                    showName = cleanTitleString(text);
-                }
+            const h1 = document.querySelector('.video-info h1, h1.video-title, h1.title, h1, .main-title, .watch-title');
+            if (h1 && h1.innerText.trim().length >= 2) {
+                showName = cleanTitleString(h1.innerText.trim());
             }
+        }
+
+        // ─── TIER 2B: In-Page Script Title ($history_title, etc.) ───────────────
+        if (!showName && root.$history_title) {
+            showName = cleanTitleString(root.$history_title);
         }
 
         // ─── TIER 3: Visible Season Selector / Dropdown ────────────────────────

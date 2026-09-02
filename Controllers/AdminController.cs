@@ -20,19 +20,22 @@ public class AdminController : Controller
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IDownloadHistoryService _downloadHistoryService;
     private readonly IAdminSettingsService _adminSettingsService;
+    private readonly SaveZonix.Services.IDownloadAnalyticsService _downloadAnalyticsService;
 
     public AdminController(
         AppDbContext context,
         UserManager<AppUser> userManager,
         RoleManager<IdentityRole> roleManager,
         IDownloadHistoryService downloadHistoryService,
-        IAdminSettingsService adminSettingsService)
+        IAdminSettingsService adminSettingsService,
+        SaveZonix.Services.IDownloadAnalyticsService downloadAnalyticsService)
     {
         _context = context;
         _userManager = userManager;
         _roleManager = roleManager;
         _downloadHistoryService = downloadHistoryService;
         _adminSettingsService = adminSettingsService;
+        _downloadAnalyticsService = downloadAnalyticsService;
     }
 
     public async Task<IActionResult> Index()
@@ -245,5 +248,53 @@ public class AdminController : Controller
         await _adminSettingsService.UpdateSettingsAsync(settings);
         TempData["SuccessMessage"] = "System settings updated successfully!";
         return RedirectToAction("Settings");
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Diagnostics(string? search, string? status, int page = 1)
+    {
+        int pageSize = 25;
+        var (downloads, totalCount) = await _downloadHistoryService.GetAllDownloadsAsync(page, pageSize, search, status, null, null);
+        var recentErrors = await _downloadAnalyticsService.GetRecentErrorDiagnosticsAsync(50, search);
+
+        var totalAll = await _context.DownloadHistories.CountAsync();
+        var completedAll = await _context.DownloadHistories.CountAsync(d => d.Status == DownloadStatus.Completed);
+        var corruptedAll = await _context.DownloadHistories.CountAsync(d => d.Status == DownloadStatus.Corrupted || d.ValidationStatus == "Corrupted" || d.ValidationStatus == "Truncated");
+        var failedAll = await _context.DownloadHistories.CountAsync(d => d.Status == DownloadStatus.Failed);
+
+        double passRate = totalAll > 0 ? ((double)completedAll / totalAll) * 100.0 : 100.0;
+
+        bool ffmpegFound = System.IO.File.Exists(System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe")) ||
+                           System.IO.File.Exists(System.IO.Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe"));
+
+        var model = new AdminDiagnosticsViewModel
+        {
+            DiagnosticDownloads = downloads,
+            ErrorLogs = recentErrors,
+            TotalDownloads = totalAll,
+            CompletedCount = completedAll,
+            CorruptedCount = corruptedAll,
+            FailedCount = failedAll,
+            ValidationPassRate = passRate,
+            AppVersion = Zonix.Core.MediaValidator.CurrentAppVersion,
+            SystemVersion = Zonix.Core.MediaValidator.CurrentSystemVersion,
+            OsDescription = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            DotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            IsFfmpegAvailable = ffmpegFound,
+            SearchTerm = search,
+            StatusFilter = status,
+            CurrentPage = page,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            PageSize = pageSize
+        };
+
+        return View(model);
+    }
+
+    [HttpGet]
+    public IActionResult Security()
+    {
+        return View();
     }
 }

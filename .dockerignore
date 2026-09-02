@@ -4,3 +4,7 @@
 **/obj
 **/.vscode
 **/Downloads
+ffmpeg.exe
+*.db-shm
+*.db-wal
+app_dist/
