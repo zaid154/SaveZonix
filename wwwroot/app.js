@@ -271,6 +271,12 @@ btnAnalyze.addEventListener('click', async () => {
             directData.title = bridge.title || directData.title;
             directData.thumbnailUrl = bridge.thumbnail || directData.thumbnailUrl;
             directData.platform = 'Instagram';
+            if (bridge.audioUrl) {
+                directData.audioUrl = bridge.audioUrl;
+                if (directData.qualities && directData.qualities.length > 0) {
+                    directData.qualities.forEach(q => q.audioUrl = bridge.audioUrl);
+                }
+            }
             streamData = directData;
             renderStreamDetails(directData);
             return;
@@ -376,7 +382,7 @@ function renderVideoQualities() {
             opt.dataset.estSize = q.formattedEstimatedSize || '';
             opt.dataset.estBytes = q.estimatedSizeBytes || 0;
             opt.dataset.isDirect = q.isDirectFile ? '1' : '0';
-            opt.dataset.audioUrl = q.audioUrl || '';
+            opt.dataset.audioUrl = q.audioUrl || streamData?.audioUrl || '';
             opt.dataset.bw = q.bandwidth ? `${(q.bandwidth / 1000000.0).toFixed(1)} Mbps` : 'Auto';
             if (i === bestIndex) opt.selected = true;
             qualitySelect.appendChild(opt);
@@ -389,7 +395,7 @@ function renderVideoQualities() {
         opt.dataset.estSize = '';
         opt.dataset.estBytes = 0;
         opt.dataset.isDirect = '1';
-        opt.dataset.audioUrl = '';
+        opt.dataset.audioUrl = streamData?.audioUrl || '';
         opt.dataset.bw = 'Adaptive';
         qualitySelect.appendChild(opt);
     }
@@ -498,7 +504,7 @@ btnStartDownload.addEventListener('click', async () => {
         ? (streamData.qualities?.[0]?.url || streamUrlInput.value.trim())
         : (qualitySelect.value || streamUrlInput.value.trim());
 
-    const audioUrl = selectedOpt ? (selectedOpt.dataset.audioUrl || '') : '';
+    const audioUrl = (selectedOpt ? (selectedOpt.dataset.audioUrl || '') : '') || streamData?.audioUrl || '';
     const fileName = fileNameInput.value.trim() || (isAudioMode ? 'audio.mp3' : 'video.mp4');
     const concurrency = currentConcurrency || 16;
     const estimatedSizeBytes = selectedOpt ? parseInt(selectedOpt.dataset.estBytes || 0, 10) : 0;

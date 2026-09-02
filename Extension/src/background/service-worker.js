@@ -408,6 +408,7 @@ async function resolveInstagramForDashboard(pageUrl) {
     return {
         success: true,
         url: normalizeInstagramMediaUrl(stream.url),
+        audioUrl: stream.audioUrl ? normalizeInstagramMediaUrl(stream.audioUrl) : '',
         title: scan.metadata?.title || 'Instagram Reel',
         thumbnail: stream.thumbnail || scan.thumbnail || scan.metadata?.thumbnail || '',
         duration: stream.duration || '',

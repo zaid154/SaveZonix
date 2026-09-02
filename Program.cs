@@ -123,7 +123,7 @@ public class Program
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c copy -map 0:v:0 -map 1:a:0 -movflags +faststart \"{outputPath}\" -y",
+                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0? -movflags +faststart \"{outputPath}\" -y",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,
@@ -134,7 +134,27 @@ public class Program
             if (proc != null)
             {
                 await proc.WaitForExitAsync();
-                return proc.ExitCode == 0 && File.Exists(outputPath);
+                if (proc.ExitCode == 0 && File.Exists(outputPath))
+                {
+                    return true;
+                }
+            }
+
+            // Fallback: simple copy
+            var psiFallback = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c copy \"{outputPath}\" -y",
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            using var proc2 = Process.Start(psiFallback);
+            if (proc2 != null)
+            {
+                await proc2.WaitForExitAsync();
+                return proc2.ExitCode == 0 && File.Exists(outputPath);
             }
         }
         catch (Exception ex)
