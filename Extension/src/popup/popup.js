@@ -119,38 +119,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         const activeDl = (tabData && tabData.activeDownload) ? tabData.activeDownload : null;
 
         // Strict Site Isolation & Filtering
-        let videos = rawVideos.filter(v => {
-            if (v.url && window.isInvalidStreamUrl && window.isInvalidStreamUrl(v.url)) return false;
+        let videos = [];
+        if (isInsta && res && res.streams && res.streams.length > 0) {
+            // For Instagram: Strictly prioritize the active visible reel from live scan!
+            videos = res.streams.map(st => ({
+                ...st,
+                title: res.metadata?.title || 'Instagram Reel',
+                showName: res.metadata?.showName || 'Instagram Reel',
+                subtitle: res.metadata?.subtitle || '',
+                thumbnail: res.thumbnail || res.metadata?.thumbnail || st.thumbnail || '',
+                platform: 'Instagram',
+                isDirectMp4: true,
+                isDownloadable: true
+            }));
+        } else {
+            videos = rawVideos.filter(v => {
+                if (v.url && window.isInvalidStreamUrl && window.isInvalidStreamUrl(v.url)) return false;
 
-            if (isPixelFlix) {
-                return !v.isYouTube && v.platform !== 'YouTube' && v.platform !== 'Instagram' && !v.domain?.includes('instagram') && !v.domain?.includes('youtube');
-            }
-            if (isInsta) return v.platform === 'Instagram' || v.domain?.includes('instagram');
-            if (isYT) return v.platform === 'YouTube' || v.domain?.includes('youtube');
-            return v.platform !== 'Instagram' && v.platform !== 'YouTube';
-        });
-
-        // Prioritize confirmed media stream URLs (Main feature streams first)
-        if (videos.length > 1) {
-            videos.sort((a, b) => {
-                const isVideosA = (a.url || '').includes('/videos/');
-                const isVideosB = (b.url || '').includes('/videos/');
-                if (isVideosA && !isVideosB) return -1;
-                if (!isVideosA && isVideosB) return 1;
-
-                const isM3u8A = (a.url || '').includes('.m3u8') || (a.url || '').includes('/hls/');
-                const isM3u8B = (b.url || '').includes('.m3u8') || (b.url || '').includes('/hls/');
-                if (isM3u8A && !isM3u8B) return -1;
-                if (!isM3u8A && isM3u8B) return 1;
-
-                const isMp4A = (a.url || '').includes('.mp4');
-                const isMp4B = (b.url || '').includes('.mp4');
-                if (isMp4A && !isMp4B) return -1;
-                if (!isMp4A && isMp4B) return 1;
-                return 0;
+                if (isPixelFlix) {
+                    return !v.isYouTube && v.platform !== 'YouTube' && v.platform !== 'Instagram' && !v.domain?.includes('instagram') && !v.domain?.includes('youtube');
+                }
+                if (isInsta) return v.platform === 'Instagram' || v.domain?.includes('instagram');
+                if (isYT) return v.platform === 'YouTube' || v.domain?.includes('youtube');
+                return v.platform !== 'Instagram' && v.platform !== 'YouTube';
             });
-            const withValidUrl = videos.find(v => v.url && ((v.url.includes('/videos/') && v.url.includes('.m3u8')) || v.url.includes('.m3u8') || v.url.includes('/hls/') || v.url.includes('.mp4'))) || videos.find(v => v.url && v.url.startsWith('http'));
-            videos = withValidUrl ? [withValidUrl] : [videos[0]];
+
+            // Prioritize confirmed media stream URLs (Main feature streams first)
+            if (videos.length > 1) {
+                videos.sort((a, b) => {
+                    const isVideosA = (a.url || '').includes('/videos/');
+                    const isVideosB = (b.url || '').includes('/videos/');
+                    if (isVideosA && !isVideosB) return -1;
+                    if (!isVideosA && isVideosB) return 1;
+
+                    const isM3u8A = (a.url || '').includes('.m3u8') || (a.url || '').includes('/hls/');
+                    const isM3u8B = (b.url || '').includes('.m3u8') || (b.url || '').includes('/hls/');
+                    if (isM3u8A && !isM3u8B) return -1;
+                    if (!isM3u8A && isM3u8B) return 1;
+
+                    const isMp4A = (a.url || '').includes('.mp4');
+                    const isMp4B = (b.url || '').includes('.mp4');
+                    if (isMp4A && !isMp4B) return -1;
+                    if (!isMp4A && isMp4B) return 1;
+                    return 0;
+                });
+                const withValidUrl = videos.find(v => v.url && ((v.url.includes('/videos/') && v.url.includes('.m3u8')) || v.url.includes('.m3u8') || v.url.includes('/hls/') || v.url.includes('.mp4'))) || videos.find(v => v.url && v.url.startsWith('http'));
+                videos = withValidUrl ? [withValidUrl] : [videos[0]];
+            }
         }
 
         const fallbackTitle = (tab.title || 'Video').replace(/\s*-\s*YouTube$/i, '').trim();

@@ -57,15 +57,15 @@
             }
             // 2. INSTAGRAM
             else if (platform === 'instagram' || video.isDirectMp4) {
-                let clean = title.replace(/^Instagram\s*[-–—]\s*/i, '').replace(/^Instagram\s*/i, '').trim();
+                let clean = title.replace(/^Instagram\s*[-–—]\s*/i, '').replace(/^Instagram\s*/i, '').replace(/\bfacebook\b/gi, '').trim();
                 if (clean.toLowerCase() === 'instagram') clean = '';
 
                 if (clean && clean.length > 2 && !CDN_NAMES_REGEX.test(clean) && clean.toLowerCase() !== 'video') {
                     baseName = `Instagram - ${clean}`;
                 } else if (showName && showName.toLowerCase() !== 'instagram' && showName.length > 2) {
-                    baseName = `Instagram - ${showName.replace(/^Instagram\s*[-–—]\s*/i, '')}`;
+                    baseName = `Instagram - ${showName.replace(/^Instagram\s*[-–—]\s*/i, '').replace(/\bfacebook\b/gi, '').trim()}`;
                 } else if (video.subtitle && video.subtitle.length > 2 && video.subtitle !== 'Instagram Reel') {
-                    baseName = `Instagram - ${video.subtitle}`;
+                    baseName = `Instagram - ${video.subtitle.replace(/\bfacebook\b/gi, '').trim()}`;
                 } else if (video.shortId) {
                     baseName = `Instagram Reel - ${video.shortId}`;
                 } else {
