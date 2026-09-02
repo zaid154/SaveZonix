@@ -574,6 +574,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         p.set('thumbnail', req.thumbnail || '');
         p.set('duration', req.duration || '');
         p.set('threads', req.threads || '4');
+        if (req.audioUrl) p.set('audioUrl', req.audioUrl);
         if (req.season) p.set('season', String(req.season));
         if (req.episode) p.set('episode', String(req.episode));
         if (req.episodeTitle) p.set('episodeTitle', req.episodeTitle);

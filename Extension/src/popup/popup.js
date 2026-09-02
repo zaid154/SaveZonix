@@ -451,6 +451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 chrome.runtime.sendMessage({
                     action: 'openDownloaderTab',
                     url: targetUrl,
+                    audioUrl: video.audioUrl || '',
                     title: video.title || currentTabTitle || 'Instagram Reel',
                     showName: video.showName || video.title || currentTabTitle || 'Instagram Reel',
                     subtitle: video.subtitle || '',

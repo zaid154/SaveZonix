@@ -106,102 +106,84 @@
             let thumbnail = '';
             const shortId = getInstagramShortId();
             const activeVideo = getActiveInstagramVideo();
+            const container = activeVideo ? (activeVideo.closest('article') || activeVideo.closest('div[role="main"]') || activeVideo.parentElement?.parentElement?.parentElement || document) : document;
 
-            // 1. Extract from Document Title
-            const docTitle = document.title || '';
-            const docMatch = docTitle.match(/^(.+?)\s+on Instagram:\s*["“]?([^"”]*)/i);
-            if (docMatch) {
-                author = docMatch[1].trim();
-                caption = docMatch[2].trim();
-            }
+            // 1. Extract Author Username directly from the active Reel DOM container
+            const authorLinks = Array.from(container.querySelectorAll('a[role="link"][href^="/"], a[href^="/"]')).filter(a => {
+                const href = a.getAttribute('href') || '';
+                return href && !href.startsWith('/reel') && !href.startsWith('/p/') && !href.startsWith('/explore') && !href.startsWith('/stories') && !href.includes('/direct/');
+            });
 
-            // 2. Extract from OpenGraph Title
-            const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
-            if (ogTitle) {
-                const ogMatch = ogTitle.match(/^(.*?)(?:\s*\(@([\w._]+)\))?\s+on Instagram:\s*["“]?([^"”]*)/i);
-                if (ogMatch) {
-                    if (ogMatch[2]) author = `@${ogMatch[2]}`;
-                    else if (!author && ogMatch[1]) author = ogMatch[1].trim();
-                    if (!caption && ogMatch[3]) caption = ogMatch[3].trim();
+            for (const a of authorLinks) {
+                const txt = a.innerText?.trim();
+                if (txt && txt.length >= 2 && !txt.toLowerCase().includes('follow') && !txt.toLowerCase().includes('instagram') && !txt.includes('•')) {
+                    author = txt;
+                    break;
                 }
             }
 
-            // 3. Extract from Article Scope in DOM
-            if (!caption) {
-                const article = document.querySelector('article, div[role="main"]');
-                if (article) {
-                    const span = article.querySelector('h1, span[dir="auto"], div[dir="auto"]');
-                    if (span && span.innerText.trim()) {
-                        caption = span.innerText.trim();
-                    }
+            // 2. Extract Caption from the active Reel DOM container
+            const captionEls = Array.from(container.querySelectorAll('h1, span[dir="auto"], div[dir="auto"]'));
+            for (const el of captionEls) {
+                const txt = el.innerText?.trim();
+                if (txt && txt.length > 3 && !txt.includes(author) && !txt.toLowerCase().startsWith('follow') && !txt.toLowerCase().startsWith('view more')) {
+                    caption = txt;
+                    break;
                 }
             }
 
-            // 4. Extract from OG Description
-            if (!caption) {
-                const ogDesc = document.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
-                if (ogDesc) {
-                    const descMatch = ogDesc.match(/:\s*["“](.+?)["”]/) || ogDesc.match(/-\s*(.+)/);
-                    if (descMatch && descMatch[1]) {
-                        caption = descMatch[1].trim();
-                    }
+            // 3. Fallback to Document Title if DOM text is not yet rendered
+            if (!caption || !author) {
+                const docTitle = document.title || '';
+                const docMatch = docTitle.match(/^(.+?)\s+on Instagram:\s*["“]?([^"”]*)/i);
+                if (docMatch) {
+                    if (!author) author = docMatch[1].trim();
+                    if (!caption) caption = docMatch[2].trim();
                 }
             }
 
-            // Sanitize Author & Caption
+            // 4. Sanitize Author & Caption
             author = cleanText(author);
             if (!author || author.toLowerCase() === 'instagram' || author.toLowerCase() === '@reels' || author.toLowerCase() === '@reel') {
-                const parts = window.location.pathname.split('/').filter(Boolean);
-                if (parts.length > 0 && !['reel', 'reels', 'p', 'stories', 'explore'].includes(parts[0])) {
-                    author = `@${parts[0]}`;
-                } else {
-                    author = shortId ? `@instagram_user` : 'Instagram Reel';
-                }
+                author = shortId ? `@user_${shortId}` : 'Instagram Reel';
             } else if (!author.startsWith('@') && !author.toLowerCase().includes('reel')) {
                 author = `@${author}`;
             }
 
-            caption = cleanText(caption).slice(0, 60);
+            caption = cleanText(caption).slice(0, 65);
 
-            // 5. Extract Real High-Res Thumbnail
-            const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
-            if (ogImage && ogImage.startsWith('http')) {
-                thumbnail = ogImage;
+            // 5. Extract Active Reel Thumbnail
+            if (activeVideo?.poster && activeVideo.poster.startsWith('http')) {
+                thumbnail = activeVideo.poster;
             }
 
             if (!thumbnail) {
-                if (activeVideo?.poster && activeVideo.poster.startsWith('http')) {
-                    thumbnail = activeVideo.poster;
-                }
-            }
-
-            if (!thumbnail) {
-                const articleImgs = Array.from(document.querySelectorAll('article img, div[role="main"] img'))
+                const containerImgs = Array.from(container.querySelectorAll('img'))
                     .map(i => i.currentSrc || i.src)
-                    .filter(src => src && (src.includes('cdninstagram.com') || src.includes('fbcdn.net')) && !src.includes('150x150'));
-                if (articleImgs.length > 0) thumbnail = articleImgs[0];
+                    .filter(src => src && (src.includes('cdninstagram.com') || src.includes('fbcdn.net')) && !src.includes('150x150') && !src.includes('44x44'));
+                if (containerImgs.length > 0) thumbnail = containerImgs[0];
+            }
+
+            if (!thumbnail) {
+                const ogImage = document.querySelector('meta[property="og:image"]')?.getAttribute('content');
+                if (ogImage && ogImage.startsWith('http')) thumbnail = ogImage;
             }
 
             let displayTitle = '';
-            let subtitle = '';
-
-            const authorLabel = (author && author !== 'Instagram Reel') ? author : '';
+            const authorLabel = (author && !author.includes('Instagram Reel')) ? author : '';
 
             if (caption && caption.length > 2) {
                 displayTitle = authorLabel ? `Instagram - ${authorLabel} - ${caption}` : `Instagram - ${caption}`;
-                subtitle = authorLabel || 'Instagram Reel';
             } else if (shortId) {
                 displayTitle = authorLabel ? `Instagram - ${authorLabel} - Reel_${shortId}` : `Instagram Reel - ${shortId}`;
-                subtitle = authorLabel || `Reel (${shortId})`;
             } else {
                 displayTitle = authorLabel ? `Instagram - ${authorLabel}` : `Instagram Reel`;
-                subtitle = 'Instagram Reel';
             }
 
             return {
                 platform: 'Instagram',
                 showName: authorLabel || (shortId ? `Instagram Reel (${shortId})` : 'Instagram Reel'),
-                subtitle: caption || 'Instagram Reel',
+                subtitle: caption || authorLabel || 'Instagram Reel',
                 title: displayTitle,
                 thumbnail: thumbnail,
                 shortId: shortId
@@ -214,23 +196,26 @@
             let confirmedAudioUrl = '';
             let resolutionStr = '';
             const activeVideo = getActiveInstagramVideo();
+            const shortId = meta.shortId || getInstagramShortId();
             let streamCameFromActiveVideo = false;
 
-            // 1. Check OpenGraph Video Meta tags (Instagram puts the FULL MP4 WITH AUDIO in og:video)
-            const ogVideo = document.querySelector('meta[property="og:video:secure_url"], meta[property="og:video"], meta[property="og:video:url"], meta[name="twitter:player:stream"]')?.getAttribute('content');
-            if (ogVideo && ogVideo.startsWith('http') && !isAudioOnlyUrl(ogVideo)) {
-                confirmedVideoUrl = sanitizeMediaUrl(ogVideo);
+            // 1. Active Visible / Playing <video> element (Always authoritative for CURRENT reel on screen!)
+            if (activeVideo) {
+                const src = getVideoSource(activeVideo);
+                if (src && src.startsWith('http') && !src.startsWith('blob:') && !isAudioOnlyUrl(src)) {
+                    confirmedVideoUrl = sanitizeMediaUrl(src);
+                    streamCameFromActiveVideo = true;
+                }
             }
 
-            // 2. Inspect inlined JSON state & scripts for FULL MULTIPLEXED HD MP4 WITH AUDIO
-            if (!confirmedVideoUrl) {
+            // 2. Check inlined JSON scripts matching this specific shortId
+            if (shortId) {
                 const scripts = document.querySelectorAll('script[type="application/json"], script[type="application/ld+json"], script:not([src])');
                 for (const s of scripts) {
                     try {
                         const text = s.textContent || '';
-                        if (!text || (!text.includes('video') && !text.includes('playable_url') && !text.includes('cdninstagram'))) continue;
+                        if (!text || !text.includes(shortId)) continue;
 
-                        // Match all MP4 video URLs in script JSON
                         const matches = text.matchAll(/(?:"playable_url_quality_hd"|"playable_url"|"video_url"|"url")\s*:\s*"((?:https?:\\\/\\\/|https?:\/\/)[^"]+)"/gi);
                         for (const m of matches) {
                             let raw = m[1];
@@ -240,7 +225,7 @@
                             if (raw.startsWith('http') && (raw.includes('cdninstagram.com') || raw.includes('fbcdn.net')) && !raw.includes('.htm')) {
                                 if (isAudioOnlyUrl(raw)) {
                                     if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(raw);
-                                } else if (!confirmedVideoUrl) {
+                                } else {
                                     confirmedVideoUrl = sanitizeMediaUrl(raw);
                                     break;
                                 }
@@ -251,20 +236,19 @@
                 }
             }
 
-            // 3. Fallback to active DOM <video> element
+            // 3. Fallback to all video elements in DOM
             if (!confirmedVideoUrl) {
-                const videos = [activeVideo, ...Array.from(document.querySelectorAll('video')).filter(video => video !== activeVideo)];
+                const videos = Array.from(document.querySelectorAll('video'));
                 for (const video of videos) {
                     const src = getVideoSource(video);
                     if (src && src.startsWith('http') && !src.startsWith('blob:') && !isAudioOnlyUrl(src)) {
                         confirmedVideoUrl = sanitizeMediaUrl(src);
-                        streamCameFromActiveVideo = video === activeVideo;
                         break;
                     }
                 }
             }
 
-            // 4. Check preload link tags
+            // 4. Fallback to preload link
             if (!confirmedVideoUrl) {
                 const preloadVideo = document.querySelector('link[rel="preload"][as="video"]')?.getAttribute('href');
                 if (preloadVideo && preloadVideo.startsWith('http') && !isAudioOnlyUrl(preloadVideo)) {

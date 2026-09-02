@@ -3,6 +3,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const initialStreamUrl = urlParams.get('url') || '';
+    const initialAudioUrl = urlParams.get('audioUrl') || '';
     const videoTitle = urlParams.get('title') || 'Video';
     const videoShow = urlParams.get('showName') || videoTitle;
     const videoSub = urlParams.get('subtitle') || '';
@@ -659,7 +660,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
 
-                if (assembled && assembled.blob && assembled.sizeBytes >= 524288) {
+                if (assembled && assembled.blob && assembled.sizeBytes >= 32768) {
                     break;
                 }
             } catch (err) {
