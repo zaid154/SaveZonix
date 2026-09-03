@@ -15,17 +15,24 @@ public class ParallelDownloader
         }
         else
         {
-            var handler = new HttpClientHandler
+            var handler = new SocketsHttpHandler
             {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => true,
+                SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+                {
+                    RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+                },
                 AutomaticDecompression = DecompressionMethods.All,
                 UseCookies = false,
-                MaxConnectionsPerServer = 300
+                MaxConnectionsPerServer = 500,
+                EnableMultipleHttp2Connections = true,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+                ConnectTimeout = TimeSpan.FromSeconds(10)
             };
 
             _httpClient = new HttpClient(handler)
             {
-                Timeout = TimeSpan.FromSeconds(30)
+                Timeout = TimeSpan.FromSeconds(45)
             };
         }
     }
@@ -243,7 +250,13 @@ public class ParallelDownloader
             return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
         }
 
-        int numChunks = Math.Clamp(maxConcurrency, 2, 256);
+        // ─── SMART SITE-ADAPTIVE CONCURRENCY & CHUNK SIZING ──────────────
+        int optimizedConcurrency = GetOptimizedConcurrency(fileUrl, maxConcurrency);
+
+        // Optimal chunk size is 4MB - 16MB so TCP congestion window ramps up to max bandwidth
+        long minChunkSize = 4L * 1024 * 1024;
+        int maxChunksByLength = (int)Math.Max(2, confirmedLength / minChunkSize);
+        int numChunks = Math.Clamp(optimizedConcurrency, 2, Math.Min(maxChunksByLength, 64));
         long chunkSize = confirmedLength / numChunks;
         var chunks = new List<SegmentItem>();
 
@@ -325,7 +338,7 @@ public class ParallelDownloader
                     ActiveThreads = numChunks,
                     Elapsed = stopwatch.Elapsed,
                     EstimatedTimeRemaining = eta,
-                    Status = $"Downloading Direct File ({numChunks} Range Threads)..."
+                    Status = $"Downloading Direct File ({numChunks} Turbo Range Slices)..."
                 });
             }
         }, cancellationToken);
@@ -404,9 +417,9 @@ public class ParallelDownloader
 
         long reportedLen = res.Content.Headers.ContentLength ?? totalLength;
         await using var contentStream = await res.Content.ReadAsStreamAsync(ct);
-        await using var fileStream = new FileStream(singleChunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536, true);
+        await using var fileStream = new FileStream(singleChunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, true);
 
-        byte[] buffer = new byte[32768];
+        byte[] buffer = new byte[131072];
         int bytesRead;
         long totalBytes = 0;
         var sw = Stopwatch.StartNew();
@@ -456,7 +469,7 @@ public class ParallelDownloader
                 string referer = referers[(attempt - 1) % referers.Count];
 
                 using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                attemptCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15s connection / header timeout
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(25)); // 25s connection / header timeout
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, chunk.Url);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
@@ -477,20 +490,20 @@ public class ParallelDownloader
                 }
 
                 await using var contentStream = await response.Content.ReadAsStreamAsync(attemptCts.Token);
-                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 131072, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, FileOptions.Asynchronous | FileOptions.SequentialScan);
                 if (expectedBytes > 0)
                 {
                     fileStream.SetLength(expectedBytes);
                 }
 
-                byte[] buffer = new byte[131072];
+                byte[] buffer = new byte[262144]; // 256 KB memory buffer for maximum streaming throughput
                 int bytesRead;
                 long chunkTotal = 0;
 
                 while (true)
                 {
-                    // Reset stall watchdog timeout on every read activity (12s per read chunk)
-                    attemptCts.CancelAfter(TimeSpan.FromSeconds(12));
+                    // Reset stall watchdog timeout on every read activity (20s per read chunk)
+                    attemptCts.CancelAfter(TimeSpan.FromSeconds(20));
                     bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, attemptCts.Token);
                     if (bytesRead <= 0) break;
 

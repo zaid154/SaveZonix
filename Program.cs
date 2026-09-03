@@ -1680,17 +1680,24 @@ public class Program
 
     private static HttpClient CreateConfiguredHttpClient()
     {
-        var handler = new HttpClientHandler
+        var handler = new SocketsHttpHandler
         {
-            ServerCertificateCustomValidationCallback = (message, cert, chain, sslPolicyErrors) => true,
+            SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+            },
             AutomaticDecompression = System.Net.DecompressionMethods.All,
             UseCookies = false,
-            MaxConnectionsPerServer = 300
+            MaxConnectionsPerServer = 500,
+            EnableMultipleHttp2Connections = true,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
+            ConnectTimeout = TimeSpan.FromSeconds(10)
         };
 
         var client = new HttpClient(handler);
-        client.Timeout = TimeSpan.FromSeconds(30);
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+        client.Timeout = TimeSpan.FromSeconds(45);
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
         client.DefaultRequestHeaders.Add("Accept", "*/*");
         client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
         return client;
