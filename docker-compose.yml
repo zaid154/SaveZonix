@@ -17,7 +17,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:5000
-      - Redis__ConnectionString=redis:6379,abortConnect=false,connectTimeout=4000
+      - Redis__ConnectionString=redis:6379,abortConnect=false,connectTimeout=4000,allowAdmin=true
     volumes:
       - ./Downloads:/app/Downloads
       - ./app_data:/app/data

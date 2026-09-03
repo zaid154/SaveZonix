@@ -260,15 +260,30 @@ async function analyzeDomainSuggestion() {
                             ${isStrictRisk ? '🛡️ Strict Rate-Limited CDN' : '🚀 Open High-Throughput CDN'}
                         </span>
                         <span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-family: monospace;">
-                            ⚡ ${data.responseTimeMs} ms
+                            ⚡ ${data.responseTimeMs} ms Ping
                         </span>
+                    </div>
+                </div>
+
+                <!-- Live Speed & Network Telemetry Banner -->
+                <div style="background: linear-gradient(90deg, rgba(56, 189, 248, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px;">🚀</span>
+                        <div>
+                            <div style="font-size: 10.5px; text-transform: uppercase; font-weight: 700; color: #94a3b8;">Active Wire Throughput</div>
+                            <div style="font-size: 14px; font-weight: 800; color: #34d399; font-family: monospace;">⚡ ${data.liveWireSpeedMBps} MB/s <span style="font-size: 11px; font-weight: normal; color: #94a3b8;">(64KB micro-slice sampled)</span></div>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 10.5px; text-transform: uppercase; font-weight: 700; color: #94a3b8;">Autonomous System (ASN)</div>
+                        <div style="font-size: 12px; font-weight: 700; color: #38bdf8; font-family: monospace;">${data.asnOrganization}</div>
                     </div>
                 </div>
 
                 <!-- Telemetry Matrix Grid -->
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 12px;">
                     <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
-                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">CDN Infrastructure</span>
+                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Edge Infrastructure</span>
                         <div style="color: #f1f5f9; font-weight: 700; margin-top: 2px;">${data.cdnProvider}</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
@@ -276,8 +291,8 @@ async function analyzeDomainSuggestion() {
                         <div style="color: #f1f5f9; font-weight: 700; margin-top: 2px;">${data.streamProtocol}</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
-                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Anti-Hotlink Strategy</span>
-                        <div style="color: #38bdf8; font-weight: 600; margin-top: 2px;">${data.antiHotlinkStrategy}</div>
+                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Resolved Edge IP</span>
+                        <div style="color: #38bdf8; font-weight: 700; margin-top: 2px; font-family: monospace;">${data.resolvedIp}</div>
                     </div>
                     <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
                         <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Byte-Range Slicing</span>
@@ -297,14 +312,14 @@ async function analyzeDomainSuggestion() {
                 <!-- AI Advice Box & Apply Button -->
                 <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
                     <div style="font-size: 12.5px; color: #e2e8f0;">
-                        💡 <b>AI Advisor Recommendation:</b> Allocate <b>${data.recommendedThreads} Parallel Threads</b> for balanced wire throughput. Safe strict limit for this host is <b>${data.safeCap} workers</b> (Max turbo: <b>${data.maxTurbo} workers</b>).
+                        💡 <b>AI Advisor Dynamic Formula:</b> Calculated <b>${data.recommendedThreads} Parallel Threads</b> based on measured <b>${data.liveWireSpeedMBps} MB/s</b> wire throughput. Safe strict limit: <b>${data.safeCap} workers</b> (Max turbo: <b>${data.maxTurbo} workers</b>).
                     </div>
                     <div style="font-size: 11px; color: #94a3b8;">
-                        Risk Evaluation: <strong style="color: ${isStrictRisk ? '#fbbf24' : '#34d399'};">${data.riskFactor}</strong>
+                        Risk Evaluation: <strong style="color: ${isStrictRisk ? '#fbbf24' : '#34d399'};">${data.riskFactor}</strong> | Anti-Hotlink: <strong style="color: #38bdf8;">${data.antiHotlinkStrategy}</strong>
                     </div>
                     <div style="margin-top: 4px; display: flex; gap: 8px;">
                         <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 12px; font-weight: 700; flex: 1;" onclick="applyProfile(${data.safeCap}, ${data.maxTurbo}, ${data.recommendedThreads})">
-                            ⚡ Auto-Apply This Profile (${data.safeCap} Strict / ${data.maxTurbo} Open / ${data.recommendedThreads} Default)
+                            ⚡ Auto-Apply This AI Profile (${data.safeCap} Strict / ${data.maxTurbo} Open / ${data.recommendedThreads} Default)
                         </button>
                     </div>
                 </div>

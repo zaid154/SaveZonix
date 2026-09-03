@@ -206,6 +206,8 @@ public class RedisCacheService : IRedisCacheService
 
     public async Task ClearAllAsync()
     {
+        await RemoveByPrefixAsync("savezonix:");
+
         if (IsConnected && _redis != null)
         {
             try
@@ -216,7 +218,11 @@ public class RedisCacheService : IRedisCacheService
                     var server = _redis.GetServer(endpoint);
                     if (server.IsConnected)
                     {
-                        await server.FlushDatabaseAsync();
+                        try
+                        {
+                            await server.FlushDatabaseAsync();
+                        }
+                        catch { }
                     }
                 }
             }
