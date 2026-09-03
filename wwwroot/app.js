@@ -805,8 +805,28 @@ function onDownloadComplete(state, fileName) {
     btnDirectSave.href = downloadUrl;
     btnDirectSave.setAttribute('download', fileName);
 
+    const btnDirectSaveText = document.getElementById('btnDirectSaveText');
+    if (btnDirectSaveText) {
+        btnDirectSaveText.textContent = `Save Video (${fileName.substring(fileName.lastIndexOf('.')) || '.mp4'})`;
+    }
+
     const peakText = state.peakSpeedMBps > 0 ? ` • Peak: ${state.peakSpeedMBps.toFixed(1)} MB/s` : '';
     successSummary.textContent = `Completed in ${state.mergeSeconds ? state.mergeSeconds.toFixed(1) : '1'}s • File Size: ${formatBytes(state.totalBytesDownloaded || 0, false)}${peakText}`;
+
+    // ─── INSTANT AUTO-DOWNLOAD TO USER'S BROWSER ───────────────
+    try {
+        const autoLink = document.createElement('a');
+        autoLink.href = downloadUrl;
+        autoLink.setAttribute('download', fileName);
+        autoLink.style.display = 'none';
+        document.body.appendChild(autoLink);
+        autoLink.click();
+        setTimeout(() => {
+            document.body.removeChild(autoLink);
+        }, 1500);
+    } catch (e) {
+        console.warn('Auto-save trigger fallback to manual button:', e);
+    }
 }
 
 btnOpenFolder.addEventListener('click', async () => {
