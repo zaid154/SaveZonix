@@ -237,6 +237,7 @@ public class Program
 
         builder.Services.AddDbContext<AppDbContext>(options =>
         {
+            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             if (connectionString.Contains(".db") || (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase) && !connectionString.Contains("Initial Catalog")))
             {
                 options.UseSqlite(connectionString);
@@ -308,11 +309,14 @@ public class Program
         builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
         var app = builder.Build();
+        bool forceReset = args.Any(a => a.Equals("--seed-reset", StringComparison.OrdinalIgnoreCase) || 
+                                       a.Equals("--reset-db", StringComparison.OrdinalIgnoreCase) ||
+                                       a.Equals("seed-reset", StringComparison.OrdinalIgnoreCase));
 
         // 5. Database Auto-Migration & Seeder
         try
         {
-            await DbSeeder.SeedAsync(app.Services, app.Configuration);
+            await DbSeeder.SeedAsync(app.Services, app.Configuration, forceReset);
         }
         catch (Exception ex)
         {
@@ -439,6 +443,19 @@ public class Program
         app.MapGet("/api/proxy/thumbnail", (HttpContext ctx, string url) =>
         {
             return Results.Redirect($"/api/proxy-image?url={Uri.EscapeDataString(url)}");
+        });
+
+        app.MapMethods("/api/admin/reset-seed", new[] { "GET", "POST" }, async (IServiceProvider sp, IConfiguration cfg) =>
+        {
+            try
+            {
+                await DbSeeder.SeedAsync(sp, cfg, forceReset: true);
+                return Results.Ok(new { success = true, message = "Database successfully wiped and fresh seed data re-inserted!" });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(detail: ex.Message, title: "Seed Reset Failed");
+            }
         });
 
         // ─────────────────────────────────────────────────────────────

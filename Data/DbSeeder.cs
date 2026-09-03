@@ -9,7 +9,7 @@ namespace StreamHelper.Data;
 
 public static class DbSeeder
 {
-    public static async Task SeedAsync(IServiceProvider serviceProvider, IConfiguration config)
+    public static async Task SeedAsync(IServiceProvider serviceProvider, IConfiguration config, bool forceReset = false)
     {
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -23,6 +23,21 @@ public static class DbSeeder
         catch 
         { 
             await context.Database.EnsureCreatedAsync(); 
+        }
+
+        if (forceReset)
+        {
+            Console.WriteLine("[Database Seeder] 🔄 Force Reset active: Wiping existing download records & settings for clean re-seed...");
+            try
+            {
+                context.DownloadHistories.RemoveRange(context.DownloadHistories);
+                context.AdminSettings.RemoveRange(context.AdminSettings);
+                await context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Database Seeder Reset Notice] {ex.Message}");
+            }
         }
 
         // Ensure newly added columns exist in SQLite schema without requiring manual SQL migration
