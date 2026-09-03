@@ -25,6 +25,150 @@ public static class DbSeeder
             await context.Database.EnsureCreatedAsync(); 
         }
 
+        // Guaranteed SQLite schema table initialization
+        string[] tableCreationStatements = {
+            @"CREATE TABLE IF NOT EXISTS ""AspNetRoles"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_AspNetRoles"" PRIMARY KEY,
+                ""Name"" TEXT NULL,
+                ""NormalizedName"" TEXT NULL,
+                ""ConcurrencyStamp"" TEXT NULL
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AspNetUsers"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_AspNetUsers"" PRIMARY KEY,
+                ""FullName"" TEXT NOT NULL,
+                ""CreatedAt"" TEXT NOT NULL,
+                ""LastLoginAt"" TEXT NULL,
+                ""IsActive"" INTEGER NOT NULL DEFAULT 1,
+                ""ProfileImageUrl"" TEXT NULL,
+                ""TotalDownloads"" INTEGER NOT NULL DEFAULT 0,
+                ""TotalBytesDownloaded"" INTEGER NOT NULL DEFAULT 0,
+                ""UserName"" TEXT NULL,
+                ""NormalizedUserName"" TEXT NULL,
+                ""Email"" TEXT NULL,
+                ""NormalizedEmail"" TEXT NULL,
+                ""EmailConfirmed"" INTEGER NOT NULL DEFAULT 1,
+                ""PasswordHash"" TEXT NULL,
+                ""SecurityStamp"" TEXT NULL,
+                ""ConcurrencyStamp"" TEXT NULL,
+                ""PhoneNumber"" TEXT NULL,
+                ""PhoneNumberConfirmed"" INTEGER NOT NULL DEFAULT 0,
+                ""TwoFactorEnabled"" INTEGER NOT NULL DEFAULT 0,
+                ""LockoutEnd"" TEXT NULL,
+                ""LockoutEnabled"" INTEGER NOT NULL DEFAULT 1,
+                ""AccessFailedCount"" INTEGER NOT NULL DEFAULT 0
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AspNetRoleClaims"" (
+                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_AspNetRoleClaims"" PRIMARY KEY AUTOINCREMENT,
+                ""RoleId"" TEXT NOT NULL,
+                ""ClaimType"" TEXT NULL,
+                ""ClaimValue"" TEXT NULL,
+                CONSTRAINT ""FK_AspNetRoleClaims_AspNetRoles_RoleId"" FOREIGN KEY (""RoleId"") REFERENCES ""AspNetRoles"" (""Id"") ON DELETE CASCADE
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AspNetUserClaims"" (
+                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_AspNetUserClaims"" PRIMARY KEY AUTOINCREMENT,
+                ""UserId"" TEXT NOT NULL,
+                ""ClaimType"" TEXT NULL,
+                ""ClaimValue"" TEXT NULL,
+                CONSTRAINT ""FK_AspNetUserClaims_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AspNetUserLogins"" (
+                ""LoginProvider"" TEXT NOT NULL,
+                ""ProviderKey"" TEXT NOT NULL,
+                ""ProviderDisplayName"" TEXT NULL,
+                ""UserId"" TEXT NOT NULL,
+                CONSTRAINT ""PK_AspNetUserLogins"" PRIMARY KEY (""LoginProvider"", ""ProviderKey""),
+                CONSTRAINT ""FK_AspNetUserLogins_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AspNetUserRoles"" (
+                ""UserId"" TEXT NOT NULL,
+                ""RoleId"" TEXT NOT NULL,
+                CONSTRAINT ""PK_AspNetUserRoles"" PRIMARY KEY (""UserId"", ""RoleId""),
+                CONSTRAINT ""FK_AspNetUserRoles_AspNetRoles_RoleId"" FOREIGN KEY (""RoleId"") REFERENCES ""AspNetRoles"" (""Id"") ON DELETE CASCADE,
+                CONSTRAINT ""FK_AspNetUserRoles_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AspNetUserTokens"" (
+                ""UserId"" TEXT NOT NULL,
+                ""LoginProvider"" TEXT NOT NULL,
+                ""Name"" TEXT NOT NULL,
+                ""Value"" TEXT NULL,
+                CONSTRAINT ""PK_AspNetUserTokens"" PRIMARY KEY (""UserId"", ""LoginProvider"", ""Name""),
+                CONSTRAINT ""FK_AspNetUserTokens_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""AdminSettings"" (
+                ""Key"" TEXT NOT NULL CONSTRAINT ""PK_AdminSettings"" PRIMARY KEY,
+                ""Value"" TEXT NOT NULL,
+                ""Description"" TEXT NULL,
+                ""Category"" TEXT NOT NULL,
+                ""UpdatedAt"" TEXT NOT NULL
+            );",
+            @"CREATE TABLE IF NOT EXISTS ""DownloadHistories"" (
+                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_DownloadHistories"" PRIMARY KEY,
+                ""UserId"" TEXT NULL,
+                ""UserEmail"" TEXT NULL,
+                ""UserName"" TEXT NULL,
+                ""OriginalUrl"" TEXT NOT NULL,
+                ""Title"" TEXT NOT NULL,
+                ""FileName"" TEXT NOT NULL,
+                ""ThumbnailUrl"" TEXT NULL,
+                ""Platform"" TEXT NOT NULL,
+                ""MediaType"" TEXT NOT NULL,
+                ""Format"" TEXT NOT NULL,
+                ""Quality"" TEXT NOT NULL,
+                ""Codec"" TEXT NULL,
+                ""DurationSeconds"" INTEGER NOT NULL DEFAULT 0,
+                ""FileSize"" INTEGER NOT NULL DEFAULT 0,
+                ""Status"" INTEGER NOT NULL DEFAULT 0,
+                ""StartTime"" TEXT NOT NULL,
+                ""CompletionTime"" TEXT NULL,
+                ""DownloadDurationSeconds"" REAL NOT NULL DEFAULT 0,
+                ""DownloadedBytes"" INTEGER NOT NULL DEFAULT 0,
+                ""AverageSpeedMBps"" REAL NOT NULL DEFAULT 0,
+                ""PeakSpeedMBps"" REAL NOT NULL DEFAULT 0,
+                ""ThreadsUsed"" INTEGER NOT NULL DEFAULT 64,
+                ""DownloadStrategy"" TEXT NOT NULL DEFAULT 'HLS Multi-Thread',
+                ""RetryCount"" INTEGER NOT NULL DEFAULT 0,
+                ""ErrorReason"" TEXT NULL,
+                ""ValidationStatus"" TEXT DEFAULT 'Passed',
+                ""ValidationDetails"" TEXT NULL,
+                ""ProbedDurationSeconds"" REAL DEFAULT 0,
+                ""AudioVideoDetails"" TEXT NULL,
+                ""AppVersion"" TEXT DEFAULT 'SaveZonix v2.5.0',
+                ""SystemVersion"" TEXT DEFAULT '.NET 10.0 Windows',
+                ""CreatedAt"" TEXT NOT NULL,
+                ""UpdatedAt"" TEXT NOT NULL,
+                CONSTRAINT ""FK_DownloadHistories_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE SET NULL
+            );"
+        };
+
+        foreach (var sql in tableCreationStatements)
+        {
+            try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
+        }
+
+        // Ensure newly added columns exist in SQLite schema without requiring manual SQL migration
+        string[] newCols = {
+            "ALTER TABLE AspNetUsers ADD COLUMN ProfileImageUrl TEXT;",
+            "ALTER TABLE DownloadHistories ADD COLUMN FileSize INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE DownloadHistories ADD COLUMN StartTime TEXT;",
+            "ALTER TABLE DownloadHistories ADD COLUMN CompletionTime TEXT;",
+            "ALTER TABLE DownloadHistories ADD COLUMN DownloadDurationSeconds REAL NOT NULL DEFAULT 0;",
+            "ALTER TABLE DownloadHistories ADD COLUMN PeakSpeedMBps REAL NOT NULL DEFAULT 0;",
+            "ALTER TABLE DownloadHistories ADD COLUMN DownloadStrategy TEXT NOT NULL DEFAULT 'HLS Multi-Thread';",
+            "ALTER TABLE DownloadHistories ADD COLUMN RetryCount INTEGER NOT NULL DEFAULT 0;",
+            "ALTER TABLE DownloadHistories ADD COLUMN ValidationStatus TEXT DEFAULT 'Passed';",
+            "ALTER TABLE DownloadHistories ADD COLUMN ValidationDetails TEXT;",
+            "ALTER TABLE DownloadHistories ADD COLUMN ProbedDurationSeconds REAL DEFAULT 0;",
+            "ALTER TABLE DownloadHistories ADD COLUMN AudioVideoDetails TEXT;",
+            "ALTER TABLE DownloadHistories ADD COLUMN AppVersion TEXT DEFAULT 'SaveZonix v2.5.0';",
+            "ALTER TABLE DownloadHistories ADD COLUMN SystemVersion TEXT DEFAULT '.NET 10.0 Windows';",
+            "ALTER TABLE DownloadHistories ADD COLUMN UpdatedAt TEXT;"
+        };
+
+        foreach (var sql in newCols)
+        {
+            try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
+        }
+
         if (forceReset)
         {
             Console.WriteLine("[Database Seeder] 🔄 Force Reset active: Wiping existing download records & settings for clean re-seed...");
@@ -38,21 +182,6 @@ public static class DbSeeder
             {
                 Console.WriteLine($"[Database Seeder Reset Notice] {ex.Message}");
             }
-        }
-
-        // Ensure newly added columns exist in SQLite schema without requiring manual SQL migration
-        string[] newCols = {
-            "ALTER TABLE DownloadHistories ADD COLUMN ValidationStatus TEXT DEFAULT 'Passed';",
-            "ALTER TABLE DownloadHistories ADD COLUMN ValidationDetails TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN ProbedDurationSeconds REAL DEFAULT 0;",
-            "ALTER TABLE DownloadHistories ADD COLUMN AudioVideoDetails TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN AppVersion TEXT DEFAULT 'SaveZonix v2.5.0';",
-            "ALTER TABLE DownloadHistories ADD COLUMN SystemVersion TEXT DEFAULT '.NET 10.0 Windows';"
-        };
-
-        foreach (var sql in newCols)
-        {
-            try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
         }
 
         string[] roles = { "Admin", "User" };
@@ -105,6 +234,13 @@ public static class DbSeeder
         }
         else
         {
+            existingAdmin.EmailConfirmed = true;
+            existingAdmin.IsActive = true;
+            existingAdmin.FullName = adminName;
+            var token = await userManager.GeneratePasswordResetTokenAsync(existingAdmin);
+            await userManager.ResetPasswordAsync(existingAdmin, token, adminPassword);
+            await userManager.UpdateAsync(existingAdmin);
+
             if (!await userManager.IsInRoleAsync(existingAdmin, "Admin"))
             {
                 await userManager.AddToRoleAsync(existingAdmin, "Admin");
