@@ -1,14 +1,64 @@
-﻿@model StreamHelper.ViewModels.UserDownloadsViewModel
+@model StreamHelper.ViewModels.UserDownloadsViewModel
 @{
-    ViewData["Title"] = "My Download History — Stream Helper";
+    ViewData["Title"] = "My Downloads — SaveZonix";
+
+    string CleanQuality(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "1080p Full HD";
+        var q = raw;
+        if (q.Contains("(Desktop - Requires browser context)", StringComparison.OrdinalIgnoreCase))
+            q = q.Replace("(Desktop - Requires browser context)", "", StringComparison.OrdinalIgnoreCase).Trim();
+        if (q.Contains("(Direct Stream)", StringComparison.OrdinalIgnoreCase))
+            q = q.Replace("(Direct Stream)", "", StringComparison.OrdinalIgnoreCase).Trim();
+        if (string.IsNullOrWhiteSpace(q)) return "Original HD";
+        return q;
+    }
+
+    string GetPlatformBadgeClass(string? platform)
+    {
+        var p = (platform ?? "").ToLowerInvariant();
+        if (p.Contains("youtube")) return "plat-youtube";
+        if (p.Contains("instagram")) return "plat-instagram";
+        if (p.Contains("facebook")) return "plat-facebook";
+        if (p.Contains("xhamster")) return "plat-xhamster";
+        if (p.Contains("mat6")) return "plat-mat6";
+        if (p.Contains("pixelflix")) return "plat-pixelflix";
+        return "plat-generic";
+    }
+
+    string GetPlatformIcon(string? platform)
+    {
+        var p = (platform ?? "").ToLowerInvariant();
+        if (p.Contains("youtube")) return "▶";
+        if (p.Contains("instagram")) return "📸";
+        if (p.Contains("facebook")) return "📘";
+        if (p.Contains("xhamster")) return "🔞";
+        if (p.Contains("mat6")) return "🎬";
+        if (p.Contains("pixelflix")) return "⚡";
+        return "🌐";
+    }
+
+    string CleanPlatformName(string? platform)
+    {
+        if (string.IsNullOrWhiteSpace(platform)) return "Web Stream";
+        var p = platform;
+        if (p.Contains("•")) p = p.Split('•')[0].Trim();
+        return p.ToUpperInvariant();
+    }
 }
 
 <div class="account-page">
     <div class="container">
+        <!-- User Downloads Header -->
         <div class="account-header">
             <div>
+                <div class="admin-breadcrumb">
+                    <span>MY ACCOUNT</span>
+                    <span class="sep">/</span>
+                    <span class="active">DOWNLOAD HISTORY</span>
+                </div>
                 <h1 class="page-title">Download History</h1>
-                <p class="page-subtitle">Your personal record of extracted media streams and parallel downloads</p>
+                <p class="page-subtitle">Your personal record of high-speed media stream downloads and extractions</p>
             </div>
             <div class="account-actions">
                 <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
@@ -26,14 +76,15 @@
         }
 
         <!-- Filter Bar -->
-        <div class="glass-card" style="margin-bottom: 24px; padding: 16px 20px;">
+        <div class="glass-card filter-card">
             <form method="get" asp-action="Downloads" class="filter-form">
-                <div class="filter-grid">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control" placeholder="Search by title, file name or URL..." />
+                <div class="admin-filter-grid" style="grid-template-columns: 2fr 1fr 1fr auto;">
+                    <div class="form-group search-input-wrapper">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" name="search" value="@Model.SearchTerm" class="form-control admin-input" placeholder="Search by title, file name or URL..." />
                     </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <select name="status" class="form-control">
+                    <div class="form-group">
+                        <select name="status" class="form-control admin-select">
                             <option value="">All Statuses</option>
                             <option value="Completed" selected="@(Model.StatusFilter == "Completed")">Completed</option>
                             <option value="Downloading" selected="@(Model.StatusFilter == "Downloading")">Downloading</option>
@@ -41,18 +92,20 @@
                             <option value="Cancelled" selected="@(Model.StatusFilter == "Cancelled")">Cancelled</option>
                         </select>
                     </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <select name="platform" class="form-control">
+                    <div class="form-group">
+                        <select name="platform" class="form-control admin-select">
                             <option value="">All Platforms</option>
                             <option value="YouTube" selected="@(Model.PlatformFilter == "YouTube")">YouTube</option>
                             <option value="Instagram" selected="@(Model.PlatformFilter == "Instagram")">Instagram</option>
+                            <option value="Facebook" selected="@(Model.PlatformFilter == "Facebook")">Facebook</option>
+                            <option value="xHamster" selected="@(Model.PlatformFilter == "xHamster")">xHamster</option>
+                            <option value="Mat6tube" selected="@(Model.PlatformFilter == "Mat6tube")">Mat6tube</option>
                             <option value="PixelFlix" selected="@(Model.PlatformFilter == "PixelFlix")">PixelFlix</option>
-                            <option value="Web Stream" selected="@(Model.PlatformFilter == "Web Stream")">Web Stream</option>
                         </select>
                     </div>
-                    <div style="display: flex; gap: 8px;">
-                        <button type="submit" class="btn btn-primary" style="flex: 1;">Filter</button>
-                        <a asp-action="Downloads" class="btn btn-secondary">Reset</a>
+                    <div class="filter-btn-group">
+                        <button type="submit" class="btn btn-primary btn-filter-submit">Filter</button>
+                        <a asp-action="Downloads" class="btn btn-secondary btn-filter-reset">Reset</a>
                     </div>
                 </div>
             </form>
@@ -60,96 +113,146 @@
 
         @if (Model.Downloads.Count == 0)
         {
-            <div class="glass-card empty-state">
-                <div style="font-size: 48px; margin-bottom: 16px;">📥</div>
+            <div class="glass-card empty-state-card">
+                <div class="empty-icon-wrap">📥</div>
                 <h3>No Downloads Found</h3>
-                <p style="color: var(--text-muted); margin-bottom: 24px;">You haven't initiated any downloads matching your criteria.</p>
-                <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Start Downloading Now</a>
+                <p>You haven't initiated any downloads matching your criteria.</p>
+                <div style="margin-top: 16px;">
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-primary">Start Downloading Now</a>
+                </div>
             </div>
         }
         else
         {
-            <div class="table-responsive glass-card" style="padding: 0; overflow: hidden;">
-                <table class="data-table">
+            <div class="table-responsive glass-card table-glass-card">
+                <table class="data-table modern-table">
                     <thead>
                         <tr>
-                            <th style="width: 70px;">Media</th>
-                            <th>Title &amp; Source</th>
-                            <th>Quality &amp; Format</th>
-                            <th>Size / Speed</th>
-                            <th>Status</th>
-                            <th>Date</th>
-                            <th style="text-align: right;">Action</th>
+                            <th style="width: 80px;">MEDIA</th>
+                            <th>TITLE &amp; SOURCE</th>
+                            <th style="width: 170px;">QUALITY &amp; CODEC</th>
+                            <th style="width: 120px;">SIZE / SPEED</th>
+                            <th style="width: 140px;">STATUS</th>
+                            <th style="width: 130px;">DATE</th>
+                            <th style="width: 90px; text-align: right;">ACTION</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var item in Model.Downloads)
                         {
-                            <tr>
+                            var cleanQ = CleanQuality(item.Quality);
+                            var platClass = GetPlatformBadgeClass(item.Platform);
+                            var platIcon = GetPlatformIcon(item.Platform);
+                            var platName = CleanPlatformName(item.Platform);
+
+                            <tr class="table-row-item">
                                 <td>
-                                    @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
-                                    {
-                                        <img src="@item.ThumbnailUrl" alt="Thumb" class="table-thumb" onerror="this.style.display='none'" />
-                                    }
-                                    else
-                                    {
-                                        <div class="table-thumb-fallback">🎬</div>
-                                    }
-                                </td>
-                                <td>
-                                    <div class="table-title" title="@item.Title">@item.Title</div>
-                                    <div class="table-sub">
-                                        <span class="badge-tag badge-subtle">@item.Platform</span>
-                                        <span class="table-filename">@item.FileName</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style="font-weight: 600; color: var(--text-main);">@item.Quality</div>
-                                    <div class="table-sub">@item.Format • @(item.Codec ?? "H.264")</div>
-                                </td>
-                                <td>
-                                    <div style="font-weight: 600;">@item.FormattedFileSize</div>
-                                    <div class="table-sub">
-                                        @if (item.AverageSpeedMBps > 0)
+                                    <div class="media-thumb-container">
+                                        @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
                                         {
-                                            <span>⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                            <img src="@item.ThumbnailUrl" alt="Thumb" class="table-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'table-thumb-fallback\'>🎬</div>'" />
                                         }
                                         else
                                         {
-                                            <span>@item.ThreadsUsed Workers</span>
+                                            <div class="table-thumb-fallback">🎬</div>
                                         }
                                     </div>
                                 </td>
                                 <td>
-                                    @switch (item.Status)
-                                    {
-                                        case StreamHelper.Data.DownloadStatus.Completed:
-                                            <span class="status-badge status-completed">✅ Completed</span>
-                                            break;
-                                        case StreamHelper.Data.DownloadStatus.Downloading:
-                                            <span class="status-badge status-downloading">⚡ Downloading</span>
-                                            break;
-                                        case StreamHelper.Data.DownloadStatus.Failed:
-                                            <span class="status-badge status-failed" title="@item.ErrorReason">❌ Failed</span>
-                                            break;
-                                        case StreamHelper.Data.DownloadStatus.Cancelled:
-                                            <span class="status-badge status-cancelled">⏹️ Cancelled</span>
-                                            break;
-                                        default:
-                                            <span class="status-badge status-queued">⏳ @item.Status</span>
-                                            break;
-                                    }
+                                    <div class="title-cell-wrap">
+                                        <div class="table-main-title" title="@item.Title">@item.Title</div>
+                                        <div class="table-meta-sub">
+                                            <span class="platform-tag @platClass">
+                                                <span class="plat-icon">@platIcon</span>
+                                                <span class="plat-name">@platName</span>
+                                            </span>
+                                            @if (!string.IsNullOrEmpty(item.FileName) && item.FileName != item.Title)
+                                            {
+                                                <span class="file-name-sub" title="@item.FileName">
+                                                    <span class="file-icon">📄</span>
+                                                    <span class="file-text">@item.FileName</span>
+                                                </span>
+                                            }
+                                        </div>
+                                    </div>
                                 </td>
                                 <td>
-                                    <div style="font-size: 13px;">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
-                                    <div class="table-sub">@item.CreatedAt.ToLocalTime().ToString("hh:mm tt")</div>
+                                    <div class="quality-cell">
+                                        <span class="quality-pill">@cleanQ</span>
+                                        <div class="codec-sub">@(item.Format ?? "MP4") • @(item.Codec ?? "H.264 / AAC")</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="size-cell">
+                                        <div class="size-main">@item.FormattedFileSize</div>
+                                        <div class="speed-sub">
+                                            @if (item.AverageSpeedMBps > 0)
+                                            {
+                                                <span class="speed-live">⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="threads-text">@(item.ThreadsUsed > 0 ? item.ThreadsUsed : 16) workers</span>
+                                            }
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="status-cell">
+                                        @switch (item.Status)
+                                        {
+                                            case StreamHelper.Data.DownloadStatus.Completed:
+                                                <span class="status-badge-modern status-done">
+                                                    <span class="status-indicator-dot dot-green"></span>
+                                                    <span>Completed</span>
+                                                </span>
+                                                break;
+                                            case StreamHelper.Data.DownloadStatus.Downloading:
+                                                <span class="status-badge-modern status-active">
+                                                    <span class="status-spinner-tiny"></span>
+                                                    <span>Downloading</span>
+                                                </span>
+                                                break;
+                                            case StreamHelper.Data.DownloadStatus.Failed:
+                                                <span class="status-badge-modern status-err" title="@item.ErrorReason">
+                                                    <span class="status-indicator-dot dot-red"></span>
+                                                    <span>Failed</span>
+                                                </span>
+                                                break;
+                                            case StreamHelper.Data.DownloadStatus.Cancelled:
+                                                <span class="status-badge-modern status-stopped">
+                                                    <span class="status-indicator-dot dot-gray"></span>
+                                                    <span>Cancelled</span>
+                                                </span>
+                                                break;
+                                            default:
+                                                <span class="status-badge-modern status-wait">
+                                                    <span class="status-indicator-dot dot-amber"></span>
+                                                    <span>@item.Status</span>
+                                                </span>
+                                                break;
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="date-cell">
+                                        <div class="date-main">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                        <div class="date-sub">@item.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                                    </div>
                                 </td>
                                 <td style="text-align: right;">
-                                    <div style="display: flex; gap: 6px; justify-content: flex-end;">
-                                        <a href="@(item.OriginalUrl)" target="_blank" class="btn btn-icon" title="Open Source Webpage">🔗</a>
-                                        <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Remove this download from your history?');">
+                                    <div class="actions-cell">
+                                        @if (!string.IsNullOrEmpty(item.OriginalUrl))
+                                        {
+                                            <a href="@item.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                            </a>
+                                        }
+                                        <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Remove this download from your history?');" style="display: inline-block;">
                                             @Html.AntiForgeryToken()
-                                            <button type="submit" class="btn btn-icon btn-danger-icon" title="Delete from history">🗑️</button>
+                                            <button type="submit" class="action-btn action-delete" title="Delete record">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                            </button>
                                         </form>
                                     </div>
                                 </td>
@@ -162,10 +265,10 @@
             <!-- Pagination -->
             @if (Model.TotalPages > 1)
             {
-                <div class="pagination">
+                <div class="pagination modern-pagination">
                     @if (Model.CurrentPage > 1)
                     {
-                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link">&laquo; Prev</a>
+                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link page-arrow">&larr; Prev</a>
                     }
                     @for (int p = 1; p <= Model.TotalPages; p++)
                     {
@@ -173,10 +276,11 @@
                     }
                     @if (Model.CurrentPage < Model.TotalPages)
                     {
-                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link">Next &raquo;</a>
+                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link page-arrow">Next &rarr;</a>
                     }
                 </div>
             }
         }
     </div>
 </div>
+
