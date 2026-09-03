@@ -116,14 +116,20 @@
                             <div style="font-weight: 700; font-size: 14px; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
                                 <span>🤖 Auto-Detector &amp; AI Concurrency Advisor</span>
                             </div>
-                            <span style="font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 20px; font-weight: 600;">Live Telemetry v2.0</span>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <span id="redisCacheBadge" style="font-size: 11px; background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); padding: 2px 8px; border-radius: 20px; font-weight: 600;">⚡ Redis v7.0 Ready</span>
+                                <span style="font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 20px; font-weight: 600;">Live Telemetry v2.5</span>
+                            </div>
                         </div>
-                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Type any website URL, video stream, or domain to run real-time HTTP edge probing and get exact CDN architecture &amp; thread recommendations:</p>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Type any website URL, video stream, or domain to run real-time HTTP edge probing (accelerated with Redis distributed caching) and get instant thread recommendations:</p>
                         
                         <div style="display: flex; gap: 8px;">
                             <input type="text" id="detectorInput" placeholder="e.g. youtube.com, instagram.com, xhamster.com, vimeo.com, spankbang.com" class="form-control" style="font-size: 13px; background: #070a13; border: 1px solid rgba(255,255,255,0.15);" onkeydown="if(event.key==='Enter'){event.preventDefault();analyzeDomainSuggestion();}" />
                             <button type="button" id="btnProbeAnalyze" class="btn btn-primary" onclick="analyzeDomainSuggestion()" style="white-space: nowrap; font-size: 13px; font-weight: 700; padding: 0 16px;">
                                 <span id="btnProbeText">🔍 Analyze</span>
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="flushRedisCache()" title="Clear Redis and In-Memory probe caches" style="font-size: 12px; padding: 0 12px; color: #cbd5e1;">
+                                <span>🗑️ Flush Cache</span>
                             </button>
                         </div>
                         
@@ -155,6 +161,39 @@ function applyProfile(strict, open, def) {
     document.getElementById('inpOpenThreads').value = open;
     document.getElementById('inpDefaultThreads').value = def;
 }
+
+async function flushRedisCache() {
+    try {
+        const resp = await fetch('/api/admin/clear-cache', { method: 'POST' });
+        const data = await resp.json();
+        alert(data.message || 'Cache cleared successfully!');
+    } catch (e) {
+        alert('Failed to clear cache: ' + e.message);
+    }
+}
+
+async function checkRedisStatus() {
+    try {
+        const resp = await fetch('/api/admin/cache-status');
+        const data = await resp.json();
+        const badge = document.getElementById('redisCacheBadge');
+        if (badge) {
+            if (data.isConnected) {
+                badge.innerText = '⚡ Redis v7.0 Active';
+                badge.style.color = '#34d399';
+                badge.style.background = 'rgba(16, 185, 129, 0.15)';
+                badge.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+            } else {
+                badge.innerText = '⚡ Memory Cache Active';
+                badge.style.color = '#38bdf8';
+                badge.style.background = 'rgba(56, 189, 248, 0.15)';
+                badge.style.borderColor = 'rgba(56, 189, 248, 0.3)';
+            }
+        }
+    } catch { }
+}
+
+document.addEventListener('DOMContentLoaded', checkRedisStatus);
 
 async function analyzeDomainSuggestion() {
     const raw = (document.getElementById('detectorInput').value || '').trim();
@@ -201,13 +240,20 @@ async function analyzeDomainSuggestion() {
             ).join(' ');
         }
 
+        const cacheBadge = data.isCached ? 
+            `<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700;">⚡ Instant Cache (${data.cacheSource})</span>` :
+            `<span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 600;">📡 Live Edge Probe</span>`;
+
         resDiv.innerHTML = `
             <div style="background: rgba(7, 10, 19, 0.9); border: 1px solid ${badgeBorder}; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
                 <!-- Header Status Row -->
                 <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
                     <div>
-                        <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Target Host</span>
-                        <div style="font-size: 15px; font-weight: 800; color: #f8fafc; font-family: monospace;">${data.host}</div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Target Host</span>
+                            ${cacheBadge}
+                        </div>
+                        <div style="font-size: 15px; font-weight: 800; color: #f8fafc; font-family: monospace; margin-top: 2px;">${data.host}</div>
                     </div>
                     <div style="display: flex; gap: 6px; align-items: center;">
                         <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">

@@ -44,6 +44,29 @@ public class DownloadTaskState
     public CancellationTokenSource? Cts { get; set; }
 }
 
+public class CdnProbeResult
+{
+    public bool Success { get; set; } = true;
+    public string Host { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
+    public string CdnProvider { get; set; } = string.Empty;
+    public string PlatformType { get; set; } = string.Empty;
+    public string StreamProtocol { get; set; } = string.Empty;
+    public string RateLimitLevel { get; set; } = string.Empty;
+    public int RecommendedThreads { get; set; }
+    public int SafeCap { get; set; }
+    public int MaxTurbo { get; set; }
+    public string AntiHotlinkStrategy { get; set; } = string.Empty;
+    public string BandwidthRating { get; set; } = string.Empty;
+    public string RiskFactor { get; set; } = string.Empty;
+    public long ResponseTimeMs { get; set; }
+    public string ServerHeader { get; set; } = string.Empty;
+    public bool ByteRangeSupported { get; set; }
+    public Dictionary<string, string> DetectedHeaders { get; set; } = new();
+    public bool IsCached { get; set; }
+    public string CacheSource { get; set; } = "Live Probe";
+}
+
 public class AnalyzeRequest
 {
     public string Url { get; set; } = string.Empty;
@@ -287,7 +310,21 @@ public class Program
                 });
         }
 
-        // 4. Application Services & Switchable Analytics/Database Layer
+        // 4. Redis Distributed Cache & High-Performance Acceleration
+        var redisConn = builder.Configuration["Redis:ConnectionString"] ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING") ?? "localhost:6379,abortConnect=false,connectTimeout=4000";
+        try
+        {
+            var multiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisConn);
+            builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(multiplexer);
+            Console.WriteLine($"[Redis Bootstrap] ⚡ Initialized Redis connection to: {redisConn}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Redis Bootstrap Notice] Connection to '{redisConn}' failed: {ex.Message}. Running in High-Speed In-Memory Fallback Cache.");
+        }
+        builder.Services.AddSingleton<SaveZonix.Services.IRedisCacheService, SaveZonix.Services.RedisCacheService>();
+
+        // 5. Application Services & Switchable Analytics/Database Layer
         builder.Services.AddSingleton<IEmailService, EmailService>();
         builder.Services.AddSingleton<IEmailVerificationService, EmailVerificationService>();
         builder.Services.AddScoped<StreamHelper.Services.IDownloadHistoryService, StreamHelper.Services.DownloadHistoryService>();
@@ -461,7 +498,7 @@ public class Program
         // ─────────────────────────────────────────────────────────────
         // 1.5. Real-Time AI CDN Prober & Concurrency Advisor API
         // ─────────────────────────────────────────────────────────────
-        app.MapGet("/api/admin/probe-cdn", async (string target) =>
+        app.MapGet("/api/admin/probe-cdn", async (string target, SaveZonix.Services.IRedisCacheService redisCache) =>
         {
             if (string.IsNullOrWhiteSpace(target))
             {
@@ -480,6 +517,17 @@ public class Program
             }
 
             string host = uri.Host.ToLowerInvariant();
+            string cacheKey = $"savezonix:cdn_probe:{host}";
+
+            // Check Redis cache first
+            var cached = await redisCache.GetAsync<CdnProbeResult>(cacheKey);
+            if (cached != null)
+            {
+                cached.IsCached = true;
+                cached.CacheSource = redisCache.CacheProviderName;
+                return Results.Ok(cached);
+            }
+
             string cdnProvider = "Standard Web Server / Anycast Edge";
             string platformType = "Generic Web Stream";
             string streamProtocol = "Direct HTTP / Byte-Range MP4";
@@ -617,58 +665,61 @@ public class Program
             {
                 cdnProvider = "Cloudflare Global Anycast Edge (1.1.1.1 Network)";
                 platformType = "Cloudflare Stream / CDN";
-                streamProtocol = "HLS / DASH / Direct Stream";
-                rateLimitLevel = "High-Capacity Enterprise";
+                antiHotlinkStrategy = "Guest Auth Bearer Token";
+                bandwidthRating = "High Bandwidth";
+                riskFactor = "Low-to-Medium Risk";
+            }
+            else if (host.Contains("cloudflare") || host.Contains("cf-ipfs.com") || host.Contains("workers.dev"))
+            {
+                cdnProvider = "Cloudflare Global Anycast Edge";
+                platformType = "Cloudflare Edge";
+                streamProtocol = "HTTP/2 & HTTP/3 Full Range";
+                rateLimitLevel = "Unrestricted Multi-Socket";
                 recommendedThreads = 128;
                 safeCap = 64;
                 maxTurbo = 256;
-                antiHotlinkStrategy = "Standard SSL / SNI";
-                bandwidthRating = "Extreme High Speed (Anycast)";
-                riskFactor = "Minimal (Saturates full connection)";
+                antiHotlinkStrategy = "Standard";
+                bandwidthRating = "Massive Edge Capacity (10Gbps+)";
+                riskFactor = "Very Low Risk (Maximum Parallel Acceleration)";
             }
 
-            // Live HTTP Probe
-            var sw = System.Diagnostics.Stopwatch.StartNew();
+            // Real HTTP HEAD Probe
+            var sw = Stopwatch.StartNew();
             try
             {
-                using var client = new HttpClient(new HttpClientHandler
+                using var client = new HttpClient(new SocketsHttpHandler
                 {
                     AllowAutoRedirect = true,
                     AutomaticDecompression = System.Net.DecompressionMethods.All,
-                    ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-                })
-                {
-                    Timeout = TimeSpan.FromSeconds(5)
-                };
-
-                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
+                    ConnectTimeout = TimeSpan.FromSeconds(5)
+                });
+                client.Timeout = TimeSpan.FromSeconds(7);
+                client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
                 client.DefaultRequestHeaders.Add("Accept", "*/*");
-                client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
-                client.DefaultRequestHeaders.Add("Referer", uri.GetLeftPart(UriPartial.Authority) + "/");
 
-                var req = new HttpRequestMessage(HttpMethod.Head, target);
-                var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                using var req = new HttpRequestMessage(HttpMethod.Head, uri);
+                using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
                 sw.Stop();
                 responseTimeMs = sw.ElapsedMilliseconds;
 
-                if (resp.Headers.Server != null)
+                if (resp.Headers.Server != null && resp.Headers.Server.Any())
                 {
-                    serverHeader = resp.Headers.Server.ToString();
+                    serverHeader = string.Join(" ", resp.Headers.Server);
+                    detectedHeaders["Server"] = serverHeader;
                 }
-
                 if (resp.Headers.TryGetValues("CF-RAY", out var cfRay))
                 {
                     detectedHeaders["CF-RAY"] = string.Join(", ", cfRay);
-                    if (cdnProvider.Contains("Standard")) cdnProvider = "Cloudflare CDN Edge (" + string.Join(", ", cfRay).Split('-')[0] + ")";
+                    if (cdnProvider.Contains("Standard")) cdnProvider = "Cloudflare Anycast Proxy";
                 }
                 if (resp.Headers.TryGetValues("X-Cache", out var xCache))
                 {
                     detectedHeaders["X-Cache"] = string.Join(", ", xCache);
                 }
-                if (resp.Headers.TryGetValues("X-Amz-Cf-Id", out var cfId))
+                if (resp.Headers.TryGetValues("X-Amz-Cf-Id", out var xAmz))
                 {
-                    detectedHeaders["CloudFront-ID"] = string.Join(", ", cfId);
-                    if (cdnProvider.Contains("Standard")) cdnProvider = "Amazon CloudFront Edge CDN";
+                    detectedHeaders["X-Amz-Cf-Id"] = string.Join(", ", xAmz);
+                    if (cdnProvider.Contains("Standard")) cdnProvider = "Amazon CloudFront Edge";
                 }
                 if (resp.Headers.TryGetValues("X-Served-By", out var xServed))
                 {
@@ -691,26 +742,52 @@ public class Program
                 detectedHeaders["Probe-Notice"] = ex.Message;
             }
 
+            var result = new CdnProbeResult
+            {
+                Success = true,
+                Host = host,
+                Url = target,
+                CdnProvider = cdnProvider,
+                PlatformType = platformType,
+                StreamProtocol = streamProtocol,
+                RateLimitLevel = rateLimitLevel,
+                RecommendedThreads = recommendedThreads,
+                SafeCap = safeCap,
+                MaxTurbo = maxTurbo,
+                AntiHotlinkStrategy = antiHotlinkStrategy,
+                BandwidthRating = bandwidthRating,
+                RiskFactor = riskFactor,
+                ResponseTimeMs = responseTimeMs,
+                ServerHeader = serverHeader,
+                ByteRangeSupported = byteRangeSupported,
+                DetectedHeaders = detectedHeaders,
+                IsCached = false,
+                CacheSource = redisCache.CacheProviderName
+            };
+
+            // Store in Redis with 6 hours TTL
+            await redisCache.SetAsync(cacheKey, result, TimeSpan.FromHours(6));
+
+            return Results.Ok(result);
+        });
+
+        // ─────────────────────────────────────────────────────────────
+        // 1.6. Redis Cache Telemetry & Invalidation APIs
+        // ─────────────────────────────────────────────────────────────
+        app.MapGet("/api/admin/cache-status", (SaveZonix.Services.IRedisCacheService redisCache) =>
+        {
             return Results.Ok(new
             {
-                success = true,
-                host = host,
-                url = target,
-                cdnProvider = cdnProvider,
-                platformType = platformType,
-                streamProtocol = streamProtocol,
-                rateLimitLevel = rateLimitLevel,
-                recommendedThreads = recommendedThreads,
-                safeCap = safeCap,
-                maxTurbo = maxTurbo,
-                antiHotlinkStrategy = antiHotlinkStrategy,
-                bandwidthRating = bandwidthRating,
-                riskFactor = riskFactor,
-                responseTimeMs = responseTimeMs,
-                serverHeader = serverHeader,
-                byteRangeSupported = byteRangeSupported,
-                detectedHeaders = detectedHeaders
+                isConnected = redisCache.IsConnected,
+                provider = redisCache.CacheProviderName,
+                timestamp = DateTime.UtcNow
             });
+        });
+
+        app.MapPost("/api/admin/clear-cache", async (SaveZonix.Services.IRedisCacheService redisCache) =>
+        {
+            await redisCache.ClearAllAsync();
+            return Results.Ok(new { success = true, message = "Redis and Distributed Memory Cache cleared successfully.", timestamp = DateTime.UtcNow });
         });
 
         // ─────────────────────────────────────────────────────────────

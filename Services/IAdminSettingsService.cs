@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using SaveZonix.Services;
 using StreamHelper.Data;
 
 namespace StreamHelper.Services;
@@ -20,16 +21,23 @@ public interface IAdminSettingsService
 public class AdminSettingsService : IAdminSettingsService
 {
     private readonly AppDbContext _context;
+    private readonly IRedisCacheService? _redis;
+    private const string CacheKeyAll = "savezonix:settings:all";
+    private const string CachePrefix = "savezonix:settings:";
 
-    public AdminSettingsService(AppDbContext context)
+    public AdminSettingsService(AppDbContext context, IRedisCacheService? redis = null)
     {
         _context = context;
+        _redis = redis;
     }
 
     public async Task<string> GetSettingAsync(string key, string defaultValue = "")
     {
         try
         {
+            var all = await GetAllSettingsAsync();
+            if (all.TryGetValue(key, out var val)) return val;
+
             var setting = await _context.AdminSettings.FirstOrDefaultAsync(s => s.Key == key);
             return setting?.Value ?? defaultValue;
         }
@@ -69,9 +77,20 @@ public class AdminSettingsService : IAdminSettingsService
 
     public async Task<Dictionary<string, string>> GetAllSettingsAsync()
     {
+        if (_redis != null)
+        {
+            var cached = await _redis.GetAsync<Dictionary<string, string>>(CacheKeyAll);
+            if (cached != null && cached.Count > 0) return cached;
+        }
+
         try
         {
-            return await _context.AdminSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+            var dict = await _context.AdminSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+            if (_redis != null && dict.Count > 0)
+            {
+                await _redis.SetAsync(CacheKeyAll, dict, TimeSpan.FromHours(2));
+            }
+            return dict;
         }
         catch
         {
@@ -109,6 +128,11 @@ public class AdminSettingsService : IAdminSettingsService
             });
         }
         await _context.SaveChangesAsync();
+
+        if (_redis != null)
+        {
+            await _redis.RemoveByPrefixAsync(CachePrefix);
+        }
     }
 
     public async Task UpdateSettingsAsync(Dictionary<string, string> settings)
@@ -132,5 +156,10 @@ public class AdminSettingsService : IAdminSettingsService
             }
         }
         await _context.SaveChangesAsync();
+
+        if (_redis != null)
+        {
+            await _redis.RemoveByPrefixAsync(CachePrefix);
+        }
     }
 }
