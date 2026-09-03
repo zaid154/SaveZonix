@@ -5,6 +5,7 @@ let currentTaskId = null;
 let pollInterval = null;
 let currentConcurrency = 64;
 let isPaused = false;
+let autoStartDownload = false;
 
 // Speed sparkline canvas history
 const speedHistory = [];
@@ -105,6 +106,7 @@ const btnReset = document.getElementById('btnReset');
 window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const paramStreamUrl = urlParams.get('streamUrl') || urlParams.get('url');
+    autoStartDownload = urlParams.get('autoDownload') === '1';
     if (paramStreamUrl) {
         streamUrlInput.value = decodeURIComponent(paramStreamUrl);
         setTimeout(() => {
@@ -211,7 +213,10 @@ function requestInstagramStreamFromExtension(url) {
         const timeout = setTimeout(() => {
             cleanup();
             resolve(null);
-        }, 7000);
+        // The extension polls the already-open Reel briefly because recent
+        // Instagram embeds often omit video_url until playback attaches the
+        // signed CDN source. Leave enough room for that scan to finish.
+        }, 10000);
         const handler = (event) => {
             if (event.origin !== window.location.origin || event.source !== window) return;
             const data = event.data;
@@ -222,6 +227,24 @@ function requestInstagramStreamFromExtension(url) {
         };
         window.addEventListener('message', handler);
         window.postMessage({ source: 'SaveZonixDashboard', type: 'resolveInstagram', requestId, url }, window.location.origin);
+    });
+}
+
+function requestPageStreamFromExtension(url) {
+    return new Promise((resolve) => {
+        const requestId = `page_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const cleanup = () => window.removeEventListener('message', handler);
+        const timeout = setTimeout(() => { cleanup(); resolve(null); }, 7000);
+        const handler = (event) => {
+            if (event.origin !== window.location.origin || event.source !== window) return;
+            const data = event.data;
+            if (!data || data.source !== 'SaveZonixExtension' || data.type !== 'pageResolved' || data.requestId !== requestId) return;
+            clearTimeout(timeout);
+            cleanup();
+            resolve(data.response || null);
+        };
+        window.addEventListener('message', handler);
+        window.postMessage({ source: 'SaveZonixDashboard', type: 'resolvePage', requestId, url }, window.location.origin);
     });
 }
 
@@ -252,31 +275,68 @@ btnAnalyze.addEventListener('click', async () => {
         // extension first, before making any request for the reel webpage, so
         // a normal Instagram paste does not deliberately generate a 400.
         if (isInstagramPageUrl(url)) {
-            setLoading(true, 'Reading Instagram stream from extension...');
-            const bridge = await requestInstagramStreamFromExtension(url);
-            if (!bridge?.success || !bridge.url) {
-                throw new Error(bridge?.message || 'Reload SaveZonix at chrome://extensions, open this reel, play it for 2 seconds, then retry.');
-            }
+            setLoading(true, 'Checking extension or resolving stream...');
+            let bridge = null;
+            try {
+                bridge = await Promise.race([
+                    requestInstagramStreamFromExtension(url),
+                    new Promise(res => setTimeout(() => res(null), 2500))
+                ]);
+            } catch { }
 
-            const directResponse = await fetch('/api/analyze', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: bridge.url })
-            });
-            const directData = await directResponse.json();
-            if (!directResponse.ok || !directData.success) {
-                throw new Error(directData.message || 'The captured Instagram stream has expired. Play the reel and retry.');
-            }
-
-            directData.title = bridge.title || directData.title;
-            directData.thumbnailUrl = bridge.thumbnail || directData.thumbnailUrl;
-            directData.platform = 'Instagram';
-            if (bridge.audioUrl) {
-                directData.audioUrl = bridge.audioUrl;
-                if (directData.qualities && directData.qualities.length > 0) {
-                    directData.qualities.forEach(q => q.audioUrl = bridge.audioUrl);
+            if (bridge?.success && bridge.url) {
+                const directResponse = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: bridge.url })
+                });
+                const directData = await directResponse.json();
+                if (directResponse.ok && directData.success) {
+                    directData.title = bridge.title || directData.title;
+                    directData.thumbnailUrl = bridge.thumbnail || directData.thumbnailUrl;
+                    directData.platform = 'Instagram';
+                    directData.resolvedStreamUrl = bridge.url;
+                    directData.expectedResolution = bridge.resolution || '';
+                    if (bridge.duration) {
+                        const durationMatch = String(bridge.duration).match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+                        if (durationMatch) {
+                            const hours = parseInt(durationMatch[1] || '0', 10);
+                            const minutes = parseInt(durationMatch[2], 10);
+                            const seconds = parseInt(durationMatch[3], 10);
+                            directData.durationSeconds = hours * 3600 + minutes * 60 + seconds;
+                        }
+                    }
+                    if (bridge.audioUrl) {
+                        directData.audioUrl = bridge.audioUrl;
+                        if (directData.qualities && directData.qualities.length > 0) {
+                            directData.qualities.forEach(q => q.audioUrl = bridge.audioUrl);
+                        }
+                    }
+                    streamData = directData;
+                    renderStreamDetails(directData);
+                    return;
                 }
             }
+            // If extension was not found or didn't resolve, fall through to server-side /api/analyze
+        }
+
+        // Some KVS/tube hosts block server-side HTML requests but expose the
+        // exact signed source to their already-open browser player.
+        if (new URL(url).hostname.toLowerCase().includes('freepornvideo.sex')) {
+            setLoading(true, 'Reading the playable stream from Chrome...');
+            const bridge = await requestPageStreamFromExtension(url);
+            if (!bridge?.success || !bridge.url) {
+                throw new Error(bridge?.message || 'Open this page in Chrome, start the video briefly, then retry.');
+            }
+            const directResponse = await fetch('/api/analyze', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: bridge.url })
+            });
+            const directData = await directResponse.json();
+            if (!directResponse.ok || !directData.success) throw new Error(directData.message || 'The captured stream has expired. Play the video and retry.');
+            directData.title = bridge.title || directData.title;
+            directData.thumbnailUrl = bridge.thumbnail || directData.thumbnailUrl;
+            directData.platform = bridge.platform || directData.platform;
+            directData.expectedResolution = bridge.resolution || '';
             streamData = directData;
             renderStreamDetails(directData);
             return;
@@ -443,6 +503,14 @@ function renderStreamDetails(data) {
     streamDetails.classList.remove('hidden');
     progressSection.classList.add('hidden');
     successSection.classList.add('hidden');
+
+    // The extension only enables this for a detected signed direct stream. It
+    // preserves the exact source selected in Chrome, then begins the same
+    // validated server download path used by the normal Download button.
+    if (autoStartDownload) {
+        autoStartDownload = false;
+        setTimeout(() => btnStartDownload?.click(), 150);
+    }
 }
 
 qualitySelect.addEventListener('change', () => {
@@ -503,6 +571,11 @@ btnStartDownload.addEventListener('click', async () => {
     const selectedUrl = isAudioMode 
         ? (streamData.qualities?.[0]?.url || streamUrlInput.value.trim())
         : (qualitySelect.value || streamUrlInput.value.trim());
+
+    if (!selectedUrl || !/^https?:\/\//i.test(selectedUrl)) {
+        showError('No verified stream is selected. Analyze the video again before downloading.');
+        return;
+    }
 
     const audioUrl = (selectedOpt ? (selectedOpt.dataset.audioUrl || '') : '') || streamData?.audioUrl || '';
     const fileName = fileNameInput.value.trim() || (isAudioMode ? 'audio.mp3' : 'video.mp4');
@@ -577,7 +650,8 @@ btnStartDownload.addEventListener('click', async () => {
                 concurrency,
                 estimatedSizeBytes,
                 isDirectFile,
-                durationSeconds: streamData.durationSeconds || 0
+                durationSeconds: streamData.durationSeconds || 0,
+                expectedResolution: streamData.expectedResolution || selectedOpt?.dataset.res || ''
             })
         });
 
@@ -656,10 +730,15 @@ function startPollingProgress(taskId, fileName, userMaxThreads) {
             if (state.isError) {
                 clearInterval(pollInterval);
                 const errMsg = state.errorMessage || state.status || 'Download Failed/Corrupted – Please Redownload';
-                showError(`⚠️ <strong>Download Failed/Corrupted – Please Redownload</strong><br><span style="font-size:13px; color:#fca5a5;">${errMsg}</span><br><br><span style="font-size:12px; color:var(--text-muted);">The stream was intercepted and failed media validation before saving. Please try again.</span>`);
+                showError(`⚠️ <strong>Download Failed/Corrupted</strong><br><span style="font-size:13px; color:#fca5a5;">${errMsg}</span><br><br><span style="font-size:12px; color:var(--text-muted);">The invalid file was removed and was not saved as a completed download.</span><br><button type="button" id="btnRetryDownload" class="btn btn-primary btn-sm" style="margin-top:10px;">Retry Download</button>`);
                 progressSection.classList.add('hidden');
                 btnStartDownload.disabled = false;
                 streamDetails.classList.remove('hidden');
+
+                document.getElementById('btnRetryDownload')?.addEventListener('click', () => {
+                    hideError();
+                    btnStartDownload.click();
+                }, { once: true });
 
                 try {
                     fetch('/api/analytics/client-error', {

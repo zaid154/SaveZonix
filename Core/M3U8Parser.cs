@@ -1,4 +1,5 @@
 using System.Net;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using YoutubeExplode;
@@ -42,6 +43,12 @@ public class M3U8Parser
             if (embedResult != null)
             {
                 return embedResult;
+            }
+
+            var oembedResult = await ExtractInstagramOEmbedFallbackAsync(url, result);
+            if (oembedResult != null)
+            {
+                return oembedResult;
             }
         }
 
@@ -193,7 +200,9 @@ public class M3U8Parser
     private static bool IsDirectMediaExtension(Uri uri)
     {
         string path = uri.AbsolutePath.ToLowerInvariant();
-        return path.EndsWith(".mp4") || path.EndsWith(".webm") || path.EndsWith(".m4v") || path.EndsWith(".mkv");
+        return path.EndsWith(".mp4") || path.EndsWith(".webm") || path.EndsWith(".m4v") || path.EndsWith(".mkv") ||
+               path.Contains(".mp4/") || path.Contains(".webm/") || path.Contains(".m4v/") ||
+               path.Contains("/get_file/");
     }
 
     private static bool IsKnownProgressiveMediaUri(Uri uri)
@@ -420,6 +429,19 @@ public class M3U8Parser
     private async Task<(string Content, Uri FinalUri, string ContentType)> FetchContentWithNegotiationAsync(string url)
     {
         var targetUri = new Uri(url);
+
+        // This host serves public KVS player configuration to curl but rejects
+        // the .NET TLS fingerprint. Resolve its page before the normal HTTP
+        // negotiation path, while direct /get_file URLs remain direct media.
+        if (targetUri.Host.Contains("freepornvideo.sex", StringComparison.OrdinalIgnoreCase) &&
+            !IsDirectMediaExtension(targetUri))
+        {
+            var curlHtml = await FetchHtmlWithCurlAsync(url, targetUri);
+            if (!string.IsNullOrWhiteSpace(curlHtml))
+            {
+                return (curlHtml, targetUri, "text/html");
+            }
+        }
         var referers = StreamSecurityHelper.GetCandidateReferers(targetUri);
 
         foreach (var referer in referers)
@@ -459,6 +481,19 @@ public class M3U8Parser
         
         if (finalRes.StatusCode == HttpStatusCode.Forbidden || (int)finalRes.StatusCode == 403)
         {
+            // This KVS host currently rejects .NET's TLS fingerprint while
+            // serving the same public player document to Chrome/curl. Its
+            // player config contains a short-lived signed get_file URL, so
+            // obtain that public document with curl and continue through the
+            // normal parser rather than reporting a false Cloudflare block.
+            if (targetUri.Host.Contains("freepornvideo.sex", StringComparison.OrdinalIgnoreCase))
+            {
+                var curlHtml = await FetchHtmlWithCurlAsync(url, targetUri);
+                if (!string.IsNullOrWhiteSpace(curlHtml))
+                {
+                    return (curlHtml, targetUri, "text/html");
+                }
+            }
             throw new HttpRequestException($"Site '{targetUri.Host}' is protected by Cloudflare bot verification. Please play the video in your Chrome browser and click the Stream Helper extension (or copy the direct .m3u8 / .mp4 stream URL) to download!");
         }
 
@@ -467,6 +502,61 @@ public class M3U8Parser
         var content = await finalRes.Content.ReadAsStringAsync();
         var ct = finalRes.Content.Headers.ContentType?.MediaType ?? string.Empty;
         return (content, finalRes.RequestMessage?.RequestUri ?? targetUri, ct);
+    }
+
+    private static async Task<string?> FetchHtmlWithCurlAsync(string url, Uri targetUri)
+    {
+        string? tempFile = null;
+        try
+        {
+            string executable = OperatingSystem.IsWindows()
+                ? Path.Combine(Environment.SystemDirectory, "curl.exe")
+                : "curl";
+            tempFile = Path.Combine(Path.GetTempPath(), $"zonix_curl_{Guid.NewGuid():N}.html");
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = executable,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("--silent");
+            startInfo.ArgumentList.Add("--show-error");
+            startInfo.ArgumentList.Add("--location");
+            startInfo.ArgumentList.Add("--max-time");
+            startInfo.ArgumentList.Add("30");
+            startInfo.ArgumentList.Add("--output");
+            startInfo.ArgumentList.Add(tempFile);
+            startInfo.ArgumentList.Add("--user-agent");
+            startInfo.ArgumentList.Add("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
+            startInfo.ArgumentList.Add("--header");
+            startInfo.ArgumentList.Add("Accept-Language: en-US,en;q=0.9");
+            startInfo.ArgumentList.Add("--referer");
+            startInfo.ArgumentList.Add($"{targetUri.Scheme}://{targetUri.Host}/");
+            startInfo.ArgumentList.Add(url);
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return null;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(35));
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync(timeout.Token);
+            _ = await stderr;
+            string html = File.Exists(tempFile) ? await File.ReadAllTextAsync(tempFile, timeout.Token) : string.Empty;
+            Console.WriteLine($"[KVS Extractor] curl exit={process.ExitCode}, html={html.Length} bytes for {targetUri.Host}");
+            // curl can report a non-zero exit after successfully writing the
+            // page (for example, when the peer closes an HTTP/2 stream). The
+            // validated HTML body is what the parser needs.
+            return html.Length > 1024 ? html : null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[KVS Extractor] curl fallback failed: {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            try { if (!string.IsNullOrEmpty(tempFile) && File.Exists(tempFile)) File.Delete(tempFile); } catch { }
+        }
     }
 
     private async Task<(string? MasterUrl, List<StreamQuality> Qualities)> ExtractStreamsFromHtmlAsync(string html, Uri baseUri)
@@ -780,7 +870,37 @@ public class M3U8Parser
             }
         }
 
-        // 4. JSON-LD VideoObject schema
+        // 4. KVS/tube player configuration. Prefer this signed URL over the
+        // public JSON-LD contentUrl, which is only an unsigned descriptor and
+        // cannot be downloaded directly.
+        var kvsVideoUrls = Regex.Matches(
+            cleanedHtml,
+            "\\bvideo_(?:alt_)?url\\s*[:=]\\s*['\\\"]([^'\\\"]+)['\\\"]",
+            RegexOptions.IgnoreCase);
+        foreach (Match match in kvsVideoUrls)
+        {
+            string streamUrl = WebUtility.HtmlDecode(match.Groups[1].Value).Replace("\\/", "/");
+            if (!streamUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)) continue;
+            bool isLowQuality = match.Value.Contains("video_alt_url", StringComparison.OrdinalIgnoreCase) ||
+                                streamUrl.Contains("_lq.", StringComparison.OrdinalIgnoreCase);
+            if (!qualities.Any(q => q.Url == streamUrl))
+            {
+                qualities.Add(new StreamQuality
+                {
+                    Resolution = isLowQuality ? "480p SD (KVS Direct)" : "Original Quality (KVS Direct)",
+                    Url = streamUrl,
+                    IsDirectFile = true,
+                    Bandwidth = isLowQuality ? 1100000 : 4500000
+                });
+            }
+        }
+        if (qualities.Count > 0)
+        {
+            var sorted = qualities.OrderByDescending(q => q.Bandwidth).ToList();
+            return (sorted[0].Url, sorted);
+        }
+
+        // 5. JSON-LD VideoObject schema
         var jsonLdMatches = Regex.Matches(cleanedHtml, @"<script[^>]+type=[""']application/ld\+json[""'][^>]*>(.*?)</script>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
         foreach (Match jsonLd in jsonLdMatches)
         {
@@ -800,7 +920,7 @@ public class M3U8Parser
             catch { }
         }
 
-        // 5. Parse quality entries from JSON mediaDefinitions / flashvars
+        // 6. Parse quality entries from JSON mediaDefinitions / flashvars
         var qualityBlocks = Regex.Matches(cleanedHtml, @"\{[^{}]*[""']videoUrl[""']\s*:\s*[""']([^""']+)[""'][^{}]*\}", RegexOptions.IgnoreCase);
         foreach (Match block in qualityBlocks)
         {
@@ -865,21 +985,21 @@ public class M3U8Parser
             return (qualities[0].Url, qualities);
         }
 
-        // 6. Direct general M3U8 match
+        // 7. Direct general M3U8 match
         var generalMatch = Regex.Match(cleanedHtml, @"(https?://[^\s""'<>]+\.m3u8[^\s""'<>]*)", RegexOptions.IgnoreCase);
         if (generalMatch.Success)
         {
             return (generalMatch.Groups[1].Value, qualities);
         }
 
-        // 7. Relative M3U8 match
+        // 8. Relative M3U8 match
         var relativeMatch = Regex.Match(cleanedHtml, @"[""'](/[^""'\s<>]+\.m3u8[^""'\s<>]*)[""']", RegexOptions.IgnoreCase);
         if (relativeMatch.Success)
         {
             return (ResolveUrl(baseUri, relativeMatch.Groups[1].Value), qualities);
         }
 
-        // 8. Embedded player iframe checking
+        // 9. Embedded player iframe checking
         var iframeMatch = Regex.Match(cleanedHtml, @"<iframe[^>]+src=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
         if (iframeMatch.Success)
         {
@@ -899,7 +1019,7 @@ public class M3U8Parser
             }
         }
 
-        // 9. Multi-Quality MP4 Stream Matcher & Resolution Optimizer
+        // 10. Multi-Quality MP4 Stream Matcher & Resolution Optimizer
         var allMp4Matches = Regex.Matches(cleanedHtml, @"(https?://[^\s""'<>]+\.(?:mp4|webm)[^\s""'<>]*)", RegexOptions.IgnoreCase);
         foreach (Match m in allMp4Matches)
         {
@@ -1505,4 +1625,71 @@ public class M3U8Parser
 
         return null;
     }
+
+    private async Task<StreamAnalysisResult?> ExtractInstagramOEmbedFallbackAsync(string originalUrl, StreamAnalysisResult result)
+    {
+        try
+        {
+            Console.WriteLine("[Instagram Extractor] Using Instagram oEmbed fallback method...");
+            string normalizedUrl = Regex.Replace(originalUrl, @"/reels/", "/reel/", RegexOptions.IgnoreCase);
+            string oembedUrl = $"https://www.instagram.com/api/v1/oembed/?url={Uri.EscapeDataString(normalizedUrl)}";
+            
+            using var req = new HttpRequestMessage(HttpMethod.Get, oembedUrl);
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            
+            using var resp = await _httpClient.SendAsync(req);
+            Console.WriteLine($"[Instagram Extractor] oEmbed status: {resp.StatusCode}");
+            if (resp.IsSuccessStatusCode)
+            {
+                var oembedJson = await resp.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(oembedJson);
+
+                if (doc.RootElement.TryGetProperty("title", out var titleProp))
+                {
+                    string t = titleProp.GetString() ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(t))
+                    {
+                        result.Title = t.Length > 100 ? t.Substring(0, 100) + "..." : t;
+                    }
+                }
+                if (doc.RootElement.TryGetProperty("author_name", out var authorProp))
+                {
+                    result.Platform = $"Instagram • {authorProp.GetString()}";
+                }
+                else
+                {
+                    result.Platform = "Instagram";
+                }
+                if (doc.RootElement.TryGetProperty("thumbnail_url", out var thumbProp))
+                {
+                    result.ThumbnailUrl = thumbProp.GetString() ?? result.ThumbnailUrl;
+                }
+
+                result.Qualities.Add(new StreamQuality
+                {
+                    Resolution = "1080p Full HD (Instagram Reel)",
+                    Url = originalUrl,
+                    IsDirectFile = false,
+                    Bandwidth = 4500000
+                });
+
+                result.RequiresBrowserContext = true;
+                result.StatusMessage = "Instagram protects direct reel streams. Click Download or use the SaveZonix Browser Extension.";
+                Console.WriteLine("[Instagram Extractor] oEmbed metadata fallback succeeded.");
+                return result;
+            }
+            else
+            {
+                var err = await resp.Content.ReadAsStringAsync();
+                Console.WriteLine($"[Instagram Extractor] oEmbed failed with status {resp.StatusCode}: {err.Substring(0, Math.Min(200, err.Length))}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Instagram Extractor] oEmbed fallback error: {ex.Message}");
+        }
+
+        return null;
+    }
 }
+
