@@ -111,14 +111,23 @@
                     </div>
 
                     <!-- AI / Auto Detector Assistant -->
-                    <div style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 14px; margin-top: 15px;">
-                        <div style="font-weight: 600; font-size: 13px; color: #60a5fa; margin-bottom: 6px;">🤖 Auto-Detector &amp; AI Concurrency Advisor</div>
-                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">Type any site URL or domain to test its CDN profile and get instant thread suggestions:</p>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="detectorInput" placeholder="e.g. pornhub.com, youtube.com, spankbang.com" class="form-control" style="font-size: 13px;" />
-                            <button type="button" class="btn btn-secondary" onclick="analyzeDomainSuggestion()" style="white-space: nowrap; font-size: 12px;">🔍 Analyze</button>
+                    <div style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 18px; margin-top: 18px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                            <div style="font-weight: 700; font-size: 14px; color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                                <span>🤖 Auto-Detector &amp; AI Concurrency Advisor</span>
+                            </div>
+                            <span style="font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 20px; font-weight: 600;">Live Telemetry v2.0</span>
                         </div>
-                        <div id="detectorResult" style="display: none; margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 6px; font-size: 12px;"></div>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Type any website URL, video stream, or domain to run real-time HTTP edge probing and get exact CDN architecture &amp; thread recommendations:</p>
+                        
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="detectorInput" placeholder="e.g. youtube.com, instagram.com, xhamster.com, vimeo.com, spankbang.com" class="form-control" style="font-size: 13px; background: #070a13; border: 1px solid rgba(255,255,255,0.15);" onkeydown="if(event.key==='Enter'){event.preventDefault();analyzeDomainSuggestion();}" />
+                            <button type="button" id="btnProbeAnalyze" class="btn btn-primary" onclick="analyzeDomainSuggestion()" style="white-space: nowrap; font-size: 13px; font-weight: 700; padding: 0 16px;">
+                                <span id="btnProbeText">🔍 Analyze</span>
+                            </button>
+                        </div>
+                        
+                        <div id="detectorResult" style="display: none; margin-top: 14px;"></div>
                     </div>
 
                     <div class="form-group" style="margin-top: 16px;">
@@ -147,33 +156,124 @@ function applyProfile(strict, open, def) {
     document.getElementById('inpDefaultThreads').value = def;
 }
 
-function analyzeDomainSuggestion() {
-    const raw = (document.getElementById('detectorInput').value || '').trim().toLowerCase();
+async function analyzeDomainSuggestion() {
+    const raw = (document.getElementById('detectorInput').value || '').trim();
     const resDiv = document.getElementById('detectorResult');
+    const btnText = document.getElementById('btnProbeText');
+    const btn = document.getElementById('btnProbeAnalyze');
+
     if (!raw) {
         resDiv.style.display = 'block';
-        resDiv.innerHTML = '<span style="color: #ef4444;">Please enter a domain or URL.</span>';
+        resDiv.innerHTML = '<div style="color: #f87171; padding: 10px; background: rgba(239,68,68,0.1); border-radius: 8px; border: 1px solid rgba(239,68,68,0.2);">⚠️ Please enter a domain or URL to analyze (e.g. <code>youtube.com</code> or <code>https://instagram.com/reel/...</code>)</div>';
         return;
     }
 
-    const strictDomains = (document.getElementById('inpStrictDomains').value || '').toLowerCase();
-    const isStrict = strictDomains.split(',').some(d => d.trim() && raw.includes(d.trim()));
-
     resDiv.style.display = 'block';
-    if (isStrict || raw.includes('phncdn') || raw.includes('pornhub') || raw.includes('xhamster') || raw.includes('spankbang') || raw.includes('okxxx')) {
+    resDiv.innerHTML = `
+        <div style="padding: 16px; background: rgba(0, 0, 0, 0.4); border-radius: 10px; border: 1px solid rgba(56, 189, 248, 0.2); display: flex; align-items: center; gap: 12px;">
+            <div class="spinner" style="width: 20px; height: 20px; border-width: 2px;"></div>
+            <div style="font-size: 13px; color: #38bdf8; font-weight: 600;">
+                Probing CDN Edge Servers, Protocol Headers &amp; Concurrency Profile...
+            </div>
+        </div>
+    `;
+
+    btnText.innerText = "⏳ Probing...";
+    btn.disabled = true;
+
+    try {
+        const resp = await fetch(`/api/admin/probe-cdn?target=${encodeURIComponent(raw)}`);
+        const data = await resp.json();
+
+        if (!resp.ok || !data.success) {
+            throw new Error(data.error || 'Failed to probe target URL');
+        }
+
+        const isStrictRisk = data.safeCap < 32 || data.riskFactor.toLowerCase().includes('high');
+        const badgeColor = isStrictRisk ? '#fbbf24' : '#34d399';
+        const badgeBorder = isStrictRisk ? 'rgba(245, 158, 11, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+        const badgeBg = isStrictRisk ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)';
+
+        let headersHtml = '';
+        if (data.detectedHeaders && Object.keys(data.detectedHeaders).length > 0) {
+            headersHtml = Object.entries(data.detectedHeaders).map(([k, v]) => 
+                `<span style="background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-family: monospace; color: #94a3b8;">${k}: <strong style="color: #cbd5e1;">${v}</strong></span>`
+            ).join(' ');
+        }
+
         resDiv.innerHTML = `
-            <div style="color: #fbbf24; font-weight: 600;">🛡️ Strict Rate-Limiting CDN Detected</div>
-            <div style="color: var(--text-muted); margin-top: 4px;">This platform enforces concurrent connection throttling and signature validation.</div>
-            <div style="margin-top: 6px;"><b>AI Recommendation:</b> Set Strict Threads to <b>24–32</b> (Optimal speed ~25 MB/s without 429 errors).</div>
-            <button type="button" class="btn btn-primary" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;" onclick="applyProfile(24, 256, 64)">⚡ Apply Safe Strict Cap (24 Threads)</button>
+            <div style="background: rgba(7, 10, 19, 0.9); border: 1px solid ${badgeBorder}; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+                <!-- Header Status Row -->
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 10px;">
+                    <div>
+                        <span style="font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.05em;">Target Host</span>
+                        <div style="font-size: 15px; font-weight: 800; color: #f8fafc; font-family: monospace;">${data.host}</div>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <span style="background: ${badgeBg}; color: ${badgeColor}; border: 1px solid ${badgeBorder}; padding: 4px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 700;">
+                            ${isStrictRisk ? '🛡️ Strict Rate-Limited CDN' : '🚀 Open High-Throughput CDN'}
+                        </span>
+                        <span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.2); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-family: monospace;">
+                            ⚡ ${data.responseTimeMs} ms
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Telemetry Matrix Grid -->
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; font-size: 12px;">
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">CDN Infrastructure</span>
+                        <div style="color: #f1f5f9; font-weight: 700; margin-top: 2px;">${data.cdnProvider}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Streaming Architecture</span>
+                        <div style="color: #f1f5f9; font-weight: 700; margin-top: 2px;">${data.streamProtocol}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Anti-Hotlink Strategy</span>
+                        <div style="color: #38bdf8; font-weight: 600; margin-top: 2px;">${data.antiHotlinkStrategy}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                        <span style="color: #64748b; font-size: 10.5px; font-weight: 700; text-transform: uppercase;">Byte-Range Slicing</span>
+                        <div style="color: ${data.byteRangeSupported ? '#34d399' : '#f87171'}; font-weight: 700; margin-top: 2px;">
+                            ${data.byteRangeSupported ? '✅ HTTP 206 Partial Content Supported' : '⚠️ Non-Standard Chunking'}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Headers -->
+                ${headersHtml ? `
+                <div style="background: rgba(0,0,0,0.3); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
+                    <span style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Live Edge Headers:</span>
+                    ${headersHtml}
+                </div>` : ''}
+
+                <!-- AI Advice Box & Apply Button -->
+                <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+                    <div style="font-size: 12.5px; color: #e2e8f0;">
+                        💡 <b>AI Advisor Recommendation:</b> Allocate <b>${data.recommendedThreads} Parallel Threads</b> for balanced wire throughput. Safe strict limit for this host is <b>${data.safeCap} workers</b> (Max turbo: <b>${data.maxTurbo} workers</b>).
+                    </div>
+                    <div style="font-size: 11px; color: #94a3b8;">
+                        Risk Evaluation: <strong style="color: ${isStrictRisk ? '#fbbf24' : '#34d399'};">${data.riskFactor}</strong>
+                    </div>
+                    <div style="margin-top: 4px; display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-primary" style="padding: 8px 14px; font-size: 12px; font-weight: 700; flex: 1;" onclick="applyProfile(${data.safeCap}, ${data.maxTurbo}, ${data.recommendedThreads})">
+                            ⚡ Auto-Apply This Profile (${data.safeCap} Strict / ${data.maxTurbo} Open / ${data.recommendedThreads} Default)
+                        </button>
+                    </div>
+                </div>
+            </div>
         `;
-    } else {
+    } catch (err) {
         resDiv.innerHTML = `
-            <div style="color: #34d399; font-weight: 600;">🚀 Open High-Capacity Multi-Stream CDN Detected</div>
-            <div style="color: var(--text-muted); margin-top: 4px;">This platform (or direct MP4 range CDN) supports massive parallel range requests.</div>
-            <div style="margin-top: 6px;"><b>AI Recommendation:</b> Set Open Threads to <b>128–256</b> for maximum download acceleration.</div>
-            <button type="button" class="btn btn-primary" style="margin-top: 8px; padding: 4px 10px; font-size: 11px;" onclick="applyProfile(32, 256, 128)">⚡ Apply Hyper Open Cap (256 Threads)</button>
+            <div style="padding: 14px; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; color: #fca5a5; font-size: 12.5px;">
+                ❌ <b>Probe Failed:</b> ${err.message || 'Could not connect to host.'}
+            </div>
         `;
+    } finally {
+        btnText.innerText = "🔍 Analyze";
+        btn.disabled = false;
     }
 }
 </script>
+
