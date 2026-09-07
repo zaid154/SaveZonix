@@ -135,6 +135,22 @@ public class Program
 {
     private static readonly ConcurrentDictionary<string, DownloadTaskState> _tasks = new();
 
+    public static bool IsTaskActive(string taskId) => 
+        _tasks.TryGetValue(taskId, out var s) && !s.IsCompleted && !s.IsError && !s.IsPaused;
+
+    public static ISet<string> GetActiveTaskIds() => 
+        _tasks.Where(kv => !kv.Value.IsCompleted && !kv.Value.IsError && !kv.Value.IsPaused).Select(kv => kv.Key).ToHashSet();
+
+    public static void CancelTask(string taskId)
+    {
+        if (_tasks.TryGetValue(taskId, out var state))
+        {
+            state.Cts?.Cancel();
+            state.IsPaused = true;
+            state.Status = "Download Cancelled";
+        }
+    }
+
     private static async Task<bool> MuxVideoAndAudioAsync(string videoPath, string audioPath, string outputPath)
     {
         string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
@@ -364,6 +380,25 @@ public class Program
         catch (Exception ex)
         {
             Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
+        }
+
+        // 6. Clean and Reconcile Stale / Orphaned Downloads from Previous Sessions
+        try
+        {
+            using var startupScope = app.Services.CreateScope();
+            var startupHistoryService = startupScope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+            if (startupHistoryService != null)
+            {
+                int cleaned = await startupHistoryService.ReconcileOrphanedDownloadsAsync(GetActiveTaskIds());
+                if (cleaned > 0)
+                {
+                    Console.WriteLine($"[Startup] Reconciled {cleaned} orphaned download(s) to Cancelled.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Startup Reconciliation Notice] {ex.Message}");
         }
 
         if (!app.Environment.IsDevelopment())
@@ -1274,11 +1309,12 @@ public class Program
             _ = Task.Run(async () =>
             {
                 var sw = Stopwatch.StartNew();
+                using var scope = scopeFactory.CreateScope();
+                var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                var scopedAnalytics = scope.ServiceProvider.GetRequiredService<IDownloadAnalyticsService>();
+                var adminSettings = scope.ServiceProvider.GetRequiredService<StreamHelper.Services.IAdminSettingsService>();
                 try
                 {
-                    using var scope = scopeFactory.CreateScope();
-                    var scopedAnalytics = scope.ServiceProvider.GetRequiredService<IDownloadAnalyticsService>();
-                    var adminSettings = scope.ServiceProvider.GetRequiredService<StreamHelper.Services.IAdminSettingsService>();
                     using var httpClient = CreateConfiguredHttpClient();
                     var downloader = new ParallelDownloader(httpClient)
                     {
@@ -1331,7 +1367,6 @@ public class Program
                         state.Status = p.Status;
                     });
 
-                    var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
                     if (historyService != null)
                     {
                         try
@@ -1606,7 +1641,12 @@ public class Program
                 }
                 catch (OperationCanceledException)
                 {
-                    state.Status = "Download Cancelled/Paused";
+                    state.Status = "Download Cancelled";
+                    state.IsPaused = true;
+                    if (historyService != null)
+                    {
+                        try { await historyService.MarkCancelledAsync(taskId); } catch { }
+                    }
                 }
                 catch (HttpRequestException hEx) when (hEx.Message.Contains("401") || hEx.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
@@ -1616,11 +1656,13 @@ public class Program
                     state.Status = "Stream Expired – Please Re-analyze";
                     
                     Console.WriteLine($"[Download Manager] 401 Unauthorized error for platform: {platform}. Stream URLs may be expired.");
+                    if (historyService != null)
+                    {
+                        try { await historyService.MarkFailedAsync(taskId, state.ErrorMessage); } catch { }
+                    }
                     
                     try
                     {
-                        using var scope = scopeFactory.CreateScope();
-                        var scopedAnalytics = scope.ServiceProvider.GetRequiredService<IDownloadAnalyticsService>();
                         await scopedAnalytics.LogErrorDiagnosticAsync(new ErrorDiagnosticLog
                         {
                             TaskId = taskId,
@@ -1643,10 +1685,13 @@ public class Program
                     state.ErrorMessage = ex.Message;
                     state.Status = "Download Failed/Corrupted – Please Redownload";
 
+                    if (historyService != null)
+                    {
+                        try { await historyService.MarkFailedAsync(taskId, ex.Message); } catch { }
+                    }
+
                     try
                     {
-                        using var scope = scopeFactory.CreateScope();
-                        var scopedAnalytics = scope.ServiceProvider.GetRequiredService<IDownloadAnalyticsService>();
                         await scopedAnalytics.LogErrorDiagnosticAsync(new ErrorDiagnosticLog
                         {
                             TaskId = taskId,
@@ -1688,15 +1733,25 @@ public class Program
             return Results.NotFound(new { message = "Task not found" });
         });
 
-        app.MapPost("/api/cancel/{taskId}", (string taskId) =>
+        app.MapPost("/api/cancel/{taskId}", async (string taskId, IServiceProvider services) =>
         {
             if (_tasks.TryGetValue(taskId, out var state))
             {
                 state.Cts?.Cancel();
                 state.IsPaused = true;
-                return Results.Ok(new { success = true });
+                state.Status = "Download Cancelled";
             }
-            return Results.NotFound(new { message = "Task not found" });
+            try
+            {
+                using var scope = services.CreateScope();
+                var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                if (historyService != null)
+                {
+                    await historyService.MarkCancelledAsync(taskId);
+                }
+            }
+            catch { }
+            return Results.Ok(new { success = true });
         });
 
         app.MapGet("/api/download-file/{taskId}", (string taskId) =>

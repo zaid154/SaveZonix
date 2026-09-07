@@ -248,6 +248,15 @@
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                                             </a>
                                         }
+                                        @if (item.Status == StreamHelper.Data.DownloadStatus.Downloading || item.Status == StreamHelper.Data.DownloadStatus.Retrying || item.Status == StreamHelper.Data.DownloadStatus.Resolving)
+                                        {
+                                            <form asp-action="CancelDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Stop and cancel this download?');" style="display: inline-block;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="action-btn action-cancel" title="Cancel download">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                                </button>
+                                            </form>
+                                        }
                                         <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Remove this download from your history?');" style="display: inline-block;">
                                             @Html.AntiForgeryToken()
                                             <button type="submit" class="action-btn action-delete" title="Delete record">

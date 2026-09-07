@@ -466,6 +466,9 @@ public class M3U8Parser
         if ((targetUri.Host.Contains("freepornvideo.sex", StringComparison.OrdinalIgnoreCase) ||
              targetUri.Host.Contains("mat6tube.com", StringComparison.OrdinalIgnoreCase) ||
              targetUri.Host.Contains("pron.click", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("pornhub.com", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("pornhub.org", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("phncdn.com", StringComparison.OrdinalIgnoreCase) ||
              targetUri.Host.Contains("xnxx.com", StringComparison.OrdinalIgnoreCase) ||
              targetUri.Host.Contains("xvideos.com", StringComparison.OrdinalIgnoreCase)) &&
             !IsDirectMediaExtension(targetUri))
@@ -879,6 +882,52 @@ public class M3U8Parser
         if (qualities.Count > 0)
         {
             return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+        }
+
+        // 0d. Parse Pornhub / Tube mediaDefinitions JSON array: mediaDefinitions: [...]
+        var phMediaDefMatch = Regex.Match(cleanedHtml, @"[""']mediaDefinitions[""']\s*:\s*(\[[\s\S]*?\])\s*,\s*[""']", RegexOptions.IgnoreCase);
+        if (phMediaDefMatch.Success)
+        {
+            try
+            {
+                using var mdDoc = JsonDocument.Parse(phMediaDefMatch.Groups[1].Value);
+                foreach (var item in mdDoc.RootElement.EnumerateArray())
+                {
+                    if (item.TryGetProperty("videoUrl", out var vUrlEl) && item.TryGetProperty("format", out var fmtEl))
+                    {
+                        string? vUrl = vUrlEl.GetString();
+                        string? fmt = fmtEl.GetString();
+                        if (!string.IsNullOrEmpty(vUrl) && (fmt == "hls" || vUrl.Contains(".m3u8")))
+                        {
+                            int height = 720;
+                            if (item.TryGetProperty("height", out var hEl))
+                            {
+                                if (hEl.ValueKind == JsonValueKind.Number) hEl.TryGetInt32(out height);
+                                else if (hEl.ValueKind == JsonValueKind.String) int.TryParse(hEl.GetString(), out height);
+                            }
+                            string qLabel = item.TryGetProperty("quality", out var qEl) && qEl.ValueKind == JsonValueKind.String ? qEl.GetString() ?? $"{height}p" : $"{height}p";
+                            if (!qLabel.EndsWith("p", StringComparison.OrdinalIgnoreCase)) qLabel += "p";
+
+                            if (!qualities.Any(q => q.Url == vUrl))
+                            {
+                                qualities.Add(new StreamQuality
+                                {
+                                    Resolution = $"{qLabel} HD ({height}p)",
+                                    Url = vUrl,
+                                    Bandwidth = height * 4500,
+                                    IsDirectFile = false
+                                });
+                            }
+                        }
+                    }
+                }
+                if (qualities.Count > 0)
+                {
+                    var sorted = qualities.OrderByDescending(q => q.Bandwidth).ToList();
+                    return (sorted[0].Url, sorted);
+                }
+            }
+            catch { }
         }
 
         // 1. Check for Master Playlist in JSON (e.g. master.m3u8)

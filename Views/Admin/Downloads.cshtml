@@ -115,6 +115,17 @@
                     </div>
                 </div>
             </form>
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="font-size: 13px; color: #94a3b8;">
+                    Showing <strong>@Model.Downloads.Count</strong> of <strong>@Model.TotalCount</strong> download records
+                </div>
+                <form asp-action="CleanOrphanedDownloads" method="post" style="margin: 0;" onsubmit="return confirm('Reconcile and mark all non-running downloads as Cancelled?');">
+                    @Html.AntiForgeryToken()
+                    <button type="submit" class="btn btn-clean-orphans" title="Reconcile stuck downloading tasks">
+                        <span>⚡</span> Clean Stale Downloads
+                    </button>
+                </form>
+            </div>
         </div>
 
         @if (Model.Downloads.Count == 0)
@@ -304,6 +315,15 @@
                                             <a href="@item.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                                             </a>
+                                        }
+                                        @if (item.Status == StreamHelper.Data.DownloadStatus.Downloading || item.Status == StreamHelper.Data.DownloadStatus.Retrying || item.Status == StreamHelper.Data.DownloadStatus.Resolving)
+                                        {
+                                            <form asp-action="CancelDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Cancel and mark this download task as stopped?');" style="display: inline-block;">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="action-btn action-cancel" title="Cancel this download">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                                </button>
+                                            </form>
                                         }
                                         <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Permanently delete this download record from database?');" style="display: inline-block;">
                                             @Html.AntiForgeryToken()

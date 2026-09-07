@@ -2921,6 +2921,29 @@ textarea.form-control-input {
     color: #f43f5e !important;
 }
 
+.action-cancel:hover {
+    background: rgba(239, 68, 68, 0.18) !important;
+    border-color: rgba(239, 68, 68, 0.4) !important;
+    color: #ef4444 !important;
+}
+
+.btn-clean-orphans {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245, 158, 11, 0.12) !important;
+    border: 1px solid rgba(245, 158, 11, 0.3) !important;
+    color: #f59e0b !important;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-clean-orphans:hover {
+    background: rgba(245, 158, 11, 0.25) !important;
+    border-color: rgba(245, 158, 11, 0.5) !important;
+    color: #fbbf24 !important;
+}
+
 /* Modern Pagination */
 .modern-pagination {
     margin-top: 28px;

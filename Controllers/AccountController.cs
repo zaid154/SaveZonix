@@ -476,6 +476,12 @@ public class AccountController : Controller
         var user = await _userManager.GetUserAsync(User);
         if (user == null) return NotFound();
 
+        try
+        {
+            await _downloadHistoryService.ReconcileOrphanedDownloadsAsync(SaveZonix.Program.GetActiveTaskIds());
+        }
+        catch { }
+
         int pageSize = 15;
         var (items, totalCount) = await _downloadHistoryService.GetUserDownloadsAsync(user.Id, page, pageSize, search, status, platform);
 
@@ -492,6 +498,24 @@ public class AccountController : Controller
         };
 
         return View(model);
+    }
+
+    [HttpPost]
+    [Authorize]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelDownload(string id)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user == null) return Unauthorized();
+
+        var download = await _downloadHistoryService.GetDownloadByIdAsync(id);
+        if (download != null && download.UserId == user.Id)
+        {
+            SaveZonix.Program.CancelTask(id);
+            await _downloadHistoryService.MarkCancelledAsync(id);
+            TempData["SuccessMessage"] = "Download cancelled.";
+        }
+        return RedirectToAction("Downloads");
     }
 
     [HttpPost]

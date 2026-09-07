@@ -36,6 +36,7 @@ public interface IDownloadHistoryService
     Task MarkRetryingAsync(string taskId, int retryCount, string retryReason);
     Task MarkFailedAsync(string taskId, string errorReason);
     Task MarkCancelledAsync(string taskId);
+    Task<int> ReconcileOrphanedDownloadsAsync(ISet<string>? activeTaskIds = null);
     Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform);
     Task<(List<DownloadHistory> Items, int TotalCount)> GetAllDownloadsAsync(int page, int pageSize, string? search, string? status, string? platform, string? userEmail);
     Task<DownloadHistory?> GetDownloadByIdAsync(string id);
@@ -236,10 +237,37 @@ public class DownloadHistoryService : IDownloadHistoryService
         if (record != null)
         {
             record.Status = DownloadStatus.Cancelled;
+            record.ErrorReason = "Download cancelled by user";
             record.CompletionTime = DateTime.UtcNow;
             record.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
+    }
+
+    public async Task<int> ReconcileOrphanedDownloadsAsync(ISet<string>? activeTaskIds = null)
+    {
+        var orphaned = await _context.DownloadHistories
+            .Where(d => d.Status == DownloadStatus.Downloading || d.Status == DownloadStatus.Retrying || d.Status == DownloadStatus.Resolving)
+            .ToListAsync();
+
+        int updated = 0;
+        foreach (var item in orphaned)
+        {
+            if (activeTaskIds == null || !activeTaskIds.Contains(item.Id))
+            {
+                item.Status = DownloadStatus.Cancelled;
+                item.ErrorReason = string.IsNullOrEmpty(item.ErrorReason) ? "Download was interrupted or stopped" : item.ErrorReason;
+                item.CompletionTime = DateTime.UtcNow;
+                item.UpdatedAt = DateTime.UtcNow;
+                updated++;
+            }
+        }
+
+        if (updated > 0)
+        {
+            await _context.SaveChangesAsync();
+        }
+        return updated;
     }
 
     public async Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform)

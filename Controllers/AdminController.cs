@@ -206,6 +206,14 @@ public class AdminController : Controller
 
     public async Task<IActionResult> Downloads(string? search, string? status, string? platform, string? userEmail, int page = 1)
     {
+        // Reconcile any orphaned downloading tasks that are not running in memory
+        try
+        {
+            var activeIds = SaveZonix.Program.GetActiveTaskIds();
+            await _downloadHistoryService.ReconcileOrphanedDownloadsAsync(activeIds);
+        }
+        catch { }
+
         int pageSize = 20;
         var (items, totalCount) = await _downloadHistoryService.GetAllDownloadsAsync(page, pageSize, search, status, platform, userEmail);
 
@@ -223,6 +231,26 @@ public class AdminController : Controller
         };
 
         return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CancelDownload(string id)
+    {
+        SaveZonix.Program.CancelTask(id);
+        await _downloadHistoryService.MarkCancelledAsync(id);
+        TempData["SuccessMessage"] = "Download marked as cancelled.";
+        return RedirectToAction("Downloads");
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> CleanOrphanedDownloads()
+    {
+        var activeIds = SaveZonix.Program.GetActiveTaskIds();
+        int cleaned = await _downloadHistoryService.ReconcileOrphanedDownloadsAsync(activeIds);
+        TempData["SuccessMessage"] = $"{cleaned} inactive download task(s) marked as Cancelled.";
+        return RedirectToAction("Downloads");
     }
 
     [HttpPost]
