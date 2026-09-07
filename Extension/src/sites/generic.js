@@ -60,22 +60,27 @@
                 for (const s of scripts) {
                     const text = s.textContent || '';
                     if (text.includes('video_url') || text.includes('video_alt_url') || text.includes('/get_file/')) {
-                        const m720 = text.match(/video_url\s*=\s*['"]([^'"]+)['"]/i);
-                        const mAlt = text.match(/video_alt_url\s*=\s*['"]([^'"]+)['"]/i);
-                        const mAny = text.match(/['"](https?:\\?\/\\?\/[^'"]+?\/get_file\/[^'"]+?\.mp4\/?['"])/i);
+                        // KVS/tube players expose these as object properties
+                        // (video_url: '...'), not only assignment expressions.
+                        const m720 = text.match(/video_url\s*[:=]\s*['"]([^'"]+)['"]/i);
+                        const mAlt = text.match(/video_alt_url\s*[:=]\s*['"]([^'"]+)['"]/i);
+                        const mAny = text.match(/['"](https?:\\?\/\\?\/[^'"\s]+?\/get_file\/[^'"\s]+?\.mp4\/?(?:\?[^'"\s]*)?)['"]/i);
 
                         const candidates = [m720?.[1], mAlt?.[1], mAny?.[1]].filter(Boolean);
                         for (const raw of candidates) {
                             const cleanUrl = raw.replace(/\\\//g, '/').replace(/['"]/g, '');
                             if (cleanUrl.startsWith('http') && isValidMediaStreamUrl(cleanUrl) && !seen.has(cleanUrl)) {
                                 seen.add(cleanUrl);
+                                // KVS serves signed MP4 files through `/get_file/`; that path is not HLS.
+                                const isHls = cleanUrl.includes('.m3u8') || cleanUrl.includes('/hls/');
+                                const isDash = cleanUrl.includes('.mpd');
                                 streams.push({
                                     url: cleanUrl,
                                     duration: meta.duration || '',
                                     thumbnail: meta.thumbnail,
-                                    format: (cleanUrl.includes('/get_file/') || cleanUrl.includes('.m3u8')) ? 'HLS' : 'MP4',
+                                    format: isHls ? 'HLS' : (isDash ? 'DASH' : 'MP4'),
                                     platform: meta.platform || 'Stream',
-                                    isDirectMp4: !cleanUrl.includes('/get_file/'),
+                                    isDirectMp4: !isHls && !isDash,
                                     isDownloadable: true
                                 });
                             }

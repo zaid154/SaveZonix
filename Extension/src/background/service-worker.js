@@ -182,6 +182,17 @@ function normalizeInstagramMediaUrl(url) {
     }
 }
 
+function isInstagramAudioUrl(url) {
+    if (!url) return false;
+    let value = url.toLowerCase();
+    try { value = decodeURIComponent(value); } catch { }
+    return value.includes('mime=audio') ||
+        value.includes('mime%3daudio') ||
+        value.includes('audio_only') ||
+        value.includes('audio.mp4') ||
+        value.includes('audio/mp4');
+}
+
 function getStreamPriorityScore(url) {
     if (!url || typeof url !== 'string') return 0;
     const clean = url.split('?')[0].replace(/\/+$/, '').toLowerCase();
@@ -319,7 +330,7 @@ async function addDetectedVideo(tabId, videoData) {
 
     // Instagram may request a separate audio rendition after the visible MP4.
     // It is not a standalone reel and must never replace the video card.
-    const isInstagramAudioOnly = isInstagramStream && /(?:mime=audio|audio_only|audio\.mp4|audio\/mp4)/i.test(videoData.url);
+    const isInstagramAudioOnly = isInstagramStream && isInstagramAudioUrl(videoData.url);
     if (isInstagramAudioOnly) return;
 
     const isExistingInstagram = item => {
@@ -381,38 +392,102 @@ async function resolveInstagramForDashboard(pageUrl) {
 
     if (!shortcode) return { success: false, message: 'Invalid Instagram reel URL.' };
 
-    const tabs = await chrome.tabs.query({ url: ['*://*.instagram.com/*'] });
-    const reelTab = tabs.find(tab => (tab.url || '').includes(shortcode));
+    const tabs = await chrome.tabs.query({ url: ['*://instagram.com/*', '*://*.instagram.com/*'] });
+    const reelTab = tabs.find(tab => {
+        try {
+            const parts = new URL(tab.url || '').pathname.split('/').filter(Boolean);
+            const idx = parts.findIndex(p => p === 'reel' || p === 'reels' || p === 'p');
+            return idx >= 0 && parts[idx + 1] === shortcode;
+        } catch {
+            return false;
+        }
+    });
     if (!reelTab?.id) {
         return { success: false, message: 'Open this reel in Instagram, play it briefly, then retry here.' };
     }
 
-    const scan = await new Promise(resolve => {
+    const scanPage = () => new Promise(resolve => {
         chrome.tabs.sendMessage(reelTab.id, { action: 'scanPage' }, response => {
             resolve(chrome.runtime.lastError ? null : response);
         });
     });
-
-    let stream = scan?.streams?.find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false);
-    if (!stream) {
+    const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    const getStoredStream = async () => {
         try {
             const key = `tab_media_${reelTab.id}`;
             const stored = await chrome.storage.local.get([key]);
-            stream = (stored[key] || []).find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false);
-        } catch { }
+            return (stored[key] || []).find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false) || null;
+        } catch {
+            return null;
+        }
+    };
+
+    // A direct scan can happen before Instagram has attached its signed CDN
+    // source. Retry briefly: this covers Reels whose public embed reports
+    // copyright_blocked or omits video_url, while using only the user's open
+    // and playable Instagram tab.
+    let scan = null;
+    let stream = null;
+    for (let attempt = 0; attempt < 12 && !stream; attempt++) {
+        scan = await scanPage();
+        stream = scan?.streams?.find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false) || null;
+        if (!stream) stream = await getStoredStream();
+        if (!stream && attempt < 11) await delay(500);
     }
+
     if (!stream) {
-        return { success: false, message: 'The reel stream is not ready yet. Play it for 2 seconds and retry.' };
+        return { success: false, message: 'Instagram has not exposed this Reel’s media stream yet. Keep the Reel tab open, start playback, and retry.' };
     }
 
     return {
         success: true,
         url: normalizeInstagramMediaUrl(stream.url),
         audioUrl: stream.audioUrl ? normalizeInstagramMediaUrl(stream.audioUrl) : '',
-        title: scan.metadata?.title || 'Instagram Reel',
-        thumbnail: stream.thumbnail || scan.thumbnail || scan.metadata?.thumbnail || '',
+        title: scan?.metadata?.title || 'Instagram Reel',
+        thumbnail: stream.thumbnail || scan?.thumbnail || scan?.metadata?.thumbnail || '',
         duration: stream.duration || '',
+        resolution: stream.resolution || '',
         platform: 'Instagram'
+    };
+}
+
+async function resolvePageForDashboard(pageUrl) {
+    let requested;
+    try { requested = new URL(pageUrl); } catch { return { success: false, message: 'Invalid page URL.' }; }
+
+    const tabs = await chrome.tabs.query({ url: ['<all_urls>'] });
+    const sourceTab = tabs.find(tab => {
+        try {
+            const candidate = new URL(tab.url || '');
+            return candidate.hostname === requested.hostname && candidate.pathname === requested.pathname;
+        } catch {
+            return false;
+        }
+    });
+    if (!sourceTab?.id) return { success: false, message: 'Open this video page in Chrome and start playback, then retry.' };
+
+    const scanPage = () => new Promise(resolve => {
+        chrome.tabs.sendMessage(sourceTab.id, { action: 'scanPage' }, response => resolve(chrome.runtime.lastError ? null : response));
+    });
+    const delay = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    let scan = null;
+    let stream = null;
+    for (let attempt = 0; attempt < 8 && !stream; attempt++) {
+        scan = await scanPage();
+        stream = scan?.streams?.find(item => item.url && item.url.startsWith('http') && item.isDownloadable !== false) || null;
+        if (!stream && attempt < 7) await delay(500);
+    }
+    if (!stream) return { success: false, message: 'The browser has not exposed a playable stream yet. Start the video and retry.' };
+
+    return {
+        success: true,
+        url: stream.url,
+        audioUrl: stream.audioUrl || '',
+        title: scan?.metadata?.title || 'Video',
+        thumbnail: stream.thumbnail || scan?.thumbnail || scan?.metadata?.thumbnail || '',
+        duration: stream.duration || '',
+        resolution: stream.resolution || '',
+        platform: scan?.site || requested.hostname
     };
 }
 
@@ -457,6 +532,10 @@ chrome.webRequest.onBeforeRequest.addListener(
             try { domain = new URL(details.url).hostname.replace(/^www\./, ''); } catch { }
 
             const isInstaCdn = details.url.includes('cdninstagram.com') || details.url.includes('fbcdn.net');
+            // Instagram frequently fetches its audio rendition after the video
+            // request. Wait for the response header below so only a confirmed
+            // video/mp4 stream can become the primary Reel download.
+            if (isInstaCdn) return;
             const isYtCdn = details.url.includes('googlevideo.com');
             const isPhCdn = details.url.includes('phncdn.com') || details.url.includes('pornhub.com');
             const isXnxxCdn = details.url.includes('xnxx-cdn.com') || details.url.includes('xnxx.com') || details.url.includes('xvideos');
@@ -588,6 +667,10 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         resolveInstagramForDashboard(req.url)
             .then(sendResponse)
             .catch(() => sendResponse({ success: false, message: 'Unable to read the Instagram tab.' }));
+    } else if (req.action === 'resolvePageForDashboard') {
+        resolvePageForDashboard(req.url)
+            .then(sendResponse)
+            .catch(() => sendResponse({ success: false, message: 'Unable to read the open video tab.' }));
     }
     return true;
 });

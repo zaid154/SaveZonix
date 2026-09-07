@@ -892,20 +892,8 @@ function onDownloadComplete(state, fileName) {
     const peakText = state.peakSpeedMBps > 0 ? ` • Peak: ${state.peakSpeedMBps.toFixed(1)} MB/s` : '';
     successSummary.textContent = `Completed in ${state.mergeSeconds ? state.mergeSeconds.toFixed(1) : '1'}s • File Size: ${formatBytes(state.totalBytesDownloaded || 0, false)}${peakText}`;
 
-    // ─── INSTANT AUTO-DOWNLOAD TO USER'S BROWSER ───────────────
-    try {
-        const autoLink = document.createElement('a');
-        autoLink.href = downloadUrl;
-        autoLink.setAttribute('download', fileName);
-        autoLink.style.display = 'none';
-        document.body.appendChild(autoLink);
-        autoLink.click();
-        setTimeout(() => {
-            document.body.removeChild(autoLink);
-        }, 1500);
-    } catch (e) {
-        console.warn('Auto-save trigger fallback to manual button:', e);
-    }
+    // The server directly saves the finished file into the user's Downloads directory.
+    // The manual Save Video button remains available on screen if the user wishes to save elsewhere.
 }
 
 btnOpenFolder.addEventListener('click', async () => {

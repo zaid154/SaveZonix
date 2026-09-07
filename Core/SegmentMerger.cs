@@ -35,8 +35,10 @@ public class SegmentMerger
             return File.Exists(outputFilePath) && new FileInfo(outputFilePath).Length > 0;
         }
 
-        // Check if segments are byte-range chunks of a single continuous stream (.part slices)
+        bool ffmpegAvailable = IsFFmpegAvailable();
         bool isByteRangeChunks = validSegments.Any(s => s.LocalTempPath.EndsWith(".part", StringComparison.OrdinalIgnoreCase) || s.RangeEnd > 0);
+        bool isTsSegments = validSegments.Any(s => s.LocalTempPath.EndsWith(".ts", StringComparison.OrdinalIgnoreCase));
+        string targetExt = Path.GetExtension(outputFilePath).ToLowerInvariant();
 
         if (isByteRangeChunks)
         {
@@ -46,22 +48,60 @@ public class SegmentMerger
             return File.Exists(outputFilePath) && new FileInfo(outputFilePath).Length > 0;
         }
 
-        // For separate standalone HLS segments, check if FFmpeg is available
-        bool ffmpegAvailable = IsFFmpegAvailable();
-
-        if (ffmpegAvailable)
+        // Inspect first segment to see if it's MPEG-TS (starts with 0x47 sync byte) or has .ts extension
+        bool isTsFormat = isTsSegments;
+        if (!isTsFormat && validSegments.Count > 0 && File.Exists(validSegments[0].LocalTempPath))
         {
-            bool success = await MergeWithFFmpegAsync(validSegments, outputFilePath, tempDirectory);
-            if (success)
+            try
             {
+                using var fs = File.OpenRead(validSegments[0].LocalTempPath);
+                byte[] checkBuf = new byte[378];
+                int r = fs.Read(checkBuf, 0, checkBuf.Length);
+                if (r >= 377 && checkBuf[0] == 0x47 && checkBuf[188] == 0x47 && checkBuf[376] == 0x47)
+                {
+                    isTsFormat = true;
+                }
+            }
+            catch { }
+        }
+
+        // For HLS streams (both MPEG-TS and fMP4 / m4s):
+        // Sequentially binary-concatenate all chunks first to avoid concat-demuxer boundary corruption
+        string rawConcatFile = isTsFormat 
+            ? Path.Combine(tempDirectory, "raw_concat.ts")
+            : Path.Combine(tempDirectory, "raw_concat.mp4");
+
+        await DirectBinaryMergeAsync(validSegments, rawConcatFile);
+
+        if (!File.Exists(rawConcatFile) || new FileInfo(rawConcatFile).Length == 0)
+        {
+            return false;
+        }
+
+        // If FFmpeg is available and we're targeting MP4 or source is TS:
+        // Perform a single-input container remux (-i raw_concat -c copy -movflags +faststart)
+        // This converts MPEG-TS Annex B to MP4 AVCC seamlessly, or consolidates fMP4 fragments into a clean MP4.
+        if (ffmpegAvailable && (targetExt == ".mp4" || targetExt == ".m4v" || isTsFormat))
+        {
+            string tempRemuxFile = outputFilePath + ".remux.mp4";
+            bool remuxSuccess = await RemuxWithFFmpegAsync(rawConcatFile, tempRemuxFile);
+            if (remuxSuccess && File.Exists(tempRemuxFile) && new FileInfo(tempRemuxFile).Length > 1024)
+            {
+                if (File.Exists(outputFilePath)) { try { File.Delete(outputFilePath); } catch { } }
+                File.Move(tempRemuxFile, outputFilePath, true);
+                try { if (File.Exists(rawConcatFile)) File.Delete(rawConcatFile); } catch { }
                 if (cleanUpTemp) CleanUp(tempDirectory);
                 return true;
             }
-            try { if (File.Exists(outputFilePath)) File.Delete(outputFilePath); } catch { }
+            else
+            {
+                try { if (File.Exists(tempRemuxFile)) File.Delete(tempRemuxFile); } catch { }
+            }
         }
 
-        // Direct Binary Concatenation (High-speed, zero external dependencies)
-        await DirectBinaryMergeAsync(validSegments, outputFilePath);
+        // Fallback: If FFmpeg remux not needed or unavailable, promote raw concat directly
+        if (File.Exists(outputFilePath)) { try { File.Delete(outputFilePath); } catch { } }
+        File.Move(rawConcatFile, outputFilePath, true);
 
         if (cleanUpTemp)
         {
@@ -121,7 +161,7 @@ public class SegmentMerger
         }
     }
 
-    private static async Task<bool> MergeWithFFmpegAsync(List<SegmentItem> segments, string outputFilePath, string tempDirectory)
+    private static async Task<bool> RemuxWithFFmpegAsync(string inputFile, string outputFile)
     {
         try
         {
@@ -129,14 +169,10 @@ public class SegmentMerger
             if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
             if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
 
-            var listFilePath = Path.Combine(tempDirectory, "filelist.txt");
-            var ordered = segments.OrderBy(s => s.Index).Select(s => $"file '{s.LocalTempPath.Replace("\\", "/")}'");
-            await File.WriteAllLinesAsync(listFilePath, ordered);
-
             var startInfo = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-nostdin -y -f concat -safe 0 -i \"{listFilePath}\" -c copy \"{outputFilePath}\"",
+                Arguments = $"-nostdin -y -i \"{inputFile}\" -c copy -movflags +faststart \"{outputFile}\"",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,
@@ -146,17 +182,9 @@ public class SegmentMerger
             using var process = Process.Start(startInfo);
             if (process == null) return false;
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
-            try
-            {
-                await process.WaitForExitAsync(cts.Token);
-                return process.ExitCode == 0 && File.Exists(outputFilePath) && new FileInfo(outputFilePath).Length > 1024;
-            }
-            catch
-            {
-                try { process.Kill(true); } catch { }
-                return false;
-            }
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+            await process.WaitForExitAsync(cts.Token);
+            return process.ExitCode == 0 && File.Exists(outputFile) && new FileInfo(outputFile).Length > 1024;
         }
         catch
         {

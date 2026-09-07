@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SaveZonix — Video Downloader",
-  "version": "8.0.0",
+  "version": "8.0.2",
   "description": "Stealth, high-performance multi-site video stream detector and authorized local saver with video thumbnail preview, duration timestamp overlay, and dynamic size badges.",
   "icons": {
     "16": "icons/icon16.png",

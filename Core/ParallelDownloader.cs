@@ -19,7 +19,8 @@ public class ParallelDownloader
             {
                 SslOptions = new System.Net.Security.SslClientAuthenticationOptions
                 {
-                    RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+                    RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
+                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
                 },
                 AutomaticDecompression = DecompressionMethods.All,
                 UseCookies = false,
@@ -49,13 +50,20 @@ public class ParallelDownloader
             Directory.CreateDirectory(tempDirectory);
         }
 
-        var segments = segmentUrls.Select((url, index) => new SegmentItem
-        {
-            Index = index,
-            Url = url,
-            LocalTempPath = Path.Combine(tempDirectory, $"seg_{index:D6}.ts"),
-            IsDownloaded = false,
-            SizeBytes = 0
+        bool isFmp4 = segmentUrls.Any(u => u.Contains(".m4s", StringComparison.OrdinalIgnoreCase) || u.Contains("init-", StringComparison.OrdinalIgnoreCase));
+        string defaultSegExt = isFmp4 ? ".m4s" : ".ts";
+
+        var segments = segmentUrls.Select((url, index) => {
+            // Only assign .mp4 extension if it's explicitly fMP4 or direct file, never when it's an HLS segment URL (which are MPEG-TS transport streams)
+            string ext = isFmp4 ? ".m4s" : ".ts";
+            return new SegmentItem
+            {
+                Index = index,
+                Url = url,
+                LocalTempPath = Path.Combine(tempDirectory, $"seg_{index:D6}{ext}"),
+                IsDownloaded = false,
+                SizeBytes = 0
+            };
         }).ToList();
 
         int totalSegments = segments.Count;
@@ -187,6 +195,16 @@ public class ParallelDownloader
         });
 
         stopwatch.Stop();
+
+        // Strict 100% segment download integrity check
+        var missingSegments = segments
+            .Where(s => !s.IsDownloaded || !File.Exists(s.LocalTempPath) || new FileInfo(s.LocalTempPath).Length == 0)
+            .ToList();
+
+        if (missingSegments.Count > 0)
+        {
+            throw new InvalidOperationException($"Incomplete download: {missingSegments.Count} of {totalSegments} segments failed to download (Segment #{missingSegments[0].Index} missing). Merging was aborted to prevent corrupted playback.");
+        }
 
         progress?.Report(new DownloadProgressReport
         {
@@ -478,6 +496,10 @@ public class ParallelDownloader
                 if (!string.IsNullOrEmpty(referer))
                 {
                     request.Headers.TryAddWithoutValidation("Referer", referer);
+                    if (Uri.TryCreate(referer, UriKind.Absolute, out var rUri))
+                    {
+                        request.Headers.TryAddWithoutValidation("Origin", $"{rUri.Scheme}://{rUri.Host}");
+                    }
                 }
 
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptCts.Token);
@@ -496,18 +518,17 @@ public class ParallelDownloader
                     fileStream.SetLength(expectedBytes);
                 }
 
-                byte[] buffer = new byte[262144]; // 256 KB memory buffer for maximum streaming throughput
+                byte[] buffer = new byte[262144];
                 int bytesRead;
                 long chunkTotal = 0;
 
                 while (true)
                 {
-                    // Reset stall watchdog timeout on every read activity (20s per read chunk)
                     attemptCts.CancelAfter(TimeSpan.FromSeconds(20));
                     bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, attemptCts.Token);
-                    if (bytesRead <= 0) break;
+                    if (bytesRead == 0) break;
 
-                    await fileStream.WriteAsync(buffer, 0, bytesRead, ct);
+                    await fileStream.WriteAsync(buffer, 0, bytesRead, attemptCts.Token);
                     chunkTotal += bytesRead;
                     attemptBytesRead += bytesRead;
                     totalBytesRef(bytesRead);
@@ -517,7 +538,7 @@ public class ParallelDownloader
 
                 if (expectedBytes > 0 && chunkTotal != expectedBytes)
                 {
-                    throw new IOException($"Truncated chunk {chunk.Index}: expected {expectedBytes} bytes but received {chunkTotal} bytes.");
+                    throw new InvalidOperationException($"Chunk size mismatch: expected {expectedBytes} bytes, received {chunkTotal} bytes.");
                 }
 
                 chunk.SizeBytes = chunkTotal;
@@ -565,7 +586,7 @@ public class ParallelDownloader
                 string referer = referers[(attempt - 1) % referers.Count];
 
                 using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                attemptCts.CancelAfter(TimeSpan.FromSeconds(15)); // 15s max per segment attempt
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(15));
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, rawUrl);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
@@ -604,8 +625,68 @@ public class ParallelDownloader
             catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
                 try { if (File.Exists(segment.LocalTempPath)) File.Delete(segment.LocalTempPath); } catch { }
+
+                string referer = referers.Count > 0 ? referers[0] : "";
+                if (await DownloadSegmentWithCurlAsync(rawUrl, segment.LocalTempPath, referer, ct))
+                {
+                    var fi = new FileInfo(segment.LocalTempPath);
+                    if (fi.Length > 0)
+                    {
+                        segment.SizeBytes = fi.Length;
+                        segment.IsDownloaded = true;
+                        totalBytesRef((int)fi.Length);
+                        return;
+                    }
+                }
+
                 await Task.Delay(50 * attempt, ct);
             }
+        }
+    }
+
+    private static async Task<bool> DownloadSegmentWithCurlAsync(string url, string localPath, string referer, CancellationToken ct)
+    {
+        try
+        {
+            string executable = OperatingSystem.IsWindows()
+                ? Path.Combine(Environment.SystemDirectory, "curl.exe")
+                : "curl";
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = executable,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.ArgumentList.Add("--silent");
+            psi.ArgumentList.Add("--show-error");
+            psi.ArgumentList.Add("--location");
+            psi.ArgumentList.Add("--insecure");
+            psi.ArgumentList.Add("--max-time");
+            psi.ArgumentList.Add("25");
+            psi.ArgumentList.Add("--user-agent");
+            psi.ArgumentList.Add("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
+            if (!string.IsNullOrEmpty(referer))
+            {
+                psi.ArgumentList.Add("--referer");
+                psi.ArgumentList.Add(referer);
+                if (Uri.TryCreate(referer, UriKind.Absolute, out var rUri))
+                {
+                    psi.ArgumentList.Add("--header");
+                    psi.ArgumentList.Add($"Origin: {rUri.Scheme}://{rUri.Host}");
+                }
+            }
+            psi.ArgumentList.Add("--output");
+            psi.ArgumentList.Add(localPath);
+            psi.ArgumentList.Add(url);
+
+            using var proc = System.Diagnostics.Process.Start(psi);
+            if (proc == null) return false;
+            await proc.WaitForExitAsync(ct);
+            return File.Exists(localPath) && new FileInfo(localPath).Length > 0;
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -648,7 +729,7 @@ public class ParallelDownloader
 
     public int StrictCdnMaxThreads { get; set; } = 32;
     public int OpenCdnMaxThreads { get; set; } = 256;
-    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream";
+    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo";
 
     private int GetOptimizedConcurrency(string? sampleUrl, int requestedConcurrency)
     {

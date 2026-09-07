@@ -217,12 +217,14 @@
         window.addEventListener('message', (event) => {
             if (event.source !== window || event.origin !== window.location.origin) return;
             const data = event.data;
-            if (!data || data.source !== 'SaveZonixDashboard' || data.type !== 'resolveInstagram' || !data.url) return;
+            if (!data || data.source !== 'SaveZonixDashboard' || !data.url ||
+                (data.type !== 'resolveInstagram' && data.type !== 'resolvePage')) return;
 
-            chrome.runtime.sendMessage({ action: 'resolveInstagramForDashboard', url: data.url }, (response) => {
+            const action = data.type === 'resolveInstagram' ? 'resolveInstagramForDashboard' : 'resolvePageForDashboard';
+            chrome.runtime.sendMessage({ action, url: data.url }, (response) => {
                 window.postMessage({
                     source: 'SaveZonixExtension',
-                    type: 'instagramResolved',
+                    type: data.type === 'resolveInstagram' ? 'instagramResolved' : 'pageResolved',
                     requestId: data.requestId,
                     response: response || { success: false, message: chrome.runtime.lastError?.message || 'Extension did not return a stream.' }
                 }, window.location.origin);

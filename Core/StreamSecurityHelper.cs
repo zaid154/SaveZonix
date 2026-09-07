@@ -76,6 +76,13 @@ public static class StreamSecurityHelper
         {
             candidates.Add("https://pixelflix.cc/");
         }
+        else if (host.Contains("freepornvideo.sex") || full.Contains("freepornvideo.sex"))
+        {
+            // KVS get_file URLs redirect through the site's storage host and
+            // require the originating site as referer.
+            candidates.Add("https://www.freepornvideo.sex/");
+            candidates.Add("https://freepornvideo.sex/");
+        }
         else if (host.Contains("googlevideo"))
         {
             candidates.Add(string.Empty);

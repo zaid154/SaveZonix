@@ -468,6 +468,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const targetUrl = qualSelect.value || video.url;
             if (targetUrl && targetUrl.startsWith('http')) {
+                // KVS pages expose a short-lived signed `/get_file/` MP4 URL.  A
+                // Manifest-V3 extension runs from an isolated origin, which can
+                // be rejected by Cloudflare even though the signed file itself
+                // is valid. Hand this exact URL to the local validated downloader
+                // instead: it preserves the chosen stream and verifies the file
+                // before Chrome receives it.
+                const isKvsDirectFile = currentTabDomain.endsWith('freepornvideo.sex') || targetUrl.includes('/get_file/');
+                if (isKvsDirectFile) {
+                    chrome.tabs.create({
+                        url: `http://localhost:5000/?url=${encodeURIComponent(targetUrl)}&autoDownload=1`
+                    });
+                    window.close();
+                    return;
+                }
+
                 chrome.runtime.sendMessage({
                     action: 'openDownloaderTab',
                     url: targetUrl,

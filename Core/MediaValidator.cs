@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace Zonix.Core;
@@ -43,7 +44,7 @@ public static class MediaValidator
     public const string CurrentAppVersion = "SaveZonix v2.5.0";
     public static readonly string CurrentSystemVersion = $"{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription} {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture})";
 
-    public static async Task<MediaValidationResult> ValidateMediaFileAsync(string filePath, int expectedDurationSeconds = 0, string targetFormat = "MP4")
+    public static async Task<MediaValidationResult> ValidateMediaFileAsync(string filePath, int expectedDurationSeconds = 0, string targetFormat = "MP4", bool requireAudio = false, string? expectedResolution = null)
     {
         var result = new MediaValidationResult();
 
@@ -68,6 +69,10 @@ public static class MediaValidator
 
         // 1. Try probing with FFprobe / FFmpeg if available
         bool probedWithFfprobe = await TryProbeWithFFprobeAsync(filePath, result);
+        if (!probedWithFfprobe)
+        {
+            probedWithFfprobe = await TryProbeWithFfmpegAsync(filePath, result);
+        }
 
         // 2. Perform deep binary container verification
         var binaryCheck = ValidateBinaryContainer(filePath, result.FileSizeBytes, targetFormat);
@@ -80,8 +85,10 @@ public static class MediaValidator
             return result;
         }
 
-        // If FFprobe didn't populate properties, take from binary check
-        if (!probedWithFfprobe || string.IsNullOrEmpty(result.ContainerFormat) || result.ContainerFormat == "Unknown")
+        // If no external probe is available, take stream information from the
+        // container parser. A successful ffmpeg probe is authoritative for
+        // track presence, particularly for audio-only MP4 files.
+        if (!probedWithFfprobe)
         {
             result.ContainerFormat = binaryCheck.DetectedFormat;
             result.HasVideo = binaryCheck.HasVideo;
@@ -94,6 +101,10 @@ public static class MediaValidator
             }
             if (binaryCheck.Width > 0) result.Width = binaryCheck.Width;
             if (binaryCheck.Height > 0) result.Height = binaryCheck.Height;
+        }
+        else if (string.IsNullOrEmpty(result.ContainerFormat) || result.ContainerFormat == "Unknown")
+        {
+            result.ContainerFormat = binaryCheck.DetectedFormat;
         }
 
         // 3. Audio / Video Track Requirement Check
@@ -125,22 +136,59 @@ public static class MediaValidator
                 result.ErrorReason = "Video stream track is missing from the container.";
                 return result;
             }
-        }
 
-        // 4. Duration Consistency Check
-        if (expectedDurationSeconds > 10 && result.ProbedDurationSeconds > 0)
-        {
-            // If probed duration is less than 15% of expected duration (e.g. 5 sec preview vs 20 min)
-            if (result.ProbedDurationSeconds < Math.Min(expectedDurationSeconds * 0.15, 10))
+            if (requireAudio && !result.HasAudio)
             {
                 result.IsValid = false;
-                result.IntegrityStatus = MediaIntegrityStatus.DurationMismatch;
-                result.ErrorReason = $"Media duration ({result.ProbedDurationSeconds:F1}s) is significantly shorter than expected video duration ({expectedDurationSeconds}s). Truncated teaser downloaded.";
+                result.IntegrityStatus = MediaIntegrityStatus.MissingTracks;
+                result.ErrorReason = "Expected audio track is missing from the completed video container.";
                 return result;
             }
         }
 
-        // 5. Final Details Assembly
+        // 4. Duration Consistency Check
+        if (expectedDurationSeconds >= 3 && result.ProbedDurationSeconds > 0)
+        {
+            // A signed URL from a neighbouring Reel can still be a healthy MP4.
+            // Reject it when its duration does not match the stream selected at
+            // Analyze time, including short Reels such as 9-second clips.
+            double permittedDifference = Math.Max(3, expectedDurationSeconds * 0.35);
+            if (Math.Abs(result.ProbedDurationSeconds - expectedDurationSeconds) > permittedDifference)
+            {
+                result.IsValid = false;
+                result.IntegrityStatus = MediaIntegrityStatus.DurationMismatch;
+                result.ErrorReason = $"Downloaded duration ({result.ProbedDurationSeconds:F1}s) does not match the analyzed stream duration ({expectedDurationSeconds}s).";
+                return result;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(expectedResolution))
+        {
+            var expectedSize = Regex.Match(expectedResolution, @"\b(\d{2,5})x(\d{2,5})\b");
+            if (expectedSize.Success && int.TryParse(expectedSize.Groups[1].Value, out var expectedWidth) &&
+                int.TryParse(expectedSize.Groups[2].Value, out var expectedHeight) &&
+                result.Width > 0 && result.Height > 0 &&
+                (result.Width != expectedWidth || result.Height != expectedHeight))
+            {
+                result.IsValid = false;
+                result.IntegrityStatus = MediaIntegrityStatus.DurationMismatch;
+                result.ErrorReason = $"Downloaded resolution ({result.Width}x{result.Height}) does not match the analyzed video stream ({expectedWidth}x{expectedHeight}).";
+                return result;
+            }
+        }
+
+        // 5. Deep Packet & Stream Decode Verification
+        // Run deep stream scan to ensure there are no corrupted NAL units, mid-video packet drops, or decoding crashes
+        var (isHealthy, streamError) = await VerifyStreamIntegrityWithFFmpegAsync(filePath);
+        if (!isHealthy)
+        {
+            result.IsValid = false;
+            result.IntegrityStatus = MediaIntegrityStatus.Corrupted;
+            result.ErrorReason = streamError;
+            return result;
+        }
+
+        // 6. Final Details Assembly
         result.IsValid = true;
         result.IntegrityStatus = MediaIntegrityStatus.Passed;
         
@@ -392,5 +440,125 @@ public static class MediaValidator
         catch { }
 
         return false;
+    }
+
+    // ffprobe is not bundled with the desktop build, while ffmpeg is.  Use
+    // ffmpeg's stream report as a reliable fallback so an audio-only MP4 can
+    // never be promoted as a completed video download.
+    private static async Task<bool> TryProbeWithFfmpegAsync(string filePath, MediaValidationResult result)
+    {
+        try
+        {
+            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-hide_banner -i \"{filePath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return false;
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            var outputTask = process.StandardOutput.ReadToEndAsync();
+            var errorTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync(cts.Token);
+            string report = (await outputTask) + "\n" + (await errorTask);
+
+            var duration = Regex.Match(report, @"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
+            if (duration.Success &&
+                int.TryParse(duration.Groups[1].Value, out var hours) &&
+                int.TryParse(duration.Groups[2].Value, out var minutes) &&
+                double.TryParse(duration.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+            {
+                result.ProbedDurationSeconds = hours * 3600 + minutes * 60 + seconds;
+            }
+
+            foreach (Match stream in Regex.Matches(report, @"Stream\s+#\d+:\d+(?:\([^)]*\))?:\s*(Video|Audio):\s*([^,\s]+)", RegexOptions.IgnoreCase))
+            {
+                string type = stream.Groups[1].Value;
+                string codec = stream.Groups[2].Value.ToUpperInvariant();
+                if (type.Equals("Video", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.HasVideo = true;
+                    result.VideoCodec = codec;
+                    var dimensions = Regex.Match(stream.Value, @"\b(\d{2,5})x(\d{2,5})\b");
+                    if (dimensions.Success)
+                    {
+                        int.TryParse(dimensions.Groups[1].Value, out var width);
+                        int.TryParse(dimensions.Groups[2].Value, out var height);
+                        result.Width = width;
+                        result.Height = height;
+                    }
+                }
+                else if (type.Equals("Audio", StringComparison.OrdinalIgnoreCase))
+                {
+                    result.HasAudio = true;
+                    result.AudioCodec = codec;
+                }
+            }
+
+            return result.HasVideo || result.HasAudio;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static async Task<(bool IsHealthy, string ErrorReason)> VerifyStreamIntegrityWithFFmpegAsync(string filePath)
+    {
+        try
+        {
+            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
+            if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-v error -i \"{filePath}\" -f null -",
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null) return (true, "");
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+            var errTask = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync(cts.Token);
+            string errors = await errTask;
+
+            // Only treat as fatal if FFmpeg itself failed with exit code != 0 or there are severe broken NAL units (> 5)
+            if (errors.Contains("Invalid NAL unit size", StringComparison.OrdinalIgnoreCase))
+            {
+                int nalCount = Regex.Matches(errors, "Invalid NAL unit size", RegexOptions.IgnoreCase).Count;
+                if (nalCount > 5)
+                {
+                    return (false, $"Media stream has corrupted NAL units ({nalCount} framing errors).");
+                }
+            }
+
+            if (process.ExitCode != 0)
+            {
+                string firstLine = errors.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "Fatal decoding error";
+                return (false, $"Media stream is corrupted during decoding: {firstLine}");
+            }
+
+            return (true, "");
+        }
+        catch
+        {
+            return (true, ""); // Allow benign bypass if ffmpeg probe process is busy or unavailable
+        }
     }
 }

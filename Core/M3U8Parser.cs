@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
+using Zonix.Core.Extractors;
 
 namespace Zonix.Core;
 
@@ -11,13 +12,29 @@ public class M3U8Parser
 {
     private readonly HttpClient _httpClient;
     private readonly YoutubeClient _youtubeClient = new();
+    private readonly ExtractorDispatcher _dispatcher;
 
     public M3U8Parser(HttpClient httpClient)
     {
         _httpClient = httpClient;
+
+        var extractors = new List<IVideoExtractor>
+        {
+            new YouTubeExtractor(httpClient),
+            new InstagramExtractor(httpClient),
+            new PixelflixExtractor(httpClient),
+            new PornhubExtractor(httpClient, this),
+            new OtherSitesExtractor(this)
+        };
+        _dispatcher = new ExtractorDispatcher(extractors);
     }
 
     public async Task<StreamAnalysisResult> ParseAsync(string url, int retryCount = 0)
+    {
+        return await _dispatcher.DispatchAsync(url, retryCount);
+    }
+
+    public async Task<StreamAnalysisResult> ParseInternalAsync(string url, int retryCount = 0)
     {
         var targetUri = new Uri(url);
         var result = new StreamAnalysisResult
@@ -125,7 +142,19 @@ public class M3U8Parser
                         }
                         return result;
                     }
-                    throw;
+
+                    // Fallback to direct detected stream URL
+                    bool isM3u8Url = detectedMasterUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase);
+                    result.IsDirectMediaFile = !isM3u8Url && (detectedMasterUrl.Contains(".mp4") || detectedMasterUrl.Contains(".webm"));
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = isM3u8Url ? "1080p Full HD (HLS Stream)" : "Original Quality (Direct Stream)",
+                        Url = detectedMasterUrl,
+                        IsDirectFile = result.IsDirectMediaFile,
+                        DurationSeconds = result.DurationSeconds,
+                        Bandwidth = 4500000
+                    });
+                    return result;
                 }
             }
             else if (detectedQualities.Count > 0)
@@ -200,6 +229,8 @@ public class M3U8Parser
     private static bool IsDirectMediaExtension(Uri uri)
     {
         string path = uri.AbsolutePath.ToLowerInvariant();
+        if (path.EndsWith(".m3u8") || path.Contains(".m3u8/")) return false;
+
         return path.EndsWith(".mp4") || path.EndsWith(".webm") || path.EndsWith(".m4v") || path.EndsWith(".mkv") ||
                path.Contains(".mp4/") || path.Contains(".webm/") || path.Contains(".m4v/") ||
                path.Contains("/get_file/");
@@ -289,7 +320,7 @@ public class M3U8Parser
         return result;
     }
 
-    private void ExtractMetadataFromHtml(string html, StreamAnalysisResult result)
+    internal void ExtractMetadataFromHtml(string html, StreamAnalysisResult result)
     {
         // 1. Extract Exact Title (Priority: og:title -> twitter:title -> inlineFree/h1 -> JSON video_title -> <title>)
         string? candidateTitle = null;
@@ -426,14 +457,17 @@ public class M3U8Parser
         return $"{platform} Video Stream";
     }
 
-    private async Task<(string Content, Uri FinalUri, string ContentType)> FetchContentWithNegotiationAsync(string url)
+    internal async Task<(string Content, Uri FinalUri, string ContentType)> FetchContentWithNegotiationAsync(string url)
     {
         var targetUri = new Uri(url);
 
-        // This host serves public KVS player configuration to curl but rejects
-        // the .NET TLS fingerprint. Resolve its page before the normal HTTP
-        // negotiation path, while direct /get_file URLs remain direct media.
-        if (targetUri.Host.Contains("freepornvideo.sex", StringComparison.OrdinalIgnoreCase) &&
+        // Some tube hosts reject .NET's TLS fingerprint or have SSL cipher mismatches.
+        // Resolve page with curl first before standard negotiation.
+        if ((targetUri.Host.Contains("freepornvideo.sex", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("mat6tube.com", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("pron.click", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("xnxx.com", StringComparison.OrdinalIgnoreCase) ||
+             targetUri.Host.Contains("xvideos.com", StringComparison.OrdinalIgnoreCase)) &&
             !IsDirectMediaExtension(targetUri))
         {
             var curlHtml = await FetchHtmlWithCurlAsync(url, targetUri);
@@ -452,7 +486,7 @@ public class M3U8Parser
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
                 request.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
                 request.Headers.TryAddWithoutValidation("Accept-Language", "en-US,en;q=0.9");
-                request.Headers.TryAddWithoutValidation("Cookie", "platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1");
+                request.Headers.TryAddWithoutValidation("Cookie", "platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1; _sv=1");
 
                 if (!string.IsNullOrEmpty(referer))
                 {
@@ -473,38 +507,47 @@ public class M3U8Parser
             catch { }
         }
 
-        using var finalReq = new HttpRequestMessage(HttpMethod.Get, url);
-        finalReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-        finalReq.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-        finalReq.Headers.TryAddWithoutValidation("Cookie", "platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1");
-        using var finalRes = await _httpClient.SendAsync(finalReq);
-        
-        if (finalRes.StatusCode == HttpStatusCode.Forbidden || (int)finalRes.StatusCode == 403)
+        try
         {
-            // This KVS host currently rejects .NET's TLS fingerprint while
-            // serving the same public player document to Chrome/curl. Its
-            // player config contains a short-lived signed get_file URL, so
-            // obtain that public document with curl and continue through the
-            // normal parser rather than reporting a false Cloudflare block.
-            if (targetUri.Host.Contains("freepornvideo.sex", StringComparison.OrdinalIgnoreCase))
+            using var finalReq = new HttpRequestMessage(HttpMethod.Get, url);
+            finalReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            finalReq.Headers.TryAddWithoutValidation("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+            finalReq.Headers.TryAddWithoutValidation("Cookie", "platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1; _sv=1");
+            using var finalRes = await _httpClient.SendAsync(finalReq);
+            
+            if (finalRes.StatusCode == HttpStatusCode.Forbidden || (int)finalRes.StatusCode == 403)
             {
                 var curlHtml = await FetchHtmlWithCurlAsync(url, targetUri);
                 if (!string.IsNullOrWhiteSpace(curlHtml))
                 {
                     return (curlHtml, targetUri, "text/html");
                 }
+                throw new HttpRequestException($"Site '{targetUri.Host}' is protected by Cloudflare bot verification. Please play the video in your Chrome browser and click the Stream Helper extension (or copy the direct .m3u8 / .mp4 stream URL) to download!");
             }
-            throw new HttpRequestException($"Site '{targetUri.Host}' is protected by Cloudflare bot verification. Please play the video in your Chrome browser and click the Stream Helper extension (or copy the direct .m3u8 / .mp4 stream URL) to download!");
+
+            finalRes.EnsureSuccessStatusCode();
+
+            var content = await finalRes.Content.ReadAsStringAsync();
+            var ct = finalRes.Content.Headers.ContentType?.MediaType ?? string.Empty;
+            return (content, finalRes.RequestMessage?.RequestUri ?? targetUri, ct);
         }
+        catch (Exception ex)
+        {
+            if (ex is HttpRequestException hre && hre.Message.Contains("Cloudflare"))
+            {
+                throw;
+            }
 
-        finalRes.EnsureSuccessStatusCode();
-
-        var content = await finalRes.Content.ReadAsStringAsync();
-        var ct = finalRes.Content.Headers.ContentType?.MediaType ?? string.Empty;
-        return (content, finalRes.RequestMessage?.RequestUri ?? targetUri, ct);
+            var curlHtml = await FetchHtmlWithCurlAsync(url, targetUri);
+            if (!string.IsNullOrWhiteSpace(curlHtml))
+            {
+                return (curlHtml, targetUri, "text/html");
+            }
+            throw;
+        }
     }
 
-    private static async Task<string?> FetchHtmlWithCurlAsync(string url, Uri targetUri)
+    internal static async Task<string?> FetchHtmlWithCurlAsync(string url, Uri targetUri)
     {
         string? tempFile = null;
         try
@@ -523,6 +566,7 @@ public class M3U8Parser
             startInfo.ArgumentList.Add("--silent");
             startInfo.ArgumentList.Add("--show-error");
             startInfo.ArgumentList.Add("--location");
+            startInfo.ArgumentList.Add("--insecure");
             startInfo.ArgumentList.Add("--max-time");
             startInfo.ArgumentList.Add("30");
             startInfo.ArgumentList.Add("--output");
@@ -531,8 +575,20 @@ public class M3U8Parser
             startInfo.ArgumentList.Add("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
             startInfo.ArgumentList.Add("--header");
             startInfo.ArgumentList.Add("Accept-Language: en-US,en;q=0.9");
+            startInfo.ArgumentList.Add("--header");
+            startInfo.ArgumentList.Add("Cookie: platform=pc; bs=1; ss=1; accessAgeDisclaimerPH=1; age_verified=1; _sv=1");
+            
+            var candidateReferers = StreamSecurityHelper.GetCandidateReferers(targetUri);
+            string referer = candidateReferers.Count > 0 ? candidateReferers[0] : $"{targetUri.Scheme}://{targetUri.Host}/";
             startInfo.ArgumentList.Add("--referer");
-            startInfo.ArgumentList.Add($"{targetUri.Scheme}://{targetUri.Host}/");
+            startInfo.ArgumentList.Add(referer);
+
+            if (Uri.TryCreate(referer, UriKind.Absolute, out var rUri))
+            {
+                startInfo.ArgumentList.Add("--header");
+                startInfo.ArgumentList.Add($"Origin: {rUri.Scheme}://{rUri.Host}");
+            }
+
             startInfo.ArgumentList.Add(url);
 
             using var process = Process.Start(startInfo);
@@ -542,11 +598,9 @@ public class M3U8Parser
             await process.WaitForExitAsync(timeout.Token);
             _ = await stderr;
             string html = File.Exists(tempFile) ? await File.ReadAllTextAsync(tempFile, timeout.Token) : string.Empty;
-            Console.WriteLine($"[KVS Extractor] curl exit={process.ExitCode}, html={html.Length} bytes for {targetUri.Host}");
-            // curl can report a non-zero exit after successfully writing the
-            // page (for example, when the peer closes an HTTP/2 stream). The
-            // validated HTML body is what the parser needs.
-            return html.Length > 1024 ? html : null;
+            Console.WriteLine($"[Curl Fetcher] curl exit={process.ExitCode}, html={html.Length} bytes for {targetUri.Host}");
+            
+            return (html.Contains("#EXTM3U") || html.Length > 200) ? html : null;
         }
         catch (Exception ex)
         {
@@ -981,6 +1035,12 @@ public class M3U8Parser
 
         if (qualities.Count > 0)
         {
+            var master = qualities.FirstOrDefault(q => q.Url.Contains("master.m3u8", StringComparison.OrdinalIgnoreCase));
+            if (master != null)
+            {
+                return (master.Url, qualities);
+            }
+
             qualities = qualities.OrderByDescending(q => q.Bandwidth).ToList();
             return (qualities[0].Url, qualities);
         }
@@ -1024,6 +1084,7 @@ public class M3U8Parser
         foreach (Match m in allMp4Matches)
         {
             string vUrl = m.Groups[1].Value.Replace("&amp;", "&");
+            if (vUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase)) continue;
             if (vUrl.Contains("preview") && !vUrl.Contains("video") && allMp4Matches.Count > 1) continue;
 
             int height = 720;
@@ -1091,7 +1152,9 @@ public class M3U8Parser
         return (null, qualities);
     }
 
-    private List<StreamQuality> ParseMasterPlaylist(string content, Uri baseUri)
+    internal static List<StreamQuality> ParseMasterPlaylistStatic(string content, Uri baseUri) => ParseMasterPlaylist(content, baseUri);
+
+    internal static List<StreamQuality> ParseMasterPlaylist(string content, Uri baseUri)
     {
         var qualities = new List<StreamQuality>();
         var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -1138,7 +1201,9 @@ public class M3U8Parser
         return qualities.OrderByDescending(q => q.Bandwidth).ToList();
     }
 
-    private (List<string> Segments, int DurationSeconds) ParseMediaPlaylistWithDuration(string content, Uri baseUri)
+    internal static (List<string> Segments, int DurationSeconds) ParseMediaPlaylistWithDurationStatic(string content, Uri baseUri) => ParseMediaPlaylistWithDuration(content, baseUri);
+
+    internal static (List<string> Segments, int DurationSeconds) ParseMediaPlaylistWithDuration(string content, Uri baseUri)
     {
         var segments = new List<string>();
         double totalDuration = 0;

@@ -40,11 +40,23 @@
 
     function isAudioOnlyUrl(url) {
         if (!url) return false;
-        const lower = url.toLowerCase();
+        let lower = url.toLowerCase();
+        try { lower = decodeURIComponent(lower); } catch { }
         return lower.includes('mime=audio') || 
+               lower.includes('mime%3daudio') ||
                lower.includes('audio_only') || 
                lower.includes('audio.mp4') || 
                lower.includes('audio/mp4');
+    }
+
+    function isExplicitVideoUrl(url) {
+        if (!url) return false;
+        let lower = url.toLowerCase();
+        try { lower = decodeURIComponent(lower); } catch { }
+        return lower.includes('mime=video') ||
+               lower.includes('mime%3dvideo') ||
+               lower.includes('video/mp4') ||
+               lower.includes('video%2fmp4');
     }
 
     // Instagram keeps the previous and next reels mounted in the DOM. Using
@@ -208,7 +220,10 @@
                 }
             }
 
-            // 2. Check Performance Resource Timeline for recently requested reel MP4s
+            // 2. Check the Performance Resource Timeline for the active reel's
+            // progressive video and its separate audio track.  Newer Reels do
+            // not expose video_url in the embed document, but the browser does
+            // record these signed CDN requests after playback starts.
             if (!confirmedVideoUrl) {
                 try {
                     const entries = performance.getEntriesByType('resource');
@@ -219,10 +234,9 @@
                         if (url.includes('cdninstagram.com') || url.includes('fbcdn.net')) {
                             if (isAudioOnlyUrl(url)) {
                                 if (!confirmedAudioUrl) confirmedAudioUrl = sanitizeMediaUrl(url);
-                            } else if (url.includes('.mp4') || url.includes('/v/t') || url.includes('/o1/v/')) {
+                            } else if (isExplicitVideoUrl(url)) {
                                 if (!confirmedVideoUrl) {
                                     confirmedVideoUrl = sanitizeMediaUrl(url);
-                                    break;
                                 }
                             }
                         }
