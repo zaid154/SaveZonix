@@ -115,12 +115,41 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+function isPlaylistUrl(url) {
+    if (!url) return false;
+    const clean = url.trim();
+    return /[?&]list=([a-zA-Z0-9_-]+)/i.test(clean) ||
+           /youtube\.com\/playlist\?/i.test(clean) ||
+           /youtu\.be\/.*[?&]list=/i.test(clean);
+}
+
 // Enter key to Analyze
 if (streamUrlInput) {
     streamUrlInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             btnAnalyze.click();
+        }
+    });
+
+    // Auto-detect on paste or direct input
+    streamUrlInput.addEventListener('paste', (e) => {
+        setTimeout(() => {
+            const val = streamUrlInput.value.trim();
+            if (isPlaylistUrl(val)) {
+                showError('⚡ YouTube Playlist detected! Opening Playlist Studio...');
+                window.location.href = '/playlist?url=' + encodeURIComponent(val);
+            }
+        }, 50);
+    });
+
+    streamUrlInput.addEventListener('input', () => {
+        const val = streamUrlInput.value.trim();
+        if (isPlaylistUrl(val)) {
+            showError('⚡ YouTube Playlist detected! Opening Playlist Studio...');
+            setTimeout(() => {
+                window.location.href = '/playlist?url=' + encodeURIComponent(val);
+            }, 300);
         }
     });
 }
@@ -130,7 +159,14 @@ btnPaste.addEventListener('click', async () => {
     try {
         const text = await navigator.clipboard.readText();
         if (text) {
-            streamUrlInput.value = text.trim();
+            const cleanUrl = text.trim();
+            streamUrlInput.value = cleanUrl;
+            if (isPlaylistUrl(cleanUrl)) {
+                showError('⚡ YouTube Playlist detected! Opening Playlist Studio...');
+                window.location.href = '/playlist?url=' + encodeURIComponent(cleanUrl);
+            } else {
+                btnAnalyze.click();
+            }
         }
     } catch {
         showError('Could not access clipboard. Please paste URL manually.');
@@ -253,6 +289,14 @@ btnAnalyze.addEventListener('click', async () => {
     const url = streamUrlInput.value.trim();
     if (!url) {
         showError('Please enter a valid video or stream URL.');
+        return;
+    }
+
+    // Auto-detect YouTube Playlist URL and seamlessly route to Playlist Studio
+    if (/[?&]list=([a-zA-Z0-9_-]+)/i.test(url) || /youtube\.com\/playlist\?/i.test(url)) {
+        btnAnalyze.disabled = true;
+        showError('Detected YouTube Playlist! Redirecting to YouTube Playlist Studio...');
+        window.location.href = '/playlist?url=' + encodeURIComponent(url);
         return;
     }
 

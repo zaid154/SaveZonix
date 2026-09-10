@@ -1,0 +1,367 @@
+@{
+    ViewData["Title"] = "YouTube Playlist Downloader Studio";
+    ViewData["ActiveNav"] = "Playlist";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/playlist.css" asp-append-version="true" />
+}
+
+<div class="playlist-studio-container">
+    <!-- Desktop Studio Header -->
+    <div class="studio-topbar">
+        <div class="studio-title-block">
+            <div class="studio-logo-icon">
+                <partial name="_Logo" model='"studio-logo-img"' />
+            </div>
+            <div>
+                <h1 class="studio-title">YouTube Playlist Studio</h1>
+                <p class="studio-subtitle">Batch Video &amp; Audio Downloader</p>
+            </div>
+        </div>
+
+        <div class="studio-topbar-actions">
+            <button id="btnOpenGlobalFolder" class="btn-studio-ghost" title="Open Downloads Directory">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                <span>Downloads Folder</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 1: Input URL Card -->
+    <div class="studio-card input-card">
+        <div class="input-form-wrapper">
+            <div class="input-icon-slot">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            </div>
+            <input type="text" id="playlistUrlInput" class="studio-input" placeholder="Paste YouTube Playlist URL (e.g. https://www.youtube.com/playlist?list=PL...)" autocomplete="off" />
+            <button type="button" id="btnPasteUrl" class="btn-input-action" title="Paste from clipboard">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                <span>Paste</span>
+            </button>
+            <button type="button" id="btnClearUrl" class="btn-input-action btn-clear" style="display:none;" title="Clear input">
+                ✕
+            </button>
+            <button type="button" id="btnLoadPlaylist" class="btn-studio-primary">
+                <span class="btn-text">Load Playlist</span>
+                <span class="btn-loader" style="display:none;"></span>
+            </button>
+        </div>
+        <div class="input-hints">
+            <span>Supports full playlists and watch URLs with a playlist ID.</span>
+            <span class="hint-separator">•</span>
+            <span>Parallel chunk streaming enabled.</span>
+        </div>
+    </div>
+
+    <!-- Error Toast / Alert Box -->
+    <div id="studioAlertBox" class="studio-alert" style="display:none;">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-content">
+            <h4 id="alertTitle">Notice</h4>
+            <p id="alertMessage"></p>
+        </div>
+        <button type="button" class="alert-close" onclick="document.getElementById('studioAlertBox').style.display='none'">✕</button>
+    </div>
+
+    <!-- Welcome Helper State (Shown when no playlist is loaded yet) -->
+    <div id="playlistWelcomeState" class="studio-card welcome-card" style="text-align: center; padding: 48px 24px;">
+        <div style="font-size: 42px; margin-bottom: 12px;">📑</div>
+        <h2 style="font-size: 19px; font-weight: 700; color: #fff; margin-bottom: 8px;">Paste a YouTube Playlist URL to Begin</h2>
+        <p style="color: #94a3b8; font-size: 14px; max-width: 580px; margin: 0 auto 20px auto; line-height: 1.5;">
+            Paste any YouTube playlist link above and click <strong>Load Playlist</strong> to inspect videos, choose download resolution, or convert to MP3 in batch.
+        </p>
+        <div class="welcome-features-pills">
+            <span>✓ Multi-Select &amp; Filter</span>
+            <span>✓ 4K &amp; 1080p MP4</span>
+            <span>✓ 320k MP3 Audio</span>
+            <span>✓ Parallel Workers</span>
+        </div>
+    </div>
+
+    <!-- Loading State Box -->
+    <div id="playlistLoadingBox" class="studio-card" style="display: none; text-align: center; padding: 48px 20px;">
+        <div style="width: 40px; height: 40px; margin: 0 auto 16px auto; border: 3px solid rgba(14,165,233,0.2); border-top-color: #0ea5e9; border-radius: 50%; animation: pulseRotate 0.8s linear infinite;"></div>
+        <h3 style="color: #fff; font-size: 17px; margin-bottom: 6px;">Fetching Playlist Information...</h3>
+        <p id="playlistLoadingText" style="color: #94a3b8; font-size: 13px; max-width: 480px; margin: 0 auto;">
+            Retrieving videos list and metadata from YouTube. Please wait a moment...
+        </p>
+    </div>
+
+    <!-- Step 2: Playlist Info Header (Initially Hidden) -->
+    <div id="playlistInfoSection" class="studio-card playlist-banner-card" style="display:none;">
+        <div class="banner-inner">
+            <div class="banner-cover-wrapper">
+                <img id="bannerThumb" src="" alt="Playlist Artwork" class="banner-cover-img" />
+                <div class="banner-badge-count" id="bannerCountBadge">0 Videos</div>
+            </div>
+            <div class="banner-details">
+                <div class="banner-meta-tag">YOUTUBE PLAYLIST</div>
+                <h2 id="bannerTitle" class="banner-title">Loading Title...</h2>
+                <div class="banner-channel-row">
+                    <span class="channel-avatar">📺</span>
+                    <span id="bannerAuthor" class="channel-name">Channel Name</span>
+                    <span class="verified-icon">✓</span>
+                    <span class="dot-divider">•</span>
+                    <span id="bannerDuration" class="meta-duration">0h 0m</span>
+                </div>
+                <p id="bannerDesc" class="banner-desc"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Global Controls, Quality Selector & Batch Toolbar (Initially Hidden) -->
+    <div id="playlistControlsSection" class="studio-card controls-toolbar-card" style="display:none;">
+        <div class="toolbar-row-top">
+            <!-- Selection Controls -->
+            <div class="selection-group">
+                <label class="custom-checkbox select-all-label">
+                    <input type="checkbox" id="chkMasterSelect" checked />
+                    <span class="checkmark"></span>
+                    <span class="chk-text">Select All</span>
+                </label>
+                <div class="toolbar-v-divider"></div>
+                <button type="button" id="btnRemoveSelected" class="btn-tool-danger" style="display:none;" title="Remove checked videos from playlist">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <span>Remove</span>
+                </button>
+                <button type="button" id="btnRestoreAll" class="btn-tool-restore" style="display:none;" title="Restore all removed videos">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                    <span>Restore All</span>
+                </button>
+                <a href="/" class="btn-tool-ghost" title="Start a fresh download">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    <span>New Download</span>
+                </a>
+                <span class="selection-count-indicator" id="selectionCountBadge">0 selected</span>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="search-filter-group">
+                <div class="search-input-wrap">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="videoSearchInput" placeholder="Filter videos..." autocomplete="off" />
+                    <button type="button" id="btnClearSearch" class="btn-search-clear" style="display:none;" title="Clear search">✕</button>
+                </div>
+                <div class="filter-select-wrapper">
+                    <label for="statusFilterSelect" class="filter-label">Status</label>
+                    <select id="statusFilterSelect" class="studio-select sm">
+                        <option value="all">All Videos</option>
+                        <option value="active" selected>Active Videos</option>
+                        <option value="available">Available Only</option>
+                        <option value="removed">Removed Videos</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="toolbar-divider"></div>
+
+        <div class="toolbar-row-bottom">
+            <!-- Format & Quality Controls -->
+            <div class="format-quality-group">
+                <div class="control-item">
+                    <label for="qualitySelect">Quality</label>
+                    <select id="qualitySelect" class="studio-select">
+                        <option value="Best" selected>Best Available</option>
+                        <option value="2160p">4K Ultra HD (2160p)</option>
+                        <option value="1440p">2K Quad HD (1440p)</option>
+                        <option value="1080p">1080p Full HD</option>
+                        <option value="720p">720p HD</option>
+                        <option value="480p">480p Standard</option>
+                        <option value="360p">360p</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="formatSelect">Format</label>
+                    <select id="formatSelect" class="studio-select">
+                        <option value="MP4" selected>MP4 Video (.mp4)</option>
+                        <option value="WebM">WebM Video (.webm)</option>
+                        <option value="MP3">MP3 Audio 320k (.mp3)</option>
+                        <option value="M4A">M4A Audio (.m4a)</option>
+                    </select>
+                </div>
+
+                <div class="control-item">
+                    <label for="concurrencySelect">Parallel Workers</label>
+                    <select id="concurrencySelect" class="studio-select sm">
+                        <option value="1">1 Video — Gentle</option>
+                        <option value="2">2 Videos — Balanced</option>
+                        <option value="3">3 Videos — Fast</option>
+                        <option value="4" selected>4 Videos — Turbo</option>
+                        <option value="6">6 Videos — Extreme Speed</option>
+                        <option value="8">8 Videos — Maximum Speed</option>
+                    </select>
+                </div>
+
+                <div class="control-item checkbox-item">
+                    <label class="custom-checkbox">
+                        <input type="checkbox" id="chkNumberPrefix" checked />
+                        <span class="checkmark"></span>
+                        <span class="chk-text">Number files (01 – Title.mp4)</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="batch-action-buttons">
+                <button type="button" id="btnDownloadSelected" class="btn-studio-cta-primary">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    <span id="txtDownloadSelected">Download Selected (0)</span>
+                </button>
+                <button type="button" id="btnDownloadAll" class="btn-studio-cta-secondary">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span>Download All</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 4: Video Selection Table (Initially Hidden) -->
+    <div id="videoListSection" class="studio-card video-table-card" style="display:none;">
+        <div class="table-responsive">
+            <table class="studio-table" id="playlistVideosTable">
+                <thead>
+                    <tr>
+                        <th class="col-chk">
+                            <label class="custom-checkbox table-head-chk">
+                                <input type="checkbox" id="chkHeaderSelect" checked />
+                                <span class="checkmark"></span>
+                            </label>
+                        </th>
+                        <th class="col-index">#</th>
+                        <th class="col-preview">Preview</th>
+                        <th class="col-meta">Video Title &amp; Channel</th>
+                        <th class="col-duration">Duration</th>
+                        <th class="col-qualities">Available Qualities</th>
+                        <th class="col-status">Status</th>
+                        <th class="col-action">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="videoTableBody">
+                    <!-- Populated dynamically via playlist.js -->
+                </tbody>
+            </table>
+        </div>
+        <div id="emptySearchState" class="empty-state" style="display:none;">
+            <div class="empty-icon">🔍</div>
+            <h3>No Videos Found</h3>
+            <p>No playlist videos match your search query.</p>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="playlistPagination" class="playlist-pagination" style="display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-top:1px solid rgba(255,255,255,0.08); flex-wrap:wrap; gap:12px;">
+            <div class="pagination-info" style="font-size:13px; color:var(--pl-text-muted);">
+                Showing <span id="paginationRangeText" style="color:#fff; font-weight:700;">1–25</span> of <span id="paginationTotalText" style="color:#00f2fe; font-weight:700;">0</span> videos
+            </div>
+            <div class="pagination-buttons" style="display:flex; align-items:center; gap:8px;">
+                <button type="button" id="btnPagePrev" class="btn-tool-sm" style="padding:6px 14px; cursor:pointer;">◀ Prev</button>
+                <span id="pageIndicatorText" style="font-size:13px; font-weight:700; color:#fff; padding:0 8px;">Page 1 of 1</span>
+                <button type="button" id="btnPageNext" class="btn-tool-sm" style="padding:6px 14px; cursor:pointer;">Next ▶</button>
+            </div>
+            <div class="pagination-size-select" style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--pl-text-muted);">
+                <label for="pageSizeSelect">Per page:</label>
+                <select id="pageSizeSelect" class="studio-select sm">
+                    <option value="25" selected>25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all">All</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Step 5: Active Download Queue & Progress Dashboard (Fixed/Docked Bottom Panel) -->
+<div id="downloadQueuePanel" class="queue-dock-panel" style="display:none;">
+    <div class="queue-dock-header">
+        <div class="queue-dock-title-group">
+            <div class="queue-pulse"></div>
+            <h3>Active Download Queue</h3>
+            <span class="badge-queue-count" id="queueItemCountBadge">0 Videos</span>
+        </div>
+
+        <!-- Overall Progress Summary -->
+        <div class="overall-progress-summary">
+            <div class="overall-stats-text">
+                <span id="overallCompletedText">0 / 0 Completed</span>
+                <span class="stat-sep">•</span>
+                <span id="overallSpeedText" class="speed-highlight">0.0 MB/s</span>
+                <span class="stat-sep">•</span>
+                <span id="overallPercentText">0%</span>
+            </div>
+            <div class="overall-progress-bar-bg">
+                <div id="overallProgressBar" class="overall-progress-bar-fill" style="width: 0%;"></div>
+            </div>
+        </div>
+
+        <div class="queue-dock-actions">
+            <button type="button" id="btnRetryAllFailed" class="btn-dock-action btn-retry" style="display:none;" title="Retry all failed downloads">
+                🔄 Retry All Failed
+            </button>
+            <button type="button" id="btnOpenFolder" class="btn-dock-action" title="Open Destination Folder">
+                📁 Open Folder
+            </button>
+            <button type="button" id="btnCancelBatch" class="btn-dock-action btn-cancel" title="Cancel Remaining Downloads">
+                ⏹ Cancel All
+            </button>
+            <a href="/" class="btn-dock-action link-nav-guard" style="text-decoration: none; color: #38bdf8;" title="Start another download">
+                🔄 New Download
+            </a>
+            <button type="button" id="btnToggleQueueMinimize" class="btn-dock-icon" title="Minimize / Expand Queue">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Active Download Live Alert Banner -->
+    <div id="queueRunningNotice" class="queue-running-notice" style="display:none;">
+        <span class="pulse-status-dot"></span>
+        <span class="notice-text">
+            <strong>Downloads in progress:</strong> Keep this browser tab open to ensure continuous high-speed downloads.
+        </span>
+    </div>
+
+    <!-- Queue Items Scrollable Body -->
+    <div class="queue-dock-body" id="queueDockBody">
+        <div id="queueItemsList" class="queue-items-grid">
+            <!-- Populated dynamically via playlist.js -->
+        </div>
+    </div>
+</div>
+
+<!-- Step 6: Navigation / Back Button Guard In-App Confirmation Modal -->
+<div id="leaveConfirmModal" class="confirm-modal-backdrop" style="display:none;">
+    <div class="confirm-modal-box">
+        <div class="confirm-modal-header">
+            <div class="confirm-modal-icon">⚠️</div>
+            <div class="confirm-modal-title-wrap">
+                <h3 class="confirm-modal-title">Downloads in Progress</h3>
+                <p class="confirm-modal-subtitle">Active downloads are running in this tab</p>
+            </div>
+            <button type="button" class="confirm-modal-close" id="btnCloseConfirmModal" aria-label="Close modal">✕</button>
+        </div>
+        <div class="confirm-modal-body">
+            <p class="confirm-modal-text">
+                Leaving this page, going back, or closing the tab will disconnect your real-time progress monitor and interrupt background worker threads.
+            </p>
+            <div class="confirm-modal-tip">
+                <span class="tip-icon">💡</span>
+                <span><strong>Pro Tip:</strong> Stay on this page until downloads reach 100%. You can minimize the bottom queue dock to keep browsing this playlist freely.</span>
+            </div>
+        </div>
+        <div class="confirm-modal-footer">
+            <button type="button" id="btnConfirmStay" class="btn-confirm-stay">
+                Stay on Page &amp; Keep Downloading
+            </button>
+            <button type="button" id="btnConfirmLeave" class="btn-confirm-leave">
+                Cancel Downloads &amp; Leave
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/playlist.js" asp-append-version="true"></script>
+}

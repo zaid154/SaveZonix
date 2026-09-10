@@ -7,11 +7,11 @@
     <meta name="description" content="High-performance media stream analyzer and multi-threaded video downloader. Supports HLS, DASH, and direct video streams with up to 256 parallel connections.">
     
     <!-- Favicon and App Icons -->
-    <link rel="icon" type="image/png" sizes="16x16" href="~/icons/icon16.png">
-    <link rel="icon" type="image/png" sizes="48x48" href="~/icons/icon48.png">
-    <link rel="icon" type="image/png" sizes="128x128" href="~/icons/icon128.png">
-    <link rel="apple-touch-icon" sizes="128x128" href="~/icons/icon128.png">
-    <link rel="shortcut icon" href="~/icons/icon48.png">
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="~/assets/logo.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="~/assets/logo.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="~/assets/logo.png">
+    <link rel="shortcut icon" href="~/assets/logo.png">
 
     <!-- Fonts & Styling -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -26,7 +26,7 @@
         <header class="navbar">
             <div class="container nav-container">
                 <a asp-controller="Home" asp-action="Index" class="brand-link">
-                    <img src="~/icons/icon48.png" alt="SaveZonix Logo" class="brand-logo-img">
+                    <partial name="_Logo" />
                     <div class="brand-text">Save<span>Zonix</span></div>
                 </a>
                 <ul class="nav-links">
@@ -133,8 +133,8 @@
                 <div class="footer-grid">
                     <div class="footer-brand">
                         <div class="brand-link">
-                            <img src="~/icons/icon48.png" alt="Stream Helper Logo" class="brand-logo-img">
-                            <div class="brand-text">Stream<span>Helper</span></div>
+                            <partial name="_Logo" />
+                            <div class="brand-text">Save<span>Zonix</span></div>
                         </div>
                         <p>High-performance media stream analyzer and authorized local saver built with .NET 10 and Manifest V3 stealth architecture.</p>
                     </div>

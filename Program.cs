@@ -385,6 +385,9 @@ public class Program
             builder.Services.AddSingleton<IDownloadAnalyticsService, SqlDownloadAnalyticsService>();
         }
 
+        builder.Services.AddSingleton<SaveZonix.Services.IYouTubePlaylistService, SaveZonix.Services.YouTubePlaylistService>();
+        builder.Services.AddSingleton<SaveZonix.Services.IPlaylistQueueManager, SaveZonix.Services.PlaylistQueueManager>();
+
         builder.Services.AddControllersWithViews();
 
         var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
