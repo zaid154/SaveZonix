@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -262,13 +263,35 @@ public class Program
     private static string SanitizeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "video.mp4";
-        var invalid = Path.GetInvalidFileNameChars();
+
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        invalid.Add('|');
+        invalid.Add(':');
+        invalid.Add('*');
+        invalid.Add('?');
+        invalid.Add('"');
+        invalid.Add('<');
+        invalid.Add('>');
+        invalid.Add('/');
+        invalid.Add('\\');
+
         var sb = new StringBuilder();
         foreach (var c in name)
         {
-            if (!invalid.Contains(c) && c != '\"' && c != '\'' && c != '*' && c != '?') sb.Append(c);
+            if (invalid.Contains(c))
+            {
+                sb.Append('-');
+            }
+            else
+            {
+                sb.Append(c);
+            }
         }
-        var clean = sb.ToString().Trim();
+
+        // Clean up multiple consecutive hyphens or spaces
+        string clean = Regex.Replace(sb.ToString(), @"[-]{2,}", "-");
+        clean = Regex.Replace(clean, @"\s{2,}", " ").Trim(' ', '.', '-');
+
         return string.IsNullOrWhiteSpace(clean) ? "video.mp4" : clean;
     }
 
@@ -1313,12 +1336,13 @@ public class Program
                 var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
                 var scopedAnalytics = scope.ServiceProvider.GetRequiredService<IDownloadAnalyticsService>();
                 var adminSettings = scope.ServiceProvider.GetRequiredService<StreamHelper.Services.IAdminSettingsService>();
+                string tempDirectory = Path.Combine(Path.GetTempPath(), "SaveZonix_" + taskId);
                 try
                 {
                     using var httpClient = CreateConfiguredHttpClient();
                     var downloader = new ParallelDownloader(httpClient)
                     {
-                        StrictCdnMaxThreads = await adminSettings.GetSettingIntAsync("StrictCdnMaxThreads", 32),
+                        StrictCdnMaxThreads = await adminSettings.GetSettingIntAsync("StrictCdnMaxThreads", 8),
                         OpenCdnMaxThreads = await adminSettings.GetSettingIntAsync("OpenCdnMaxThreads", 256),
                         StrictCdnDomains = await adminSettings.GetSettingAsync("StrictCdnDomains", "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo")
                     };
@@ -1349,7 +1373,6 @@ public class Program
                     }
 
                     string outputFilePath = GetAvailableUniqueFilePath(downloadsFolder, safeBaseName);
-                    string tempDirectory = Path.Combine(Path.GetTempPath(), "SaveZonix_" + taskId);
                     string tempMergedFile = Path.Combine(tempDirectory, "merged_" + Guid.NewGuid().ToString("N") + targetExt);
 
                     var progress = new Progress<DownloadProgressReport>(p =>
@@ -1464,8 +1487,15 @@ public class Program
                                 segmentUrls = subPlaylist.SegmentUrls;
                             }
 
+                            Console.WriteLine($"[Download Manager] About to download {segmentUrls.Count} segments for stream: {req.StreamUrl.Substring(0, Math.Min(80, req.StreamUrl.Length))}...");
+                            if (segmentUrls.Count > 0)
+                            {
+                                Console.WriteLine($"[Download Manager] Segment[0]: {segmentUrls[0].Substring(0, Math.Min(100, segmentUrls[0].Length))}...");
+                                Console.WriteLine($"[Download Manager] Segment[{segmentUrls.Count - 1}]: {segmentUrls[segmentUrls.Count - 1].Substring(0, Math.Min(100, segmentUrls[segmentUrls.Count - 1].Length))}...");
+                            }
+
                             var downloaded = await downloader.DownloadSegmentsAsync(
-                                segmentUrls, tempDirectory, concurrency, progress, cts.Token);
+                                segmentUrls, tempDirectory, concurrency, progress, cts.Token, req.EstimatedSizeBytes);
 
                             bool isAudioTarget = req.Format?.Equals("MP3", StringComparison.OrdinalIgnoreCase) == true || 
                                                  safeBaseName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) ||
@@ -1493,9 +1523,20 @@ public class Program
                                 state.IsMerging = true;
 
                                 var mergeSw = Stopwatch.StartNew();
-                                await SegmentMerger.MergeSegmentsAsync(downloaded, tempMergedFile, tempDirectory, false);
+                                bool merged = await SegmentMerger.MergeSegmentsAsync(downloaded, tempMergedFile, tempDirectory, false);
                                 mergeSw.Stop();
                                 state.MergeSeconds = mergeSw.Elapsed.TotalSeconds;
+
+                                if (!merged || !File.Exists(tempMergedFile))
+                                {
+                                    finalValidation = new Zonix.Core.MediaValidationResult
+                                    {
+                                        IsValid = false,
+                                        IntegrityStatus = Zonix.Core.MediaIntegrityStatus.Corrupted,
+                                        ErrorReason = "Stream remuxer failed to assemble video segments into a valid MP4 file."
+                                    };
+                                    break;
+                                }
                             }
                         }
 
@@ -1528,8 +1569,56 @@ public class Program
                     if (finalValidation != null && finalValidation.IsValid && File.Exists(tempMergedFile))
                     {
                         // File is 100% verified and healthy! Promote to user downloads folder
-                        if (File.Exists(outputFilePath)) { try { File.Delete(outputFilePath); } catch { } }
-                        File.Move(tempMergedFile, outputFilePath, true);
+                        outputFilePath = GetAvailableUniqueFilePath(downloadsFolder, Path.GetFileName(outputFilePath));
+                        bool moved = false;
+                        for (int moveAttempt = 1; moveAttempt <= 10; moveAttempt++)
+                        {
+                            try
+                            {
+                                if (File.Exists(outputFilePath)) { try { File.Delete(outputFilePath); } catch { } }
+                                File.Move(tempMergedFile, outputFilePath, true);
+                                moved = true;
+                                break;
+                            }
+                            catch (Exception)
+                            {
+                                if (moveAttempt < 10)
+                                {
+                                    await Task.Delay(250 * moveAttempt);
+                                }
+                            }
+                        }
+
+                        if (!moved && File.Exists(tempMergedFile))
+                        {
+                            for (int copyAttempt = 1; copyAttempt <= 10; copyAttempt++)
+                            {
+                                try
+                                {
+                                    if (File.Exists(outputFilePath)) { try { File.Delete(outputFilePath); } catch { } }
+                                    using (var sourceStream = new FileStream(tempMergedFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                    using (var destStream = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write, FileShare.None))
+                                    {
+                                        await sourceStream.CopyToAsync(destStream);
+                                    }
+                                    moved = true;
+                                    try { File.Delete(tempMergedFile); } catch { }
+                                    break;
+                                }
+                                catch (Exception)
+                                {
+                                    if (copyAttempt < 10)
+                                    {
+                                        await Task.Delay(300 * copyAttempt);
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!moved)
+                        {
+                            throw new IOException($"Failed to move or copy completed download to destination: {outputFilePath}");
+                        }
 
                         var fi = new FileInfo(outputFilePath);
                         state.OutputPath = outputFilePath;
@@ -1680,6 +1769,9 @@ public class Program
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"[Download Exception] Task {taskId} failed: {ex.GetType().Name} - {ex.Message}");
+                    Console.WriteLine(ex.ToString());
+
                     state.IsCompleted = false;
                     state.IsError = true;
                     state.ErrorMessage = ex.Message;
@@ -1706,6 +1798,8 @@ public class Program
                         });
                     }
                     catch { }
+
+                    try { if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, true); } catch { }
                 }
             });
 
@@ -2114,7 +2208,7 @@ public class Program
         };
 
         var client = new HttpClient(handler);
-        client.Timeout = TimeSpan.FromSeconds(45);
+        client.Timeout = TimeSpan.FromMinutes(10);
         client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
         client.DefaultRequestHeaders.Add("Accept", "*/*");
         client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
@@ -2126,22 +2220,14 @@ public class Program
         string path = Path.Combine(folder, fileName);
         if (!File.Exists(path)) return path;
 
-        try
+        string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+        string ext = Path.GetExtension(fileName);
+        for (int i = 1; i <= 500; i++)
         {
-            using var fs = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-            return path;
+            string candidate = Path.Combine(folder, $"{nameWithoutExt} ({i}){ext}");
+            if (!File.Exists(candidate)) return candidate;
         }
-        catch
-        {
-            string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-            string ext = Path.GetExtension(fileName);
-            for (int i = 1; i <= 100; i++)
-            {
-                string candidate = Path.Combine(folder, $"{nameWithoutExt} ({i}){ext}");
-                if (!File.Exists(candidate)) return candidate;
-            }
-            return Path.Combine(folder, $"{nameWithoutExt}_{DateTime.UtcNow.Ticks.ToString().Substring(10)}{ext}");
-        }
+        return Path.Combine(folder, $"{nameWithoutExt}_{DateTime.UtcNow.Ticks.ToString().Substring(10)}{ext}");
     }
 
     private static string GetDownloadsDirectory()

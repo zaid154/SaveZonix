@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using System.Net;
 
 namespace Zonix.Core.Extractors;
@@ -61,19 +61,121 @@ public class PornhubExtractor : IVideoExtractor
 
             _parser.ExtractMetadataFromHtml(html, result);
 
-            // Extract master.m3u8 from mediaDefinitions / flashvars
-            var masterMatch = Regex.Match(html, @"[""']videoUrl[""']\s*:\s*[""']([^""']*master\.m3u8[^""']*)[""']", RegexOptions.IgnoreCase);
-            if (masterMatch.Success)
+            // Extract duration from video_duration if not yet populated
+            if (result.DurationSeconds == 0)
             {
-                targetMasterUrl = masterMatch.Groups[1].Value.Replace("\\/", "/");
+                var durMatch = Regex.Match(html, @"[""']video_duration[""']\s*:\s*(\d+)", RegexOptions.IgnoreCase);
+                if (!durMatch.Success) durMatch = Regex.Match(html, @"[""']videoDuration[""']\s*:\s*(\d+)", RegexOptions.IgnoreCase);
+                if (durMatch.Success && int.TryParse(durMatch.Groups[1].Value, out var phDur))
+                {
+                    result.DurationSeconds = phDur;
+                }
+            }
+
+            // Extract thumbnail from posterUrl if empty
+            if (string.IsNullOrEmpty(result.ThumbnailUrl))
+            {
+                var posterMatch = Regex.Match(html, @"[""']posterUrl[""']\s*:\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+                if (posterMatch.Success)
+                {
+                    result.ThumbnailUrl = posterMatch.Groups[1].Value.Replace("\\/", "/");
+                }
+            }
+
+            // Extract mediaDefinitions JSON array for all qualities
+            var mediaDefMatch = Regex.Match(html, @"[""']mediaDefinitions[""']\s*:\s*(\[[^\]]+\])", RegexOptions.IgnoreCase);
+            if (mediaDefMatch.Success)
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(mediaDefMatch.Groups[1].Value);
+                    foreach (var el in doc.RootElement.EnumerateArray())
+                    {
+                        if (el.TryGetProperty("videoUrl", out var vUrlProp) && !string.IsNullOrWhiteSpace(vUrlProp.GetString()))
+                        {
+                            string vUrl = vUrlProp.GetString()!.Replace("\\/", "/");
+                            if (string.IsNullOrWhiteSpace(vUrl)) continue;
+
+                            // Exclude temporary get_media token endpoints (they return short-lived 410 Gone fMP4 streams)
+                            if (vUrl.Contains("/video/get_media", StringComparison.OrdinalIgnoreCase)) continue;
+
+                            string format = el.TryGetProperty("format", out var fProp) ? fProp.GetString() ?? "" : "";
+                            string qualityStr = "";
+                            if (el.TryGetProperty("quality", out var qProp))
+                            {
+                                qualityStr = qProp.ValueKind == System.Text.Json.JsonValueKind.Array
+                                    ? ""
+                                    : qProp.ToString();
+                            }
+
+                            int height = el.TryGetProperty("height", out var hProp) && hProp.TryGetInt32(out var h) ? h : 0;
+                            int width = el.TryGetProperty("width", out var wProp) && wProp.TryGetInt32(out var w) ? w : 0;
+
+                            if (height == 0 && int.TryParse(qualityStr, out var parsedH)) height = parsedH;
+
+                            string res = (width > 0 && height > 0) ? $"{width}x{height}" : (height > 0 ? $"{height}p" : "Adaptive");
+                            string dName = height >= 1080 ? $"{height}p Full HD" : (height >= 720 ? $"{height}p HD" : (height > 0 ? $"{height}p SD" : "Direct Stream"));
+
+                            long bw = 0;
+                            var kMatch = Regex.Match(vUrl, @"_(\d+)K_", RegexOptions.IgnoreCase);
+                            if (kMatch.Success && long.TryParse(kMatch.Groups[1].Value, out var kbps))
+                            {
+                                bw = kbps * 1000L;
+                            }
+                            else
+                            {
+                                bw = height >= 2160 ? 14000000L :
+                                     height >= 1440 ? 8000000L :
+                                     height >= 1080 ? 4000000L :
+                                     height >= 720  ? 2200000L :
+                                     height >= 480  ? 1200000L :
+                                     height >= 360  ? 750000L : 450000L;
+                            }
+
+                            // Convert master.m3u8 directly to index-v1-a1.m3u8 subplaylist with same auth query
+                            string streamPlaylistUrl = vUrl.Contains("master.m3u8") 
+                                ? vUrl.Replace("master.m3u8", "index-v1-a1.m3u8") 
+                                : vUrl;
+
+                            result.Qualities.Add(new StreamQuality
+                            {
+                                Resolution = res,
+                                Bandwidth = bw,
+                                Url = streamPlaylistUrl,
+                                IsDirectFile = false,
+                                DurationSeconds = result.DurationSeconds
+                            });
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (result.Qualities.Count > 0)
+            {
+                result.Qualities = result.Qualities
+                    .OrderByDescending(q => {
+                        var m = Regex.Match(q.Resolution, @"(\d+)x(\d+)");
+                        return m.Success ? int.Parse(m.Groups[2].Value) : (int.TryParse(Regex.Match(q.Resolution, @"\d+").Value, out var h) ? h : 0);
+                    })
+                    .ToList();
+                targetMasterUrl = result.Qualities[0].Url;
             }
             else
             {
-                // Fallback to any videoUrl in mediaDefinitions
-                var anyVideoMatch = Regex.Match(html, @"[""']videoUrl[""']\s*:\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-                if (anyVideoMatch.Success)
+                // Fallback: Extract master.m3u8 from mediaDefinitions / flashvars
+                var masterMatch = Regex.Match(html, @"[""']videoUrl[""']\s*:\s*[""']([^""']*master\.m3u8[^""']*)[""']", RegexOptions.IgnoreCase);
+                if (masterMatch.Success)
                 {
-                    targetMasterUrl = anyVideoMatch.Groups[1].Value.Replace("\\/", "/");
+                    targetMasterUrl = masterMatch.Groups[1].Value.Replace("\\/", "/");
+                }
+                else
+                {
+                    var anyVideoMatch = Regex.Match(html, @"[""']videoUrl[""']\s*:\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+                    if (anyVideoMatch.Success)
+                    {
+                        targetMasterUrl = anyVideoMatch.Groups[1].Value.Replace("\\/", "/");
+                    }
                 }
             }
         }
@@ -105,32 +207,34 @@ public class PornhubExtractor : IVideoExtractor
         if (masterContent.Contains("#EXT-X-STREAM-INF"))
         {
             result.IsMaster = true;
-            result.Qualities = M3U8Parser.ParseMasterPlaylistStatic(masterContent, masterUri);
+            var parsedSubQualities = M3U8Parser.ParseMasterPlaylistStatic(masterContent, masterUri);
+            if (result.Qualities.Count == 0 && parsedSubQualities.Count > 0)
+            {
+                result.Qualities = parsedSubQualities;
+            }
 
             // Ensure every quality is marked as HLS stream (never direct MP4 file)
             foreach (var q in result.Qualities)
             {
                 q.IsDirectFile = false;
-                q.DurationSeconds = result.DurationSeconds;
+                if (result.DurationSeconds > 0) q.DurationSeconds = result.DurationSeconds;
             }
 
             // Pre-resolve segments from best quality sub-playlist
-            if (result.Qualities.Count > 0)
+            string bestSubUrl = parsedSubQualities.Count > 0 ? parsedSubQualities[0].Url : targetMasterUrl;
+            var subUri = new Uri(bestSubUrl);
+            string? subContent = await M3U8Parser.FetchHtmlWithCurlAsync(bestSubUrl, subUri);
+            if (!string.IsNullOrWhiteSpace(subContent))
             {
-                var best = result.Qualities[0];
-                var subUri = new Uri(best.Url);
-                string? subContent = await M3U8Parser.FetchHtmlWithCurlAsync(best.Url, subUri);
-                if (!string.IsNullOrWhiteSpace(subContent))
+                var (segments, duration) = M3U8Parser.ParseMediaPlaylistWithDurationStatic(subContent, subUri);
+                result.SegmentUrls = segments;
+                result.TotalSegments = segments.Count;
+                if (duration > 0 && result.DurationSeconds == 0)
                 {
-                    var (segments, duration) = M3U8Parser.ParseMediaPlaylistWithDurationStatic(subContent, subUri);
-                    result.SegmentUrls = segments;
-                    result.TotalSegments = segments.Count;
-                    if (duration > 0 && result.DurationSeconds == 0)
-                    {
-                        result.DurationSeconds = duration;
-                    }
+                    result.DurationSeconds = duration;
                 }
             }
+
             result.IsDirectMediaFile = false;
             return result;
         }
@@ -138,9 +242,15 @@ public class PornhubExtractor : IVideoExtractor
         {
             result.IsMaster = false;
             var (segments, duration) = M3U8Parser.ParseMediaPlaylistWithDurationStatic(masterContent, masterUri);
+            Console.WriteLine($"[Pornhub Extractor] Parsed media playlist: {segments.Count} segments, {duration}s duration from {masterContent.Length} bytes content");
+            if (segments.Count > 0) Console.WriteLine($"[Pornhub Extractor] First segment: {segments[0].Substring(0, Math.Min(120, segments[0].Length))}...");
+            if (segments.Count > 1) Console.WriteLine($"[Pornhub Extractor] Last segment: {segments[segments.Count - 1].Substring(0, Math.Min(120, segments[segments.Count - 1].Length))}...");
             result.SegmentUrls = segments;
             result.TotalSegments = segments.Count;
-            result.DurationSeconds = duration;
+            if (duration > 0 && result.DurationSeconds == 0)
+            {
+                result.DurationSeconds = duration;
+            }
             result.IsDirectMediaFile = false;
             return result;
         }

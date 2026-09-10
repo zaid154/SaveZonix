@@ -43,7 +43,8 @@ public class ParallelDownloader
         string tempDirectory,
         int maxConcurrency = 64,
         IProgress<DownloadProgressReport>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        long initialEstimatedBytes = 0)
     {
         if (!Directory.Exists(tempDirectory))
         {
@@ -123,38 +124,55 @@ public class ParallelDownloader
                     }
                 }
 
-                // Calculate Rock-Solid Genuine ETA (Never Spike on Momentary Drops)
-                long estTotal = 0;
+                // Calculate Rock-Solid Genuine ETA & Accurate Total Size
+                long estTotal = initialEstimatedBytes > 0 ? initialEstimatedBytes : 0;
                 double elapsedSecs = Math.Max(0.5, stopwatch.Elapsed.TotalSeconds);
                 double overallAverageSpeed = (double)currentBytes / elapsedSecs;
 
-                if (currentBytes > 102400 && elapsedSecs >= 0.8)
+                // Dynamically refine estimate based on actual completed media segments (ignoring tiny init segments < 20KB)
+                var completedMediaSegs = segments.Where(s => s.IsDownloaded && s.SizeBytes > 20480).ToList();
+                if (completedMediaSegs.Count >= 2)
                 {
-                    double estimatedTotalBytes = (currentDownloaded >= 2) 
-                        ? ((double)currentBytes / currentDownloaded) * totalSegments 
-                        : currentBytes * (totalSegments / Math.Max(1.0, (double)currentDownloaded + 0.5));
+                    double avgSeg = (double)completedMediaSegs.Sum(s => s.SizeBytes) / completedMediaSegs.Count;
+                    long liveMeasuredTotal = (long)(avgSeg * totalSegments);
 
-                    estTotal = (long)estimatedTotalBytes;
-                    long remainingBytes = (long)Math.Max(0, estimatedTotalBytes - currentBytes);
-
-                    if (remainingBytes <= 0 || currentDownloaded >= totalSegments)
+                    if (initialEstimatedBytes > 0)
                     {
-                        eta = TimeSpan.Zero;
+                        // Weighted blend: 30% initial estimate + 70% actual measured segments
+                        estTotal = (long)(initialEstimatedBytes * 0.30 + liveMeasuredTotal * 0.70);
                     }
                     else
                     {
-                        // Blended reliable speed: 65% recent smoothed speed + 35% overall average speed
-                        // Prevents ETA from jumping to 45 mins when sockets are transitioning
-                        double reliableSpeed = Math.Max(
-                            smoothedSpeedBytesPerSec * 0.65 + overallAverageSpeed * 0.35, 
-                            overallAverageSpeed * 0.6
-                        );
+                        estTotal = liveMeasuredTotal;
+                    }
+                }
+                else if (initialEstimatedBytes > 0)
+                {
+                    estTotal = initialEstimatedBytes;
+                }
+                else if (currentBytes > 102400)
+                {
+                    estTotal = (long)(currentBytes * (totalSegments / Math.Max(1.0, (double)currentDownloaded + 0.5)));
+                }
 
-                        if (reliableSpeed > 10240)
-                        {
-                            double rawEtaSeconds = (double)remainingBytes / reliableSpeed;
-                            eta = TimeSpan.FromSeconds(Math.Min(1800, Math.Max(1.0, rawEtaSeconds)));
-                        }
+                long remainingBytes = (long)Math.Max(0, estTotal - currentBytes);
+
+                if (remainingBytes <= 0 || currentDownloaded >= totalSegments)
+                {
+                    eta = TimeSpan.Zero;
+                }
+                else
+                {
+                    // Blended reliable speed: 65% recent smoothed speed + 35% overall average speed
+                    double reliableSpeed = Math.Max(
+                        smoothedSpeedBytesPerSec * 0.65 + overallAverageSpeed * 0.35, 
+                        overallAverageSpeed * 0.6
+                    );
+
+                    if (reliableSpeed > 10240)
+                    {
+                        double rawEtaSeconds = (double)remainingBytes / reliableSpeed;
+                        eta = TimeSpan.FromSeconds(Math.Min(1800, Math.Max(1.0, rawEtaSeconds)));
                     }
                 }
 
@@ -200,6 +218,19 @@ public class ParallelDownloader
         var missingSegments = segments
             .Where(s => !s.IsDownloaded || !File.Exists(s.LocalTempPath) || new FileInfo(s.LocalTempPath).Length == 0)
             .ToList();
+
+        var downloadedSegments = segments.Where(s => s.IsDownloaded).ToList();
+        Console.WriteLine($"[ParallelDownloader] Download complete: {downloadedSegments.Count}/{totalSegments} segments OK, {missingSegments.Count} failed/missing");
+        if (downloadedSegments.Count > 0)
+        {
+            long totalDownloadedBytes = downloadedSegments.Sum(s => s.SizeBytes);
+            Console.WriteLine($"[ParallelDownloader] Total downloaded bytes: {totalDownloadedBytes}, avg segment: {totalDownloadedBytes / downloadedSegments.Count} bytes");
+            // Show first few segment sizes
+            foreach (var s in downloadedSegments.Take(5))
+            {
+                Console.WriteLine($"[ParallelDownloader]   seg_{s.Index:D4}: {s.SizeBytes} bytes, path: {Path.GetFileName(s.LocalTempPath)}");
+            }
+        }
 
         if (missingSegments.Count > 0)
         {
@@ -586,7 +617,7 @@ public class ParallelDownloader
                 string referer = referers[(attempt - 1) % referers.Count];
 
                 using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                attemptCts.CancelAfter(TimeSpan.FromSeconds(15));
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(90)); // 90s per segment to prevent premature socket cancellation on large HD segments
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, rawUrl);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
@@ -621,27 +652,37 @@ public class ParallelDownloader
                     totalBytesRef(cleanBytes.Length);
                     return;
                 }
+                else
+                {
+                    Console.WriteLine($"[ParallelDownloader] Seg #{segment.Index} attempt {attempt}: 0 bytes from {uri.Host}");
+                }
             }
-            catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
+            catch (Exception ex) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
+                Console.WriteLine($"[ParallelDownloader] Seg #{segment.Index} attempt {attempt} failed: {ex.GetType().Name}: {ex.Message.Substring(0, Math.Min(120, ex.Message.Length))}");
                 try { if (File.Exists(segment.LocalTempPath)) File.Delete(segment.LocalTempPath); } catch { }
 
                 string referer = referers.Count > 0 ? referers[0] : "";
                 if (await DownloadSegmentWithCurlAsync(rawUrl, segment.LocalTempPath, referer, ct))
                 {
                     var fi = new FileInfo(segment.LocalTempPath);
-                    if (fi.Length > 0)
+                    if (fi.Length > 500) // Minimum valid video segment size (prevents 1-byte or error-page files)
                     {
                         segment.SizeBytes = fi.Length;
                         segment.IsDownloaded = true;
                         totalBytesRef((int)fi.Length);
                         return;
                     }
+                    else
+                    {
+                        try { if (File.Exists(segment.LocalTempPath)) File.Delete(segment.LocalTempPath); } catch { }
+                    }
                 }
 
-                await Task.Delay(50 * attempt, ct);
+                await Task.Delay(100 * attempt, ct);
             }
         }
+        Console.WriteLine($"[ParallelDownloader] Seg #{segment.Index} EXHAUSTED all {maxRetries} retries for: {rawUrl.Substring(0, Math.Min(80, rawUrl.Length))}...");
     }
 
     private static async Task<bool> DownloadSegmentWithCurlAsync(string url, string localPath, string referer, CancellationToken ct)
@@ -659,10 +700,15 @@ public class ParallelDownloader
             };
             psi.ArgumentList.Add("--silent");
             psi.ArgumentList.Add("--show-error");
+            psi.ArgumentList.Add("--fail"); // Fail fast on HTTP 4xx/5xx (prevents writing 1-byte error responses)
             psi.ArgumentList.Add("--location");
             psi.ArgumentList.Add("--insecure");
             psi.ArgumentList.Add("--max-time");
-            psi.ArgumentList.Add("25");
+            psi.ArgumentList.Add("90");
+            psi.ArgumentList.Add("--retry");
+            psi.ArgumentList.Add("2");
+            psi.ArgumentList.Add("--retry-delay");
+            psi.ArgumentList.Add("1");
             psi.ArgumentList.Add("--user-agent");
             psi.ArgumentList.Add("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36");
             if (!string.IsNullOrEmpty(referer))
@@ -682,7 +728,7 @@ public class ParallelDownloader
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null) return false;
             await proc.WaitForExitAsync(ct);
-            return File.Exists(localPath) && new FileInfo(localPath).Length > 0;
+            return File.Exists(localPath) && new FileInfo(localPath).Length > 500;
         }
         catch
         {
@@ -727,7 +773,7 @@ public class ParallelDownloader
         return data;
     }
 
-    public int StrictCdnMaxThreads { get; set; } = 32;
+    public int StrictCdnMaxThreads { get; set; } = 8;
     public int OpenCdnMaxThreads { get; set; } = 256;
     public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo";
 
@@ -740,7 +786,7 @@ public class ParallelDownloader
         var strictList = (StrictCdnDomains ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
         if (strictList.Any(d => lower.Contains(d.Trim().ToLowerInvariant())))
         {
-            return Math.Clamp(requestedConcurrency, 1, StrictCdnMaxThreads > 0 ? StrictCdnMaxThreads : 32);
+            return Math.Clamp(requestedConcurrency, 1, StrictCdnMaxThreads > 0 ? StrictCdnMaxThreads : 8);
         }
 
         return Math.Clamp(requestedConcurrency, 1, OpenCdnMaxThreads > 0 ? OpenCdnMaxThreads : 256);

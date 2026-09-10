@@ -22,6 +22,8 @@ public class SegmentMerger
             .OrderBy(s => s.Index)
             .ToList();
 
+        Console.WriteLine($"[SegmentMerger] Merging {validSegments.Count}/{segments.Count} valid segments, total: {validSegments.Sum(s => new FileInfo(s.LocalTempPath).Length)} bytes");
+
         if (validSegments.Count == 0)
         {
             return false;
@@ -84,7 +86,7 @@ public class SegmentMerger
         if (ffmpegAvailable && (targetExt == ".mp4" || targetExt == ".m4v" || isTsFormat))
         {
             string tempRemuxFile = outputFilePath + ".remux.mp4";
-            bool remuxSuccess = await RemuxWithFFmpegAsync(rawConcatFile, tempRemuxFile);
+            bool remuxSuccess = await RemuxWithFFmpegAsync(rawConcatFile, tempRemuxFile, isTsFormat);
             if (remuxSuccess && File.Exists(tempRemuxFile) && new FileInfo(tempRemuxFile).Length > 1024)
             {
                 if (File.Exists(outputFilePath)) { try { File.Delete(outputFilePath); } catch { } }
@@ -97,6 +99,13 @@ public class SegmentMerger
             {
                 try { if (File.Exists(tempRemuxFile)) File.Delete(tempRemuxFile); } catch { }
             }
+        }
+
+        // Never promote raw MPEG-TS as MP4 if remux failed (causes 'moov atom not found')
+        if (isTsFormat && (targetExt == ".mp4" || targetExt == ".m4v"))
+        {
+            Console.WriteLine("[SegmentMerger] Warning: FFmpeg remuxing failed for MPEG-TS stream targeting MP4.");
+            return false;
         }
 
         // Fallback: If FFmpeg remux not needed or unavailable, promote raw concat directly
@@ -161,7 +170,7 @@ public class SegmentMerger
         }
     }
 
-    private static async Task<bool> RemuxWithFFmpegAsync(string inputFile, string outputFile)
+    private static async Task<bool> RemuxWithFFmpegAsync(string inputFile, string outputFile, bool isTsFormat)
     {
         try
         {
@@ -169,25 +178,80 @@ public class SegmentMerger
             if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
             if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
 
-            var startInfo = new ProcessStartInfo
+            // Multi-tiered FFmpeg command candidates
+            string[] argumentCandidates;
+            if (isTsFormat)
             {
-                FileName = ffmpegPath,
-                Arguments = $"-nostdin -y -i \"{inputFile}\" -c copy -movflags +faststart \"{outputFile}\"",
-                RedirectStandardOutput = false,
-                RedirectStandardError = false,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
+                argumentCandidates = new[]
+                {
+                    // 1. High-speed direct copy with AAC bitstream filter and discard timed_id3/metadata
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -map 0:v:0? -map 0:a:0? -c:v copy -c:a copy -bsf:a aac_adtstoasc -movflags +faststart \"{outputFile}\"",
+                    // 2. Stream-copy video, re-encode audio to AAC (handles non-standard audio bitstreams)
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -map 0:v:0? -map 0:a:0? -c:v copy -c:a aac -b:a 192k -movflags +faststart \"{outputFile}\"",
+                    // 3. Fallback generic copy
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -c copy -movflags +faststart \"{outputFile}\"",
+                    // 4. Ultrafast transcode fallback if streams are non-standard
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -map 0:v:0? -map 0:a:0? -c:v libx264 -preset ultrafast -crf 22 -c:a aac -movflags +faststart \"{outputFile}\""
+                };
+            }
+            else
+            {
+                argumentCandidates = new[]
+                {
+                    // 1. Fragmented MP4 (fMP4) stream copy with clean MP4 consolidation
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -map 0:v:0? -map 0:a:0? -c copy -movflags +faststart \"{outputFile}\"",
+                    // 2. Direct copy without map
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -c copy -movflags +faststart \"{outputFile}\"",
+                    // 3. Copy video, transcode audio
+                    $"-nostdin -y -fflags +genpts -i \"{inputFile}\" -map 0:v:0? -map 0:a:0? -c:v copy -c:a aac -b:a 192k -movflags +faststart \"{outputFile}\""
+                };
+            }
 
-            using var process = Process.Start(startInfo);
-            if (process == null) return false;
+            foreach (var args in argumentCandidates)
+            {
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = ffmpegPath,
+                        Arguments = args,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
-            await process.WaitForExitAsync(cts.Token);
-            return process.ExitCode == 0 && File.Exists(outputFile) && new FileInfo(outputFile).Length > 1024;
+                    using var process = Process.Start(startInfo);
+                    if (process == null) continue;
+
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+                    var errTask = process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync(cts.Token);
+                    string stderr = await errTask;
+
+                    if (process.ExitCode == 0 && File.Exists(outputFile) && new FileInfo(outputFile).Length > 1024)
+                    {
+                        Console.WriteLine($"[SegmentMerger] Remux successful with args: {args}");
+                        return true;
+                    }
+                    else
+                    {
+                        string firstErr = stderr.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "Unknown error";
+                        Console.WriteLine($"[SegmentMerger] Remux candidate exited {process.ExitCode}: {firstErr}");
+                        try { if (File.Exists(outputFile)) File.Delete(outputFile); } catch { }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[SegmentMerger] Remux candidate exception: {ex.Message}");
+                }
+            }
+
+            return false;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[SegmentMerger] RemuxWithFFmpegAsync fatal: {ex.Message}");
             return false;
         }
     }

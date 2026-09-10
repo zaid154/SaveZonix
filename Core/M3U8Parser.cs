@@ -1350,22 +1350,22 @@ public class M3U8Parser
 
         if (Uri.TryCreate(relativeOrAbsolute, UriKind.Absolute, out var absUri))
         {
+            string absStr = absUri.ToString();
             if (string.IsNullOrEmpty(absUri.Query) && !string.IsNullOrEmpty(parentQuery))
             {
-                var builder = new UriBuilder(absUri) { Query = parentQuery };
-                return builder.Uri.ToString();
+                return absStr + (absStr.Contains('?') ? "&" : "?") + parentQuery;
             }
-            return absUri.ToString();
+            return absStr;
         }
 
         var resolved = new Uri(baseUri, relativeOrAbsolute);
+        string resStr = resolved.ToString();
         if (string.IsNullOrEmpty(resolved.Query) && !string.IsNullOrEmpty(parentQuery))
         {
-            var builder = new UriBuilder(resolved) { Query = parentQuery };
-            return builder.Uri.ToString();
+            return resStr + (resStr.Contains('?') ? "&" : "?") + parentQuery;
         }
 
-        return resolved.ToString();
+        return resStr;
     }
 
     private async Task<StreamAnalysisResult> ExtractYouTubeWithRetryAsync(string url, StreamAnalysisResult result, int retryCount = 0)

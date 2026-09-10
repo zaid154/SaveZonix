@@ -204,7 +204,7 @@ public static class MediaValidator
     {
         try
         {
-            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 65536);
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 65536);
             byte[] header = new byte[Math.Min(fileSize, 65536)];
             int bytesRead = fs.Read(header, 0, header.Length);
 
