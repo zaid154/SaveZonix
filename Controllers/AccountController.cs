@@ -526,10 +526,13 @@ public class AccountController : Controller
         foreach (var d in allDownloads)
         {
             string strategy = d.DownloadStrategy ?? "";
-            bool isPlaylist = strategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase) ||
-                              strategy.Equals("Playlist Batch", StringComparison.OrdinalIgnoreCase);
+            bool isExplicitPlaylist = strategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase) ||
+                                      strategy.Equals("Playlist Batch", StringComparison.OrdinalIgnoreCase);
 
-            if (isPlaylist)
+            string seriesName = ExtractSeriesName(d.Title);
+            bool isSeriesCandidate = !string.IsNullOrEmpty(seriesName) && seriesName.Length > 2;
+
+            if (isExplicitPlaylist || isSeriesCandidate)
             {
                 string groupKey;
                 string playlistCode;
@@ -539,17 +542,22 @@ public class AccountController : Controller
                 {
                     var parts = strategy.Substring("Playlist:".Length).Split('•');
                     playlistCode = parts[0].Trim();
-                    playlistTitle = parts.Length > 1 ? parts[1].Trim() : "YouTube Playlist";
+                    playlistTitle = parts.Length > 1 ? parts[1].Trim() : (!string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist");
                     groupKey = playlistCode;
+                }
+                else if (!string.IsNullOrEmpty(seriesName))
+                {
+                    string cleanSlug = System.Text.RegularExpressions.Regex.Replace(seriesName, @"[^a-zA-Z0-9_]", "_").Trim('_');
+                    groupKey = $"PL_SERIES_{cleanSlug}";
+                    playlistCode = "PL-SERIES";
+                    playlistTitle = seriesName;
                 }
                 else
                 {
-                    // Smart legacy grouping: extract common series name if available, or group by day
-                    string seriesName = ExtractSeriesName(d.Title);
                     string dateKey = d.CreatedAt.ToString("yyyyMMdd");
-                    groupKey = !string.IsNullOrEmpty(seriesName) ? $"PL_SERIES_{dateKey}_{seriesName}" : $"PL_BATCH_{dateKey}";
+                    groupKey = $"PL_BATCH_{dateKey}";
                     playlistCode = "PL-01";
-                    playlistTitle = !string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist Collection";
+                    playlistTitle = "YouTube Playlist Collection";
                 }
 
                 if (!playlistBuckets.TryGetValue(groupKey, out var group))
@@ -609,6 +617,7 @@ public class AccountController : Controller
         // Process playlist buckets:
         // If a bucket has only 1 video, unpack it into a regular single-video row
         // so it shows the actual video title and thumbnail instead of a confusing "Collection 1 Videos" accordion!
+        int plIndex = 1;
         foreach (var group in playlistBuckets.Values)
         {
             if (group.TotalVideos <= 1 && group.SubItems.Count == 1)
@@ -631,11 +640,27 @@ public class AccountController : Controller
             }
             else
             {
+                if (group.PlaylistCode == "PL-SERIES" || string.IsNullOrEmpty(group.PlaylistCode))
+                {
+                    group.PlaylistCode = $"PL-{plIndex:D2}";
+                    plIndex++;
+                }
+
                 // Sort sub-items in natural ascending order (#01, #02, #03... or Episode 1, 2, 3...)
                 group.SubItems = group.SubItems
                     .OrderBy(s => ExtractIndexNumber(s))
                     .ThenBy(s => s.CreatedAt)
                     .ToList();
+
+                if (string.IsNullOrEmpty(group.ThumbnailUrl) || group.ThumbnailUrl.Contains("placeholder"))
+                {
+                    var validThumb = group.SubItems.FirstOrDefault(s => !string.IsNullOrEmpty(s.ThumbnailUrl))?.ThumbnailUrl;
+                    if (!string.IsNullOrEmpty(validThumb)) group.ThumbnailUrl = validThumb;
+                }
+
+                var latestDate = group.SubItems.Max(s => s.CreatedAt);
+                group.CreatedAt = latestDate;
+
                 finalEntries.Add(group);
             }
         }
@@ -654,10 +679,13 @@ public class AccountController : Controller
             if (int.TryParse(numPart, out int parsed)) return parsed;
         }
 
-        // 2. Check title for "Episode XX" or "Ep XX"
+        // 2. Check title for "Episode XX" or "Ep XX" or "Part XX"
         if (!string.IsNullOrEmpty(item.Title))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(item.Title, @"(?:Episode|Ep)\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            var match = System.Text.RegularExpressions.Regex.Match(
+                item.Title, 
+                @"(?:Episode|Ep\.?|Part|Pt\.?)\s*(\d+)", 
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (match.Success && int.TryParse(match.Groups[1].Value, out int epNum))
             {
                 return epNum;
@@ -667,7 +695,7 @@ public class AccountController : Controller
         // 3. Check filename prefix "01 - ", "02 - "
         if (!string.IsNullOrEmpty(item.FileName))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(item.FileName, @"^(\d{1,4})\s*-\s*");
+            var match = System.Text.RegularExpressions.Regex.Match(item.FileName, @"^(\d{1,4})\s*[-_.]\s*");
             if (match.Success && int.TryParse(match.Groups[1].Value, out int fnNum))
             {
                 return fnNum;
@@ -680,14 +708,27 @@ public class AccountController : Controller
     private static string ExtractSeriesName(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
+        
+        // 1. Regex check for Episode/Ep/Part/Pt/Volume/Vol with number
+        var match = System.Text.RegularExpressions.Regex.Match(
+            title, 
+            @"^(.*?)(?:\s*[-–|:]\s*)?(?:Episode|Ep\.?|Part|Pt\.?|Vol\.?|Season\s*\d+\s*Episode)\s*\d+", 
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            
+        if (match.Success && match.Groups[1].Value.Trim().Length > 2)
+        {
+            return match.Groups[1].Value.Trim(' ', '-', '|', ':', '_');
+        }
+
+        // 2. Simple substring checks
         int epIdx = title.IndexOf("Episode", StringComparison.OrdinalIgnoreCase);
         if (epIdx > 2) return title.Substring(0, epIdx).Trim(' ', '-', '|', ':', '_');
 
         int epShortIdx = title.IndexOf("Ep ", StringComparison.OrdinalIgnoreCase);
         if (epShortIdx > 2) return title.Substring(0, epShortIdx).Trim(' ', '-', '|', ':', '_');
 
-        int pipeIdx = title.IndexOf('|');
-        if (pipeIdx > 2) return title.Substring(0, pipeIdx).Trim(' ', '-', '|', ':', '_');
+        int partIdx = title.IndexOf("Part ", StringComparison.OrdinalIgnoreCase);
+        if (partIdx > 2) return title.Substring(0, partIdx).Trim(' ', '-', '|', ':', '_');
 
         return "";
     }

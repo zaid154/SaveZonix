@@ -33,6 +33,7 @@ public class DownloadRecord
     public double PeakSpeedMBps { get; set; }
     public double TimeTakenSeconds { get; set; }
     public string DownloadSource { get; set; } = "Web Input";
+    public string DownloadStrategy { get; set; } = "HLS Multi-Thread";
     public string Status { get; set; } = "Completed"; // Completed, Corrupted, Failed, Retrying, Cancelled
     public string? ErrorMessage { get; set; }
     

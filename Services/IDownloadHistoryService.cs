@@ -121,6 +121,7 @@ public class DownloadHistoryService : IDownloadHistoryService
             ValidationStatus = string.IsNullOrEmpty(m.ValidationStatus) ? "Passed" : m.ValidationStatus,
             ValidationDetails = m.ValidationDetails ?? "",
             AudioVideoDetails = m.AudioVideoDetails ?? "",
+            DownloadStrategy = string.IsNullOrEmpty(m.DownloadStrategy) ? "HLS Multi-Thread" : m.DownloadStrategy,
             CreatedAt = m.CreatedAt,
             UpdatedAt = m.CreatedAt
         };
@@ -185,6 +186,7 @@ public class DownloadHistoryService : IDownloadHistoryService
             existing.FileName = fileName;
             existing.ThumbnailUrl = thumbnailUrl ?? existing.ThumbnailUrl;
             existing.Status = DownloadStatus.Downloading;
+            if (!string.IsNullOrEmpty(strategy)) existing.DownloadStrategy = strategy;
             existing.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return existing;
@@ -235,6 +237,7 @@ public class DownloadHistoryService : IDownloadHistoryService
                     Quality = quality,
                     FileSizeBytes = estimatedBytes,
                     DurationSeconds = durationSeconds,
+                    DownloadStrategy = strategy,
                     Status = "Downloading",
                     CreatedAt = DateTime.UtcNow
                 };
