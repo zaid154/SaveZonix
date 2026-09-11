@@ -99,6 +99,9 @@ public class DownloadHistoryService : IDownloadHistoryService
         DownloadStatus parsedStatus = DownloadStatus.Completed;
         if (Enum.TryParse<DownloadStatus>(m.Status, true, out var st)) parsedStatus = st;
 
+        DateTime stTime = m.StartTime ?? m.CreatedAt;
+        DateTime? compTime = m.CompletionTime ?? (m.TimeTakenSeconds > 0 ? stTime.AddSeconds(m.TimeTakenSeconds) : (DateTime?)null);
+
         return new DownloadHistory
         {
             Id = string.IsNullOrEmpty(m.TaskId) ? (m.Id ?? Guid.NewGuid().ToString("N")) : m.TaskId,
@@ -118,6 +121,8 @@ public class DownloadHistoryService : IDownloadHistoryService
             PeakSpeedMBps = m.PeakSpeedMBps,
             DownloadDurationSeconds = m.TimeTakenSeconds,
             Status = parsedStatus,
+            StartTime = stTime,
+            CompletionTime = compTime,
             ValidationStatus = string.IsNullOrEmpty(m.ValidationStatus) ? "Passed" : m.ValidationStatus,
             ValidationDetails = m.ValidationDetails ?? "",
             AudioVideoDetails = m.AudioVideoDetails ?? "",
@@ -238,6 +243,7 @@ public class DownloadHistoryService : IDownloadHistoryService
                     FileSizeBytes = estimatedBytes,
                     DurationSeconds = durationSeconds,
                     DownloadStrategy = strategy,
+                    StartTime = DateTime.UtcNow,
                     Status = "Downloading",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -300,6 +306,8 @@ public class DownloadHistoryService : IDownloadHistoryService
                     .Set(x => x.DownloadSpeedMBps, avgSpeed)
                     .Set(x => x.PeakSpeedMBps, peakSpeed)
                     .Set(x => x.TimeTakenSeconds, totalSeconds)
+                    .Set(x => x.StartTime, record != null ? record.StartTime : DateTime.UtcNow.AddSeconds(-totalSeconds))
+                    .Set(x => x.CompletionTime, DateTime.UtcNow)
                     .Set(x => x.ValidationStatus, validationStatus)
                     .Set(x => x.ValidationDetails, validationDetails)
                     .Set(x => x.AudioVideoDetails, audioVideoDetails);

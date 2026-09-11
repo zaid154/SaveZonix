@@ -34,6 +34,8 @@ public class DownloadRecord
     public double TimeTakenSeconds { get; set; }
     public string DownloadSource { get; set; } = "Web Input";
     public string DownloadStrategy { get; set; } = "HLS Multi-Thread";
+    public DateTime? StartTime { get; set; }
+    public DateTime? CompletionTime { get; set; }
     public string Status { get; set; } = "Completed"; // Completed, Corrupted, Failed, Retrying, Cancelled
     public string? ErrorMessage { get; set; }
     

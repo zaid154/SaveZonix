@@ -172,6 +172,27 @@
                             if (entry.IsPlaylistGroup)
                             {
                                 var hasFailures = entry.FailedCount > 0;
+                                var firstSub = entry.SubItems.FirstOrDefault();
+                                var groupQuality = firstSub != null ? CleanQuality(firstSub.Quality) : "1080p";
+                                var groupFormat = firstSub?.Format ?? "MP4";
+
+                                DateTime batchStart = entry.SubItems.Count > 0
+                                    ? entry.SubItems.Select(s => s.StartTime > DateTime.MinValue ? s.StartTime : s.CreatedAt).Min().ToLocalTime()
+                                    : entry.CreatedAt.ToLocalTime();
+
+                                DateTime batchEnd = entry.SubItems.Count > 0
+                                    ? entry.SubItems.Select(s => {
+                                        if (s.CompletionTime.HasValue && s.CompletionTime.Value > DateTime.MinValue) return s.CompletionTime.Value.ToLocalTime();
+                                        var st = s.StartTime > DateTime.MinValue ? s.StartTime.ToLocalTime() : s.CreatedAt.ToLocalTime();
+                                        return s.DownloadDurationSeconds > 0 ? st.AddSeconds(s.DownloadDurationSeconds) : st;
+                                    }).Max()
+                                    : batchStart;
+
+                                double totalBatchDuration = entry.SubItems.Sum(s => s.DownloadDurationSeconds);
+                                string batchDurationStr = totalBatchDuration >= 60
+                                    ? $"{(int)(totalBatchDuration / 60)}m {(int)(totalBatchDuration % 60)}s"
+                                    : $"{totalBatchDuration:F0}s";
+
                                 <tr class="table-row-item history-pl-group-row">
                                     <td>
                                         <div class="media-thumb-container pl-thumb-container">
@@ -200,6 +221,10 @@
                                                 <span class="file-name-sub">
                                                     <span class="file-text">@entry.CompletedCount of @entry.TotalVideos completed</span>
                                                 </span>
+                                                @if (totalBatchDuration > 0)
+                                                {
+                                                    <span style="color: #38bdf8; font-size: 11px; font-weight: 600;">• ⏱ Total: @batchDurationStr</span>
+                                                }
                                                 @if (hasFailures)
                                                 {
                                                     <span style="color: #f43f5e; font-weight: 700; font-size: 11px;">• @entry.FailedCount failed</span>
@@ -209,8 +234,11 @@
                                     </td>
                                     <td>
                                         <div class="quality-cell">
-                                            <span class="quality-pill pl-collection-pill">Collection</span>
-                                            <div class="codec-sub">@entry.TotalVideos Videos</div>
+                                            <div style="display: flex; align-items: center; gap: 6px;">
+                                                <span class="quality-pill">@groupQuality</span>
+                                                <span class="pl-collection-pill">Collection</span>
+                                            </div>
+                                            <div class="codec-sub">@groupFormat • @entry.TotalVideos Videos</div>
                                         </div>
                                     </td>
                                     <td>
@@ -241,8 +269,14 @@
                                     </td>
                                     <td>
                                         <div class="date-cell">
-                                            <div class="date-main">@entry.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
-                                            <div class="date-sub">@entry.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                                            <div class="date-main">@batchStart.ToString("MMM dd, yyyy")</div>
+                                            <div class="date-sub pl-date-range" title="Batch Start: @batchStart.ToString("HH:mm:ss") | Batch End: @batchEnd.ToString("HH:mm:ss")">
+                                                <span style="color: #38bdf8;">⏱ @batchStart.ToString("HH:mm:ss")</span>
+                                                @if (batchEnd > batchStart)
+                                                {
+                                                    <span style="color: #34d399;">🏁 @batchEnd.ToString("HH:mm:ss")</span>
+                                                }
+                                            </div>
                                         </div>
                                     </td>
                                     <td style="text-align: right;">
@@ -287,6 +321,14 @@
                                                         ? sub.ValidationDetails.Split(" • ")[0]
                                                         : (!string.IsNullOrEmpty(sub.AudioVideoDetails) && sub.AudioVideoDetails.Contains(" • ") ? sub.AudioVideoDetails.Split(" • ")[0] : "");
 
+                                                    DateTime subStart = sub.StartTime > DateTime.MinValue ? sub.StartTime.ToLocalTime() : sub.CreatedAt.ToLocalTime();
+                                                    DateTime subEnd = (sub.CompletionTime.HasValue && sub.CompletionTime.Value > DateTime.MinValue)
+                                                        ? sub.CompletionTime.Value.ToLocalTime()
+                                                        : (sub.DownloadDurationSeconds > 0 ? subStart.AddSeconds(sub.DownloadDurationSeconds) : subStart);
+                                                    string subDurationStr = sub.DownloadDurationSeconds >= 60
+                                                        ? $"{(int)(sub.DownloadDurationSeconds / 60)}m {(int)(sub.DownloadDurationSeconds % 60)}s"
+                                                        : $"{sub.DownloadDurationSeconds:F1}s";
+
                                                     <div class="pl-nested-item-row @(subFailed ? "pl-sub-failed" : "")">
                                                         <div class="pl-sub-media">
                                                             @if (!string.IsNullOrEmpty(sub.ThumbnailUrl))
@@ -314,13 +356,24 @@
                                                             else
                                                             {
                                                                 <div class="pl-sub-meta">
-                                                                <span>@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</span>
-                                                                <span style="color: #94a3b8; margin-left: 8px;">🕒 @sub.StartTime.ToLocalTime().ToString("HH:mm:ss") @(sub.CompletionTime.HasValue ? $"→ {sub.CompletionTime.Value.ToLocalTime():HH:mm:ss}" : "") @(sub.DownloadDurationSeconds > 0 ? $"({sub.DownloadDurationSeconds:F1}s)" : "")</span>
-                                                                @if (sub.AverageSpeedMBps > 0)
-                                                                {
-                                                                    <span style="color: #38bdf8; margin-left: 6px;">⚡ Avg: @sub.AverageSpeedMBps.ToString("F1") MB/s @(sub.PeakSpeedMBps > 0 ? $"• Peak: {sub.PeakSpeedMBps:F1} MB/s" : "")</span>
-                                                                }
-                                                            </div>
+                                                                    <span class="pl-sub-meta-spec">@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</span>
+                                                                    <span class="pl-sub-meta-time">
+                                                                        <span class="pl-time-tag"><span class="lbl">Start:</span> <strong>@subStart.ToString("HH:mm:ss")</strong></span>
+                                                                        <span class="pl-time-arrow">→</span>
+                                                                        <span class="pl-time-tag"><span class="lbl">End:</span> <strong>@subEnd.ToString("HH:mm:ss")</strong></span>
+                                                                        @if (sub.DownloadDurationSeconds > 0)
+                                                                        {
+                                                                            <span class="pl-time-dur">(@subDurationStr)</span>
+                                                                        }
+                                                                    </span>
+                                                                    @if (sub.AverageSpeedMBps > 0)
+                                                                    {
+                                                                        <span class="pl-sub-meta-speed">
+                                                                            ⚡ Avg: <strong>@sub.AverageSpeedMBps.ToString("F1") MB/s</strong>
+                                                                            @(sub.PeakSpeedMBps > 0 ? $"• Peak: {sub.PeakSpeedMBps:F1} MB/s" : "")
+                                                                        </span>
+                                                                    }
+                                                                </div>
                                                             }
                                                         </div>
                                                         <div class="pl-sub-status">
@@ -462,11 +515,24 @@
                                             }
                                         </div>
                                     </td>
+                                    @{
+                                        DateTime sStart = item.StartTime > DateTime.MinValue ? item.StartTime.ToLocalTime() : item.CreatedAt.ToLocalTime();
+                                        DateTime sEnd = (item.CompletionTime.HasValue && item.CompletionTime.Value > DateTime.MinValue)
+                                            ? item.CompletionTime.Value.ToLocalTime()
+                                            : (item.DownloadDurationSeconds > 0 ? sStart.AddSeconds(item.DownloadDurationSeconds) : sStart);
+                                        string sDurStr = item.DownloadDurationSeconds >= 60
+                                            ? $"{(int)(item.DownloadDurationSeconds / 60)}m {(int)(item.DownloadDurationSeconds % 60)}s"
+                                            : $"{item.DownloadDurationSeconds:F1}s";
+                                    }
                                     <td>
                                         <div class="date-cell">
-                                            <div class="date-main">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
-                                            <div class="date-sub" title="Start: @item.StartTime.ToLocalTime():HH:mm:ss @(item.CompletionTime.HasValue ? $"| End: {item.CompletionTime.Value.ToLocalTime():HH:mm:ss}" : "")">
-                                                🕒 @item.StartTime.ToLocalTime().ToString("HH:mm:ss") @(item.CompletionTime.HasValue ? $"→ {item.CompletionTime.Value.ToLocalTime():HH:mm:ss}" : "")
+                                            <div class="date-main">@sStart.ToString("MMM dd, yyyy")</div>
+                                            <div class="date-sub pl-date-range" title="Start: @sStart.ToString("HH:mm:ss") | End: @sEnd.ToString("HH:mm:ss")">
+                                                <span style="color: #38bdf8;">⏱ @sStart.ToString("HH:mm:ss")</span>
+                                                @if (item.Status == StreamHelper.Data.DownloadStatus.Completed && sEnd > sStart)
+                                                {
+                                                    <span style="color: #34d399;">🏁 @sEnd.ToString("HH:mm:ss") <span style="color: #94a3b8; font-size: 10px;">(@sDurStr)</span></span>
+                                                }
                                             </div>
                                         </div>
                                     </td>
@@ -581,6 +647,96 @@
 @section Scripts {
     <script src="~/active-downloads-monitor.js" asp-append-version="true"></script>
     <style>
+        /* ─── Quality & Codec and Time Diagnostics Polish ─── */
+        .pl-collection-pill {
+            display: inline-flex !important;
+            align-items: center !important;
+            width: fit-content !important;
+            max-width: fit-content !important;
+            padding: 2px 7px !important;
+            border-radius: 5px !important;
+            font-size: 10.5px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.3px !important;
+            background: rgba(99, 102, 241, 0.18) !important;
+            color: #a5b4fc !important;
+            border: 1px solid rgba(99, 102, 241, 0.35) !important;
+            white-space: nowrap !important;
+            line-height: 1.2 !important;
+        }
+
+        .pl-sub-meta {
+            display: flex !important;
+            align-items: center !important;
+            flex-wrap: wrap !important;
+            gap: 8px !important;
+            font-size: 11.5px !important;
+            margin-top: 4px !important;
+        }
+
+        .pl-sub-meta-spec {
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .pl-sub-meta-time {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 5px;
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .pl-sub-meta-time .lbl {
+            color: #64748b;
+            font-size: 10.5px;
+            margin-right: 2px;
+        }
+
+        .pl-sub-meta-time strong {
+            color: #e2e8f0;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        .pl-time-arrow {
+            color: #64748b;
+            font-size: 10px;
+        }
+
+        .pl-time-dur {
+            color: #38bdf8;
+            font-weight: 600;
+            margin-left: 2px;
+        }
+
+        .pl-sub-meta-speed {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.25);
+            border-radius: 5px;
+            font-size: 11px;
+            color: #38bdf8;
+        }
+
+        .pl-sub-meta-speed strong {
+            color: #7dd3fc;
+        }
+
+        .pl-date-range {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 2px;
+            font-size: 11px;
+        }
+
         .btn-pl-retry-all-main {
             display: inline-flex;
             align-items: center;
