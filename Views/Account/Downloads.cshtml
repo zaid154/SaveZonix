@@ -313,7 +313,14 @@
                                                             }
                                                             else
                                                             {
-                                                                <div class="pl-sub-meta">@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</div>
+                                                                <div class="pl-sub-meta">
+                                                                <span>@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</span>
+                                                                <span style="color: #94a3b8; margin-left: 8px;">🕒 @sub.StartTime.ToLocalTime().ToString("HH:mm:ss") @(sub.CompletionTime.HasValue ? $"→ {sub.CompletionTime.Value.ToLocalTime():HH:mm:ss}" : "") @(sub.DownloadDurationSeconds > 0 ? $"({sub.DownloadDurationSeconds:F1}s)" : "")</span>
+                                                                @if (sub.AverageSpeedMBps > 0)
+                                                                {
+                                                                    <span style="color: #38bdf8; margin-left: 6px;">⚡ Avg: @sub.AverageSpeedMBps.ToString("F1") MB/s @(sub.PeakSpeedMBps > 0 ? $"• Peak: {sub.PeakSpeedMBps:F1} MB/s" : "")</span>
+                                                                }
+                                                            </div>
                                                             }
                                                         </div>
                                                         <div class="pl-sub-status">
@@ -409,7 +416,7 @@
                                             <div class="speed-sub">
                                                 @if (item.AverageSpeedMBps > 0)
                                                 {
-                                                    <span class="speed-live">⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                                    <span class="speed-live" title="Avg: @item.AverageSpeedMBps.ToString("F1") MB/s | Peak: @item.PeakSpeedMBps.ToString("F1") MB/s">⚡ @item.AverageSpeedMBps.ToString("F1") MB/s @(item.PeakSpeedMBps > 0 ? $"• Peak {item.PeakSpeedMBps:F1}" : "")</span>
                                                 }
                                                 else
                                                 {
@@ -441,7 +448,7 @@
                                                     </span>
                                                     break;
                                                 case StreamHelper.Data.DownloadStatus.Cancelled:
-                                                    <span class="status-badge-modern status-stopped">
+                                                    <span class="status-badge-modern status-canceled">
                                                         <span class="status-indicator-dot dot-gray"></span>
                                                         <span>Cancelled</span>
                                                     </span>
@@ -458,7 +465,9 @@
                                     <td>
                                         <div class="date-cell">
                                             <div class="date-main">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
-                                            <div class="date-sub">@item.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                                            <div class="date-sub" title="Start: @item.StartTime.ToLocalTime():HH:mm:ss @(item.CompletionTime.HasValue ? $"| End: {item.CompletionTime.Value.ToLocalTime():HH:mm:ss}" : "")">
+                                                🕒 @item.StartTime.ToLocalTime().ToString("HH:mm:ss") @(item.CompletionTime.HasValue ? $"→ {item.CompletionTime.Value.ToLocalTime():HH:mm:ss}" : "")
+                                            </div>
                                         </div>
                                     </td>
                                     <td style="text-align: right;">

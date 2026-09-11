@@ -501,6 +501,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         catch { }
 
         UpdateJobStats(job);
+        job.EndTime = DateTime.UtcNow;
         job.Status = job.FailedCount > 0 ? (job.CompletedCount > 0 ? "Completed with Errors" : "Failed") : "Completed";
     }
 
@@ -510,6 +511,8 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         var ct = linkedCts.Token;
         string targetFolder = job.OutputFolder;
 
+        item.StartTime = DateTime.UtcNow;
+        if (job.StartTime == null) job.StartTime = DateTime.UtcNow;
         item.Status = "Analyzing...";
         item.Percentage = 5;
 
@@ -597,6 +600,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     {
                         double diffMb = (item.BytesDownloaded - lastBytes) / (1024.0 * 1024.0);
                         item.SpeedMBps = Math.Max(0.1, Math.Round(diffMb / (elapsed - lastSeconds), 1));
+                        if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
                         lastSeconds = elapsed;
                         lastBytes = item.BytesDownloaded;
                     }
@@ -663,6 +667,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                         {
                             double diffMb = (item.BytesDownloaded - lastBytes) / (1024.0 * 1024.0);
                             item.SpeedMBps = Math.Max(0.1, Math.Round(diffMb / (elapsed - lastSeconds), 1));
+                            if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
                             lastSeconds = elapsed;
                             lastBytes = item.BytesDownloaded;
                         }
@@ -694,6 +699,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                         {
                             double diffMb = (current - lastBytes) / (1024.0 * 1024.0);
                             item.SpeedMBps = Math.Max(0.1, Math.Round(diffMb / (elapsed - lastSeconds), 1));
+                            if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
                             lastSeconds = elapsed;
                             lastBytes = current;
                         }
@@ -753,10 +759,13 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             item.Percentage = 100;
             item.Status = "Completed";
             item.SpeedMBps = 0;
+            item.EndTime = DateTime.UtcNow;
 
             long finalSize = File.Exists(finalDestination) ? new FileInfo(finalDestination).Length : item.TotalBytes;
             double totalSeconds = sw.Elapsed.TotalSeconds;
             double avgSpeed = totalSeconds > 0 ? Math.Round((finalSize / (1024.0 * 1024.0)) / totalSeconds, 2) : 0;
+            item.DurationSecondsTaken = Math.Round(totalSeconds, 1);
+            item.AverageSpeedMBps = avgSpeed;
 
             using (var scope = _scopeFactory.CreateScope())
             {
@@ -766,7 +775,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     try
                     {
                         await historyService.MarkCompletedWithValidationAsync(
-                            item.TaskId, finalSize, avgSpeed, item.SpeedMBps, totalSeconds,
+                            item.TaskId, finalSize, avgSpeed, item.PeakSpeedMBps > 0 ? item.PeakSpeedMBps : avgSpeed, totalSeconds,
                             "Passed", $"{item.SubId} saved and verified on disk", item.DurationSeconds, $"{item.SubId} • {item.Quality} • {item.Format}");
                     }
                     catch { }
@@ -775,6 +784,8 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         }
         catch (Exception ex) when (ex is OperationCanceledException || ex.InnerException is OperationCanceledException || ct.IsCancellationRequested || batchToken.IsCancellationRequested || item.Cts?.IsCancellationRequested == true)
         {
+            item.EndTime = DateTime.UtcNow;
+            item.DurationSecondsTaken = Math.Round(sw.Elapsed.TotalSeconds, 1);
             item.Status = "Cancelled";
             item.ErrorMessage = "Download cancelled by user";
             using (var scope = _scopeFactory.CreateScope())
@@ -788,6 +799,8 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         }
         catch (Exception ex)
         {
+            item.EndTime = DateTime.UtcNow;
+            item.DurationSecondsTaken = Math.Round(sw.Elapsed.TotalSeconds, 1);
             string friendlyReason = FormatFriendlyError(ex.Message);
             Console.WriteLine($"[Playlist Video Error] {item.SubId} ({item.VideoId}): {friendlyReason} (Raw: {ex.Message})");
             item.Status = "Failed";
@@ -825,6 +838,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         double sumSpeed = job.Items.Where(i => i.SpeedMBps > 0).Sum(i => i.SpeedMBps);
         job.OverallSpeedMBps = Math.Round(sumSpeed, 1);
+        if (job.OverallSpeedMBps > job.PeakSpeedMBps) job.PeakSpeedMBps = job.OverallSpeedMBps;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -947,8 +961,8 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             return;
         }
 
-        // 4MB chunk size: YouTube GoogleVideo serves 4MB in instant wire burst (20MB/s-50MB/s)
-        const long CHUNK_SIZE = 4L * 1024 * 1024;
+        // 2MB micro-burst chunk size: YouTube GoogleVideo serves 2MB in instant wire burst without triggering throttling
+        const long CHUNK_SIZE = 2L * 1024 * 1024;
         var chunkRanges = new ConcurrentQueue<(int Index, long Start, long End)>();
         int chunkIdx = 0;
         for (long start = 0; start < totalSize; start += CHUNK_SIZE)

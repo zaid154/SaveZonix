@@ -79,6 +79,11 @@ public class PlaylistItemDownloadState
     public string? OutputPath { get; set; }
     public double Percentage { get; set; }
     public double SpeedMBps { get; set; }
+    public double PeakSpeedMBps { get; set; }
+    public double AverageSpeedMBps { get; set; }
+    public DateTime? StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
+    public double DurationSecondsTaken { get; set; }
     public long BytesDownloaded { get; set; }
     public long TotalBytes { get; set; }
     public string Status { get; set; } = "Pending"; // Pending, Analyzing, Downloading, Muxing, Completed, Failed, Cancelled
@@ -105,6 +110,9 @@ public class PlaylistBatchJobState
     public int FailedCount { get; set; }
     public double OverallPercentage { get; set; }
     public double OverallSpeedMBps { get; set; }
+    public double PeakSpeedMBps { get; set; }
+    public DateTime? StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
     public string Status { get; set; } = "Queued"; // Queued, Downloading, Completed, Cancelled, HasErrors
     public string OutputFolder { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
