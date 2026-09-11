@@ -408,6 +408,16 @@ public class Program
             Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
         }
 
+        // 5.1 Ensure FFmpeg Binary is Present (Auto-Download if missing)
+        try
+        {
+            await SaveZonix.Services.FfmpegBootstrapper.EnsureFfmpegAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[FFmpeg Bootstrapper Notice] {ex.Message}");
+        }
+
         // 6. Clean and Reconcile Stale / Orphaned Downloads from Previous Sessions
         try
         {
