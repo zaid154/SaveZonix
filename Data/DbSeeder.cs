@@ -169,6 +169,8 @@ public static class DbSeeder
             try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
         }
 
+        var analyticsService = scope.ServiceProvider.GetService<SaveZonix.Services.IDownloadAnalyticsService>();
+
         if (forceReset)
         {
             Console.WriteLine("[Database Seeder] 🔄 Force Reset active: Wiping existing download records & settings for clean re-seed...");
@@ -177,6 +179,10 @@ public static class DbSeeder
                 context.DownloadHistories.RemoveRange(context.DownloadHistories);
                 context.AdminSettings.RemoveRange(context.AdminSettings);
                 await context.SaveChangesAsync();
+                if (analyticsService != null)
+                {
+                    await analyticsService.ClearLogsAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -192,8 +198,6 @@ public static class DbSeeder
                 await roleManager.CreateAsync(new IdentityRole(role));
             }
         }
-
-        var analyticsService = scope.ServiceProvider.GetService<SaveZonix.Services.IDownloadAnalyticsService>();
 
         // Remove old dummy users if present
         var oldEmails = new[] { "admin@streamhelper.com", "sarah@streamhelper.com", "alex@streamhelper.com" };
@@ -326,14 +330,21 @@ public static class DbSeeder
         var hadiDbUser = await userManager.FindByEmailAsync("hadi@savezonix.com");
         var dilshadDbUser = await userManager.FindByEmailAsync("dilshad@savezonix.com");
 
-        // Clean out any old dummy downloads with invalid users
+        // Clean out any old dummy downloads with invalid users or non-YouTube dummy URLs
         var staleDownloads = await context.DownloadHistories
-            .Where(d => d.UserEmail != null && !allowedEmails.Contains(d.UserEmail))
+            .Where(d => (d.UserEmail != null && !allowedEmails.Contains(d.UserEmail))
+                     || d.OriginalUrl.Contains("xhamster")
+                     || d.OriginalUrl.Contains("mat6tube")
+                     || d.OriginalUrl.Contains("XqZsoesa55w"))
             .ToListAsync();
         if (staleDownloads.Count > 0)
         {
             context.DownloadHistories.RemoveRange(staleDownloads);
             await context.SaveChangesAsync();
+            if (analyticsService != null)
+            {
+                await analyticsService.ClearLogsAsync();
+            }
         }
 
         if (!await context.DownloadHistories.AnyAsync())
@@ -346,31 +357,31 @@ public static class DbSeeder
                     UserId = adminDbUser?.Id,
                     UserEmail = adminDbUser?.Email,
                     UserName = adminDbUser?.FullName,
-                    OriginalUrl = "https://www.youtube.com/watch?v=XqZsoesa55w",
-                    Title = "Baby Shark Dance _ #babyshark Most Viewed Video _ Animal Songs",
-                    FileName = "Baby_Shark_Dance_1080p.mp4",
-                    ThumbnailUrl = "https://i.ytimg.com/vi/XqZsoesa55w/maxresdefault.jpg",
+                    OriginalUrl = "https://www.youtube.com/watch?v=AA57UCfNiSY&list=PLHWkZlkvcf_daYtWE3pJyzj74EFT2A3qE&index=4",
+                    Title = "Dil Hi Tou Hai Episode 63",
+                    FileName = "Dil_Hi_Tou_Hai_Episode_63.mp4",
+                    ThumbnailUrl = "https://i.ytimg.com/vi/AA57UCfNiSY/hqdefault.jpg",
                     Platform = "YouTube",
                     MediaType = "Video",
                     Format = "MP4",
                     Quality = "1080p Full HD",
                     Codec = "AVC1 / AAC",
-                    DurationSeconds = 136,
-                    FileSize = 74448896,
-                    DownloadedBytes = 74448896,
+                    DurationSeconds = 2340,
+                    FileSize = 428901234,
+                    DownloadedBytes = 428901234,
                     ThreadsUsed = 64,
                     Status = DownloadStatus.Completed,
-                    AverageSpeedMBps = 18.5,
-                    PeakSpeedMBps = 27.2,
-                    DownloadDurationSeconds = 3.8,
+                    AverageSpeedMBps = 22.4,
+                    PeakSpeedMBps = 35.8,
+                    DownloadDurationSeconds = 19.1,
                     ValidationStatus = "Passed",
-                    ValidationDetails = "Validated OK: 74,448,896 bytes, Duration: 136.0s, Video: H.264 (1920x1080), Audio: AAC",
-                    ProbedDurationSeconds = 136.0,
+                    ValidationDetails = "Validated OK: 428,901,234 bytes, Duration: 2340.0s, Video: H.264 (1920x1080), Audio: AAC",
+                    ProbedDurationSeconds = 2340.0,
                     AudioVideoDetails = "Video: H.264 (1920x1080) • Audio: AAC • Container: MP4",
                     AppVersion = "SaveZonix v2.5.0",
                     SystemVersion = ".NET 10.0 Windows",
                     CreatedAt = DateTime.UtcNow.AddHours(-4),
-                    CompletionTime = DateTime.UtcNow.AddHours(-4).AddSeconds(4)
+                    CompletionTime = DateTime.UtcNow.AddHours(-4).AddSeconds(20)
                 },
                 new DownloadHistory
                 {
@@ -378,31 +389,31 @@ public static class DbSeeder
                     UserId = hadiDbUser?.Id,
                     UserEmail = hadiDbUser?.Email,
                     UserName = hadiDbUser?.FullName,
-                    OriginalUrl = "https://xhamster.com/videos/big-tits-big-ass-for-this-big-slut-who-loves-to-fuck-xhl0S0S",
-                    Title = "Big Tits, Big Ass for This Big Slut Who Loves to Fuck!",
-                    FileName = "Big Tits, Big Ass for This Big Slut Who Loves to Fuck!.mp4",
-                    ThumbnailUrl = "https://icdn02.xhamster.com/hls/1080p/thumb.jpg",
-                    Platform = "xHamster",
+                    OriginalUrl = "https://www.youtube.com/watch?v=0jwO-6ap2Wc&list=RD0jwO-6ap2Wc&start_radio=1",
+                    Title = "SAJNA VE SAJNA (Flip): Shehnaaz Gill | Sunidhi Chauhan, Divya Kumar",
+                    FileName = "SAJNA_VE_SAJNA_Shehnaaz_Gill.mp4",
+                    ThumbnailUrl = "https://i.ytimg.com/vi/0jwO-6ap2Wc/hqdefault.jpg",
+                    Platform = "YouTube",
                     MediaType = "Video",
                     Format = "MP4",
                     Quality = "1080p Full HD",
-                    Codec = "H.264 / AAC",
-                    DurationSeconds = 1340,
-                    FileSize = 479265369,
-                    DownloadedBytes = 479265369,
+                    Codec = "AVC1 / AAC",
+                    DurationSeconds = 195,
+                    FileSize = 98745210,
+                    DownloadedBytes = 98745210,
                     ThreadsUsed = 32,
                     Status = DownloadStatus.Completed,
-                    AverageSpeedMBps = 24.1,
-                    PeakSpeedMBps = 38.6,
-                    DownloadDurationSeconds = 19.5,
+                    AverageSpeedMBps = 25.6,
+                    PeakSpeedMBps = 41.2,
+                    DownloadDurationSeconds = 3.8,
                     ValidationStatus = "Passed",
-                    ValidationDetails = "Validated OK: 479,265,369 bytes, Duration: 1340.0s, Format: MPEG-TS/MP4, Video: H.264 (1920x1080), Audio: AAC",
-                    ProbedDurationSeconds = 1340.0,
+                    ValidationDetails = "Validated OK: 98,745,210 bytes, Duration: 195.0s, Video: H.264 (1920x1080), Audio: AAC",
+                    ProbedDurationSeconds = 195.0,
                     AudioVideoDetails = "Video: H.264 (1920x1080) • Audio: AAC • Container: MP4",
                     AppVersion = "SaveZonix v2.5.0",
                     SystemVersion = ".NET 10.0 Windows",
                     CreatedAt = DateTime.UtcNow.AddHours(-2),
-                    CompletionTime = DateTime.UtcNow.AddHours(-2).AddSeconds(20)
+                    CompletionTime = DateTime.UtcNow.AddHours(-2).AddSeconds(4)
                 },
                 new DownloadHistory
                 {
@@ -410,31 +421,31 @@ public static class DbSeeder
                     UserId = dilshadDbUser?.Id,
                     UserEmail = dilshadDbUser?.Email,
                     UserName = dilshadDbUser?.FullName,
-                    OriginalUrl = "https://mat6tube.com/watch/-165120769_456239730",
-                    Title = "Adriana chechik, blonde with big tits performing anal it's s",
-                    FileName = "Adriana chechik, blonde with big tits performing anal it's s.mp4",
-                    ThumbnailUrl = "https://cdn2.pvvstream.pro/videos/-165120769/thumb.jpg",
-                    Platform = "Mat6tube",
+                    OriginalUrl = "https://www.youtube.com/watch?v=zfjYUqfx8_Y&list=RD0jwO-6ap2Wc&index=2",
+                    Title = "Psycho Saiyaan: Saaho | Prabhas, Shraddha Kapoor | Dhvani Bhanushali",
+                    FileName = "Psycho_Saiyaan_Saaho.mp4",
+                    ThumbnailUrl = "https://i.ytimg.com/vi/zfjYUqfx8_Y/hqdefault.jpg",
+                    Platform = "YouTube",
                     MediaType = "Video",
                     Format = "MP4",
-                    Quality = "720p HD",
-                    Codec = "H.264 / AAC",
-                    DurationSeconds = 1820,
-                    FileSize = 1109358970,
-                    DownloadedBytes = 1109358970,
-                    ThreadsUsed = 16,
+                    Quality = "1080p Full HD",
+                    Codec = "AVC1 / AAC",
+                    DurationSeconds = 168,
+                    FileSize = 89456123,
+                    DownloadedBytes = 89456123,
+                    ThreadsUsed = 32,
                     Status = DownloadStatus.Completed,
-                    AverageSpeedMBps = 32.4,
-                    PeakSpeedMBps = 48.0,
-                    DownloadDurationSeconds = 34.2,
+                    AverageSpeedMBps = 28.3,
+                    PeakSpeedMBps = 44.5,
+                    DownloadDurationSeconds = 3.1,
                     ValidationStatus = "Passed",
-                    ValidationDetails = "Validated OK: 1,109,358,970 bytes, Duration: 1820.0s, Video: H.264 (1280x720), Audio: AAC",
-                    ProbedDurationSeconds = 1820.0,
-                    AudioVideoDetails = "Video: H.264 (1280x720) • Audio: AAC • Container: MP4",
+                    ValidationDetails = "Validated OK: 89,456,123 bytes, Duration: 168.0s, Video: H.264 (1920x1080), Audio: AAC",
+                    ProbedDurationSeconds = 168.0,
+                    AudioVideoDetails = "Video: H.264 (1920x1080) • Audio: AAC • Container: MP4",
                     AppVersion = "SaveZonix v2.5.0",
                     SystemVersion = ".NET 10.0 Windows",
                     CreatedAt = DateTime.UtcNow.AddHours(-1),
-                    CompletionTime = DateTime.UtcNow.AddHours(-1).AddSeconds(35)
+                    CompletionTime = DateTime.UtcNow.AddHours(-1).AddSeconds(4)
                 }
             };
 

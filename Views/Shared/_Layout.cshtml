@@ -40,13 +40,13 @@
                     </li>
                     <li><a asp-controller="Home" asp-action="Features" class="@(ViewData["ActiveNav"]?.ToString() == "Features" ? "active" : "")">Features</a></li>
                     <li><a asp-controller="Home" asp-action="HowItWorks" class="@(ViewData["ActiveNav"]?.ToString() == "HowItWorks" ? "active" : "")">How It Works</a></li>
-                    <li><a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Get Extension</a></li>
+                    <li><a asp-controller="Home" asp-action="FAQ" class="@(ViewData["ActiveNav"]?.ToString() == "FAQ" ? "active" : "")">FAQ</a></li>
                 </ul>
                 <div class="nav-actions">
                     @if (SignInManager.IsSignedIn(User))
                     {
                         var currentUser = await UserManager.GetUserAsync(User);
-                        bool isAdmin = User.IsInRole("Admin") || (currentUser?.Email?.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) == true);
+                        bool isAdmin = User.IsInRole("Admin") || (currentUser?.Email?.Equals("zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) == true) || (currentUser?.Email?.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) == true);
 
                         <div class="user-dropdown-container">
                             <button class="btn btn-user-menu" id="userMenuBtn" type="button">
@@ -69,9 +69,12 @@
                                 <a asp-controller="Account" asp-action="Downloads" class="dropdown-item">
                                     <span>⚡ Download History</span>
                                 </a>
-                                <a href="/admin.html" class="dropdown-item">
-                                    <span>👑 Admin Dashboard</span>
-                                </a>
+                                @if (isAdmin)
+                                {
+                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item" style="color: #38bdf8;">
+                                        <span>👑 Admin Dashboard</span>
+                                    </a>
+                                }
                                 <div class="dropdown-divider"></div>
                                 <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0;">
                                     @Html.AntiForgeryToken()

@@ -277,6 +277,28 @@ public class DatabaseSyncService : IDatabaseSyncService
             // ==========================================
             // 2. BI-DIRECTIONAL DOWNLOADS HISTORY SYNC
             // ==========================================
+            // Purge any stale/dummy adult downloads from both databases
+            try
+            {
+                var staleSql = await _context.DownloadHistories
+                    .Where(d => d.OriginalUrl.Contains("xhamster") || d.OriginalUrl.Contains("mat6tube") || d.OriginalUrl.Contains("XqZsoesa55w"))
+                    .ToListAsync();
+                if (staleSql.Count > 0)
+                {
+                    _context.DownloadHistories.RemoveRange(staleSql);
+                    await _context.SaveChangesAsync();
+                }
+
+                if (mongoDownloadsColl != null)
+                {
+                    await mongoDownloadsColl.DeleteManyAsync(d =>
+                        d.OriginalUrl.Contains("xhamster") ||
+                        d.OriginalUrl.Contains("mat6tube") ||
+                        d.OriginalUrl.Contains("XqZsoesa55w"));
+                }
+            }
+            catch { }
+
             var sqlDownloads = await _context.DownloadHistories.ToListAsync();
             var mongoDownloads = await mongoDownloadsColl.Find(_ => true).ToListAsync();
 
@@ -291,6 +313,9 @@ public class DatabaseSyncService : IDatabaseSyncService
             // 2a. SQL -> MongoDB
             foreach (var sDl in sqlDownloads)
             {
+                if (sDl.OriginalUrl.Contains("xhamster") || sDl.OriginalUrl.Contains("mat6tube") || sDl.OriginalUrl.Contains("XqZsoesa55w"))
+                    continue;
+
                 string key = sDl.Id;
                 if (!mongoDlByTask.ContainsKey(key))
                 {
@@ -326,6 +351,9 @@ public class DatabaseSyncService : IDatabaseSyncService
             // 2b. MongoDB -> SQL
             foreach (var mDl in mongoDownloads)
             {
+                if ((mDl.OriginalUrl ?? "").Contains("xhamster") || (mDl.OriginalUrl ?? "").Contains("mat6tube") || (mDl.OriginalUrl ?? "").Contains("XqZsoesa55w"))
+                    continue;
+
                 string key = string.IsNullOrEmpty(mDl.TaskId) ? (mDl.Id ?? Guid.NewGuid().ToString("N")) : mDl.TaskId;
                 if (!sqlDlById.ContainsKey(key))
                 {

@@ -3827,4 +3827,105 @@ textarea.form-control-input {
     flex-shrink: 0;
 }
 
+/* ==========================================================================
+   CLEAN HOME PAGE PROFESSIONAL ENHANCEMENTS
+   ========================================================================== */
+.platforms-pill-strip {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 18px auto 0;
+    max-width: 680px;
+}
 
+.platform-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #94a3b8;
+    backdrop-filter: blur(8px);
+    transition: all 0.2s ease;
+}
+
+.platform-chip:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+    color: #f1f5f9;
+    background: rgba(56, 189, 248, 0.08);
+    transform: translateY(-1px);
+}
+
+.platform-chip .chip-icon {
+    font-size: 0.9rem;
+}
+
+.input-helper-tip {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.advanced-options-accordion {
+    margin-bottom: 18px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.advanced-options-accordion[open] {
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(15, 23, 42, 0.85);
+}
+
+.advanced-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #94a3b8;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+}
+
+.advanced-summary::-webkit-details-marker {
+    display: none;
+}
+
+.advanced-summary:hover {
+    color: #38bdf8;
+}
+
+.advanced-summary-text {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.advanced-arrow {
+    font-size: 0.8rem;
+    transition: transform 0.2s ease;
+}
+
+.advanced-options-accordion[open] .advanced-arrow {
+    transform: rotate(180deg);
+}
+
+.advanced-body {
+    padding: 12px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}

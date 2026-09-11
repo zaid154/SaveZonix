@@ -7,34 +7,43 @@
 <section class="hero">
     <div class="container">
         <div class="hero-tag">
-            <span class="badge-tag badge-green">v5.5.0 Architecture &bull; 256-Thread Fiber Acceleration</span>
+            <span class="badge-tag badge-green">✨ High-Speed Video &amp; Playlist Downloader &bull; 100% Free</span>
         </div>
         <h1 class="hero-title">
-            Download Any Video Stream at <span class="gradient">Maximum Wire Speed</span>
+            Download Any Video in <span class="gradient">Ultra HD Quality</span>
         </h1>
         <p class="hero-desc">
-            Parse fragmented HLS and DASH manifests, decrypt AES-128 streams on the fly, and assemble complete high-definition MP4 videos directly to your device with zero quality loss.
+            Fast, lossless, and ad-free. Download videos, music, and full playlists from YouTube and popular web streams directly to your device.
         </p>
+
+        <!-- Supported Platforms Badges -->
+        <div class="platforms-pill-strip">
+            <span class="platform-chip"><span class="chip-icon">▶️</span> YouTube</span>
+            <span class="platform-chip"><span class="chip-icon">📑</span> Playlists</span>
+            <span class="platform-chip"><span class="chip-icon">📸</span> Instagram</span>
+            <span class="platform-chip"><span class="chip-icon">🎵</span> TikTok</span>
+            <span class="platform-chip"><span class="chip-icon">𝕏</span> Twitter / X</span>
+            <span class="platform-chip"><span class="chip-icon">🌐</span> M3U8 Streams</span>
+        </div>
 
         <!-- Core Video & Playlist Downloader Card -->
         <div class="downloader-wrapper">
             <div class="downloader-card">
                 <div class="card-heading">
                     <div class="heading-left">
-                        <h2 class="card-title">Universal Media Stream &amp; Playlist Saver</h2>
-                        <span class="badge badge-strategy" id="strategyBadge">Auto-Detect &bull; High Speed</span>
+                        <h2 class="card-title">Paste Video or Playlist Link</h2>
                     </div>
                     <div class="heading-right">
-                        <span class="badge badge-threads" id="topThreadsBadge">256x Hyper Engine</span>
+                        <span class="badge badge-strategy" id="strategyBadge">Auto-Detect &bull; High Speed</span>
+                        <span class="badge badge-threads" id="topThreadsBadge" style="display:none;">256x Hyper Engine</span>
                     </div>
                 </div>
 
                 <!-- Input Form -->
                 <div class="input-group">
-                    <label for="streamUrl">Paste any Video URL or YouTube Playlist Link</label>
                     <div class="input-wrapper">
-                        <input type="url" id="streamUrl" placeholder="Paste YouTube, Playlist, HLS, or Video link here..." autocomplete="off">
-                        <button id="btnPaste" class="btn btn-secondary btn-icon-text" type="button">
+                        <input type="url" id="streamUrl" placeholder="Paste YouTube, Playlist, or Video URL here..." autocomplete="off">
+                        <button id="btnPaste" class="btn btn-secondary btn-icon-text" type="button" title="Paste from clipboard">
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
                             <span>Paste</span>
                         </button>
@@ -43,6 +52,9 @@
                             <span class="btn-text">Analyze</span>
                             <div class="spinner hidden" id="analyzeSpinner"></div>
                         </button>
+                    </div>
+                    <div class="input-helper-tip">
+                        <span>💡 Paste any YouTube video link, shorts, or full playlist URL to start.</span>
                     </div>
                 </div>
 
@@ -102,48 +114,42 @@
                         </div>
                     </div>
 
-                    <!-- Multi-Thread Concurrency & Connection Status Control -->
-                    <div class="concurrency-control-box" style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <label style="font-size: 13px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 6px; margin: 0;">
-                                <span>⚡ Parallel Threads (Hyper Engine)</span>
-                            </label>
-                            <span id="threadsValue" style="font-size: 12px; font-weight: 700; color: #38bdf8; font-family: monospace; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 8px; border-radius: 6px;">64 Workers (Extreme Turbo)</span>
-                        </div>
-
-                        <!-- Thread Preset Buttons -->
-                        <div class="thread-presets" style="display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap;">
-                            <button type="button" class="btn-thread-preset" data-threads="16">16x</button>
-                            <button type="button" class="btn-thread-preset" data-threads="32">32x</button>
-                            <button type="button" class="btn-thread-preset active" data-threads="64">64x Turbo</button>
-                            <button type="button" class="btn-thread-preset" data-threads="128">128x Ultra</button>
-                            <button type="button" class="btn-thread-preset" data-threads="256">256x Hyper</button>
-                        </div>
-
-                        <!-- Range Slider -->
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                            <input type="range" id="threadsRange" min="16" max="256" step="16" value="64" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
-                        </div>
-
-                        <!-- Connection Status Live Strip -->
-                        <div class="connection-status-strip" style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; border-top: 1px solid #1e293b; padding-top: 8px; margin-top: 6px;">
-                            <span style="display: flex; align-items: center; gap: 6px;">
-                                <span style="width: 7px; height: 7px; background: #10b981; border-radius: 50%; display: inline-block; box-shadow: 0 0 6px #10b981;"></span>
-                                <span style="color: #10b981; font-weight: 600;">Sockets Engine: Active</span>
+                    <!-- Collapsible Clean Advanced Settings Accordion -->
+                    <details class="advanced-options-accordion">
+                        <summary class="advanced-summary">
+                            <span class="advanced-summary-text">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                <span>Advanced Speed &amp; Thread Options</span>
                             </span>
-                            <span style="color: #94a3b8;">Multi-Segment Chunking: <strong style="color: #f8fafc;">Enabled</strong></span>
-                        </div>
-                    </div>
+                            <span class="advanced-arrow">▾</span>
+                        </summary>
+                        <div class="advanced-body">
+                            <div class="concurrency-control-box" style="background: transparent; border: none; padding: 0; margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <label style="font-size: 12.5px; font-weight: 600; color: #cbd5e1; margin: 0;">⚡ Parallel Concurrency Threads</label>
+                                    <span id="threadsValue" style="font-size: 12px; font-weight: 700; color: #38bdf8; font-family: monospace; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 8px; border-radius: 6px;">64 Workers (Turbo)</span>
+                                </div>
+                                <div class="thread-presets" style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
+                                    <button type="button" class="btn-thread-preset" data-threads="16">16x</button>
+                                    <button type="button" class="btn-thread-preset" data-threads="32">32x</button>
+                                    <button type="button" class="btn-thread-preset active" data-threads="64">64x Turbo</button>
+                                    <button type="button" class="btn-thread-preset" data-threads="128">128x Ultra</button>
+                                    <button type="button" class="btn-thread-preset" data-threads="256">256x Max</button>
+                                </div>
+                                <input type="range" id="threadsRange" min="16" max="256" step="16" value="64" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+                            </div>
 
-                    <!-- Destination Directory -->
-                    <div class="dest-location-row" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 10px 14px; margin-bottom: 18px;">
-                        <div class="dest-info" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b;">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                            <span>Save Location:</span>
-                            <span class="dest-path" id="destPathDisplay" style="color: #94a3b8; font-family: monospace;">/Downloads/</span>
+                            <!-- Destination Directory -->
+                            <div class="dest-location-row" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 8px 12px; margin-bottom: 4px;">
+                                <div class="dest-info" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    <span>Folder:</span>
+                                    <span class="dest-path" id="destPathDisplay" style="color: #cbd5e1; font-family: monospace;">/Downloads/</span>
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btnBrowseFolder" style="padding: 3px 8px; font-size: 11px;">Open Folder</button>
+                            </div>
                         </div>
-                        <button type="button" class="btn btn-secondary btn-sm" id="btnBrowseFolder" style="padding: 4px 10px; font-size: 11px;">Open Folder</button>
-                    </div>
+                    </details>
 
                     <!-- Main Action Download Button -->
                     <button id="btnStartDownload" class="btn-turbo" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 700; border-radius: 10px;">
@@ -167,7 +173,7 @@
                                 <span class="badge badge-platform" id="activePlatformBadge">Web Stream</span>
                                 <span class="badge badge-threads" id="activeThreadsBadge">64 Active Workers</span>
                                 <span class="badge badge-size" id="activeQualityBadge">1080p FHD</span>
-                                <span class="badge badge-strategy" id="activeStrategyBadge">HLS Segment Parallel</span>
+                                <span class="badge badge-strategy" id="activeStrategyBadge">Multi-Segment</span>
                             </div>
                         </div>
                         
@@ -199,7 +205,7 @@
                     <!-- Clean Real-Time Throughput Graph -->
                     <div class="throughput-container">
                         <div class="throughput-header">
-                            <span class="throughput-title">Live Transfer Throughput</span>
+                            <span class="throughput-title">Live Transfer Speed</span>
                             <div class="throughput-stats">
                                 <span class="stat-tag" id="statCurSpeed">Current: 0.0 MB/s</span>
                                 <span class="stat-tag peak" id="statPeakSpeed">Peak: 0.0 MB/s</span>
@@ -209,37 +215,37 @@
                         <canvas id="speedSparklineCanvas" class="speed-sparkline-canvas" width="600" height="48"></canvas>
                     </div>
 
-                    <!-- Enhanced 6-Card Rich Metrics Dashboard (No Chunks vs Workers Confusion) -->
+                    <!-- Clean 3 Primary Metric Cards (With Secondary Technical Stats Preserved for JS) -->
                     <div class="metrics-grid six-cards">
                         <div class="metric-card">
-                            <span class="metric-label">Transfer Speed</span>
+                            <span class="metric-label">Download Speed</span>
                             <span class="metric-value speed" id="metricSpeed">0.0 MB/s</span>
                             <span class="metric-sub" id="metricPeakSpeedSub">Peak: 0.0 MB/s</span>
                         </div>
                         <div class="metric-card">
-                            <span class="metric-label">Downloaded / Total Size</span>
+                            <span class="metric-label">Downloaded Size</span>
                             <span class="metric-value" id="metricSize">0 MB / 0 MB</span>
-                            <span class="metric-sub" id="metricSizePct">0% written</span>
+                            <span class="metric-sub" id="metricSizePct">0% complete</span>
                         </div>
                         <div class="metric-card">
-                            <span class="metric-label">Completed Chunks</span>
-                            <span class="metric-value" id="metricChunks">0 / 0 Parts</span>
-                            <span class="metric-sub" id="metricChunksSub">0 Failed &bull; 0 Retrying</span>
-                        </div>
-                        <div class="metric-card">
-                            <span class="metric-label">Active Connections</span>
-                            <span class="metric-value" id="metricWorkers">16 Workers</span>
-                            <span class="metric-sub" id="metricMaxThreadsSub">Max: 64 Concurrency</span>
-                        </div>
-                        <div class="metric-card">
-                            <span class="metric-label">Time Remaining (ETA)</span>
+                            <span class="metric-label">Estimated Time Left</span>
                             <span class="metric-value" id="metricEta">Calculating...</span>
                             <span class="metric-sub" id="metricElapsedSub">Elapsed: 00:00</span>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card" style="opacity: 0.75;">
+                            <span class="metric-label">Active Connections</span>
+                            <span class="metric-value" id="metricWorkers">64 Workers</span>
+                            <span class="metric-sub" id="metricMaxThreadsSub">Max: 64 Concurrency</span>
+                        </div>
+                        <div class="metric-card" style="opacity: 0.75;">
+                            <span class="metric-label">Downloaded Parts</span>
+                            <span class="metric-value" id="metricChunks">0 / 0 Parts</span>
+                            <span class="metric-sub" id="metricChunksSub">0 Retrying</span>
+                        </div>
+                        <div class="metric-card" style="opacity: 0.75;">
                             <span class="metric-label">Connection Health</span>
                             <span class="metric-value status-good" id="metricHealth">Optimal</span>
-                            <span class="metric-sub" id="metricRetrySub">Retries: 0 &bull; 100% OK</span>
+                            <span class="metric-sub" id="metricRetrySub">100% Stable</span>
                         </div>
                     </div>
                 </div>
@@ -252,7 +258,7 @@
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         </div>
                         <h3>Download Complete</h3>
-                        <p id="successSummary">Your video has been downloaded and merged seamlessly into MP4 format.</p>
+                        <p id="successSummary">Your video has been downloaded and ready on your device.</p>
                         <div class="success-actions">
                             <a id="btnDirectSave" class="btn btn-primary btn-download-file btn-icon-text" href="#" download>
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -276,60 +282,68 @@
         <!-- Performance Stats Row -->
         <div class="hero-stats">
             <div class="stat-item">
-                <span class="stat-num">256&times;</span>
-                <span class="stat-title">Multi-Threading</span>
+                <span class="stat-num">100% Free</span>
+                <span class="stat-title">No Limits or Ads</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-                <span class="stat-num">100%</span>
-                <span class="stat-title">Lossless Quality</span>
+                <span class="stat-num">4K &amp; 1080p</span>
+                <span class="stat-title">Lossless Full HD</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-                <span class="stat-num">0 ms</span>
-                <span class="stat-title">Buffer Latency</span>
+                <span class="stat-num">MP3 &amp; MP4</span>
+                <span class="stat-title">Video &amp; High-Bitrate Audio</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-                <span class="stat-num">Universal</span>
-                <span class="stat-title">HLS &bull; DASH &bull; MP4</span>
+                <span class="stat-num">10x Turbo</span>
+                <span class="stat-title">Parallel Acceleration</span>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Features Grid Section -->
+<!-- Clean Professional Features Grid Section -->
 <section class="features-section">
     <div class="container">
         <div class="section-header">
-            <span class="badge-tag">Engine Features</span>
-            <h2 class="section-title">Engineered for Wire-Speed Performance</h2>
-            <p class="section-desc">Traditional downloaders process single HTTP connections sequentially. Stream Helper splits manifests into concurrent stream channels.</p>
+            <span class="badge-tag">Why SaveZonix</span>
+            <h2 class="section-title">Built for Speed, Simplicity &amp; Quality</h2>
+            <p class="section-desc">Experience seamless video downloads with maximum bandwidth utilization and crystal-clear output.</p>
         </div>
 
-        <div class="feature-grid">
+        <div class="feature-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px;">
             <div class="feature-card">
                 <div class="feature-icon">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                 </div>
-                <h3>256-Thread Concurrency</h3>
-                <p>Spawns up to 256 parallel worker sockets to exhaust available bandwidth and saturate gigabit connections.</p>
+                <h3>Turbo Multi-Thread Speed</h3>
+                <p>Splits streams into concurrent parallel chunks to download videos at maximum internet speed with zero throttling.</p>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
                 </div>
-                <h3>Smart Manifest Parsing</h3>
-                <p>Decodes multi-bitrate HLS master playlists and DASH manifests, dynamically fetching 4K, 1080p, and 720p streams.</p>
+                <h3>4K &amp; 1080p Full HD Video</h3>
+                <p>Preserves original source clarity up to 4K 60fps, merging separate video and audio streams seamlessly into MP4.</p>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
                 </div>
-                <h3>Zero-Copy Segment Assembly</h3>
-                <p>Streams chunks directly to local storage and losslessly concatenates binary streams in sub-second time.</p>
+                <h3>Studio-Quality MP3 Extraction</h3>
+                <p>Convert any music video or podcast into clean 320kbps MP3 audio with one tap, perfect for offline listening.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                </div>
+                <h3>Batch &amp; Playlist Studio</h3>
+                <p>Download entire YouTube playlists or series in one go with automated queue management and individual controls.</p>
             </div>
         </div>
     </div>
@@ -338,4 +352,5 @@
 @section Scripts {
     <script src="~/app.js" asp-append-version="true"></script>
 }
+
 

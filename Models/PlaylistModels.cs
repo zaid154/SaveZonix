@@ -53,7 +53,7 @@ public class PlaylistBatchDownloadRequest
     public string Quality { get; set; } = "Best"; // Best, 2160p, 1440p, 1080p, 720p, 480p, 360p, AudioOnly
     public string Format { get; set; } = "MP4"; // MP4, WebM, MP3, M4A
     public bool NumberPrefix { get; set; } = true;
-    public int Concurrency { get; set; } = 2; // 1 to 4 parallel downloads
+    public int Concurrency { get; set; } = 6; // 1 to 12 parallel downloads
     public string? OutputFolder { get; set; }
 }
 

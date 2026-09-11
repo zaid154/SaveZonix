@@ -1284,7 +1284,7 @@
 
         const quality = qualitySelect.value;
         const format = formatSelect.value;
-        const concurrency = parseInt(concurrencySelect.value, 10) || 4;
+        const concurrency = parseInt(concurrencySelect.value, 10) || 6;
         const numberPrefix = chkNumberPrefix.checked;
         const playlistTitle = currentPlaylist ? currentPlaylist.title : 'YouTube Playlist';
 
