@@ -516,6 +516,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         item.Status = "Analyzing...";
         item.Percentage = 5;
 
+        var sw = Stopwatch.StartNew();
         string tempDirectory = Path.Combine(Path.GetTempPath(), "SaveZonix_PL_" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -572,7 +573,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
             string tempOutput = Path.Combine(tempDirectory, "out" + ext);
 
-            var sw = Stopwatch.StartNew();
+            sw.Restart();
             long lastBytes = 0;
             double lastSeconds = 0;
 
