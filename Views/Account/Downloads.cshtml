@@ -45,6 +45,36 @@
         if (p.Contains("•")) p = p.Split('•')[0].Trim();
         return p.ToUpperInvariant();
     }
+
+    TimeZoneInfo GetIndiaTimeZone()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time"); } catch { }
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); } catch { }
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Calcutta"); } catch { }
+        return TimeZoneInfo.CreateCustomTimeZone("IST", TimeSpan.FromHours(5.5), "India Standard Time", "IST");
+    }
+
+    var indiaTz = GetIndiaTimeZone();
+
+    DateTime ToIndiaTime(DateTime dt)
+    {
+        if (dt == DateTime.MinValue || dt == DateTime.MaxValue) return dt;
+        DateTime utc = dt.Kind == DateTimeKind.Utc 
+            ? dt 
+            : (dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime() : DateTime.SpecifyKind(dt, DateTimeKind.Utc));
+        return TimeZoneInfo.ConvertTimeFromUtc(utc, indiaTz);
+    }
+
+    string FormatIndianTime(DateTime dt, bool withSeconds = false)
+    {
+        var ist = ToIndiaTime(dt);
+        return withSeconds ? ist.ToString("hh:mm:ss tt") : ist.ToString("hh:mm tt");
+    }
+
+    string FormatIndianDate(DateTime dt)
+    {
+        return ToIndiaTime(dt).ToString("MMM dd, yyyy");
+    }
 }
 
 <div class="account-page">
@@ -177,13 +207,13 @@
                                 var groupFormat = firstSub?.Format ?? "MP4";
 
                                 DateTime batchStart = entry.SubItems.Count > 0
-                                    ? entry.SubItems.Select(s => s.StartTime > DateTime.MinValue ? s.StartTime : s.CreatedAt).Min().ToLocalTime()
-                                    : entry.CreatedAt.ToLocalTime();
+                                    ? entry.SubItems.Select(s => s.StartTime > DateTime.MinValue ? s.StartTime : s.CreatedAt).Min()
+                                    : entry.CreatedAt;
 
                                 DateTime batchEnd = entry.SubItems.Count > 0
                                     ? entry.SubItems.Select(s => {
-                                        if (s.CompletionTime.HasValue && s.CompletionTime.Value > DateTime.MinValue) return s.CompletionTime.Value.ToLocalTime();
-                                        var st = s.StartTime > DateTime.MinValue ? s.StartTime.ToLocalTime() : s.CreatedAt.ToLocalTime();
+                                        if (s.CompletionTime.HasValue && s.CompletionTime.Value > DateTime.MinValue) return s.CompletionTime.Value;
+                                        var st = s.StartTime > DateTime.MinValue ? s.StartTime : s.CreatedAt;
                                         return s.DownloadDurationSeconds > 0 ? st.AddSeconds(s.DownloadDurationSeconds) : st;
                                     }).Max()
                                     : batchStart;
@@ -223,7 +253,7 @@
                                                 </span>
                                                 @if (totalBatchDuration > 0)
                                                 {
-                                                    <span style="color: #38bdf8; font-size: 11px; font-weight: 600;">• ⏱ Total: @batchDurationStr</span>
+                                                    <span style="color: #38bdf8; font-size: 11px; font-weight: 600;" title="Total combined active downloading duration across all videos">• ⏱ Active Time: @batchDurationStr</span>
                                                 }
                                                 @if (hasFailures)
                                                 {
@@ -269,12 +299,12 @@
                                     </td>
                                     <td>
                                         <div class="date-cell">
-                                            <div class="date-main">@batchStart.ToString("MMM dd, yyyy")</div>
-                                            <div class="date-sub pl-date-range" title="Batch Start: @batchStart.ToString("HH:mm:ss") | Batch End: @batchEnd.ToString("HH:mm:ss")">
-                                                <span style="color: #38bdf8;">⏱ @batchStart.ToString("HH:mm:ss")</span>
+                                            <div class="date-main">@FormatIndianDate(batchStart)</div>
+                                            <div class="date-sub pl-date-range" title="Batch Start: @FormatIndianTime(batchStart, true) IST | Batch End: @FormatIndianTime(batchEnd, true) IST">
+                                                <span style="color: #38bdf8;">⏱ @FormatIndianTime(batchStart, false)</span>
                                                 @if (batchEnd > batchStart)
                                                 {
-                                                    <span style="color: #34d399;">🏁 @batchEnd.ToString("HH:mm:ss")</span>
+                                                    <span style="color: #34d399;">🏁 @FormatIndianTime(batchEnd, false)</span>
                                                 }
                                             </div>
                                         </div>
@@ -321,9 +351,9 @@
                                                         ? sub.ValidationDetails.Split(" • ")[0]
                                                         : (!string.IsNullOrEmpty(sub.AudioVideoDetails) && sub.AudioVideoDetails.Contains(" • ") ? sub.AudioVideoDetails.Split(" • ")[0] : "");
 
-                                                    DateTime subStart = sub.StartTime > DateTime.MinValue ? sub.StartTime.ToLocalTime() : sub.CreatedAt.ToLocalTime();
+                                                    DateTime subStart = sub.StartTime > DateTime.MinValue ? sub.StartTime : sub.CreatedAt;
                                                     DateTime subEnd = (sub.CompletionTime.HasValue && sub.CompletionTime.Value > DateTime.MinValue)
-                                                        ? sub.CompletionTime.Value.ToLocalTime()
+                                                        ? sub.CompletionTime.Value
                                                         : (sub.DownloadDurationSeconds > 0 ? subStart.AddSeconds(sub.DownloadDurationSeconds) : subStart);
                                                     string subDurationStr = sub.DownloadDurationSeconds >= 60
                                                         ? $"{(int)(sub.DownloadDurationSeconds / 60)}m {(int)(sub.DownloadDurationSeconds % 60)}s"
@@ -334,7 +364,7 @@
                                                             @if (!string.IsNullOrEmpty(sub.ThumbnailUrl))
                                                             {
                                                                 <img src="@sub.ThumbnailUrl" alt="Thumb" class="pl-sub-thumb" loading="lazy" onerror="this.src='/icons/icon48.png';" />
-                                                            }
+                             }
                                                             else
                                                             {
                                                                 <div class="pl-sub-thumb-fallback">🎬</div>
@@ -358,9 +388,9 @@
                                                                 <div class="pl-sub-meta">
                                                                     <span class="pl-sub-meta-spec">@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</span>
                                                                     <span class="pl-sub-meta-time">
-                                                                        <span class="pl-time-tag"><span class="lbl">Start:</span> <strong>@subStart.ToString("HH:mm:ss")</strong></span>
+                                                                        <span class="pl-time-tag"><span class="lbl">Start:</span> <strong>@FormatIndianTime(subStart, true)</strong></span>
                                                                         <span class="pl-time-arrow">→</span>
-                                                                        <span class="pl-time-tag"><span class="lbl">End:</span> <strong>@subEnd.ToString("HH:mm:ss")</strong></span>
+                                                                        <span class="pl-time-tag"><span class="lbl">End:</span> <strong>@FormatIndianTime(subEnd, true)</strong></span>
                                                                         @if (sub.DownloadDurationSeconds > 0)
                                                                         {
                                                                             <span class="pl-time-dur">(@subDurationStr)</span>
@@ -516,9 +546,9 @@
                                         </div>
                                     </td>
                                     @{
-                                        DateTime sStart = item.StartTime > DateTime.MinValue ? item.StartTime.ToLocalTime() : item.CreatedAt.ToLocalTime();
+                                        DateTime sStart = item.StartTime > DateTime.MinValue ? item.StartTime : item.CreatedAt;
                                         DateTime sEnd = (item.CompletionTime.HasValue && item.CompletionTime.Value > DateTime.MinValue)
-                                            ? item.CompletionTime.Value.ToLocalTime()
+                                            ? item.CompletionTime.Value
                                             : (item.DownloadDurationSeconds > 0 ? sStart.AddSeconds(item.DownloadDurationSeconds) : sStart);
                                         string sDurStr = item.DownloadDurationSeconds >= 60
                                             ? $"{(int)(item.DownloadDurationSeconds / 60)}m {(int)(item.DownloadDurationSeconds % 60)}s"
@@ -526,12 +556,12 @@
                                     }
                                     <td>
                                         <div class="date-cell">
-                                            <div class="date-main">@sStart.ToString("MMM dd, yyyy")</div>
-                                            <div class="date-sub pl-date-range" title="Start: @sStart.ToString("HH:mm:ss") | End: @sEnd.ToString("HH:mm:ss")">
-                                                <span style="color: #38bdf8;">⏱ @sStart.ToString("HH:mm:ss")</span>
+                                            <div class="date-main">@FormatIndianDate(sStart)</div>
+                                            <div class="date-sub pl-date-range" title="Start: @FormatIndianTime(sStart, true) IST | End: @FormatIndianTime(sEnd, true) IST">
+                                                <span style="color: #38bdf8;">⏱ @FormatIndianTime(sStart, false)</span>
                                                 @if (item.Status == StreamHelper.Data.DownloadStatus.Completed && sEnd > sStart)
                                                 {
-                                                    <span style="color: #34d399;">🏁 @sEnd.ToString("HH:mm:ss") <span style="color: #94a3b8; font-size: 10px;">(@sDurStr)</span></span>
+                                                    <span style="color: #34d399;">🏁 @FormatIndianTime(sEnd, false) <span style="color: #94a3b8; font-size: 10px;">(@sDurStr)</span></span>
                                                 }
                                             </div>
                                         </div>
