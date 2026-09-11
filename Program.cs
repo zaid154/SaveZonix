@@ -374,6 +374,7 @@ public class Program
         builder.Services.AddSingleton<IEmailVerificationService, EmailVerificationService>();
         builder.Services.AddScoped<StreamHelper.Services.IDownloadHistoryService, StreamHelper.Services.DownloadHistoryService>();
         builder.Services.AddScoped<StreamHelper.Services.IAdminSettingsService, StreamHelper.Services.AdminSettingsService>();
+        builder.Services.AddScoped<SaveZonix.Services.IDatabaseSyncService, SaveZonix.Services.DatabaseSyncService>();
 
         var dbProvider = builder.Configuration["DatabaseProvider"] ?? "MongoDB";
         if (dbProvider.Equals("MongoDB", StringComparison.OrdinalIgnoreCase))

@@ -43,6 +43,11 @@
                     <span>🛡️ Access &amp; Authentication</span>
                     <span style="font-size: 11px; background: rgba(255, 255, 255, 0.08); padding: 2px 8px; border-radius: 10px;">Auth &amp; Users</span>
                 </button>
+                <button type="button" id="tabBtnDatabase" onclick="switchSettingsTab('database')" 
+                    style="display: flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 12px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.1); color: #94a3b8;">
+                    <span>🌐 Database &amp; Cloud Sync</span>
+                    <span style="font-size: 11px; background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 2px 8px; border-radius: 10px;">MongoDB ⇋ SQL</span>
+                </button>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 24px;">
@@ -266,6 +271,94 @@
                     </div>
                 </div> <!-- END TAB PANE 2: ACCESS & AUTHENTICATION -->
 
+                <!-- TAB PANE 3: DATABASE & CLOUD SYNC HUB -->
+                <div id="tabContentDatabase" style="display: none; flex-direction: column; gap: 24px;">
+                    <!-- Active Database Selector Card -->
+                    <div class="glass-card" style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);">
+                        <div style="margin-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                            <div>
+                                <h2 style="font-size: 18px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                                    <span>🌐 Primary Database Provider</span>
+                                </h2>
+                                <p style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;">Select which database engine powers live downloads, user history, and metrics</p>
+                            </div>
+                            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                <span id="badgeMongoStatus" style="font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 20px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; display: flex; align-items: center; gap: 6px;">
+                                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #34d399; display: inline-block;"></span>
+                                    MongoDB Atlas: <span id="txtMongoStatus">Checking...</span>
+                                </span>
+                                <span id="badgeSqlStatus" style="font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 20px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; display: flex; align-items: center; gap: 6px;">
+                                    <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+                                    SQLite (Local): <span id="txtSqlStatus">Active</span>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                            <!-- MongoDB Option Card -->
+                            <label style="cursor: pointer; position: relative;">
+                                <input type="radio" name="settings[DatabaseProvider]" value="MongoDB" class="db-provider-radio" style="position: absolute; opacity: 0;" @(Model.Settings.GetValueOrDefault("DatabaseProvider", "MongoDB") == "MongoDB" ? "checked" : "") onchange="updateDbCardStyles()" />
+                                <div id="cardProviderMongo" style="border: 2px solid #10b981; background: rgba(16, 185, 129, 0.08); border-radius: 14px; padding: 20px; transition: all 0.2s ease;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <span style="font-size: 16px; font-weight: 800; color: #34d399; display: flex; align-items: center; gap: 8px;">
+                                            <span>🍃 MongoDB Atlas Cloud</span>
+                                            <span style="font-size: 10px; background: #10b981; color: #fff; padding: 2px 8px; border-radius: 8px; font-weight: 700;">DEFAULT</span>
+                                        </span>
+                                        <span id="checkIconMongo" style="font-size: 18px; color: #34d399; font-weight: bold;">✔</span>
+                                    </div>
+                                    <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px;">Cloud NoSQL cluster (SaveZonixDb). Zero server dependency. Downloads, analytics and users permanently backed up in cloud.</p>
+                                    <div style="display: flex; gap: 16px; font-size: 11.5px; color: #cbd5e1; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 8px;">
+                                        <span>📥 Downloads: <b id="statMongoDownloads" style="color: #34d399;">--</b></span>
+                                        <span>👥 Users: <b id="statMongoUsers" style="color: #34d399;">--</b></span>
+                                    </div>
+                                </div>
+                            </label>
+
+                            <!-- SQLite Option Card -->
+                            <label style="cursor: pointer; position: relative;">
+                                <input type="radio" name="settings[DatabaseProvider]" value="SQL" class="db-provider-radio" style="position: absolute; opacity: 0;" @(Model.Settings.GetValueOrDefault("DatabaseProvider", "MongoDB") == "SQL" ? "checked" : "") onchange="updateDbCardStyles()" />
+                                <div id="cardProviderSql" style="border: 2px solid rgba(255,255,255,0.1); background: rgba(255, 255, 255, 0.02); border-radius: 14px; padding: 20px; transition: all 0.2s ease;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <span style="font-size: 16px; font-weight: 800; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+                                            <span>⚡ Local SQLite (SQL)</span>
+                                        </span>
+                                        <span id="checkIconSql" style="font-size: 18px; color: #38bdf8; font-weight: bold; display: none;">✔</span>
+                                    </div>
+                                    <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin-bottom: 12px;">High-speed local file (streamhelper.db). Zero latency, instant response, 100% offline capable without internet network calls.</p>
+                                    <div style="display: flex; gap: 16px; font-size: 11.5px; color: #cbd5e1; background: rgba(0,0,0,0.25); padding: 8px 12px; border-radius: 8px;">
+                                        <span>📥 Downloads: <b id="statSqlDownloads" style="color: #38bdf8;">--</b></span>
+                                        <span>👥 Users: <b id="statSqlUsers" style="color: #38bdf8;">--</b></span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 1-Click Bi-Directional Cloud Migration & Sync Card -->
+                    <div class="glass-card" style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);">
+                        <div style="margin-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+                            <h2 style="font-size: 18px; font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                                <span>🔄 1-Click Bi-Directional Database Sync Hub</span>
+                            </h2>
+                            <p style="font-size: 12.5px; color: var(--text-muted); margin-top: 2px;">Synchronize Users, Passwords, Download Histories &amp; Settings across MongoDB and SQLite so switching databases never loses any record</p>
+                        </div>
+
+                        <div style="background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 12px; padding: 18px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+                            <div style="display: flex; flex-direction: column; gap: 4px; max-width: 600px;">
+                                <div style="font-size: 14px; font-weight: 700; color: #f8fafc;">Full Two-Way Data Mirroring (Users, Passwords, Downloads)</div>
+                                <div style="font-size: 12px; color: #94a3b8; line-height: 1.5;">Copies missing records from MongoDB into SQL, and missing records from SQL into MongoDB. Passwords &amp; credentials stay 100% identical.</div>
+                            </div>
+                            <button type="button" id="btnSyncDatabases" class="btn btn-primary" onclick="runDatabaseSync()" style="display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; font-size: 13.5px; font-weight: 700; border-radius: 10px; background: linear-gradient(135deg, #10b981 0%, #0284c7 100%); border: 1px solid #38bdf8; box-shadow: 0 4px 15px rgba(2, 132, 199, 0.3); cursor: pointer;">
+                                <span id="syncSpinner" style="display: none;">⏳</span>
+                                <span id="syncBtnText">🚀 Run 1-Click Full Bi-Directional Sync</span>
+                            </button>
+                        </div>
+
+                        <!-- Sync Progress & Output Box -->
+                        <div id="syncResultContainer" style="display: none; border-radius: 10px; padding: 16px;"></div>
+                    </div>
+                </div> <!-- END TAB PANE 3: DATABASE & CLOUD SYNC HUB -->
+
                 <!-- BOTTOM SAVE ACTION BAR -->
                 <div style="background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 14px; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);">
                     <div style="display: flex; align-items: center; gap: 10px;">
@@ -289,37 +382,178 @@
 function switchSettingsTab(tab) {
     const paneEngine = document.getElementById('tabContentEngine');
     const paneAccess = document.getElementById('tabContentAccess');
+    const paneDatabase = document.getElementById('tabContentDatabase');
     const btnEngine = document.getElementById('tabBtnEngine');
     const btnAccess = document.getElementById('tabBtnAccess');
+    const btnDatabase = document.getElementById('tabBtnDatabase');
+
+    if (paneEngine) paneEngine.style.display = 'none';
+    if (paneAccess) paneAccess.style.display = 'none';
+    if (paneDatabase) paneDatabase.style.display = 'none';
+
+    [btnEngine, btnAccess, btnDatabase].forEach(b => {
+        if (!b) return;
+        b.style.background = 'rgba(15, 23, 42, 0.6)';
+        b.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+        b.style.color = '#94a3b8';
+        b.style.boxShadow = 'none';
+    });
 
     if (tab === 'engine') {
-        paneEngine.style.display = 'flex';
-        paneAccess.style.display = 'none';
-
-        btnEngine.style.background = 'rgba(56, 189, 248, 0.15)';
-        btnEngine.style.borderColor = '#38bdf8';
-        btnEngine.style.color = '#38bdf8';
-        btnEngine.style.boxShadow = '0 4px 15px rgba(56, 189, 248, 0.2)';
-
-        btnAccess.style.background = 'rgba(15, 23, 42, 0.6)';
-        btnAccess.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-        btnAccess.style.color = '#94a3b8';
-        btnAccess.style.boxShadow = 'none';
-    } else {
-        paneEngine.style.display = 'none';
-        paneAccess.style.display = 'flex';
-
-        btnAccess.style.background = 'rgba(56, 189, 248, 0.15)';
-        btnAccess.style.borderColor = '#38bdf8';
-        btnAccess.style.color = '#38bdf8';
-        btnAccess.style.boxShadow = '0 4px 15px rgba(56, 189, 248, 0.2)';
-
-        btnEngine.style.background = 'rgba(15, 23, 42, 0.6)';
-        btnEngine.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-        btnEngine.style.color = '#94a3b8';
-        btnEngine.style.boxShadow = 'none';
+        if (paneEngine) paneEngine.style.display = 'flex';
+        if (btnEngine) {
+            btnEngine.style.background = 'rgba(56, 189, 248, 0.15)';
+            btnEngine.style.borderColor = '#38bdf8';
+            btnEngine.style.color = '#38bdf8';
+            btnEngine.style.boxShadow = '0 4px 15px rgba(56, 189, 248, 0.2)';
+        }
+    } else if (tab === 'access') {
+        if (paneAccess) paneAccess.style.display = 'flex';
+        if (btnAccess) {
+            btnAccess.style.background = 'rgba(56, 189, 248, 0.15)';
+            btnAccess.style.borderColor = '#38bdf8';
+            btnAccess.style.color = '#38bdf8';
+            btnAccess.style.boxShadow = '0 4px 15px rgba(56, 189, 248, 0.2)';
+        }
+    } else if (tab === 'database') {
+        if (paneDatabase) paneDatabase.style.display = 'flex';
+        if (btnDatabase) {
+            btnDatabase.style.background = 'rgba(16, 185, 129, 0.15)';
+            btnDatabase.style.borderColor = '#10b981';
+            btnDatabase.style.color = '#34d399';
+            btnDatabase.style.boxShadow = '0 4px 15px rgba(16, 185, 129, 0.2)';
+        }
+        loadDatabaseStats();
     }
 }
+
+function updateDbCardStyles() {
+    const selected = document.querySelector('input[name="settings[DatabaseProvider]"]:checked')?.value || 'MongoDB';
+    const cardMongo = document.getElementById('cardProviderMongo');
+    const cardSql = document.getElementById('cardProviderSql');
+    const iconMongo = document.getElementById('checkIconMongo');
+    const iconSql = document.getElementById('checkIconSql');
+
+    if (selected === 'MongoDB') {
+        if (cardMongo) {
+            cardMongo.style.borderColor = '#10b981';
+            cardMongo.style.background = 'rgba(16, 185, 129, 0.08)';
+        }
+        if (iconMongo) iconMongo.style.display = 'inline';
+
+        if (cardSql) {
+            cardSql.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            cardSql.style.background = 'rgba(255, 255, 255, 0.02)';
+        }
+        if (iconSql) iconSql.style.display = 'none';
+    } else {
+        if (cardSql) {
+            cardSql.style.borderColor = '#38bdf8';
+            cardSql.style.background = 'rgba(56, 189, 248, 0.08)';
+        }
+        if (iconSql) iconSql.style.display = 'inline';
+
+        if (cardMongo) {
+            cardMongo.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+            cardMongo.style.background = 'rgba(255, 255, 255, 0.02)';
+        }
+        if (iconMongo) iconMongo.style.display = 'none';
+    }
+}
+
+async function loadDatabaseStats() {
+    try {
+        const res = await fetch('/api/admin/database-status');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const mongoTxt = document.getElementById('txtMongoStatus');
+        if (mongoTxt) {
+            mongoTxt.innerText = data.mongoConnected ? 'Connected' : 'Unavailable';
+            mongoTxt.style.color = data.mongoConnected ? '#34d399' : '#f87171';
+        }
+
+        const sqlTxt = document.getElementById('txtSqlStatus');
+        if (sqlTxt) {
+            sqlTxt.innerText = data.sqlConnected ? 'Active' : 'Offline';
+            sqlTxt.style.color = data.sqlConnected ? '#38bdf8' : '#f87171';
+        }
+
+        const mDl = document.getElementById('statMongoDownloads');
+        if (mDl) mDl.innerText = data.mongoDownloadsCount;
+
+        const mUsr = document.getElementById('statMongoUsers');
+        if (mUsr) mUsr.innerText = data.mongoUsersCount;
+
+        const sDl = document.getElementById('statSqlDownloads');
+        if (sDl) sDl.innerText = data.sqlDownloadsCount;
+
+        const sUsr = document.getElementById('statSqlUsers');
+        if (sUsr) sUsr.innerText = data.sqlUsersCount;
+    } catch (e) {
+        console.error('Error fetching database status', e);
+    }
+}
+
+async function runDatabaseSync() {
+    const btn = document.getElementById('btnSyncDatabases');
+    const spinner = document.getElementById('syncSpinner');
+    const btnText = document.getElementById('syncBtnText');
+    const resultBox = document.getElementById('syncResultContainer');
+
+    btn.disabled = true;
+    if (spinner) spinner.style.display = 'inline-block';
+    if (btnText) btnText.innerText = 'Syncing Databases... Please Wait';
+
+    if (resultBox) {
+        resultBox.style.display = 'block';
+        resultBox.style.background = 'rgba(0, 0, 0, 0.4)';
+        resultBox.style.border = '1px solid rgba(56, 189, 248, 0.3)';
+        resultBox.style.color = '#cbd5e1';
+        resultBox.innerHTML = '<div style="display: flex; align-items: center; gap: 10px;"><span>⏳</span><span>Synchronizing Users, Passwords, Download Histories &amp; Settings across MongoDB and SQLite...</span></div>';
+    }
+
+    try {
+        const res = await fetch('/api/admin/sync-databases', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+            resultBox.style.background = 'rgba(16, 185, 129, 0.1)';
+            resultBox.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+            resultBox.style.color = '#34d399';
+            resultBox.innerHTML = `
+                <div style="font-weight: 700; font-size: 14px; margin-bottom: 6px;">✅ Bi-Directional Synchronization Complete!</div>
+                <div style="font-size: 12.5px; color: #cbd5e1; display: flex; gap: 16px; flex-wrap: wrap;">
+                    <span>👥 Users Synchronized: <b style="color: #fff;">${data.usersSynced}</b></span>
+                    <span>📥 Downloads Synchronized: <b style="color: #fff;">${data.downloadsSynced}</b></span>
+                    <span>⚙️ Settings Synchronized: <b style="color: #fff;">${data.settingsSynced}</b></span>
+                </div>
+            `;
+            await loadDatabaseStats();
+        } else {
+            resultBox.style.background = 'rgba(239, 68, 68, 0.1)';
+            resultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+            resultBox.style.color = '#fca5a5';
+            resultBox.innerHTML = `<b>❌ Sync Error:</b> ${data.message || 'Unknown synchronization error'}`;
+        }
+    } catch (err) {
+        if (resultBox) {
+            resultBox.style.background = 'rgba(239, 68, 68, 0.1)';
+            resultBox.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+            resultBox.style.color = '#fca5a5';
+            resultBox.innerHTML = `<b>❌ Sync Failed:</b> ${err.message || 'Network failure'}`;
+        }
+    } finally {
+        btn.disabled = false;
+        if (spinner) spinner.style.display = 'none';
+        if (btnText) btnText.innerText = '🚀 Run 1-Click Full Bi-Directional Sync';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    updateDbCardStyles();
+    loadDatabaseStats();
+});
 
 function applyProfile(strict, open, def) {
     document.getElementById('inpStrictThreads').value = strict;

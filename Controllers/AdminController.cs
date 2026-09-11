@@ -21,6 +21,7 @@ public class AdminController : Controller
     private readonly IDownloadHistoryService _downloadHistoryService;
     private readonly IAdminSettingsService _adminSettingsService;
     private readonly SaveZonix.Services.IDownloadAnalyticsService _downloadAnalyticsService;
+    private readonly SaveZonix.Services.IDatabaseSyncService _databaseSyncService;
 
     public AdminController(
         AppDbContext context,
@@ -28,7 +29,8 @@ public class AdminController : Controller
         RoleManager<IdentityRole> roleManager,
         IDownloadHistoryService downloadHistoryService,
         IAdminSettingsService adminSettingsService,
-        SaveZonix.Services.IDownloadAnalyticsService downloadAnalyticsService)
+        SaveZonix.Services.IDownloadAnalyticsService downloadAnalyticsService,
+        SaveZonix.Services.IDatabaseSyncService databaseSyncService)
     {
         _context = context;
         _userManager = userManager;
@@ -36,6 +38,7 @@ public class AdminController : Controller
         _downloadHistoryService = downloadHistoryService;
         _adminSettingsService = adminSettingsService;
         _downloadAnalyticsService = downloadAnalyticsService;
+        _databaseSyncService = databaseSyncService;
     }
 
     public async Task<IActionResult> Index()
@@ -325,4 +328,53 @@ public class AdminController : Controller
     {
         return View();
     }
+
+    [HttpGet("/api/admin/database-status")]
+    public async Task<IActionResult> GetDatabaseStatus()
+    {
+        var (mongoConn, sqlConn, dbName, mDl, sDl, mUsr, sUsr) = await _databaseSyncService.GetStatusAsync();
+        var activeProvider = await _databaseSyncService.GetActiveProviderAsync();
+        return Json(new
+        {
+            success = true,
+            activeProvider,
+            mongoConnected = mongoConn,
+            sqlConnected = sqlConn,
+            mongoDbName = dbName,
+            mongoDownloadsCount = mDl,
+            sqlDownloadsCount = sDl,
+            mongoUsersCount = mUsr,
+            sqlUsersCount = sUsr
+        });
+    }
+
+    [HttpPost("/api/admin/switch-database-provider")]
+    public async Task<IActionResult> SwitchDatabaseProvider([FromBody] SwitchDbRequest req)
+    {
+        if (req == null || string.IsNullOrWhiteSpace(req.Provider))
+            return BadRequest(new { success = false, message = "Invalid provider" });
+
+        bool ok = await _databaseSyncService.SetActiveProviderAsync(req.Provider);
+        return Json(new { success = ok, activeProvider = req.Provider });
+    }
+
+    [HttpPost("/api/admin/sync-databases")]
+    public async Task<IActionResult> SyncDatabases()
+    {
+        var (users, dls, settings, msg) = await _databaseSyncService.SyncAllDataAsync();
+        return Json(new
+        {
+            success = msg == "Success",
+            usersSynced = users,
+            downloadsSynced = dls,
+            settingsSynced = settings,
+            message = msg
+        });
+    }
 }
+
+public class SwitchDbRequest
+{
+    public string Provider { get; set; } = "MongoDB";
+}
+
