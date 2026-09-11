@@ -64,11 +64,14 @@ public class PlaylistProbeRequest
 
 public class PlaylistItemDownloadState
 {
+    public string TaskId { get; set; } = Guid.NewGuid().ToString("N");
     public string VideoId { get; set; } = string.Empty;
     public int Index { get; set; }
+    public string SubId { get; set; } = string.Empty; // e.g. "PL-01 #01"
     public string Title { get; set; } = string.Empty;
     public string ThumbnailUrl { get; set; } = string.Empty;
     public string FormattedDuration { get; set; } = "00:00";
+    public int DurationSeconds { get; set; }
     public string Quality { get; set; } = "Best";
     public string Format { get; set; } = "MP4";
     public bool NumberPrefix { get; set; } = true;
@@ -89,7 +92,12 @@ public class PlaylistItemDownloadState
 public class PlaylistBatchJobState
 {
     public string JobId { get; set; } = string.Empty;
+    public string PlaylistCode { get; set; } = "PL-01"; // e.g. "PL-01", "PL-02"
     public string PlaylistTitle { get; set; } = string.Empty;
+    public string? PlaylistUrl { get; set; }
+    public string? UserId { get; set; }
+    public string? UserEmail { get; set; }
+    public string? UserName { get; set; }
     public int TotalVideos { get; set; }
     public int QueuedCount { get; set; }
     public int ActiveCount { get; set; }

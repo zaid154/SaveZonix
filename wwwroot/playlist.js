@@ -15,9 +15,13 @@
     const removedVideoIds = new Set();
     let currentPage = 1;
     let pageSize = 25;
+    let activeSortOrder = 'original';
     let currentJobState = null;
     let pendingLeaveCallback = null;
+    let pendingHybridUrl = null;
+    let jobStartTime = null;
     const STORAGE_KEY_ACTIVE_JOB = 'sz_active_playlist_job';
+    const STORAGE_KEY_RECENT_URLS = 'sz_recent_playlist_urls';
 
     // DOM Elements
     const playlistUrlInput = document.getElementById('playlistUrlInput');
@@ -27,6 +31,13 @@
     const studioAlertBox = document.getElementById('studioAlertBox');
     const alertTitle = document.getElementById('alertTitle');
     const alertMessage = document.getElementById('alertMessage');
+
+    // URL Choice Modal Elements
+    const urlChoiceModal = document.getElementById('urlChoiceModal');
+    const btnCloseUrlChoice = document.getElementById('btnCloseUrlChoice');
+    const btnChoiceSingleVideo = document.getElementById('btnChoiceSingleVideo');
+    const btnChoiceFullPlaylist = document.getElementById('btnChoiceFullPlaylist');
+    const urlChoiceDescription = document.getElementById('urlChoiceDescription');
 
     const playlistWelcomeState = document.getElementById('playlistWelcomeState');
     const playlistLoadingBox = document.getElementById('playlistLoadingBox');
@@ -52,6 +63,7 @@
     const videoSearchInput = document.getElementById('videoSearchInput');
     const btnClearSearch = document.getElementById('btnClearSearch');
     const statusFilterSelect = document.getElementById('statusFilterSelect');
+    const sortOrderSelect = document.getElementById('sortOrderSelect');
 
     const qualitySelect = document.getElementById('qualitySelect');
     const formatSelect = document.getElementById('formatSelect');
@@ -74,7 +86,7 @@
     const pageIndicatorText = document.getElementById('pageIndicatorText');
     const pageSizeSelect = document.getElementById('pageSizeSelect');
 
-    // Queue Dock Elements
+    // Queue Dock Elements (Optional now that dock is removed)
     const downloadQueuePanel = document.getElementById('downloadQueuePanel');
     const queueItemCountBadge = document.getElementById('queueItemCountBadge');
     const overallCompletedText = document.getElementById('overallCompletedText');
@@ -92,6 +104,31 @@
     const btnCloseConfirmModal = document.getElementById('btnCloseConfirmModal');
     const btnConfirmStay = document.getElementById('btnConfirmStay');
     const btnConfirmLeave = document.getElementById('btnConfirmLeave');
+
+    // Floating Queued Toast Elements
+    const playlistQueuedToast = document.getElementById('playlistQueuedToast');
+    const toastTitle = document.getElementById('toastTitle');
+    const toastMessage = document.getElementById('toastMessage');
+    const btnDismissToast = document.getElementById('btnDismissToast');
+
+    // Stepper & Shortcuts Elements
+    const studioStepper = document.getElementById('studioStepper');
+    const btnToggleShortcuts = document.getElementById('btnToggleShortcuts');
+    const shortcutsPopup = document.getElementById('shortcutsPopup');
+
+    // Welcome State Elements
+    const btnWelcomePaste = document.getElementById('btnWelcomePaste');
+    const recentUrlsSection = document.getElementById('recentUrlsSection');
+    const recentUrlsList = document.getElementById('recentUrlsList');
+
+    // Completion Summary Card Elements
+    const completionSummaryCard = document.getElementById('completionSummaryCard');
+    const completionSubtitle = document.getElementById('completionSubtitle');
+    const completionStatVideos = document.getElementById('completionStatVideos');
+    const completionStatSize = document.getElementById('completionStatSize');
+    const completionStatTime = document.getElementById('completionStatTime');
+    const completionStatSpeed = document.getElementById('completionStatSpeed');
+    const btnCompletionOpenFolder = document.getElementById('btnCompletionOpenFolder');
 
     function isDownloadActive() {
         if (!activeJobId) return false;
@@ -143,8 +180,161 @@
         }
     }
 
+    function updateStepper(stepNumber) {
+        if (!studioStepper) return;
+        const steps = studioStepper.querySelectorAll('.stepper-step');
+        steps.forEach((stepEl) => {
+            const step = parseInt(stepEl.dataset.step, 10);
+            const numEl = stepEl.querySelector('.stepper-number');
+            const connector = stepEl.querySelector('.stepper-connector');
+
+            stepEl.classList.remove('step-active', 'step-completed');
+            if (step < stepNumber) {
+                stepEl.classList.add('step-completed');
+                if (numEl) numEl.textContent = '✓';
+            } else if (step === stepNumber) {
+                stepEl.classList.add('step-active');
+                if (numEl) numEl.textContent = `${step}`;
+            } else {
+                if (numEl) numEl.textContent = `${step}`;
+            }
+
+            if (connector) {
+                if (step < stepNumber) {
+                    connector.classList.add('connector-filled');
+                } else {
+                    connector.classList.remove('connector-filled');
+                }
+            }
+        });
+    }
+
+    function playCompletionSound() {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            const ctx = new AudioCtx();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+            osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+            gain.gain.setValueAtTime(0.2, ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+            osc.start();
+            osc.stop(ctx.currentTime + 0.35);
+        } catch { }
+    }
+
+    function showBrowserNotification(title, body) {
+        try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: body,
+                    icon: '/icons/icon48.png'
+                });
+            }
+        } catch { }
+    }
+
+    function saveRecentUrl(url, title) {
+        if (!url) return;
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_RECENT_URLS);
+            let list = raw ? JSON.parse(raw) : [];
+            if (!Array.isArray(list)) list = [];
+            list = list.filter(item => item.url !== url);
+            list.unshift({ url, title: title || 'YouTube Playlist', date: Date.now() });
+            if (list.length > 4) list = list.slice(0, 4);
+            localStorage.setItem(STORAGE_KEY_RECENT_URLS, JSON.stringify(list));
+            renderRecentUrls();
+        } catch { }
+    }
+
+    function renderRecentUrls() {
+        if (!recentUrlsSection || !recentUrlsList) return;
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_RECENT_URLS);
+            const list = raw ? JSON.parse(raw) : [];
+            if (!Array.isArray(list) || list.length === 0) {
+                recentUrlsSection.style.display = 'none';
+                return;
+            }
+            recentUrlsList.innerHTML = '';
+            list.forEach(item => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'recent-url-chip';
+                btn.title = item.url;
+                btn.innerHTML = `<span>▶</span> <span>${escapeHtml(item.title || item.url)}</span>`;
+                btn.addEventListener('click', () => {
+                    playlistUrlInput.value = item.url;
+                    btnClearUrl.style.display = 'inline-flex';
+                    loadPlaylist();
+                });
+                recentUrlsList.appendChild(btn);
+            });
+            recentUrlsSection.style.display = 'block';
+        } catch {
+            recentUrlsSection.style.display = 'none';
+        }
+    }
+
+    function showCompletionSummary(job) {
+        if (!completionSummaryCard) return;
+        const elapsedSeconds = Math.max(1, Math.round((Date.now() - (jobStartTime || Date.now())) / 1000));
+        const mins = Math.floor(elapsedSeconds / 60);
+        const secs = elapsedSeconds % 60;
+        const timeStr = `${mins}m ${secs < 10 ? '0' : ''}${secs}s`;
+
+        let totalBytes = 0;
+        (job.items || []).forEach(item => {
+            totalBytes += (item.bytesDownloaded || 0);
+        });
+        const sizeStr = totalBytes > 0
+            ? (totalBytes > 1024 * 1024 * 1024 ? `${(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB` : `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`)
+            : 'Done';
+
+        if (completionStatVideos) completionStatVideos.textContent = `${job.completedCount}/${job.totalVideos}`;
+        if (completionSubtitle) completionSubtitle.textContent = `${job.completedCount}/${job.totalVideos} Videos Downloaded Successfully`;
+        if (completionStatSize) completionStatSize.textContent = sizeStr;
+        if (completionStatTime) completionStatTime.textContent = timeStr;
+        if (completionStatSpeed) completionStatSpeed.textContent = `${job.overallSpeedMBps || 0} MB/s`;
+
+        completionSummaryCard.style.display = 'block';
+    }
+
     // Init
     initEvents();
+
+    function isHybridUrl(url) {
+        if (!url) return false;
+        const clean = url.trim();
+        const hasList = /[?&]list=([a-zA-Z0-9_-]+)/i.test(clean);
+        const hasVideo = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/i.test(clean) ||
+                         /youtu\.be\/([a-zA-Z0-9_-]+)/i.test(clean);
+        return hasList && hasVideo;
+    }
+
+    function extractSingleVideoUrl(url) {
+        if (!url) return url;
+        try {
+            const u = new URL(url.trim());
+            if (u.searchParams.has('v')) {
+                return 'https://www.youtube.com/watch?v=' + u.searchParams.get('v');
+            }
+            if (u.hostname.includes('youtu.be')) {
+                const videoId = u.pathname.replace(/^\//, '');
+                return 'https://www.youtube.com/watch?v=' + videoId;
+            }
+        } catch {
+            const vMatch = url.match(/[?&]v=([a-zA-Z0-9_-]+)/i);
+            if (vMatch) return 'https://www.youtube.com/watch?v=' + vMatch[1];
+        }
+        return url;
+    }
 
     function isSingleVideoUrl(url) {
         if (!url) return false;
@@ -162,6 +352,20 @@
                /\.(m3u8|mp4|webm)($|\?)/i.test(clean);
     }
 
+    function showUrlChoiceModal(url) {
+        pendingHybridUrl = url;
+        if (urlChoiceModal) {
+            urlChoiceModal.style.display = 'flex';
+        }
+    }
+
+    function hideUrlChoiceModal() {
+        pendingHybridUrl = null;
+        if (urlChoiceModal) {
+            urlChoiceModal.style.display = 'none';
+        }
+    }
+
     function initEvents() {
         // Input events
         playlistUrlInput.addEventListener('input', () => {
@@ -171,7 +375,9 @@
         playlistUrlInput.addEventListener('paste', () => {
             setTimeout(() => {
                 const text = playlistUrlInput.value.trim();
-                if (isSingleVideoUrl(text)) {
+                if (isHybridUrl(text)) {
+                    showUrlChoiceModal(text);
+                } else if (isSingleVideoUrl(text)) {
                     showAlert('🎬 Single Video Detected', 'Opening Single Video Downloader for this video...');
                     setTimeout(() => {
                         window.location.href = '/?url=' + encodeURIComponent(text);
@@ -194,7 +400,9 @@
                     const clean = text.trim();
                     playlistUrlInput.value = clean;
                     btnClearUrl.style.display = 'inline-flex';
-                    if (isSingleVideoUrl(clean)) {
+                    if (isHybridUrl(clean)) {
+                        showUrlChoiceModal(clean);
+                    } else if (isSingleVideoUrl(clean)) {
                         showAlert('🎬 Single Video Detected', 'Opening Single Video Downloader for this video...');
                         setTimeout(() => {
                             window.location.href = '/?url=' + encodeURIComponent(clean);
@@ -207,6 +415,39 @@
                 playlistUrlInput.focus();
             }
         });
+
+        // URL Choice Modal events
+        if (btnChoiceSingleVideo) {
+            btnChoiceSingleVideo.addEventListener('click', () => {
+                const targetUrl = pendingHybridUrl || playlistUrlInput.value.trim();
+                hideUrlChoiceModal();
+                const cleanSingleUrl = extractSingleVideoUrl(targetUrl);
+                showAlert('🎬 Single Video Selected', 'Opening Single Video Downloader for this video...');
+                setTimeout(() => {
+                    window.location.href = '/?url=' + encodeURIComponent(cleanSingleUrl);
+                }, 350);
+            });
+        }
+
+        if (btnChoiceFullPlaylist) {
+            btnChoiceFullPlaylist.addEventListener('click', () => {
+                const targetUrl = pendingHybridUrl || playlistUrlInput.value.trim();
+                hideUrlChoiceModal();
+                loadPlaylist(targetUrl, true);
+            });
+        }
+
+        if (btnCloseUrlChoice) {
+            btnCloseUrlChoice.addEventListener('click', hideUrlChoiceModal);
+        }
+
+        if (urlChoiceModal) {
+            urlChoiceModal.addEventListener('click', (e) => {
+                if (e.target === urlChoiceModal) {
+                    hideUrlChoiceModal();
+                }
+            });
+        }
 
         btnClearUrl.addEventListener('click', () => {
             playlistUrlInput.value = '';
@@ -232,6 +473,7 @@
             filterVideos();
         });
         statusFilterSelect.addEventListener('change', filterVideos);
+        if (sortOrderSelect) sortOrderSelect.addEventListener('change', filterVideos);
 
         // Pagination events
         if (btnPagePrev) {
@@ -264,14 +506,23 @@
         btnDownloadSelected.addEventListener('click', downloadSelectedVideos);
         btnDownloadAll.addEventListener('click', downloadAllVideos);
 
-        // Queue dock actions
-        btnOpenFolder.addEventListener('click', openDownloadsFolder);
-        btnOpenGlobalFolder.addEventListener('click', openDownloadsFolder);
-        btnCancelBatch.addEventListener('click', cancelCurrentBatch);
-        btnRetryAllFailed.addEventListener('click', retryAllFailedVideos);
-        btnToggleQueueMinimize.addEventListener('click', () => {
-            downloadQueuePanel.classList.toggle('queue-dock-minimized');
-        });
+        // Queue dock actions (safe if elements are absent)
+        if (btnOpenFolder) btnOpenFolder.addEventListener('click', openDownloadsFolder);
+        if (btnOpenGlobalFolder) btnOpenGlobalFolder.addEventListener('click', openDownloadsFolder);
+        if (btnCancelBatch) btnCancelBatch.addEventListener('click', cancelCurrentBatch);
+        if (btnRetryAllFailed) btnRetryAllFailed.addEventListener('click', retryAllFailedVideos);
+        if (btnToggleQueueMinimize && downloadQueuePanel) {
+            btnToggleQueueMinimize.addEventListener('click', () => {
+                downloadQueuePanel.classList.toggle('queue-dock-minimized');
+            });
+        }
+
+        // Toast dismiss action
+        if (btnDismissToast && playlistQueuedToast) {
+            btnDismissToast.addEventListener('click', () => {
+                playlistQueuedToast.style.display = 'none';
+            });
+        }
 
         // Close row overflow dropdowns on outside click
         document.addEventListener('click', (e) => {
@@ -283,12 +534,20 @@
         // Confirm Modal actions
         if (btnCloseConfirmModal) btnCloseConfirmModal.addEventListener('click', hideLeaveConfirmModal);
         if (btnConfirmStay) btnConfirmStay.addEventListener('click', hideLeaveConfirmModal);
+        
+        const btnGoToDownloads = document.getElementById('btnGoToDownloads');
+        if (btnGoToDownloads) {
+            btnGoToDownloads.addEventListener('click', (e) => {
+                e.stopPropagation();
+                window.location.href = '/Account/Downloads';
+            });
+        }
+
         if (btnConfirmLeave) {
-            btnConfirmLeave.addEventListener('click', async () => {
+            btnConfirmLeave.addEventListener('click', () => {
                 const cb = pendingLeaveCallback;
                 hideLeaveConfirmModal();
-                await cancelCurrentBatch();
-                clearActiveJobSession();
+                // Do NOT cancel the download: it runs safely in the background on the server!
                 if (cb && typeof cb === 'function') {
                     cb();
                 }
@@ -306,14 +565,8 @@
             }
         });
 
-        // Browser Tab Close / Page Reload Guard
-        window.addEventListener('beforeunload', (e) => {
-            if (isDownloadActive()) {
-                e.preventDefault();
-                e.returnValue = 'Downloads are currently active. Leaving will interrupt your download progress.';
-                return e.returnValue;
-            }
-        });
+        // Note: Downloads run safely in the background on the server (PlaylistQueueManager)
+        // and survive reloads and page navigation, so no intrusive beforeunload warning is needed.
 
         // Intercept clicks on links leaving the studio
         document.addEventListener('click', (e) => {
@@ -322,6 +575,11 @@
             const href = anchor.getAttribute('href');
             if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
 
+            // Allow direct navigation to Downloads page without re-triggering the leave confirm modal
+            if (href.includes('/Account/Downloads')) {
+                return;
+            }
+
             if (isDownloadActive()) {
                 e.preventDefault();
                 showLeaveConfirmModal(() => {
@@ -329,6 +587,85 @@
                 });
             }
         });
+
+        // Welcome State Paste Button
+        if (btnWelcomePaste) {
+            btnWelcomePaste.addEventListener('click', async () => {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    if (text) {
+                        const clean = text.trim();
+                        playlistUrlInput.value = clean;
+                        btnClearUrl.style.display = 'inline-flex';
+                        if (isHybridUrl(clean)) {
+                            showUrlChoiceModal(clean);
+                        } else if (isSingleVideoUrl(clean)) {
+                            showAlert('🎬 Single Video Detected', 'Opening Single Video Downloader for this video...');
+                            setTimeout(() => {
+                                window.location.href = '/?url=' + encodeURIComponent(clean);
+                            }, 400);
+                        } else {
+                            loadPlaylist();
+                        }
+                    }
+                } catch {
+                    playlistUrlInput.focus();
+                }
+            });
+        }
+
+        // Shortcuts Popup Toggle
+        if (btnToggleShortcuts && shortcutsPopup) {
+            btnToggleShortcuts.addEventListener('click', (e) => {
+                e.stopPropagation();
+                shortcutsPopup.classList.toggle('show');
+            });
+        }
+
+        // Completion Card Action
+        if (btnCompletionOpenFolder) {
+            btnCompletionOpenFolder.addEventListener('click', openDownloadsFolder);
+        }
+
+        // Global Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            const activeEl = document.activeElement;
+            const isInputFocused = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'SELECT');
+
+            if (e.key === 'Escape') {
+                hideLeaveConfirmModal();
+                hideUrlChoiceModal();
+                if (shortcutsPopup) shortcutsPopup.classList.remove('show');
+                document.querySelectorAll('.row-overflow-menu.show').forEach(m => m.classList.remove('show'));
+                return;
+            }
+
+            if (isInputFocused) return;
+
+            const isCtrl = e.ctrlKey || e.metaKey;
+            if (isCtrl && e.key.toLowerCase() === 'a') {
+                if (loadedVideos && loadedVideos.length > 0) {
+                    e.preventDefault();
+                    toggleSelectAll(!e.shiftKey);
+                }
+            } else if (isCtrl && e.key === 'Enter') {
+                if (loadedVideos && loadedVideos.length > 0 && selectedVideoIds.size > 0) {
+                    e.preventDefault();
+                    downloadSelectedVideos();
+                }
+            }
+        });
+
+        // Close dropdowns and popups on outside click
+        document.addEventListener('click', (e) => {
+            if (shortcutsPopup && !e.target.closest('#btnToggleShortcuts') && !e.target.closest('#shortcutsPopup')) {
+                shortcutsPopup.classList.remove('show');
+            }
+        });
+
+        // Initial setup for UX enhancements
+        updateStepper(1);
+        renderRecentUrls();
 
         // Restore active job from previous session or page reload
         checkAndRestoreActiveJob();
@@ -345,37 +682,65 @@
 
     async function checkAndRestoreActiveJob() {
         try {
+            let jobId = null;
+            let saved = null;
             const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_JOB);
-            if (!raw) return;
-            const saved = JSON.parse(raw);
-            if (!saved || !saved.jobId) return;
+            if (raw) {
+                try {
+                    saved = JSON.parse(raw);
+                    if (saved && saved.jobId) jobId = saved.jobId;
+                } catch { }
+            }
 
-            const resp = await fetch(`/api/playlist/status/${saved.jobId}`);
+            // If not in localStorage, check server active jobs directly
+            if (!jobId) {
+                try {
+                    const activeResp = await fetch('/api/playlist/active-jobs');
+                    if (activeResp.ok) {
+                        const activeList = await activeResp.json();
+                        if (Array.isArray(activeList) && activeList.length > 0) {
+                            const first = activeList[0];
+                            jobId = first.jobId;
+                            saved = {
+                                jobId: first.jobId,
+                                playlistTitle: first.playlistTitle,
+                                playlistUrl: first.playlistUrl
+                            };
+                            saveActiveJobSession(first.jobId, first.playlistUrl || '', first.playlistTitle || '');
+                        }
+                    }
+                } catch { }
+            }
+
+            if (!jobId) return;
+
+            const resp = await fetch(`/api/playlist/status/${jobId}`);
             if (!resp.ok) {
                 clearActiveJobSession();
                 return;
             }
 
             const job = await resp.json();
-            const isAlive = job && (job.status === 'Running' || job.status === 'Queued' || (job.activeCount > 0) || (job.queuedCount > 0));
+            const isAlive = job && (job.status === 'Running' || job.status === 'Downloading' || job.status === 'Queued' || (job.activeCount > 0) || (job.queuedCount > 0));
             if (isAlive) {
-                activeJobId = saved.jobId;
+                activeJobId = jobId;
                 currentJobState = job;
 
-                if (saved.playlistUrl && !playlistUrlInput.value) {
+                if (saved && saved.playlistUrl && !playlistUrlInput.value) {
                     playlistUrlInput.value = saved.playlistUrl;
                     btnClearUrl.style.display = 'inline-flex';
                 }
 
-                downloadQueuePanel.style.display = 'block';
-                downloadQueuePanel.classList.remove('queue-dock-minimized');
-                if (queueRunningNotice) queueRunningNotice.style.display = 'flex';
+                updateStepper(3);
                 pushDownloadProtectionHistory();
 
-                renderQueueState(job);
-                startPolling(activeJobId);
+                if (playlistQueuedToast) {
+                    if (toastTitle) toastTitle.textContent = '🚀 Batch Download Active';
+                    if (toastMessage) toastMessage.textContent = `${(job.activeCount || 0) + (job.queuedCount || 0)} video(s) downloading in background.`;
+                    playlistQueuedToast.style.display = 'flex';
+                }
 
-                showAlert('⚡ Session Restored', 'Reconnected to your active playlist download session.');
+                startPolling(activeJobId);
             } else {
                 clearActiveJobSession();
             }
@@ -394,11 +759,19 @@
         studioAlertBox.style.display = 'none';
     }
 
-    async function loadPlaylist() {
-        const url = playlistUrlInput.value.trim();
+    async function loadPlaylist(overrideUrl, bypassHybridCheck = false) {
+        const url = (overrideUrl || playlistUrlInput.value || '').trim();
         if (!url) {
             showAlert('Input Required', 'Please enter or paste a valid YouTube Playlist URL.');
             playlistUrlInput.focus();
+            return;
+        }
+
+        playlistUrlInput.value = url;
+        btnClearUrl.style.display = 'inline-flex';
+
+        if (!bypassHybridCheck && isHybridUrl(url)) {
+            showUrlChoiceModal(url);
             return;
         }
 
@@ -450,6 +823,21 @@
                 };
             });
 
+            // Smart auto-detection: If YouTube playlist starts with "Last Episode" and ends with "Episode 1",
+            // automatically default to Reverse order so Episode 1 is #01!
+            if (loadedVideos.length > 1) {
+                const firstTitle = (loadedVideos[0].title || '').toLowerCase();
+                const lastTitle = (loadedVideos[loadedVideos.length - 1].title || '').toLowerCase();
+                const isReverseSeries = (firstTitle.includes('last episode') || firstTitle.includes('final episode') || firstTitle.includes('2nd last')) &&
+                                        (lastTitle.includes('episode 1') || lastTitle.includes('ep 1') || lastTitle.includes('episode 01'));
+                if (isReverseSeries) {
+                    activeSortOrder = 'reverse';
+                    if (sortOrderSelect) sortOrderSelect.value = 'reverse';
+                } else {
+                    activeSortOrder = sortOrderSelect ? sortOrderSelect.value : 'original';
+                }
+            }
+
             currentPage = 1;
             renderPlaylistBanner(data);
             renderVideosTable();
@@ -458,6 +846,9 @@
             playlistInfoSection.style.display = 'block';
             playlistControlsSection.style.display = 'block';
             videoListSection.style.display = 'block';
+
+            updateStepper(2);
+            saveRecentUrl(url, data.title || 'YouTube Playlist');
 
         } catch (err) {
             showAlert('Network Error', err.message || 'An unexpected error occurred while loading playlist.');
@@ -489,8 +880,9 @@
     function getFilteredVideos() {
         const q = (videoSearchInput.value || '').trim().toLowerCase();
         const statusFilter = statusFilterSelect ? statusFilterSelect.value : 'active';
+        const sortOrder = sortOrderSelect ? sortOrderSelect.value : activeSortOrder;
 
-        return loadedVideos.filter(v => {
+        let list = loadedVideos.filter(v => {
             const isRemoved = removedVideoIds.has(v.videoId);
 
             if (statusFilter === 'removed') {
@@ -516,6 +908,14 @@
 
             return true;
         });
+
+        if (sortOrder === 'reverse') {
+            list = [...list].reverse();
+        } else if (sortOrder === 'titleAsc') {
+            list = [...list].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+        }
+
+        return list;
     }
 
     function getTotalPages() {
@@ -550,19 +950,22 @@
 
         const pageVideos = filtered.slice(startIdx, endIdx);
 
-        pageVideos.forEach((v) => {
+        pageVideos.forEach((v, pageOrderIdx) => {
             const isSelected = selectedVideoIds.has(v.videoId);
             const isRemoved = removedVideoIds.has(v.videoId);
+
+            // Compute sequential display index for current sort/filter view
+            const globalIndex = startIdx + pageOrderIdx + 1;
+            v.index = globalIndex; // update current sequential order for downloading
+            const idxStr = globalIndex < 10 ? `#0${globalIndex}` : `#${globalIndex}`;
 
             const tr = document.createElement('tr');
             tr.id = `vRow_${v.videoId}`;
             tr.className = `${isSelected ? 'row-selected' : ''} ${!v.isAvailable ? 'row-unavailable' : ''} ${isRemoved ? 'row-removed' : ''}`;
             tr.dataset.videoid = v.videoId;
             tr.dataset.title = (v.title || '').toLowerCase();
-            tr.dataset.index = v.originalIndex;
+            tr.dataset.index = globalIndex;
             tr.dataset.available = v.isAvailable ? 'true' : 'false';
-
-            const idxStr = v.originalIndex < 10 ? `#0${v.originalIndex}` : `#${v.originalIndex}`;
 
             const defaultQualities = ['1080p', '720p', '480p', 'MP3'];
             const chipsHtml = `<div class="quality-chips-row">` + defaultQualities.map(q => {
@@ -826,6 +1229,10 @@
                 <span>Restore All (${removedVideoIds.size})</span>
             `;
         }
+
+        if (videoTableBody) {
+            videoTableBody.classList.toggle('has-selection', selectedCount > 0);
+        }
     }
 
     function filterVideos() {
@@ -914,15 +1321,30 @@
 
             activeJobId = data.jobId;
             currentJobState = { status: 'Running', activeCount: videoList.length, queuedCount: 0 };
+            jobStartTime = Date.now();
             saveActiveJobSession(activeJobId, playlistUrlInput.value.trim(), playlistTitle);
             pushDownloadProtectionHistory();
 
-            queueItemsList.innerHTML = ''; // Fresh clean list for new job
-            downloadQueuePanel.style.display = 'block';
-            downloadQueuePanel.classList.remove('queue-dock-minimized');
+            updateStepper(3);
+            if (completionSummaryCard) completionSummaryCard.style.display = 'none';
+
+            if ('Notification' in window && Notification.permission === 'default') {
+                try { Notification.requestPermission(); } catch { }
+            }
+
+            // Show floating toast notification linking to Downloads
+            if (playlistQueuedToast) {
+                if (toastTitle) toastTitle.textContent = '🚀 Batch Download Queued';
+                if (toastMessage) toastMessage.textContent = `${videoList.length} video(s) queued. View all active playlists in Downloads & History.`;
+                playlistQueuedToast.style.display = 'flex';
+            }
+
+            if (queueItemsList) queueItemsList.innerHTML = '';
+            if (downloadQueuePanel) {
+                downloadQueuePanel.style.display = 'block';
+                downloadQueuePanel.classList.remove('queue-dock-minimized');
+            }
             if (queueRunningNotice) queueRunningNotice.style.display = 'flex';
-            const dockBody = downloadQueuePanel.querySelector('.queue-dock-body');
-            if (dockBody) dockBody.scrollTop = 0;
 
             startPolling(activeJobId);
 
@@ -958,8 +1380,12 @@
                 clearActiveJobSession();
                 if (queueRunningNotice) queueRunningNotice.style.display = 'none';
 
-                if (job.status === 'Completed') {
+                if (job.status === 'Completed' || (job.completedCount > 0 && job.completedCount === job.totalVideos)) {
                     document.title = `✓ (${job.totalVideos}/${job.totalVideos}) Complete — SaveZonix`;
+                    updateStepper(4);
+                    playCompletionSound();
+                    showBrowserNotification('SaveZonix — Download Complete', `${job.totalVideos}/${job.totalVideos} videos downloaded successfully!`);
+                    showCompletionSummary(job);
                 } else {
                     document.title = `YouTube Playlist Studio — SaveZonix`;
                 }
@@ -972,13 +1398,13 @@
     }
 
     function renderQueueState(job) {
-        queueItemCountBadge.textContent = `${job.totalVideos} Videos`;
-        overallCompletedText.textContent = `${job.completedCount} / ${job.totalVideos} Completed`;
-        overallSpeedText.textContent = `${job.overallSpeedMBps || 0} MB/s`;
-        overallPercentText.textContent = `${job.overallPercentage || 0}%`;
-        overallProgressBar.style.width = `${job.overallPercentage || 0}%`;
+        if (queueItemCountBadge) queueItemCountBadge.textContent = `${job.totalVideos} Videos`;
+        if (overallCompletedText) overallCompletedText.textContent = `${job.completedCount} / ${job.totalVideos} Completed`;
+        if (overallSpeedText) overallSpeedText.textContent = `${job.overallSpeedMBps || 0} MB/s`;
+        if (overallPercentText) overallPercentText.textContent = `${job.overallPercentage || 0}%`;
+        if (overallProgressBar) overallProgressBar.style.width = `${job.overallPercentage || 0}%`;
 
-        btnRetryAllFailed.style.display = job.failedCount > 0 ? 'inline-block' : 'none';
+        if (btnRetryAllFailed) btnRetryAllFailed.style.display = job.failedCount > 0 ? 'inline-block' : 'none';
 
         // Sort items strictly by original playlist index ascending so Video 1 is always first
         const sortedItems = [...(job.items || [])].sort((a, b) => a.index - b.index);
@@ -1006,6 +1432,9 @@
             let fillCls = '';
             if (isDone) fillCls = 'status-completed-bar';
             else if (isFailed) fillCls = 'status-failed-bar';
+
+            const errorReason = (item.errorMessage || item.error || item.statusReason || '').trim();
+            const displayError = errorReason || 'Download failed — click Retry';
 
             const cardId = `qCard_${item.videoId}`;
             let card = document.getElementById(cardId);
@@ -1036,6 +1465,7 @@
                             <span id="qMetaLeft_${item.videoId}">${Math.round(item.percentage)}% ${sizeTag ? `• ${sizeTag}` : ''}</span>
                             <span id="qMetaRight_${item.videoId}">${speedTag}</span>
                         </div>
+                        ${isFailed ? `<div class="queue-item-error-reason" id="qErr_${item.videoId}" title="${escapeHtml(displayError)}">⚠️ ${escapeHtml(displayError)}</div>` : ''}
                     </div>
                     <div class="queue-item-actions" id="qActions_${item.videoId}">
                         ${isFailed ? `
@@ -1070,7 +1500,9 @@
                     });
                 }
 
-                queueItemsList.appendChild(card);
+                if (queueItemsList) {
+                    queueItemsList.appendChild(card);
+                }
             } else {
                 // In-place dynamic update
                 const titleEl = document.getElementById(`qTitle_${item.videoId}`);
@@ -1099,6 +1531,22 @@
                 const metaRight = document.getElementById(`qMetaRight_${item.videoId}`);
                 if (metaRight) {
                     metaRight.textContent = speedTag;
+                }
+
+                let errEl = document.getElementById(`qErr_${item.videoId}`);
+                if (isFailed) {
+                    if (!errEl) {
+                        errEl = document.createElement('div');
+                        errEl.id = `qErr_${item.videoId}`;
+                        errEl.className = 'queue-item-error-reason';
+                        const infoDiv = card.querySelector('.queue-item-info');
+                        if (infoDiv) infoDiv.appendChild(errEl);
+                    }
+                    errEl.textContent = `⚠️ ${displayError}`;
+                    errEl.title = displayError;
+                    errEl.style.display = 'block';
+                } else if (errEl) {
+                    errEl.style.display = 'none';
                 }
 
                 const actionsEl = document.getElementById(`qActions_${item.videoId}`);

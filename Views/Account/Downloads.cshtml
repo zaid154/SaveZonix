@@ -75,6 +75,35 @@
             </div>
         }
 
+        <!-- Live Active Downloads Monitor (Top Multi-Playlist Accordion Section) -->
+        <div id="activeDownloadsContainer" class="active-downloads-card" style="display:none;">
+            <div class="active-card-header">
+                <div class="active-header-title-wrap">
+                    <span class="active-pulse-dot"></span>
+                    <h2 class="active-card-title">
+                        Active Downloads
+                        <span id="activeJobsCountBadge" class="active-count-badge">0 Playlists</span>
+                    </h2>
+                </div>
+                <div class="active-global-speed-wrap">
+                    <span id="activeGlobalSpeedBadge" class="active-speed-badge zero-speed">⚡ 0.0 MB/s</span>
+                </div>
+                <div class="active-card-actions">
+                    <button type="button" id="btnActiveOpenFolder" class="btn-active-ctrl" title="Open Downloads Folder">
+                        📁 Open Folder
+                    </button>
+                    <button type="button" id="btnActiveCancelAll" class="btn-active-ctrl btn-active-cancel" title="Cancel all active playlist downloads">
+                        ⏹ Cancel All
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Accordion of Active Playlists -->
+            <div id="activePlaylistsAccordionList" class="active-playlists-accordion">
+                <!-- Dynamically populated via active-downloads-monitor.js -->
+            </div>
+        </div>
+
         <!-- Filter Bar -->
         <div class="glass-card filter-card">
             <form method="get" asp-action="Downloads" class="filter-form">
@@ -138,154 +167,401 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var item in Model.Downloads)
+                        @foreach (var entry in Model.GroupedEntries)
                         {
-                            var cleanQ = CleanQuality(item.Quality);
-                            var platClass = GetPlatformBadgeClass(item.Platform);
-                            var platIcon = GetPlatformIcon(item.Platform);
-                            var platName = CleanPlatformName(item.Platform);
-
-                            <tr class="table-row-item">
-                                <td>
-                                    <div class="media-thumb-container">
-                                        @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
-                                        {
-                                            <img src="@item.ThumbnailUrl" alt="Thumb" class="table-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'table-thumb-fallback\'>🎬</div>'" />
-                                        }
-                                        else
-                                        {
-                                            <div class="table-thumb-fallback">🎬</div>
-                                        }
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="title-cell-wrap">
-                                        <div class="table-main-title" title="@item.Title">@item.Title</div>
-                                        <div class="table-meta-sub">
-                                            <span class="platform-tag @platClass">
-                                                <span class="plat-icon">@platIcon</span>
-                                                <span class="plat-name">@platName</span>
-                                            </span>
-                                            @if (!string.IsNullOrEmpty(item.FileName) && item.FileName != item.Title)
+                            if (entry.IsPlaylistGroup)
+                            {
+                                var hasFailures = entry.FailedCount > 0;
+                                <tr class="table-row-item history-pl-group-row">
+                                    <td>
+                                        <div class="media-thumb-container pl-thumb-container">
+                                            @if (!string.IsNullOrEmpty(entry.ThumbnailUrl))
                                             {
-                                                <span class="file-name-sub" title="@item.FileName">
-                                                    <span class="file-icon">📄</span>
-                                                    <span class="file-text">@item.FileName</span>
-                                                </span>
-                                            }
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="quality-cell">
-                                        <span class="quality-pill">@cleanQ</span>
-                                        <div class="codec-sub">@(item.Format ?? "MP4") • @(item.Codec ?? "H.264 / AAC")</div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="size-cell">
-                                        <div class="size-main">@item.FormattedFileSize</div>
-                                        <div class="speed-sub">
-                                            @if (item.AverageSpeedMBps > 0)
-                                            {
-                                                <span class="speed-live">⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                                <img src="@entry.ThumbnailUrl" alt="Thumb" class="table-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'table-thumb-fallback\'>📁</div>'" />
                                             }
                                             else
                                             {
-                                                <span class="threads-text">@(item.ThreadsUsed > 0 ? item.ThreadsUsed : 16) workers</span>
+                                                <div class="table-thumb-fallback">📁</div>
                                             }
+                                            <span class="pl-thumb-badge">📁 @entry.TotalVideos</span>
                                         </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="status-cell">
-                                        @switch (item.Status)
-                                        {
-                                            case StreamHelper.Data.DownloadStatus.Completed:
+                                    </td>
+                                    <td>
+                                        <div class="title-cell-wrap">
+                                            <div class="table-main-title pl-main-title" onclick="togglePlaylistHistoryAccordion('@entry.GroupKey')" style="cursor: pointer;">
+                                                <span class="pl-code-pill">@entry.PlaylistCode</span>
+                                                <span>@entry.Title</span>
+                                            </div>
+                                            <div class="table-meta-sub">
+                                                <span class="platform-tag plat-youtube">
+                                                    <span class="plat-icon">▶</span>
+                                                    <span class="plat-name">PLAYLIST COLLECTION</span>
+                                                </span>
+                                                <span class="file-name-sub">
+                                                    <span class="file-text">@entry.CompletedCount of @entry.TotalVideos completed</span>
+                                                </span>
+                                                @if (hasFailures)
+                                                {
+                                                    <span style="color: #f43f5e; font-weight: 700; font-size: 11px;">• @entry.FailedCount failed</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="quality-cell">
+                                            <span class="quality-pill pl-collection-pill">Collection</span>
+                                            <div class="codec-sub">@entry.TotalVideos Videos</div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="size-cell">
+                                            <div class="size-main">@entry.FormattedTotalSize</div>
+                                            <div class="speed-sub">
+                                                <span class="threads-text">Combined</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="status-cell">
+                                            @if (hasFailures)
+                                            {
+                                                <span class="status-badge-modern status-err" title="@entry.FailedCount video(s) failed in this playlist">
+                                                    <span class="status-indicator-dot dot-red"></span>
+                                                    <span>@entry.FailedCount Failed</span>
+                                                </span>
+                                            }
+                                            else
+                                            {
                                                 <span class="status-badge-modern status-done">
                                                     <span class="status-indicator-dot dot-green"></span>
                                                     <span>Completed</span>
                                                 </span>
-                                                break;
-                                            case StreamHelper.Data.DownloadStatus.Downloading:
-                                                <span class="status-badge-modern status-active">
-                                                    <span class="status-spinner-tiny"></span>
-                                                    <span>Downloading</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="date-cell">
+                                            <div class="date-main">@entry.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                            <div class="date-sub">@entry.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+                                            @if (hasFailures)
+                                            {
+                                                <button type="button" class="btn-pl-retry-all-main" onclick="retryPlaylistGroup(this, '@(entry.JobId ?? entry.GroupKey)')" title="Retry all @entry.FailedCount failed video(s)">
+                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                                    <span>Retry @entry.FailedCount Failed</span>
+                                                </button>
+                                            }
+                                            <button type="button" class="action-btn btn-toggle-pl-sub" onclick="togglePlaylistHistoryAccordion('@entry.GroupKey')" title="Expand / Collapse playlist videos">
+                                                <span id="plToggleIcon_@entry.GroupKey">▼</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Nested Accordion Row for this Playlist -->
+                                <tr id="plGroup_@entry.GroupKey" class="pl-history-nested-row" style="display:none;">
+                                    <td colspan="7" class="pl-nested-td">
+                                        <div class="pl-nested-wrapper">
+                                            <div class="pl-nested-header">
+                                                <div class="pl-nested-header-title">
+                                                    <span>📁 <strong>@entry.PlaylistCode</strong> — @entry.Title</span>
+                                                    <span class="pl-nested-counts">(@entry.CompletedCount / @entry.TotalVideos Completed @(hasFailures ? $"• {entry.FailedCount} Failed" : ""))</span>
+                                                </div>
+                                                @if (hasFailures)
+                                                {
+                                                    <button type="button" class="btn-pl-retry-all-header" onclick="retryPlaylistGroup(this, '@(entry.JobId ?? entry.GroupKey)')" title="Retry all @entry.FailedCount failed video(s)">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                                        <span>🔄 Retry All @entry.FailedCount Failed</span>
+                                                    </button>
+                                                }
+                                            </div>
+                                            <div class="pl-nested-items-list">
+                                                @foreach (var sub in entry.SubItems)
+                                                {
+                                                    var cleanSubQ = CleanQuality(sub.Quality);
+                                                    var subFailed = sub.Status == StreamHelper.Data.DownloadStatus.Failed || sub.Status == StreamHelper.Data.DownloadStatus.Cancelled;
+                                                    var subIdStr = !string.IsNullOrEmpty(sub.ValidationDetails) && sub.ValidationDetails.Contains(" • ")
+                                                        ? sub.ValidationDetails.Split(" • ")[0]
+                                                        : (!string.IsNullOrEmpty(sub.AudioVideoDetails) && sub.AudioVideoDetails.Contains(" • ") ? sub.AudioVideoDetails.Split(" • ")[0] : "");
+
+                                                    <div class="pl-nested-item-row @(subFailed ? "pl-sub-failed" : "")">
+                                                        <div class="pl-sub-media">
+                                                            @if (!string.IsNullOrEmpty(sub.ThumbnailUrl))
+                                                            {
+                                                                <img src="@sub.ThumbnailUrl" alt="Thumb" class="pl-sub-thumb" loading="lazy" onerror="this.src='/icons/icon48.png';" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <div class="pl-sub-thumb-fallback">🎬</div>
+                                                            }
+                                                            @if (!string.IsNullOrEmpty(subIdStr))
+                                                            {
+                                                                <span class="pl-sub-id-badge">@subIdStr</span>
+                                                            }
+                                                        </div>
+                                                        <div class="pl-sub-info">
+                                                            <div class="pl-sub-title" title="@sub.Title">@sub.Title</div>
+                                                            @if (subFailed && !string.IsNullOrEmpty(sub.ErrorReason))
+                                                            {
+                                                                <div class="pl-sub-error-reason" title="@sub.ErrorReason">
+                                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                                                    Reason: @sub.ErrorReason
+                                                                </div>
+                                                            }
+                                                            else
+                                                            {
+                                                                <div class="pl-sub-meta">@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</div>
+                                                            }
+                                                        </div>
+                                                        <div class="pl-sub-status">
+                                                            @if (sub.Status == StreamHelper.Data.DownloadStatus.Completed)
+                                                            {
+                                                                <span class="status-badge-modern status-done"><span class="status-indicator-dot dot-green"></span> Completed</span>
+                                                            }
+                                                            else if (subFailed)
+                                                            {
+                                                                <span class="status-badge-modern status-err"><span class="status-indicator-dot dot-red"></span> Failed</span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="status-badge-modern status-active"><span class="status-spinner-tiny"></span> @sub.Status</span>
+                                                            }
+                                                        </div>
+                                                        <div class="pl-sub-actions">
+                                                            @if (!string.IsNullOrEmpty(sub.OriginalUrl))
+                                                            {
+                                                                @if (subFailed)
+                                                                {
+                                                                    <a href="/?url=@System.Net.WebUtility.UrlEncode(sub.OriginalUrl)" class="action-btn action-retry" title="Re-download this video">
+                                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                                                    </a>
+                                                                }
+                                                                <a href="@sub.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
+                                                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                                                </a>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            else if (entry.SingleItem != null)
+                            {
+                                var item = entry.SingleItem;
+                                var cleanQ = CleanQuality(item.Quality);
+                                var platClass = GetPlatformBadgeClass(item.Platform);
+                                var platIcon = GetPlatformIcon(item.Platform);
+                                var platName = CleanPlatformName(item.Platform);
+
+                                <tr class="table-row-item">
+                                    <td>
+                                        <div class="media-thumb-container">
+                                            @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
+                                            {
+                                                <img src="@item.ThumbnailUrl" alt="Thumb" class="table-thumb" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\'table-thumb-fallback\'>🎬</div>'" />
+                                            }
+                                            else
+                                            {
+                                                <div class="table-thumb-fallback">🎬</div>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="title-cell-wrap">
+                                            <div class="table-main-title" title="@item.Title">@item.Title</div>
+                                            @if ((item.Status == StreamHelper.Data.DownloadStatus.Failed || item.Status == StreamHelper.Data.DownloadStatus.Cancelled) && !string.IsNullOrEmpty(item.ErrorReason))
+                                            {
+                                                <div class="pl-sub-error-reason" style="margin: 3px 0 4px 0;" title="@item.ErrorReason">
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                                    Reason: @item.ErrorReason
+                                                </div>
+                                            }
+                                            <div class="table-meta-sub">
+                                                <span class="platform-tag @platClass">
+                                                    <span class="plat-icon">@platIcon</span>
+                                                    <span class="plat-name">@platName</span>
                                                 </span>
-                                                break;
-                                            case StreamHelper.Data.DownloadStatus.Failed:
-                                                <span class="status-badge-modern status-err" title="@item.ErrorReason">
-                                                    <span class="status-indicator-dot dot-red"></span>
-                                                    <span>Failed</span>
-                                                </span>
-                                                break;
-                                            case StreamHelper.Data.DownloadStatus.Cancelled:
-                                                <span class="status-badge-modern status-stopped">
-                                                    <span class="status-indicator-dot dot-gray"></span>
-                                                    <span>Cancelled</span>
-                                                </span>
-                                                break;
-                                            default:
-                                                <span class="status-badge-modern status-wait">
-                                                    <span class="status-indicator-dot dot-amber"></span>
-                                                    <span>@item.Status</span>
-                                                </span>
-                                                break;
-                                        }
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="date-cell">
-                                        <div class="date-main">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
-                                        <div class="date-sub">@item.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
-                                    </div>
-                                </td>
-                                <td style="text-align: right;">
-                                    <div class="actions-cell">
-                                        @if (!string.IsNullOrEmpty(item.OriginalUrl))
-                                        {
-                                            <a href="@item.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                                            </a>
-                                        }
-                                        @if (item.Status == StreamHelper.Data.DownloadStatus.Downloading || item.Status == StreamHelper.Data.DownloadStatus.Retrying || item.Status == StreamHelper.Data.DownloadStatus.Resolving)
-                                        {
-                                            <form asp-action="CancelDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Stop and cancel this download?');" style="display: inline-block;">
+                                                @if (!string.IsNullOrEmpty(item.FileName) && item.FileName != item.Title)
+                                                {
+                                                    <span class="file-name-sub" title="@item.FileName">
+                                                        <span class="file-icon">📄</span>
+                                                        <span class="file-text">@item.FileName</span>
+                                                    </span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="quality-cell">
+                                            <span class="quality-pill">@cleanQ</span>
+                                            <div class="codec-sub">@(item.Format ?? "MP4") • @(item.Codec ?? "H.264 / AAC")</div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="size-cell">
+                                            <div class="size-main">@item.FormattedFileSize</div>
+                                            <div class="speed-sub">
+                                                @if (item.AverageSpeedMBps > 0)
+                                                {
+                                                    <span class="speed-live">⚡ @item.AverageSpeedMBps.ToString("F1") MB/s</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="threads-text">@(item.ThreadsUsed > 0 ? item.ThreadsUsed : 16) workers</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="status-cell">
+                                            @switch (item.Status)
+                                            {
+                                                case StreamHelper.Data.DownloadStatus.Completed:
+                                                    <span class="status-badge-modern status-done">
+                                                        <span class="status-indicator-dot dot-green"></span>
+                                                        <span>Completed</span>
+                                                    </span>
+                                                    break;
+                                                case StreamHelper.Data.DownloadStatus.Downloading:
+                                                    <span class="status-badge-modern status-active">
+                                                        <span class="status-spinner-tiny"></span>
+                                                        <span>Downloading</span>
+                                                    </span>
+                                                    break;
+                                                case StreamHelper.Data.DownloadStatus.Failed:
+                                                    <span class="status-badge-modern status-err" title="@item.ErrorReason">
+                                                        <span class="status-indicator-dot dot-red"></span>
+                                                        <span>Failed</span>
+                                                    </span>
+                                                    break;
+                                                case StreamHelper.Data.DownloadStatus.Cancelled:
+                                                    <span class="status-badge-modern status-stopped">
+                                                        <span class="status-indicator-dot dot-gray"></span>
+                                                        <span>Cancelled</span>
+                                                    </span>
+                                                    break;
+                                                default:
+                                                    <span class="status-badge-modern status-wait">
+                                                        <span class="status-indicator-dot dot-amber"></span>
+                                                        <span>@item.Status</span>
+                                                    </span>
+                                                    break;
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="date-cell">
+                                            <div class="date-main">@item.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
+                                            <div class="date-sub">@item.CreatedAt.ToLocalTime().ToString("HH:mm:ss")</div>
+                                        </div>
+                                    </td>
+                                    <td style="text-align: right;">
+                                        <div class="actions-cell">
+                                            @if (!string.IsNullOrEmpty(item.OriginalUrl))
+                                            {
+                                                @if (item.Status == StreamHelper.Data.DownloadStatus.Failed || item.Status == StreamHelper.Data.DownloadStatus.Cancelled)
+                                                {
+                                                    <a href="/?url=@System.Net.WebUtility.UrlEncode(item.OriginalUrl)" class="action-btn action-retry" title="Re-download this stream">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                                    </a>
+                                                }
+                                                <a href="@item.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                                </a>
+                                            }
+                                            @if (item.Status == StreamHelper.Data.DownloadStatus.Downloading || item.Status == StreamHelper.Data.DownloadStatus.Retrying || item.Status == StreamHelper.Data.DownloadStatus.Resolving)
+                                            {
+                                                <form asp-action="CancelDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Stop and cancel this download?');" style="display: inline-block;">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="action-btn action-cancel" title="Cancel download">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                                    </button>
+                                                </form>
+                                            }
+                                            <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Remove this download from your history?');" style="display: inline-block;">
                                                 @Html.AntiForgeryToken()
-                                                <button type="submit" class="action-btn action-cancel" title="Cancel download">
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                                                <button type="submit" class="action-btn action-delete" title="Delete record">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                                 </button>
                                             </form>
-                                        }
-                                        <form asp-action="DeleteDownload" asp-route-id="@item.Id" method="post" onsubmit="return confirm('Remove this download from your history?');" style="display: inline-block;">
-                                            @Html.AntiForgeryToken()
-                                            <button type="submit" class="action-btn action-delete" title="Delete record">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
                         }
                     </tbody>
                 </table>
             </div>
 
-            <!-- Pagination -->
+            <!-- Figma Auto-Layout Inspired Modern Pagination -->
             @if (Model.TotalPages > 1)
             {
-                <div class="pagination modern-pagination">
-                    @if (Model.CurrentPage > 1)
+                int current = Model.CurrentPage;
+                int total = Model.TotalPages;
+                var pageNumbers = new List<int>();
+
+                pageNumbers.Add(1);
+                for (int i = Math.Max(2, current - 1); i <= Math.Min(total - 1, current + 1); i++)
+                {
+                    if (!pageNumbers.Contains(i)) pageNumbers.Add(i);
+                }
+                if (!pageNumbers.Contains(total)) pageNumbers.Add(total);
+                pageNumbers.Sort();
+
+                <div class="figma-pagination-container">
+                    @if (current > 1)
                     {
-                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link page-arrow">&larr; Prev</a>
+                        <a asp-action="Downloads" asp-route-page="@(current - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-nav-btn figma-btn-prev" title="Previous Page">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </a>
                     }
-                    @for (int p = 1; p <= Model.TotalPages; p++)
+                    else
                     {
-                        <a asp-action="Downloads" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link @(p == Model.CurrentPage ? "active" : "")">@p</a>
+                        <span class="figma-nav-btn figma-btn-disabled" title="First Page">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </span>
                     }
-                    @if (Model.CurrentPage < Model.TotalPages)
+
+                    <div class="figma-page-items">
+                        @{
+                            int lastPage = 0;
+                            foreach (int p in pageNumbers)
+                            {
+                                if (lastPage > 0 && p - lastPage > 1)
+                                {
+                                    <span class="figma-page-ellipsis">•••</span>
+                                }
+
+                                if (p == current)
+                                {
+                                    <span class="figma-page-btn figma-page-active">@p</span>
+                                }
+                                else
+                                {
+                                    <a asp-action="Downloads" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-page-btn">@p</a>
+                                }
+                                lastPage = p;
+                            }
+                        }
+                    </div>
+
+                    @if (current < total)
                     {
-                        <a asp-action="Downloads" asp-route-page="@(Model.CurrentPage + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="page-link page-arrow">Next &rarr;</a>
+                        <a asp-action="Downloads" asp-route-page="@(current + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-nav-btn figma-btn-next" title="Next Page">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </a>
+                    }
+                    else
+                    {
+                        <span class="figma-nav-btn figma-btn-disabled" title="Last Page">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </span>
                     }
                 </div>
             }
@@ -293,3 +569,210 @@
     </div>
 </div>
 
+@section Scripts {
+    <script src="~/active-downloads-monitor.js" asp-append-version="true"></script>
+    <style>
+        .btn-pl-retry-all-main {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #f59e0b;
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .btn-pl-retry-all-main:hover {
+            background: rgba(245, 158, 11, 0.22);
+            border-color: #f59e0b;
+            color: #fbbf24;
+            transform: translateY(-1px);
+        }
+        .btn-pl-retry-all-main:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-pl-retry-all-header {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #fff;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.3);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+        .btn-pl-retry-all-header:hover {
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+            transform: translateY(-1px);
+        }
+        .btn-pl-retry-all-header:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .pl-nested-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px 8px 0 0;
+        }
+
+        /* ─── Figma Auto-Layout Inspired Modern Pagination ─── */
+        .figma-pagination-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 36px;
+            margin-bottom: 24px;
+            padding: 10px;
+            user-select: none;
+        }
+
+        .figma-nav-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #0d131f;
+            border: 1.5px solid rgba(255, 255, 255, 0.12);
+            color: #94a3b8;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .figma-nav-btn:hover:not(.figma-btn-disabled) {
+            background: rgba(14, 165, 233, 0.15);
+            border-color: #0ea5e9;
+            color: #38bdf8;
+            transform: scale(1.08);
+            box-shadow: 0 0 16px rgba(14, 165, 233, 0.35);
+        }
+
+        .figma-btn-disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            pointer-events: none;
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .figma-page-items {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(13, 19, 31, 0.75);
+            padding: 4px 8px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            backdrop-filter: blur(8px);
+        }
+
+        .figma-page-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 40px;
+            padding: 0 8px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-decoration: none;
+            background: transparent;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .figma-page-btn:hover:not(.figma-page-active) {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .figma-page-active {
+            background: #2563eb !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            border-color: #3b82f6 !important;
+            box-shadow: 0 2px 10px rgba(37, 99, 235, 0.45);
+            pointer-events: none;
+        }
+
+        .figma-page-ellipsis {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            font-size: 13px;
+            letter-spacing: 2px;
+            padding: 0 4px;
+        }
+    </style>
+    <script>
+        function togglePlaylistHistoryAccordion(groupKey) {
+            const row = document.getElementById('plGroup_' + groupKey);
+            const icon = document.getElementById('plToggleIcon_' + groupKey);
+            if (!row) return;
+            if (row.style.display === 'none' || row.style.display === '') {
+                row.style.display = 'table-row';
+                if (icon) icon.textContent = '▲';
+            } else {
+                row.style.display = 'none';
+                if (icon) icon.textContent = '▼';
+            }
+        }
+
+        async function retryPlaylistGroup(btn, groupIdentifier) {
+            if (!groupIdentifier) return;
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳ Retrying...</span>';
+
+            try {
+                const resp = await fetch(`/api/playlist/retry-all-failed/${encodeURIComponent(groupIdentifier)}`, {
+                    method: 'POST'
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    btn.innerHTML = '<span>✓ Queued!</span>';
+                    btn.style.color = '#10b981';
+                    btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                    // Scroll to or show active downloads banner and trigger polling
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1200);
+                } else {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                    alert('Could not retry this playlist automatically. Please try individual retry.');
+                }
+            } catch (err) {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+                alert('Network error while retrying playlist: ' + err.message);
+            }
+        }
+    </script>
+}

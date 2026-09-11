@@ -11,9 +11,6 @@
     <!-- Desktop Studio Header -->
     <div class="studio-topbar">
         <div class="studio-title-block">
-            <div class="studio-logo-icon">
-                <partial name="_Logo" model='"studio-logo-img"' />
-            </div>
             <div>
                 <h1 class="studio-title">YouTube Playlist Studio</h1>
                 <p class="studio-subtitle">Batch Video &amp; Audio Downloader</p>
@@ -25,6 +22,40 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                 <span>Downloads Folder</span>
             </button>
+            <button id="btnToggleShortcuts" class="btn-studio-ghost" title="Keyboard Shortcuts">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/><line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
+                <span>Shortcuts</span>
+            </button>
+            <div id="shortcutsPopup" class="shortcuts-popup">
+                <div class="shortcuts-popup-title">⌨ Keyboard Shortcuts</div>
+                <div class="shortcut-row"><span class="shortcut-key"><kbd>Ctrl</kbd>+<kbd>A</kbd></span><span class="shortcut-desc">Select All</span></div>
+                <div class="shortcut-row"><span class="shortcut-key"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd></span><span class="shortcut-desc">Deselect All</span></div>
+                <div class="shortcut-row"><span class="shortcut-key"><kbd>Ctrl</kbd>+<kbd>Enter</kbd></span><span class="shortcut-desc">Start Download</span></div>
+                <div class="shortcut-row"><span class="shortcut-key"><kbd>Esc</kbd></span><span class="shortcut-desc">Close Modal / Menu</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step Progress Indicator -->
+    <div id="studioStepper" class="studio-stepper">
+        <div class="stepper-step step-active" data-step="1">
+            <div class="stepper-number">1</div>
+            <div class="stepper-label">Paste URL</div>
+            <div class="stepper-connector"></div>
+        </div>
+        <div class="stepper-step" data-step="2">
+            <div class="stepper-number">2</div>
+            <div class="stepper-label">Select Videos</div>
+            <div class="stepper-connector"></div>
+        </div>
+        <div class="stepper-step" data-step="3">
+            <div class="stepper-number">3</div>
+            <div class="stepper-label">Downloading</div>
+            <div class="stepper-connector"></div>
+        </div>
+        <div class="stepper-step" data-step="4">
+            <div class="stepper-number">4</div>
+            <div class="stepper-label">Complete</div>
         </div>
     </div>
 
@@ -65,17 +96,31 @@
     </div>
 
     <!-- Welcome Helper State (Shown when no playlist is loaded yet) -->
-    <div id="playlistWelcomeState" class="studio-card welcome-card" style="text-align: center; padding: 48px 24px;">
-        <div style="font-size: 42px; margin-bottom: 12px;">📑</div>
-        <h2 style="font-size: 19px; font-weight: 700; color: #fff; margin-bottom: 8px;">Paste a YouTube Playlist URL to Begin</h2>
-        <p style="color: #94a3b8; font-size: 14px; max-width: 580px; margin: 0 auto 20px auto; line-height: 1.5;">
-            Paste any YouTube playlist link above and click <strong>Load Playlist</strong> to inspect videos, choose download resolution, or convert to MP3 in batch.
-        </p>
-        <div class="welcome-features-pills">
-            <span>✓ Multi-Select &amp; Filter</span>
-            <span>✓ 4K &amp; 1080p MP4</span>
-            <span>✓ 320k MP3 Audio</span>
-            <span>✓ Parallel Workers</span>
+    <div id="playlistWelcomeState" class="studio-card welcome-card">
+        <div class="welcome-card-content">
+            <div class="welcome-svg-icon">
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+            </div>
+            <h2>Paste a YouTube Playlist URL to Begin</h2>
+            <p>
+                Paste any YouTube playlist link above and click <strong>Load Playlist</strong> to inspect videos, choose download resolution, or convert to MP3 in batch.
+            </p>
+            <button type="button" id="btnWelcomePaste" class="btn-welcome-paste">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                Paste from Clipboard
+            </button>
+            <div class="welcome-features-pills">
+                <span>✓ Multi-Select &amp; Filter</span>
+                <span>✓ 4K &amp; 1080p MP4</span>
+                <span>✓ 320k MP3 Audio</span>
+                <span>✓ Parallel Workers</span>
+            </div>
+            <div id="recentUrlsSection" class="recent-urls-section" style="display:none;">
+                <h4>Recently Used Playlists</h4>
+                <div id="recentUrlsList" class="recent-urls-list"></div>
+            </div>
         </div>
     </div>
 
@@ -152,6 +197,14 @@
                         <option value="removed">Removed Videos</option>
                     </select>
                 </div>
+                <div class="filter-select-wrapper">
+                    <label for="sortOrderSelect" class="filter-label">Order</label>
+                    <select id="sortOrderSelect" class="studio-select sm">
+                        <option value="original" selected>YouTube Order</option>
+                        <option value="reverse">Reverse (Ep 1 First)</option>
+                        <option value="titleAsc">Title A–Z</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -163,13 +216,13 @@
                 <div class="control-item">
                     <label for="qualitySelect">Quality</label>
                     <select id="qualitySelect" class="studio-select">
-                        <option value="Best" selected>Best Available</option>
+                        <option value="1080p" selected>1080p Full HD (Recommended — Fast)</option>
+                        <option value="720p">720p HD (Super Fast)</option>
+                        <option value="Best">Best Available (8K / 4K — Very Large)</option>
                         <option value="2160p">4K Ultra HD (2160p)</option>
                         <option value="1440p">2K Quad HD (1440p)</option>
-                        <option value="1080p">1080p Full HD</option>
-                        <option value="720p">720p HD</option>
                         <option value="480p">480p Standard</option>
-                        <option value="360p">360p</option>
+                        <option value="360p">360p Data Saver</option>
                     </select>
                 </div>
 
@@ -273,60 +326,55 @@
     </div>
 </div>
 
-<!-- Step 5: Active Download Queue & Progress Dashboard (Fixed/Docked Bottom Panel) -->
-<div id="downloadQueuePanel" class="queue-dock-panel" style="display:none;">
-    <div class="queue-dock-header">
-        <div class="queue-dock-title-group">
-            <div class="queue-pulse"></div>
-            <h3>Active Download Queue</h3>
-            <span class="badge-queue-count" id="queueItemCountBadge">0 Videos</span>
-        </div>
-
-        <!-- Overall Progress Summary -->
-        <div class="overall-progress-summary">
-            <div class="overall-stats-text">
-                <span id="overallCompletedText">0 / 0 Completed</span>
-                <span class="stat-sep">•</span>
-                <span id="overallSpeedText" class="speed-highlight">0.0 MB/s</span>
-                <span class="stat-sep">•</span>
-                <span id="overallPercentText">0%</span>
-            </div>
-            <div class="overall-progress-bar-bg">
-                <div id="overallProgressBar" class="overall-progress-bar-fill" style="width: 0%;"></div>
-            </div>
-        </div>
-
-        <div class="queue-dock-actions">
-            <button type="button" id="btnRetryAllFailed" class="btn-dock-action btn-retry" style="display:none;" title="Retry all failed downloads">
-                🔄 Retry All Failed
-            </button>
-            <button type="button" id="btnOpenFolder" class="btn-dock-action" title="Open Destination Folder">
-                📁 Open Folder
-            </button>
-            <button type="button" id="btnCancelBatch" class="btn-dock-action btn-cancel" title="Cancel Remaining Downloads">
-                ⏹ Cancel All
-            </button>
-            <a href="/" class="btn-dock-action link-nav-guard" style="text-decoration: none; color: #38bdf8;" title="Start another download">
-                🔄 New Download
-            </a>
-            <button type="button" id="btnToggleQueueMinimize" class="btn-dock-icon" title="Minimize / Expand Queue">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
-            </button>
-        </div>
+<!-- Floating Queued Notification Toast -->
+<div id="playlistQueuedToast" class="playlist-queued-toast" style="display:none;">
+    <div class="toast-icon-pulse">🚀</div>
+    <div class="toast-body">
+        <h4 id="toastTitle">Batch Download Started</h4>
+        <p id="toastMessage">Your videos have been queued for download.</p>
     </div>
-
-    <!-- Active Download Live Alert Banner -->
-    <div id="queueRunningNotice" class="queue-running-notice" style="display:none;">
-        <span class="pulse-status-dot"></span>
-        <span class="notice-text">
-            <strong>Downloads in progress:</strong> Keep this browser tab open to ensure continuous high-speed downloads.
-        </span>
+    <div class="toast-actions">
+        <a href="/Account/Downloads" class="btn-toast-view">
+            <span>⚡ Open Downloads</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <button type="button" id="btnDismissToast" class="btn-toast-dismiss" title="Dismiss notification">✕</button>
     </div>
+</div>
 
-    <!-- Queue Items Scrollable Body -->
-    <div class="queue-dock-body" id="queueDockBody">
-        <div id="queueItemsList" class="queue-items-grid">
-            <!-- Populated dynamically via playlist.js -->
+<!-- URL Choice Modal: Single Video vs Playlist -->
+<div id="urlChoiceModal" class="confirm-modal-backdrop" style="display:none;">
+    <div class="confirm-modal-box url-choice-box">
+        <div class="confirm-modal-header">
+            <div class="confirm-modal-icon url-choice-icon">🔗</div>
+            <div class="confirm-modal-title-wrap">
+                <h3 class="confirm-modal-title">Video or Playlist?</h3>
+                <p class="confirm-modal-subtitle">This link is part of a playlist</p>
+            </div>
+            <button type="button" class="confirm-modal-close" id="btnCloseUrlChoice" aria-label="Close modal">✕</button>
+        </div>
+        <div class="confirm-modal-body">
+            <p class="confirm-modal-text" id="urlChoiceDescription">
+                This URL contains both a single video and a playlist. What would you like to do?
+            </p>
+            <div class="url-choice-options">
+                <button type="button" id="btnChoiceSingleVideo" class="url-choice-btn choice-single">
+                    <span class="choice-icon">🎬</span>
+                    <span class="choice-content">
+                        <span class="choice-title">Download This Video Only</span>
+                        <span class="choice-desc">Quick download — just this one video</span>
+                    </span>
+                    <span class="choice-arrow">→</span>
+                </button>
+                <button type="button" id="btnChoiceFullPlaylist" class="url-choice-btn choice-playlist">
+                    <span class="choice-icon">📋</span>
+                    <span class="choice-content">
+                        <span class="choice-title">Load Full Playlist</span>
+                        <span class="choice-desc">Browse & select videos from the playlist</span>
+                    </span>
+                    <span class="choice-arrow">→</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
@@ -338,25 +386,25 @@
             <div class="confirm-modal-icon">⚠️</div>
             <div class="confirm-modal-title-wrap">
                 <h3 class="confirm-modal-title">Downloads in Progress</h3>
-                <p class="confirm-modal-subtitle">Active downloads are running in this tab</p>
+                <p class="confirm-modal-subtitle">Active downloads are running in background</p>
             </div>
             <button type="button" class="confirm-modal-close" id="btnCloseConfirmModal" aria-label="Close modal">✕</button>
         </div>
         <div class="confirm-modal-body">
             <p class="confirm-modal-text">
-                Leaving this page, going back, or closing the tab will disconnect your real-time progress monitor and interrupt background worker threads.
+                Your playlist videos are currently downloading. You can monitor and control live speeds anytime from the <strong>Downloads &amp; History</strong> page.
             </p>
             <div class="confirm-modal-tip">
                 <span class="tip-icon">💡</span>
-                <span><strong>Pro Tip:</strong> Stay on this page until downloads reach 100%. You can minimize the bottom queue dock to keep browsing this playlist freely.</span>
+                <span><strong>Pro Tip:</strong> Click below to open Downloads &amp; History or remain here.</span>
             </div>
         </div>
         <div class="confirm-modal-footer">
-            <button type="button" id="btnConfirmStay" class="btn-confirm-stay">
-                Stay on Page &amp; Keep Downloading
-            </button>
-            <button type="button" id="btnConfirmLeave" class="btn-confirm-leave">
-                Cancel Downloads &amp; Leave
+            <a href="/Account/Downloads" id="btnGoToDownloads" class="btn-confirm-stay" style="text-decoration:none; text-align:center;">
+                Go to Downloads &amp; History →
+            </a>
+            <button type="button" id="btnConfirmStay" class="btn-confirm-leave">
+                Stay on Playlist Studio
             </button>
         </div>
     </div>

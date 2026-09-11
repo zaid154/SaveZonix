@@ -1,7 +1,9 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using SaveZonix.Models;
 using SaveZonix.Services;
+using StreamHelper.Data;
 
 namespace Zonix.Controllers;
 
@@ -9,11 +11,13 @@ public class PlaylistController : Controller
 {
     private readonly IYouTubePlaylistService _playlistService;
     private readonly IPlaylistQueueManager _queueManager;
+    private readonly UserManager<AppUser> _userManager;
 
-    public PlaylistController(IYouTubePlaylistService playlistService, IPlaylistQueueManager queueManager)
+    public PlaylistController(IYouTubePlaylistService playlistService, IPlaylistQueueManager queueManager, UserManager<AppUser> userManager)
     {
         _playlistService = playlistService;
         _queueManager = queueManager;
+        _userManager = userManager;
     }
 
     [HttpGet("/playlist")]
@@ -54,14 +58,21 @@ public class PlaylistController : Controller
     }
 
     [HttpPost("/api/playlist/download-batch")]
-    public async Task<IActionResult> DownloadBatch([FromBody] PlaylistBatchDownloadRequest req, CancellationToken ct)
+    public async Task<IActionResult> DownloadBatch([FromBody] PlaylistBatchDownloadRequest req)
     {
         if (req?.VideoIds == null || req.VideoIds.Count == 0)
         {
             return BadRequest(new { success = false, message = "Please select at least one video to download." });
         }
 
-        var job = await _queueManager.StartBatchDownloadAsync(req, ct);
+        var user = await _userManager.GetUserAsync(User);
+        string? userId = user?.Id;
+        string? userEmail = user?.Email;
+        string? userName = user?.UserName ?? (user != null ? user.Email?.Split('@')[0] : "Guest");
+
+        // Use CancellationToken.None — background downloads must survive browser page refresh/navigation.
+        // Each job has its own CancellationTokenSource for explicit user-initiated cancellation.
+        var job = await _queueManager.StartBatchDownloadAsync(req, userId, userEmail, userName, CancellationToken.None);
         return Ok(new
         {
             success = true,
@@ -69,6 +80,13 @@ public class PlaylistController : Controller
             totalVideos = job.TotalVideos,
             message = $"Download queued for {job.TotalVideos} video(s)."
         });
+    }
+
+    [HttpGet("/api/playlist/active-jobs")]
+    public IActionResult GetActiveJobs()
+    {
+        var jobs = _queueManager.GetActiveJobs();
+        return Ok(jobs);
     }
 
     [HttpGet("/api/playlist/status/{jobId}")]
@@ -107,7 +125,7 @@ public class PlaylistController : Controller
     [HttpPost("/api/playlist/retry-all-failed/{jobId}")]
     public async Task<IActionResult> RetryAllFailed(string jobId)
     {
-        bool retried = await _queueManager.RetryAllFailedAsync(jobId);
+        bool retried = await _queueManager.RetryFailedByGroupAsync(jobId);
         return Ok(new { success = retried });
     }
 

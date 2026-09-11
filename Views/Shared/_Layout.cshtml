@@ -26,11 +26,18 @@
         <header class="navbar">
             <div class="container nav-container">
                 <a asp-controller="Home" asp-action="Index" class="brand-link">
-                    <partial name="_Logo" />
+                    <partial name="_Logo" model='(string?)"brand-logo-img"' />
                     <div class="brand-text">Save<span>Zonix</span></div>
                 </a>
                 <ul class="nav-links">
                     <li><a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a></li>
+                    <li><a href="/playlist" class="@(ViewData["ActiveNav"]?.ToString() == "Playlist" ? "active" : "")">Playlist Studio</a></li>
+                    <li>
+                        <a asp-controller="Account" asp-action="Downloads" class="nav-link-downloads @(ViewData["ActiveNav"]?.ToString() == "Downloads" ? "active" : "")">
+                            <span>Downloads</span>
+                            <span id="navActiveDownloadsBadge" class="nav-active-badge" style="display:none;">0</span>
+                        </a>
+                    </li>
                     <li><a asp-controller="Home" asp-action="Features" class="@(ViewData["ActiveNav"]?.ToString() == "Features" ? "active" : "")">Features</a></li>
                     <li><a asp-controller="Home" asp-action="HowItWorks" class="@(ViewData["ActiveNav"]?.ToString() == "HowItWorks" ? "active" : "")">How It Works</a></li>
                     <li><a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Get Extension</a></li>
@@ -90,6 +97,11 @@
             <!-- Mobile Drawer -->
             <div class="mobile-nav-drawer" id="mobileNavDrawer">
                 <a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a>
+                <a href="/playlist" class="@(ViewData["ActiveNav"]?.ToString() == "Playlist" ? "active" : "")">Playlist Studio</a>
+                <a asp-controller="Account" asp-action="Downloads" class="@(ViewData["ActiveNav"]?.ToString() == "Downloads" ? "active" : "")" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Downloads &amp; History</span>
+                    <span id="mobileActiveDownloadsBadge" class="nav-active-badge" style="display:none;">0</span>
+                </a>
                 <a asp-controller="Home" asp-action="Features" class="@(ViewData["ActiveNav"]?.ToString() == "Features" ? "active" : "")">Features</a>
                 <a asp-controller="Home" asp-action="HowItWorks" class="@(ViewData["ActiveNav"]?.ToString() == "HowItWorks" ? "active" : "")">How It Works</a>
                 <a asp-controller="Home" asp-action="Download" class="@(ViewData["ActiveNav"]?.ToString() == "Download" ? "active" : "")">Download Hub</a>
@@ -133,7 +145,7 @@
                 <div class="footer-grid">
                     <div class="footer-brand">
                         <div class="brand-link">
-                            <partial name="_Logo" />
+                            <partial name="_Logo" model='(string?)"brand-logo-img"' />
                             <div class="brand-text">Save<span>Zonix</span></div>
                         </div>
                         <p>High-performance media stream analyzer and authorized local saver built with .NET 10 and Manifest V3 stealth architecture.</p>
@@ -204,6 +216,70 @@
                 userDropdownMenu.classList.remove('show');
             });
         }
+
+        // Global Active Downloads Badge Monitor
+        (function() {
+            const badgeDesktop = document.getElementById('navActiveDownloadsBadge');
+            const badgeMobile = document.getElementById('mobileActiveDownloadsBadge');
+            if (!badgeDesktop && !badgeMobile) return;
+
+            async function checkActiveDownloads() {
+                try {
+                    let jobId = null;
+                    const raw = localStorage.getItem('sz_active_playlist_job');
+                    if (raw) {
+                        try {
+                            const session = JSON.parse(raw);
+                            if (session && session.jobId) jobId = session.jobId;
+                        } catch { }
+                    }
+
+                    if (jobId) {
+                        const resp = await fetch(`/api/playlist/status/${jobId}`);
+                        if (resp.ok) {
+                            const job = await resp.json();
+                            const isBusy = (job.status === 'Running' || job.status === 'Downloading' || job.status === 'Queued') &&
+                                           ((job.activeCount || 0) > 0 || (job.queuedCount || 0) > 0);
+                            if (isBusy) {
+                                const count = (job.activeCount || 0) + (job.queuedCount || 0);
+                                updateBadge(count);
+                                return;
+                            }
+                        }
+                    }
+
+                    // Check server active jobs list across all active playlists
+                    const activeResp = await fetch('/api/playlist/active-jobs');
+                    if (activeResp.ok) {
+                        const activeList = await activeResp.json();
+                        if (Array.isArray(activeList) && activeList.length > 0) {
+                            const totalCount = activeList.reduce((sum, j) => sum + (j.activeCount || 0) + (j.queuedCount || 0), 0);
+                            updateBadge(totalCount);
+                            return;
+                        }
+                    }
+
+                    updateBadge(0);
+                } catch {
+                    updateBadge(0);
+                }
+            }
+
+            function updateBadge(count) {
+                [badgeDesktop, badgeMobile].forEach(el => {
+                    if (!el) return;
+                    if (count > 0) {
+                        el.textContent = count;
+                        el.style.display = 'inline-flex';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                });
+            }
+
+            checkActiveDownloads();
+            setInterval(checkActiveDownloads, 2500);
+        })();
     </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

@@ -1,5 +1,9 @@
-@model string
+@model object?
 @{
-    var cssClass = string.IsNullOrWhiteSpace(Model) ? "brand-logo-img" : Model;
+    var cssClass = Model as string;
+    if (string.IsNullOrWhiteSpace(cssClass)) {
+        cssClass = "brand-logo-img";
+    }
 }
 <img src="~/assets/logo.png" alt="SaveZonix Logo" class="@cssClass" asp-append-version="true" />
+

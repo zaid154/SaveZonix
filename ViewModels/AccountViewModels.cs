@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using StreamHelper.Data;
@@ -49,9 +49,38 @@ public class ChangePasswordViewModel
     public string ConfirmNewPassword { get; set; } = string.Empty;
 }
 
+public class HistoryItemEntry
+{
+    public bool IsPlaylistGroup { get; set; }
+    public string GroupKey { get; set; } = string.Empty;
+    public string? JobId { get; set; }
+    public string PlaylistCode { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Platform { get; set; } = "YouTube";
+    public string? ThumbnailUrl { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public long TotalBytes { get; set; }
+    public int CompletedCount { get; set; }
+    public int FailedCount { get; set; }
+    public int TotalVideos { get; set; }
+    public string FormattedTotalSize
+    {
+        get
+        {
+            if (TotalBytes <= 0) return "--";
+            double mb = TotalBytes / (1024.0 * 1024.0);
+            return mb >= 1024 ? $"{mb / 1024.0:F2} GB" : $"{mb:F1} MB";
+        }
+    }
+
+    public DownloadHistory? SingleItem { get; set; }
+    public List<DownloadHistory> SubItems { get; set; } = new();
+}
+
 public class UserDownloadsViewModel
 {
     public List<DownloadHistory> Downloads { get; set; } = new();
+    public List<HistoryItemEntry> GroupedEntries { get; set; } = new();
     public string? SearchTerm { get; set; }
     public string? StatusFilter { get; set; }
     public string? PlatformFilter { get; set; }

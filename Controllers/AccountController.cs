@@ -20,6 +20,7 @@ public class AccountController : Controller
     private readonly IDownloadHistoryService _downloadHistoryService;
     private readonly IAdminSettingsService _adminSettingsService;
     private readonly SaveZonix.Services.IDownloadAnalyticsService _analyticsService;
+    private readonly SaveZonix.Services.IPlaylistQueueManager _queueManager;
 
     public AccountController(
         UserManager<AppUser> userManager,
@@ -27,7 +28,8 @@ public class AccountController : Controller
         IEmailService emailService,
         IDownloadHistoryService downloadHistoryService,
         IAdminSettingsService adminSettingsService,
-        SaveZonix.Services.IDownloadAnalyticsService analyticsService)
+        SaveZonix.Services.IDownloadAnalyticsService analyticsService,
+        SaveZonix.Services.IPlaylistQueueManager queueManager)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -35,6 +37,7 @@ public class AccountController : Controller
         _downloadHistoryService = downloadHistoryService;
         _adminSettingsService = adminSettingsService;
         _analyticsService = analyticsService;
+        _queueManager = queueManager;
     }
 
     [HttpGet]
@@ -470,11 +473,12 @@ public class AccountController : Controller
     }
 
     [HttpGet]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<IActionResult> Downloads(string? search, string? status, string? platform, int page = 1)
     {
         var user = await _userManager.GetUserAsync(User);
-        if (user == null) return NotFound();
+        int pageSize = 15;
+        List<StreamHelper.Data.DownloadHistory> rawItems = new();
 
         try
         {
@@ -482,36 +486,224 @@ public class AccountController : Controller
         }
         catch { }
 
-        int pageSize = 15;
-        var (items, totalCount) = await _downloadHistoryService.GetUserDownloadsAsync(user.Id, page, pageSize, search, status, platform);
+        if (user != null)
+        {
+            var res = await _downloadHistoryService.GetUserDownloadsAsync(user.Id, 1, 500, search, status, platform);
+            rawItems = res.Items;
+        }
+        else
+        {
+            var res = await _downloadHistoryService.GetAllDownloadsAsync(1, 500, search, status, platform, null);
+            rawItems = res.Items;
+        }
+
+        var activeJobs = _queueManager.GetActiveJobs();
+        var allGrouped = GroupDownloads(rawItems, activeJobs);
+        int totalGroups = allGrouped.Count;
+        var pagedGroups = allGrouped.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         var model = new UserDownloadsViewModel
         {
-            Downloads = items,
+            Downloads = rawItems,
+            GroupedEntries = pagedGroups,
             SearchTerm = search,
             StatusFilter = status,
             PlatformFilter = platform,
             CurrentPage = page,
-            TotalCount = totalCount,
-            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize),
+            TotalCount = totalGroups,
+            TotalPages = Math.Max(1, (int)Math.Ceiling(totalGroups / (double)pageSize)),
             PageSize = pageSize
         };
 
         return View(model);
     }
 
+    private static List<HistoryItemEntry> GroupDownloads(List<StreamHelper.Data.DownloadHistory> allDownloads, List<SaveZonix.Models.PlaylistBatchJobState>? activeJobs = null)
+    {
+        var finalEntries = new List<HistoryItemEntry>();
+        var playlistBuckets = new Dictionary<string, HistoryItemEntry>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var d in allDownloads)
+        {
+            string strategy = d.DownloadStrategy ?? "";
+            bool isPlaylist = strategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase) ||
+                              strategy.Equals("Playlist Batch", StringComparison.OrdinalIgnoreCase);
+
+            if (isPlaylist)
+            {
+                string groupKey;
+                string playlistCode;
+                string playlistTitle;
+
+                if (strategy.StartsWith("Playlist: PL-", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = strategy.Substring("Playlist:".Length).Split('•');
+                    playlistCode = parts[0].Trim();
+                    playlistTitle = parts.Length > 1 ? parts[1].Trim() : "YouTube Playlist";
+                    groupKey = playlistCode;
+                }
+                else
+                {
+                    // Smart legacy grouping: extract common series name if available, or group by day
+                    string seriesName = ExtractSeriesName(d.Title);
+                    string dateKey = d.CreatedAt.ToString("yyyyMMdd");
+                    groupKey = !string.IsNullOrEmpty(seriesName) ? $"PL_SERIES_{dateKey}_{seriesName}" : $"PL_BATCH_{dateKey}";
+                    playlistCode = "PL-01";
+                    playlistTitle = !string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist Collection";
+                }
+
+                if (!playlistBuckets.TryGetValue(groupKey, out var group))
+                {
+                    string? matchingJobId = activeJobs?.FirstOrDefault(j =>
+                        string.Equals(j.PlaylistCode, playlistCode, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(j.PlaylistTitle, playlistTitle, StringComparison.OrdinalIgnoreCase))?.JobId;
+
+                    group = new HistoryItemEntry
+                    {
+                        IsPlaylistGroup = true,
+                        GroupKey = groupKey,
+                        JobId = matchingJobId ?? groupKey,
+                        PlaylistCode = playlistCode,
+                        Title = playlistTitle,
+                        Platform = d.Platform,
+                        ThumbnailUrl = d.ThumbnailUrl,
+                        CreatedAt = d.CreatedAt,
+                        TotalBytes = 0,
+                        TotalVideos = 0,
+                        CompletedCount = 0,
+                        FailedCount = 0,
+                        SubItems = new List<StreamHelper.Data.DownloadHistory>()
+                    };
+                    playlistBuckets[groupKey] = group;
+                }
+
+                group.SubItems.Add(d);
+                group.TotalVideos++;
+                group.TotalBytes += d.FileSize > 0 ? d.FileSize : d.DownloadedBytes;
+                if (d.Status == StreamHelper.Data.DownloadStatus.Completed) group.CompletedCount++;
+                if (d.Status == StreamHelper.Data.DownloadStatus.Failed || d.Status == StreamHelper.Data.DownloadStatus.Cancelled) group.FailedCount++;
+                if (string.IsNullOrEmpty(group.ThumbnailUrl) && !string.IsNullOrEmpty(d.ThumbnailUrl))
+                {
+                    group.ThumbnailUrl = d.ThumbnailUrl;
+                }
+            }
+            else
+            {
+                finalEntries.Add(new HistoryItemEntry
+                {
+                    IsPlaylistGroup = false,
+                    GroupKey = d.Id,
+                    Title = d.Title,
+                    Platform = d.Platform,
+                    ThumbnailUrl = d.ThumbnailUrl,
+                    CreatedAt = d.CreatedAt,
+                    TotalBytes = d.FileSize > 0 ? d.FileSize : d.DownloadedBytes,
+                    TotalVideos = 1,
+                    CompletedCount = d.Status == StreamHelper.Data.DownloadStatus.Completed ? 1 : 0,
+                    FailedCount = d.Status == StreamHelper.Data.DownloadStatus.Failed || d.Status == StreamHelper.Data.DownloadStatus.Cancelled ? 1 : 0,
+                    SingleItem = d
+                });
+            }
+        }
+
+        // Process playlist buckets:
+        // If a bucket has only 1 video, unpack it into a regular single-video row
+        // so it shows the actual video title and thumbnail instead of a confusing "Collection 1 Videos" accordion!
+        foreach (var group in playlistBuckets.Values)
+        {
+            if (group.TotalVideos <= 1 && group.SubItems.Count == 1)
+            {
+                var single = group.SubItems[0];
+                finalEntries.Add(new HistoryItemEntry
+                {
+                    IsPlaylistGroup = false,
+                    GroupKey = single.Id,
+                    Title = single.Title,
+                    Platform = single.Platform,
+                    ThumbnailUrl = single.ThumbnailUrl,
+                    CreatedAt = single.CreatedAt,
+                    TotalBytes = single.FileSize > 0 ? single.FileSize : single.DownloadedBytes,
+                    TotalVideos = 1,
+                    CompletedCount = single.Status == StreamHelper.Data.DownloadStatus.Completed ? 1 : 0,
+                    FailedCount = single.Status == StreamHelper.Data.DownloadStatus.Failed || single.Status == StreamHelper.Data.DownloadStatus.Cancelled ? 1 : 0,
+                    SingleItem = single
+                });
+            }
+            else
+            {
+                // Sort sub-items in natural ascending order (#01, #02, #03... or Episode 1, 2, 3...)
+                group.SubItems = group.SubItems
+                    .OrderBy(s => ExtractIndexNumber(s))
+                    .ThenBy(s => s.CreatedAt)
+                    .ToList();
+                finalEntries.Add(group);
+            }
+        }
+
+        return finalEntries.OrderByDescending(g => g.CreatedAt).ToList();
+    }
+
+    private static int ExtractIndexNumber(StreamHelper.Data.DownloadHistory item)
+    {
+        // 1. Check ValidationDetails or AudioVideoDetails for "#01", "#02"
+        string check = (item.ValidationDetails ?? "") + " " + (item.AudioVideoDetails ?? "");
+        int hashIdx = check.IndexOf('#');
+        if (hashIdx >= 0 && hashIdx + 3 <= check.Length)
+        {
+            string numPart = new string(check.Substring(hashIdx + 1).TakeWhile(char.IsDigit).ToArray());
+            if (int.TryParse(numPart, out int parsed)) return parsed;
+        }
+
+        // 2. Check title for "Episode XX" or "Ep XX"
+        if (!string.IsNullOrEmpty(item.Title))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(item.Title, @"(?:Episode|Ep)\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int epNum))
+            {
+                return epNum;
+            }
+        }
+
+        // 3. Check filename prefix "01 - ", "02 - "
+        if (!string.IsNullOrEmpty(item.FileName))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(item.FileName, @"^(\d{1,4})\s*-\s*");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int fnNum))
+            {
+                return fnNum;
+            }
+        }
+
+        return int.MaxValue;
+    }
+
+    private static string ExtractSeriesName(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "";
+        int epIdx = title.IndexOf("Episode", StringComparison.OrdinalIgnoreCase);
+        if (epIdx > 2) return title.Substring(0, epIdx).Trim(' ', '-', '|', ':', '_');
+
+        int epShortIdx = title.IndexOf("Ep ", StringComparison.OrdinalIgnoreCase);
+        if (epShortIdx > 2) return title.Substring(0, epShortIdx).Trim(' ', '-', '|', ':', '_');
+
+        int pipeIdx = title.IndexOf('|');
+        if (pipeIdx > 2) return title.Substring(0, pipeIdx).Trim(' ', '-', '|', ':', '_');
+
+        return "";
+    }
+
     [HttpPost]
-    [Authorize]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CancelDownload(string id)
     {
         var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Unauthorized();
+        string? currentUserId = user?.Id;
 
         var download = await _downloadHistoryService.GetDownloadByIdAsync(id);
-        if (download != null && download.UserId == user.Id)
+        if (download != null && (currentUserId == null || download.UserId == currentUserId || string.IsNullOrEmpty(download.UserId)))
         {
             SaveZonix.Program.CancelTask(id);
+            _queueManager.CancelPlaylistItemByTaskId(id);
             await _downloadHistoryService.MarkCancelledAsync(id);
             TempData["SuccessMessage"] = "Download cancelled.";
         }
@@ -519,14 +711,13 @@ public class AccountController : Controller
     }
 
     [HttpPost]
-    [Authorize]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteDownload(string id)
     {
         var user = await _userManager.GetUserAsync(User);
-        if (user == null) return Unauthorized();
+        string? currentUserId = user?.Id;
 
-        bool success = await _downloadHistoryService.DeleteDownloadAsync(id, user.Id);
+        bool success = await _downloadHistoryService.DeleteDownloadAsync(id, currentUserId);
         if (success)
         {
             TempData["SuccessMessage"] = "Download record removed from history.";

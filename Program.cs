@@ -1834,12 +1834,15 @@ public class Program
         {
             if (_tasks.TryGetValue(taskId, out var state))
             {
-                state.Cts?.Cancel();
+                try { state.Cts?.Cancel(); } catch { }
                 state.IsPaused = true;
                 state.Status = "Download Cancelled";
             }
             try
             {
+                var queueManager = services.GetService<SaveZonix.Services.IPlaylistQueueManager>();
+                queueManager?.CancelPlaylistItemByTaskId(taskId);
+
                 using var scope = services.CreateScope();
                 var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
                 if (historyService != null)
