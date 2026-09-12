@@ -1122,6 +1122,88 @@
         return Math.max(1, Math.ceil(filtered.length / pageSize));
     }
 
+    const probedVideoQualityCache = new Map();
+    const videoProbeQueue = [];
+    let activeQualityProbes = 0;
+    const MAX_CONCURRENT_QUALITY_PROBES = 2;
+
+    function renderQualityChips(qualities) {
+        const list = (qualities && qualities.length > 0)
+            ? qualities
+            : ['4K', '2K', '1080p', '720p', 'MP3'];
+
+        const has4k = list.some(q => {
+            const s = String(q).toLowerCase();
+            return s.includes('2160') || s.includes('4k');
+        });
+        const has2k = list.some(q => {
+            const s = String(q).toLowerCase();
+            return s.includes('1440') || s.includes('2k');
+        });
+        const has1080 = list.some(q => {
+            const s = String(q).toLowerCase();
+            return s.includes('1080');
+        });
+        const has720 = list.some(q => {
+            const s = String(q).toLowerCase();
+            return s.includes('720');
+        });
+        const hasMp3 = list.some(q => {
+            const s = String(q).toLowerCase();
+            return s.includes('mp3') || s.includes('audio') || s.includes('m4a');
+        });
+
+        let chips = [];
+        if (has4k) chips.push(`<span class="q-chip q-chip-4k" title="4K Ultra HD (2160p)">4K</span>`);
+        if (has2k) chips.push(`<span class="q-chip q-chip-2k" title="2K Quad HD (1440p)">2K</span>`);
+        if (has1080) chips.push(`<span class="q-chip q-chip-1080p" title="1080p Full HD">1080p</span>`);
+        if (has720) chips.push(`<span class="q-chip" title="720p HD">720p</span>`);
+        if (hasMp3 || chips.length === 0) chips.push(`<span class="q-chip" title="HQ Audio (MP3)">MP3</span>`);
+
+        return chips.join('');
+    }
+
+    function queueVideoProbe(video) {
+        if (!video || !video.videoId || video.hasProbedQuality || probedVideoQualityCache.has(video.videoId)) {
+            if (probedVideoQualityCache.has(video.videoId)) {
+                const container = document.getElementById(`qualityChips_${video.videoId}`);
+                if (container) container.innerHTML = renderQualityChips(probedVideoQualityCache.get(video.videoId));
+            }
+            return;
+        }
+        videoProbeQueue.push(video);
+        processVideoProbeQueue();
+    }
+
+    function processVideoProbeQueue() {
+        while (activeQualityProbes < MAX_CONCURRENT_QUALITY_PROBES && videoProbeQueue.length > 0) {
+            const video = videoProbeQueue.shift();
+            activeQualityProbes++;
+            fetch('/api/playlist/probe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoId: video.videoId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.success && Array.isArray(data.resolutions) && data.resolutions.length > 0) {
+                    video.hasProbedQuality = true;
+                    video.availableQualities = data.resolutions;
+                    probedVideoQualityCache.set(video.videoId, data.resolutions);
+                    const container = document.getElementById(`qualityChips_${video.videoId}`);
+                    if (container) {
+                        container.innerHTML = renderQualityChips(data.resolutions);
+                    }
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                activeQualityProbes--;
+                processVideoProbeQueue();
+            });
+        }
+    }
+
     function renderVideosTable() {
         videoTableBody.innerHTML = '';
         const filtered = getFilteredVideos();
@@ -1165,11 +1247,7 @@
             tr.dataset.index = globalIndex;
             tr.dataset.available = v.isAvailable ? 'true' : 'false';
 
-            const defaultQualities = ['1080p', '720p', '480p', 'MP3'];
-            const chipsHtml = `<div class="quality-chips-row">` + defaultQualities.map(q => {
-                const isBest = q === '1080p';
-                return `<span class="q-chip ${isBest ? 'q-chip-best' : ''}">${q}</span>`;
-            }).join('') + `</div>`;
+            const chipsHtml = `<div class="quality-chips-row" id="qualityChips_${v.videoId}">` + renderQualityChips(v.availableQualities) + `</div>`;
 
             let statusHtml = isRemoved
                 ? `<span class="status-indicator status-removed"><span class="status-dot"></span>REMOVED</span>`
@@ -1241,6 +1319,13 @@
             `;
 
             videoTableBody.appendChild(tr);
+        });
+
+        // Trigger lazy background resolution probing for visible page items
+        pageVideos.forEach(v => {
+            if (v && v.videoId && v.isAvailable && !removedVideoIds.has(v.videoId)) {
+                queueVideoProbe(v);
+            }
         });
 
         // Bind table checkbox change events

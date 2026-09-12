@@ -169,7 +169,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                         FormattedDuration = formattedDur,
                         ThumbnailUrl = thumb,
                         IsAvailable = true,
-                        AvailableQualities = new List<string> { "Best", "1080p", "720p", "480p", "360p", "Audio Only" },
+                        AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
                         AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
                     });
                 }
@@ -244,7 +244,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
             }
             else
             {
-                resolutions.AddRange(new[] { "1080p", "720p", "480p", "360p" });
+                resolutions.AddRange(new[] { "4K", "2K", "1080p", "720p", "480p", "360p" });
             }
 
             resolutions.Add("Audio Only (HQ MP3 / M4A)");
@@ -252,7 +252,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         catch (Exception ex)
         {
             Console.WriteLine($"[YouTube Playlist Service] Quality probe error for {videoId}: {ex.Message}");
-            resolutions.AddRange(new[] { "Best", "1080p", "720p", "480p", "360p", "Audio Only" });
+            resolutions.AddRange(new[] { "Best", "4K", "2K", "1080p", "720p", "480p", "360p", "Audio Only" });
         }
 
         return resolutions;
@@ -287,7 +287,9 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                 DurationSeconds = durationSec,
                 FormattedDuration = string.IsNullOrWhiteSpace(it.Duration) ? "00:00" : it.Duration,
                 ThumbnailUrl = string.IsNullOrWhiteSpace(it.ThumbnailUrl) ? $"https://i.ytimg.com/vi/{it.Id}/hqdefault.jpg" : it.ThumbnailUrl,
-                IsAvailable = true
+                IsAvailable = true,
+                AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
+                AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
             };
         }).ToList();
 
