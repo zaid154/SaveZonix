@@ -31,6 +31,15 @@ public class PlaylistController : Controller
     [HttpPost("/api/playlist/load")]
     public async Task<IActionResult> LoadPlaylist([FromBody] PlaylistLoadRequest req, CancellationToken ct)
     {
+        if (!string.IsNullOrWhiteSpace(req?.QueueKey))
+        {
+            var imported = _playlistService.GetImportedQueue(req.QueueKey);
+            if (imported != null)
+            {
+                return Ok(imported);
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(req?.Url))
         {
             return BadRequest(new { success = false, message = "Playlist URL is required." });
@@ -42,6 +51,29 @@ public class PlaylistController : Controller
             return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to load playlist." });
         }
 
+        return Ok(result);
+    }
+
+    [HttpPost("/api/playlist/import-tab-queue")]
+    public IActionResult ImportTabQueue([FromBody] ImportTabQueueRequest req)
+    {
+        if (req?.Items == null || req.Items.Count == 0)
+        {
+            return BadRequest(new { success = false, message = "No items provided in tab queue." });
+        }
+
+        var queueKey = _playlistService.SaveImportedQueue(req);
+        return Ok(new { success = true, queueKey, count = req.Items.Count });
+    }
+
+    [HttpGet("/api/playlist/get-imported-queue/{key}")]
+    public IActionResult GetImportedQueue(string key)
+    {
+        var result = _playlistService.GetImportedQueue(key);
+        if (result == null)
+        {
+            return NotFound(new { success = false, message = "Queue not found." });
+        }
         return Ok(result);
     }
 

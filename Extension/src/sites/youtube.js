@@ -91,6 +91,95 @@
             };
         },
 
+        extractQueue() {
+            const queue = [];
+            try {
+                // 1. Extract from live DOM playlist panel
+                const items = document.querySelectorAll('ytd-playlist-panel-video-renderer');
+                if (items && items.length > 0) {
+                    items.forEach((item, idx) => {
+                        const titleEl = item.querySelector('#video-title');
+                        const bylineEl = item.querySelector('#byline');
+                        const linkEl = item.querySelector('a#wc-endpoint') || item.querySelector('a');
+                        const lengthEl = item.querySelector('#length') || item.querySelector('.ytd-thumbnail-overlay-time-status-renderer');
+                        const thumbImg = item.querySelector('img');
+
+                        let videoId = '';
+                        let url = '';
+                        if (linkEl && linkEl.href) {
+                            try {
+                                const u = new URL(linkEl.href);
+                                videoId = u.searchParams.get('v') || '';
+                                url = `https://www.youtube.com/watch?v=${videoId}`;
+                            } catch { }
+                        }
+
+                        const title = titleEl ? (titleEl.textContent || titleEl.innerText || '').trim() : '';
+                        const author = bylineEl ? (bylineEl.textContent || bylineEl.innerText || '').trim() : '';
+                        const duration = lengthEl ? (lengthEl.textContent || lengthEl.innerText || '').trim() : '';
+                        let thumbnail = thumbImg ? (thumbImg.src || thumbImg.currentSrc) : '';
+                        if (!thumbnail || thumbnail.startsWith('data:')) {
+                            thumbnail = videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : '';
+                        }
+
+                        if (title && (videoId || url)) {
+                            queue.push({
+                                index: idx + 1,
+                                id: videoId,
+                                title: title,
+                                author: author || 'YouTube Creator',
+                                duration: duration || '00:00',
+                                thumbnailUrl: thumbnail,
+                                url: url
+                            });
+                        }
+                    });
+                }
+
+                // 2. Fallback: Parse ytInitialData from page scripts if DOM items aren't rendered yet
+                if (queue.length === 0) {
+                    const scripts = Array.from(document.querySelectorAll('script'));
+                    for (const s of scripts) {
+                        const t = s.textContent || '';
+                        if (t.includes('playlistPanelVideoRenderer')) {
+                            const m = t.match(/ytInitialData\s*=\s*({.+?});/) || t.match(/var ytInitialData\s*=\s*({.+?});/);
+                            if (m) {
+                                const data = JSON.parse(m[1]);
+                                const plContents = data?.contents?.twoColumnWatchNextResults?.playlist?.playlist?.contents;
+                                if (Array.isArray(plContents)) {
+                                    plContents.forEach((entry, idx) => {
+                                        const ren = entry?.playlistPanelVideoRenderer;
+                                        if (ren && ren.videoId) {
+                                            const vidTitle = ren.title?.simpleText || (ren.title?.runs && ren.title.runs[0]?.text) || 'Video';
+                                            const vidAuthor = ren.shortBylineText?.simpleText || (ren.shortBylineText?.runs && ren.shortBylineText.runs[0]?.text) || 'YouTube';
+                                            const vidDur = ren.lengthText?.simpleText || (ren.lengthText?.runs && ren.lengthText.runs[0]?.text) || '00:00';
+                                            const vidThumb = (ren.thumbnail?.thumbnails && ren.thumbnail.thumbnails.length > 0) 
+                                                ? ren.thumbnail.thumbnails[ren.thumbnail.thumbnails.length - 1].url 
+                                                : `https://i.ytimg.com/vi/${ren.videoId}/hqdefault.jpg`;
+
+                                            queue.push({
+                                                index: idx + 1,
+                                                id: ren.videoId,
+                                                title: vidTitle,
+                                                author: vidAuthor,
+                                                duration: vidDur,
+                                                thumbnailUrl: vidThumb,
+                                                url: `https://www.youtube.com/watch?v=${ren.videoId}`
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+                            if (queue.length > 0) break;
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('[SaveZonix] YouTube queue extraction error:', err);
+            }
+            return queue;
+        },
+
         findStreams(meta) {
             const streams = [];
             const activeVideo = document.querySelector('video');

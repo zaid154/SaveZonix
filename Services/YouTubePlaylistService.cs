@@ -257,4 +257,81 @@ public class YouTubePlaylistService : IYouTubePlaylistService
 
         return resolutions;
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PlaylistInfoResult> _importedQueues = new();
+
+    public string SaveImportedQueue(ImportTabQueueRequest request)
+    {
+        var key = Guid.NewGuid().ToString("N");
+        var videos = request.Items.Select((it, idx) => {
+            var durationSec = 0;
+            if (!string.IsNullOrWhiteSpace(it.Duration))
+            {
+                var parts = it.Duration.Split(':');
+                if (parts.Length == 2 && int.TryParse(parts[0], out var m) && int.TryParse(parts[1], out var s))
+                {
+                    durationSec = m * 60 + s;
+                }
+                else if (parts.Length == 3 && int.TryParse(parts[0], out var h) && int.TryParse(parts[1], out var m2) && int.TryParse(parts[2], out var s2))
+                {
+                    durationSec = h * 3600 + m2 * 60 + s2;
+                }
+            }
+
+            return new PlaylistVideoDto
+            {
+                Index = it.Index > 0 ? it.Index : idx + 1,
+                VideoId = it.Id,
+                Title = it.Title,
+                Author = string.IsNullOrWhiteSpace(it.Author) ? "YouTube" : it.Author,
+                DurationSeconds = durationSec,
+                FormattedDuration = string.IsNullOrWhiteSpace(it.Duration) ? "00:00" : it.Duration,
+                ThumbnailUrl = string.IsNullOrWhiteSpace(it.ThumbnailUrl) ? $"https://i.ytimg.com/vi/{it.Id}/hqdefault.jpg" : it.ThumbnailUrl,
+                IsAvailable = true
+            };
+        }).ToList();
+
+        var result = new PlaylistInfoResult
+        {
+            Success = true,
+            Id = key,
+            Title = string.IsNullOrWhiteSpace(request.Title) ? "YouTube Mix (Active Tab)" : request.Title,
+            Author = request.Author ?? "YouTube Mix",
+            ThumbnailUrl = videos.FirstOrDefault()?.ThumbnailUrl ?? "",
+            VideoCount = videos.Count,
+            TotalKnownVideos = videos.Count,
+            HasMore = false,
+            IsMix = true,
+            Videos = videos
+        };
+
+        _importedQueues[key] = result;
+
+        // Also cache under playlistId so loading by URL also returns this exact queue!
+        var playlistId = ExtractPlaylistId(request.Url);
+        if (!string.IsNullOrWhiteSpace(playlistId))
+        {
+            _cache[playlistId] = (DateTime.UtcNow, result);
+        }
+
+        return key;
+    }
+
+    public PlaylistInfoResult? GetImportedQueue(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return null;
+
+        if (_importedQueues.TryGetValue(key, out var res))
+        {
+            return res;
+        }
+
+        // Check cache as well
+        if (_cache.TryGetValue(key, out var cached))
+        {
+            return cached.Result;
+        }
+
+        return null;
+    }
 }

@@ -186,6 +186,15 @@
             } else {
                 sendResponse({ scanned: false });
             }
+        } else if (req.action === 'getYoutubeQueue') {
+            const adapter = getActiveAdapter();
+            if (adapter && adapter.name === 'YouTube' && typeof adapter.extractQueue === 'function') {
+                const queue = adapter.extractQueue();
+                sendResponse({ success: true, queue: queue, count: queue.length });
+            } else {
+                sendResponse({ success: false, queue: [], count: 0 });
+            }
+            return true;
         } else if (req.action === 'fetchInTabContext') {
             fetch(req.url, { credentials: 'omit' })
                 .then(async (res) => {

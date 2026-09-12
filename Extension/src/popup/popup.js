@@ -94,13 +94,59 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.close();
         });
     }
+    async function handlePlaylistDownload(plUrl) {
+        // 1. Try to extract exact live queue from active YouTube tab
+        try {
+            const queueRes = await new Promise(resolve => {
+                try {
+                    chrome.tabs.sendMessage(tab.id, { action: 'getYoutubeQueue' }, (r) => {
+                        if (chrome.runtime.lastError) resolve(null);
+                        else resolve(r);
+                    });
+                } catch { resolve(null); }
+            });
+
+            if (queueRes && queueRes.success && Array.isArray(queueRes.queue) && queueRes.queue.length > 0) {
+                // Post exact active tab queue to SaveZonix backend
+                try {
+                    const postResp = await fetch('http://localhost:5000/api/playlist/import-tab-queue', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            title: currentTabTitle || 'YouTube Mix',
+                            url: plUrl,
+                            author: 'YouTube',
+                            items: queueRes.queue
+                        })
+                    });
+
+                    if (postResp.ok) {
+                        const postData = await postResp.json();
+                        if (postData.queueKey) {
+                            chrome.tabs.create({
+                                url: `http://localhost:5000/playlist?queueKey=${postData.queueKey}&url=${encodeURIComponent(plUrl)}`
+                            });
+                            window.close();
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[SaveZonix] Failed to post tab queue to localhost:', e);
+                }
+            }
+        } catch { }
+
+        // Fallback: regular URL load
+        chrome.tabs.create({
+            url: `http://localhost:5000/playlist?url=${encodeURIComponent(plUrl)}`
+        });
+        window.close();
+    }
+
     if (btnYtModalPlaylist) {
         btnYtModalPlaylist.addEventListener('click', () => {
             const plUrl = (ytDetails && ytDetails.playlistUrl) || currentTabUrl;
-            chrome.tabs.create({
-                url: `http://localhost:5000/playlist?url=${encodeURIComponent(plUrl)}`
-            });
-            window.close();
+            handlePlaylistDownload(plUrl);
         });
     }
 
@@ -502,10 +548,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnYtPlaylist.addEventListener('click', (e) => {
                     e.stopPropagation();
                     const plUrl = (ytDetails && ytDetails.playlistUrl) || currentTabUrl;
-                    chrome.tabs.create({
-                        url: `http://localhost:5000/playlist?url=${encodeURIComponent(plUrl)}`
-                    });
-                    window.close();
+                    handlePlaylistDownload(plUrl);
                 });
             }
 
@@ -518,10 +561,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         return;
                     }
                     if (ytDetails && ytDetails.isPlaylistPage) {
-                        chrome.tabs.create({
-                            url: `http://localhost:5000/playlist?url=${encodeURIComponent(currentTabUrl)}`
-                        });
-                        window.close();
+                        handlePlaylistDownload(currentTabUrl);
                         return;
                     }
                     const target = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;

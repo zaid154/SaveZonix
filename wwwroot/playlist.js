@@ -20,6 +20,7 @@
     let pendingLeaveCallback = null;
     let pendingHybridUrl = null;
     let jobStartTime = null;
+    let activeQueueKey = null;
     const STORAGE_KEY_ACTIVE_JOB = 'sz_active_playlist_job';
     const STORAGE_KEY_RECENT_URLS = 'sz_recent_playlist_urls';
 
@@ -710,13 +711,20 @@
         // Restore active job from previous session or page reload
         checkAndRestoreActiveJob();
 
-        // Auto load if ?url= is passed in query string
+        // Auto load if ?url= or ?queueKey= is passed in query string
         const urlParams = new URLSearchParams(window.location.search);
+        const autoQueueKey = urlParams.get('queueKey');
         const autoUrl = urlParams.get('url');
+
+        if (autoQueueKey) {
+            activeQueueKey = autoQueueKey;
+        }
         if (autoUrl) {
             playlistUrlInput.value = autoUrl;
             btnClearUrl.style.display = 'inline-flex';
-            setTimeout(() => loadPlaylist(), 150);
+            setTimeout(() => loadPlaylist(autoUrl, true), 150);
+        } else if (autoQueueKey) {
+            setTimeout(() => loadPlaylist('', true), 150);
         }
     }
 
@@ -845,10 +853,13 @@
         }
 
         try {
+            if (activeQueueKey) {
+                addTerminalLog('⚡', 'Active Tab Sync: Synchronizing exact queue from Chrome Extension...');
+            }
             const resp = await fetch('/api/playlist/load', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url, limit: isMixUrl ? 25 : 100 })
+                body: JSON.stringify({ url: url, queueKey: activeQueueKey, limit: isMixUrl ? 25 : 100 })
             });
 
             const data = await resp.json();

@@ -3,8 +3,28 @@ namespace SaveZonix.Models;
 public class PlaylistLoadRequest
 {
     public string Url { get; set; } = string.Empty;
+    public string? QueueKey { get; set; }
     public int? Limit { get; set; }
     public int? Offset { get; set; }
+}
+
+public class ImportTabQueueRequest
+{
+    public string Title { get; set; } = "YouTube Mix";
+    public string Url { get; set; } = string.Empty;
+    public string? Author { get; set; } = "YouTube";
+    public List<ImportTabQueueItem> Items { get; set; } = new();
+}
+
+public class ImportTabQueueItem
+{
+    public int Index { get; set; }
+    public string Id { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string Author { get; set; } = string.Empty;
+    public string Duration { get; set; } = "00:00";
+    public string ThumbnailUrl { get; set; } = string.Empty;
+    public string Url { get; set; } = string.Empty;
 }
 
 public class PlaylistInfoResult
