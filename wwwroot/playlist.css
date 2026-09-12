@@ -2450,4 +2450,179 @@
     animation: fadeIn 0.2s ease-out;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   17. AUTO-COMPACT MODE (Activates when Playlist Loads)
+   Dramatically collapses header, stepper, input card and banner to ~110px total,
+   bringing the Video Table immediately to the top of the screen!
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Slim Topbar Header */
+.playlist-studio-container.studio-compact-mode .studio-topbar {
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.playlist-studio-container.studio-compact-mode .studio-title-block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.playlist-studio-container.studio-compact-mode .studio-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+    color: #f1f5f9;
+    letter-spacing: -0.2px;
+}
+
+.playlist-studio-container.studio-compact-mode .studio-subtitle {
+    display: none !important;
+}
+
+.playlist-studio-container.studio-compact-mode .studio-topbar-actions .btn-studio-ghost {
+    padding: 3px 10px;
+    font-size: 11px;
+    height: 26px;
+}
+
+/* Hide the bulky Stepper in compact mode */
+.playlist-studio-container.studio-compact-mode .studio-stepper {
+    display: none !important;
+}
+
+/* Hide the giant URL Input Card in compact mode */
+.playlist-studio-container.studio-compact-mode .input-card {
+    display: none !important;
+}
+
+/* Show input card when user clicks 'Change URL' */
+.playlist-studio-container.studio-compact-mode.show-url-input .input-card {
+    display: block !important;
+    margin-bottom: 10px;
+    animation: slideDown 0.18s ease-out;
+}
+
+/* Ultra-Sleek Playlist Banner Strip (~48px) */
+.playlist-studio-container.studio-compact-mode .playlist-banner-card {
+    padding: 8px 14px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(30, 41, 59, 0.65) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 3px solid var(--pl-cyan);
+}
+
+.playlist-studio-container.studio-compact-mode .banner-inner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-cover-wrapper {
+    width: 52px;
+    height: 32px;
+    min-width: 52px;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+}
+
+.playlist-studio-container.studio-compact-mode .banner-cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-badge-count {
+    display: none !important;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-meta-tag {
+    display: none !important;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0;
+    color: #f8fafc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-channel-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-desc {
+    display: none !important;
+}
+
+.banner-compact-actions {
+    display: none;
+}
+
+.playlist-studio-container.studio-compact-mode .banner-compact-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.btn-banner-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 6px;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-banner-action:hover {
+    background: rgba(14, 165, 233, 0.18);
+    border-color: #0ea5e9;
+    color: #38bdf8;
+}
+
+/* Compact Toolbar right above the table */
+.playlist-studio-container.studio-compact-mode .controls-toolbar-card {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+}
+
+.playlist-studio-container.studio-compact-mode .toolbar-row-top {
+    gap: 6px;
+}
+
+.playlist-studio-container.studio-compact-mode .toolbar-row-bottom {
+    margin-top: 6px;
+    padding-top: 6px;
+}
+
+
 

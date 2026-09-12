@@ -401,6 +401,26 @@
 
     function initEvents() {
         // Input events
+        const btnChangePlaylistUrl = document.getElementById('btnChangePlaylistUrl');
+        if (btnChangePlaylistUrl) {
+            btnChangePlaylistUrl.addEventListener('click', () => {
+                const studioContainer = document.querySelector('.playlist-studio-container');
+                if (studioContainer) {
+                    const isVisible = studioContainer.classList.toggle('show-url-input');
+                    if (isVisible) {
+                        playlistUrlInput.focus();
+                        playlistUrlInput.select();
+                    }
+                }
+            });
+        }
+
+        btnClearUrl.addEventListener('click', () => {
+            playlistUrlInput.value = '';
+            btnClearUrl.style.display = 'none';
+            playlistUrlInput.focus();
+        });
+
         playlistUrlInput.addEventListener('input', () => {
             btnClearUrl.style.display = playlistUrlInput.value.trim() ? 'inline-flex' : 'none';
         });
@@ -915,6 +935,13 @@
             playlistInfoSection.style.display = 'block';
             playlistControlsSection.style.display = 'block';
             videoListSection.style.display = 'block';
+
+            // Auto-Compact Mode: collapse top bars so video table is immediately at the top
+            const studioContainer = document.querySelector('.playlist-studio-container');
+            if (studioContainer) {
+                studioContainer.classList.add('studio-compact-mode');
+                studioContainer.classList.remove('show-url-input');
+            }
 
             updateStepper(2);
             saveRecentUrl(url, data.title || 'YouTube Playlist');
