@@ -36,7 +36,7 @@ public class PlaylistController : Controller
             return BadRequest(new { success = false, message = "Playlist URL is required." });
         }
 
-        var result = await _playlistService.LoadPlaylistAsync(req.Url, ct);
+        var result = await _playlistService.LoadPlaylistAsync(req.Url, req.Limit, req.Offset, ct);
         if (!result.Success)
         {
             return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to load playlist." });

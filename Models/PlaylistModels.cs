@@ -3,6 +3,8 @@ namespace SaveZonix.Models;
 public class PlaylistLoadRequest
 {
     public string Url { get; set; } = string.Empty;
+    public int? Limit { get; set; }
+    public int? Offset { get; set; }
 }
 
 public class PlaylistInfoResult
@@ -15,6 +17,9 @@ public class PlaylistInfoResult
     public string AuthorUrl { get; set; } = string.Empty;
     public string ThumbnailUrl { get; set; } = string.Empty;
     public int VideoCount { get; set; }
+    public int TotalKnownVideos { get; set; }
+    public bool HasMore { get; set; }
+    public bool IsMix { get; set; }
     public string Description { get; set; } = string.Empty;
     public string FormattedTotalDuration { get; set; } = string.Empty;
     public List<PlaylistVideoDto> Videos { get; set; } = new();

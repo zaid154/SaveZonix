@@ -124,13 +124,37 @@
         </div>
     </div>
 
-    <!-- Loading State Box -->
-    <div id="playlistLoadingBox" class="studio-card" style="display: none; text-align: center; padding: 48px 20px;">
-        <div style="width: 40px; height: 40px; margin: 0 auto 16px auto; border: 3px solid rgba(14,165,233,0.2); border-top-color: #0ea5e9; border-radius: 50%; animation: pulseRotate 0.8s linear infinite;"></div>
-        <h3 style="color: #fff; font-size: 17px; margin-bottom: 6px;">Fetching Playlist Information...</h3>
-        <p id="playlistLoadingText" style="color: #94a3b8; font-size: 13px; max-width: 480px; margin: 0 auto;">
+    <!-- Loading State Box with Live Studio Terminal Logger -->
+    <div id="playlistLoadingBox" class="studio-card" style="display: none; padding: 32px 24px; max-width: 680px; margin: 0 auto;">
+        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px;">
+            <div style="width: 32px; height: 32px; border: 3px solid rgba(14,165,233,0.2); border-top-color: #0ea5e9; border-radius: 50%; animation: pulseRotate 0.8s linear infinite;"></div>
+            <h3 id="playlistLoadingTitle" style="color: #fff; font-size: 18px; margin: 0; font-weight: 700;">Fetching Playlist Information...</h3>
+        </div>
+        <p id="playlistLoadingText" style="color: #94a3b8; font-size: 13px; text-align: center; margin: 0 0 20px 0;">
             Retrieving videos list and metadata from YouTube. Please wait a moment...
         </p>
+
+        <!-- Live Terminal Logger Window -->
+        <div class="studio-terminal-logger">
+            <div class="terminal-header">
+                <div class="terminal-dots">
+                    <span class="dot dot-red"></span>
+                    <span class="dot dot-amber"></span>
+                    <span class="dot dot-green"></span>
+                </div>
+                <div class="terminal-title">
+                    <span>⚡ YOUTUBE INNERTUBE STREAM RECORDER</span>
+                </div>
+                <div class="terminal-badge" id="terminalLiveBadge">LIVE</div>
+            </div>
+            <div class="terminal-body" id="playlistTerminalLogs">
+                <div class="terminal-log-line">
+                    <span class="log-time">[00:00]</span>
+                    <span class="log-icon">🌐</span>
+                    <span class="log-msg">Initializing connection to YouTube...</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Step 2: Playlist Info Header (Initially Hidden) -->
@@ -320,6 +344,35 @@
                     <option value="100">100</option>
                     <option value="all">All</option>
                 </select>
+            </div>
+        </div>
+
+        <!-- Progressive Load More Section (Shown for YouTube Mix or partial playlist) -->
+        <div id="progressiveLoadSection" class="progressive-load-card" style="display:none;">
+            <div class="progressive-load-inner">
+                <div class="progressive-info-col">
+                    <div class="progressive-title">
+                        <span class="progressive-icon">📻</span>
+                        <span id="progressiveTitleText">YouTube Mix Queue: Showing first 25 videos</span>
+                    </div>
+                    <div class="progressive-subtitle" id="progressiveSubText">
+                        Instant preview loaded in 1.1s. You can start downloading now or load additional items below.
+                    </div>
+                </div>
+                <div class="progressive-actions-col">
+                    <button type="button" id="btnLoadNextBatch" class="btn-progressive-action btn-next-batch">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                        <span>Load Next 25 Videos</span>
+                    </button>
+                    <button type="button" id="btnLoadAllVideos" class="btn-progressive-action btn-load-all">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                        <span>Load All (~400+)</span>
+                    </button>
+                </div>
+            </div>
+            <div id="progressiveLoadingBar" class="progressive-loading-status" style="display:none;">
+                <span class="status-spinner-tiny"></span>
+                <span id="progressiveLoadingMsg">Fetching next 25 videos from YouTube...</span>
             </div>
         </div>
     </div>

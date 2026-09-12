@@ -55,7 +55,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         return null;
     }
 
-    public async Task<PlaylistInfoResult> LoadPlaylistAsync(string urlOrId, CancellationToken cancellationToken = default)
+    public async Task<PlaylistInfoResult> LoadPlaylistAsync(string urlOrId, int? limit = null, int? offset = null, CancellationToken cancellationToken = default)
     {
         string? playlistId = ExtractPlaylistId(urlOrId);
         if (string.IsNullOrWhiteSpace(playlistId))
@@ -67,10 +67,45 @@ public class YouTubePlaylistService : IYouTubePlaylistService
             };
         }
 
-        // Check 15-minute memory cache for instant response
+        bool isMix = playlistId.StartsWith("RD", StringComparison.OrdinalIgnoreCase) 
+                     || urlOrId.Contains("start_radio=1", StringComparison.OrdinalIgnoreCase);
+
+        // Determine target limit:
+        // If limit is explicitly 0, load all.
+        // If limit is specified > 0, use it.
+        // If isMix and limit not specified, default to 25 (exact YouTube watch page queue).
+        // Otherwise for normal playlists, default to 100 or all.
+        int targetLimit = (limit.HasValue && limit.Value > 0) 
+            ? limit.Value 
+            : ((limit.HasValue && limit.Value == 0) ? int.MaxValue : (isMix ? 25 : 100));
+
+        int skipCount = (offset.HasValue && offset.Value > 0) ? offset.Value : 0;
+
+        // Check 15-minute memory cache for instant response if cached has enough items
         if (_cache.TryGetValue(playlistId, out var cached) && (DateTime.UtcNow - cached.CachedAt).TotalMinutes < 15)
         {
-            return cached.Result;
+            var full = cached.Result;
+            if (full.Videos != null && full.Videos.Count > 0 && (full.Videos.Count >= skipCount + targetLimit || !full.HasMore))
+            {
+                var pagedVideos = full.Videos.Skip(skipCount).Take(targetLimit).ToList();
+                bool moreAvailable = (skipCount + pagedVideos.Count) < full.Videos.Count || full.HasMore;
+                return new PlaylistInfoResult
+                {
+                    Success = true,
+                    Id = full.Id,
+                    Title = full.Title,
+                    Author = full.Author,
+                    AuthorUrl = full.AuthorUrl,
+                    ThumbnailUrl = full.ThumbnailUrl,
+                    Description = full.Description,
+                    VideoCount = pagedVideos.Count,
+                    TotalKnownVideos = full.TotalKnownVideos > 0 ? full.TotalKnownVideos : full.Videos.Count,
+                    HasMore = moreAvailable,
+                    IsMix = isMix,
+                    FormattedTotalDuration = full.FormattedTotalDuration,
+                    Videos = pagedVideos
+                };
+            }
         }
 
         try
@@ -84,15 +119,33 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                 Author = playlist.Author?.ChannelTitle ?? "YouTube Creator",
                 AuthorUrl = playlist.Author?.ChannelUrl ?? "",
                 ThumbnailUrl = playlist.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{playlistId}/hqdefault.jpg",
-                Description = playlist.Description
+                Description = playlist.Description,
+                IsMix = isMix
             };
 
             var videos = new List<PlaylistVideoDto>();
-            int index = 1;
+            int streamIndex = 0;
+            int addedIndex = 1 + skipCount;
             long totalSeconds = 0;
+            bool hasMore = false;
 
             await foreach (var video in _youtubeClient.Playlists.GetVideosAsync(playlist.Id, cancellationToken))
             {
+                streamIndex++;
+
+                // Skip items before offset
+                if (streamIndex <= skipCount)
+                {
+                    continue;
+                }
+
+                // Stop once targetLimit is reached
+                if (videos.Count >= targetLimit)
+                {
+                    hasMore = true;
+                    break;
+                }
+
                 try
                 {
                     int durationSec = (int)(video.Duration?.TotalSeconds ?? 0);
@@ -109,7 +162,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                     videos.Add(new PlaylistVideoDto
                     {
                         VideoId = video.Id.Value,
-                        Index = index++,
+                        Index = addedIndex++,
                         Title = video.Title,
                         Author = video.Author?.ChannelTitle ?? "Unknown",
                         DurationSeconds = durationSec,
@@ -125,7 +178,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                     videos.Add(new PlaylistVideoDto
                     {
                         VideoId = video.Id.Value,
-                        Index = index++,
+                        Index = addedIndex++,
                         Title = video.Title ?? "Unavailable Video",
                         Author = video.Author?.ChannelTitle ?? "Unknown",
                         DurationSeconds = 0,
@@ -138,6 +191,8 @@ public class YouTubePlaylistService : IYouTubePlaylistService
             }
 
             result.VideoCount = videos.Count;
+            result.TotalKnownVideos = hasMore ? (isMix ? 400 : (skipCount + videos.Count + 50)) : (skipCount + videos.Count);
+            result.HasMore = hasMore;
             result.Videos = videos;
 
             var ts = TimeSpan.FromSeconds(totalSeconds);
@@ -145,7 +200,12 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                 ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
                 : $"{ts.Minutes}m {ts.Seconds}s";
 
-            _cache[playlistId] = (DateTime.UtcNow, result);
+            // If we loaded a large or complete batch, update cache
+            if (skipCount == 0)
+            {
+                _cache[playlistId] = (DateTime.UtcNow, result);
+            }
+
             return result;
         }
         catch (PlaylistUnavailableException)

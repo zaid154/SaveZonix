@@ -130,6 +130,38 @@
     const completionStatSpeed = document.getElementById('completionStatSpeed');
     const btnCompletionOpenFolder = document.getElementById('btnCompletionOpenFolder');
 
+    // Progressive Loading & Terminal Logger Elements
+    let currentPlaylistUrl = '';
+    let logStartTime = 0;
+    const playlistTerminalLogs = document.getElementById('playlistTerminalLogs');
+    const progressiveLoadSection = document.getElementById('progressiveLoadSection');
+    const progressiveTitleText = document.getElementById('progressiveTitleText');
+    const progressiveSubText = document.getElementById('progressiveSubText');
+    const btnLoadNextBatch = document.getElementById('btnLoadNextBatch');
+    const btnLoadAllVideos = document.getElementById('btnLoadAllVideos');
+    const progressiveLoadingBar = document.getElementById('progressiveLoadingBar');
+    const progressiveLoadingMsg = document.getElementById('progressiveLoadingMsg');
+
+    function resetTerminalLogs() {
+        if (!playlistTerminalLogs) return;
+        playlistTerminalLogs.innerHTML = '';
+        logStartTime = Date.now();
+    }
+
+    function addTerminalLog(icon, msg, isHighlight = false) {
+        if (!playlistTerminalLogs) return;
+        const elapsed = ((Date.now() - logStartTime) / 1000).toFixed(1);
+        const line = document.createElement('div');
+        line.className = 'terminal-log-line' + (isHighlight ? ' log-highlight' : '');
+        line.innerHTML = `
+            <span class="log-time">[+${elapsed}s]</span>
+            <span class="log-icon">${icon}</span>
+            <span class="log-msg">${escapeHtml(msg)}</span>
+        `;
+        playlistTerminalLogs.appendChild(line);
+        playlistTerminalLogs.scrollTop = playlistTerminalLogs.scrollHeight;
+    }
+
     function isDownloadActive() {
         if (!activeJobId) return false;
         if (!currentJobState) return true;
@@ -502,6 +534,14 @@
             });
         }
 
+        // Progressive Load More Events
+        if (btnLoadNextBatch) {
+            btnLoadNextBatch.addEventListener('click', () => loadMoreVideos(25, false));
+        }
+        if (btnLoadAllVideos) {
+            btnLoadAllVideos.addEventListener('click', () => loadMoreVideos(0, true));
+        }
+
         // Download actions
         btnDownloadSelected.addEventListener('click', downloadSelectedVideos);
         btnDownloadAll.addEventListener('click', downloadAllVideos);
@@ -760,13 +800,14 @@
     }
 
     async function loadPlaylist(overrideUrl, bypassHybridCheck = false) {
-        const url = (overrideUrl || playlistUrlInput.value || '').trim();
+        const url = (typeof overrideUrl === 'string' && overrideUrl ? overrideUrl : playlistUrlInput.value || '').trim();
         if (!url) {
             showAlert('Input Required', 'Please enter or paste a valid YouTube Playlist URL.');
             playlistUrlInput.focus();
             return;
         }
 
+        currentPlaylistUrl = url;
         playlistUrlInput.value = url;
         btnClearUrl.style.display = 'inline-flex';
 
@@ -791,20 +832,36 @@
         playlistInfoSection.style.display = 'none';
         playlistControlsSection.style.display = 'none';
         videoListSection.style.display = 'none';
+        if (progressiveLoadSection) progressiveLoadSection.style.display = 'none';
+
+        resetTerminalLogs();
+        addTerminalLog('🌐', 'Connecting to YouTube Innertube API...');
+        const isMixUrl = url.includes('list=RD') || url.includes('start_radio=1');
+        if (isMixUrl) {
+            addTerminalLog('📻', 'Detected: YouTube Mix Radio Queue');
+            addTerminalLog('⚡', 'Progressive Mode: Loading first 25 queue videos for instant preview...');
+        } else {
+            addTerminalLog('🔍', 'Querying YouTube playlist metadata and stream info...');
+        }
 
         try {
             const resp = await fetch('/api/playlist/load', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
+                body: JSON.stringify({ url: url, limit: isMixUrl ? 25 : 100 })
             });
 
             const data = await resp.json();
             if (!resp.ok || !data.success) {
+                addTerminalLog('❌', data.message || 'Failed to load playlist.', true);
                 showAlert('Playlist Loading Failed', data.message || 'Unable to fetch YouTube playlist.');
                 if (playlistWelcomeState) playlistWelcomeState.style.display = 'block';
                 return;
             }
+
+            const elapsed = ((Date.now() - logStartTime) / 1000).toFixed(1);
+            addTerminalLog('📦', `Received ${data.videos?.length || 0} videos in ${elapsed}s`);
+            addTerminalLog('✅', 'Ready! Initializing Studio table workspace...', true);
 
             currentPlaylist = data;
             selectedVideoIds.clear();
@@ -842,6 +899,7 @@
             renderPlaylistBanner(data);
             renderVideosTable();
             updateSelectionMetrics();
+            updateProgressiveSection(data);
 
             playlistInfoSection.style.display = 'block';
             playlistControlsSection.style.display = 'block';
@@ -851,11 +909,113 @@
             saveRecentUrl(url, data.title || 'YouTube Playlist');
 
         } catch (err) {
+            addTerminalLog('❌', err.message || 'Network communication error', true);
             showAlert('Network Error', err.message || 'An unexpected error occurred while loading playlist.');
             if (playlistWelcomeState) playlistWelcomeState.style.display = 'block';
         } finally {
             if (playlistLoadingBox) playlistLoadingBox.style.display = 'none';
             setLoading(false);
+        }
+    }
+
+    function updateProgressiveSection(data) {
+        if (!progressiveLoadSection) return;
+        const isMix = data?.isMix || (currentPlaylistUrl && (currentPlaylistUrl.includes('list=RD') || currentPlaylistUrl.includes('start_radio=1')));
+        const hasMore = data ? data.hasMore : (loadedVideos.length < 300);
+
+        if (hasMore || (isMix && loadedVideos.length < 350)) {
+            progressiveLoadSection.style.display = 'block';
+            if (progressiveTitleText) {
+                progressiveTitleText.textContent = isMix
+                    ? `YouTube Mix Queue: Showing first ${loadedVideos.length} videos`
+                    : `Playlist Preview: Showing ${loadedVideos.length} of ${data?.totalKnownVideos || 'more'} videos`;
+            }
+            if (progressiveSubText) {
+                progressiveSubText.textContent = `Instant preview ready. You can start downloading now or load additional items below.`;
+            }
+            if (btnLoadNextBatch) {
+                btnLoadNextBatch.style.display = 'inline-flex';
+                const span = btnLoadNextBatch.querySelector('span');
+                if (span) span.textContent = `Load Next 25 Videos (From #${loadedVideos.length + 1})`;
+            }
+            if (btnLoadAllVideos) {
+                btnLoadAllVideos.style.display = 'inline-flex';
+            }
+        } else {
+            progressiveLoadSection.style.display = 'none';
+        }
+    }
+
+    async function loadMoreVideos(batchSize = 25, loadAll = false) {
+        if (!currentPlaylistUrl) return;
+        if (btnLoadNextBatch) btnLoadNextBatch.disabled = true;
+        if (btnLoadAllVideos) btnLoadAllVideos.disabled = true;
+        if (progressiveLoadingBar) {
+            progressiveLoadingBar.style.display = 'flex';
+            if (progressiveLoadingMsg) {
+                progressiveLoadingMsg.textContent = loadAll
+                    ? 'Fetching all remaining videos from YouTube... Please wait a moment...'
+                    : `Fetching next ${batchSize} videos (#${loadedVideos.length + 1} to #${loadedVideos.length + batchSize}) from YouTube...`;
+            }
+        }
+
+        try {
+            const resp = await fetch('/api/playlist/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    url: currentPlaylistUrl,
+                    limit: loadAll ? 0 : batchSize,
+                    offset: loadedVideos.length
+                })
+            });
+
+            const data = await resp.json();
+            if (!resp.ok || !data.success) {
+                showAlert('Load More Failed', data.message || 'Could not fetch additional videos.');
+                return;
+            }
+
+            const newVideos = data.videos || [];
+            if (newVideos.length === 0) {
+                if (progressiveLoadSection) progressiveLoadSection.style.display = 'none';
+                return;
+            }
+
+            const startIdx = loadedVideos.length;
+            newVideos.forEach((v, i) => {
+                const globalIdx = startIdx + i + 1;
+                v.originalIndex = globalIdx;
+                v.index = globalIdx;
+                if (v.isAvailable && !removedVideoIds.has(v.videoId)) {
+                    selectedVideoIds.add(v.videoId);
+                }
+                loadedVideos.push(v);
+            });
+
+            if (bannerCountBadge) bannerCountBadge.textContent = `${loadedVideos.length} Videos`;
+            if (data.formattedTotalDuration && bannerDuration) {
+                bannerDuration.textContent = data.formattedTotalDuration;
+            }
+
+            // Auto-advance to next page if pageSize is active and current page was full
+            if (pageSize !== 'all') {
+                const prevTotalPages = Math.ceil(startIdx / pageSize);
+                if (currentPage === prevTotalPages) {
+                    currentPage++;
+                }
+            }
+
+            renderVideosTable();
+            updateSelectionMetrics();
+            updateProgressiveSection(data);
+
+        } catch (err) {
+            showAlert('Network Error', err.message || 'Error fetching additional videos.');
+        } finally {
+            if (btnLoadNextBatch) btnLoadNextBatch.disabled = false;
+            if (btnLoadAllVideos) btnLoadAllVideos.disabled = false;
+            if (progressiveLoadingBar) progressiveLoadingBar.style.display = 'none';
         }
     }
 
