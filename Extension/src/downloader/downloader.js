@@ -522,8 +522,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (platform === 'YouTube' || (candidates[0] && candidates[0].includes('googlevideo.com'))) {
-            const ytUrl = candidates[0].includes('googlevideo.com') ? (window.location.href.split('url=')[1] ? decodeURIComponent(window.location.href.split('url=')[1].split('&')[0]) : '') : '';
-            showError(`YouTube uses adaptive DASH streams with separate video & audio channels.<br><a href="http://localhost:5000/?url=${encodeURIComponent(ytUrl || 'https://www.youtube.com')}" target="_blank" style="display:inline-block; margin-top:8px; padding:6px 14px; background:#2563eb; color:#fff; border-radius:6px; font-weight:700; text-decoration:none;">🚀 Download 1080p with Zonix Desktop</a>`);
+            let cleanUrl = 'https://www.youtube.com';
+            const urlParams = new URLSearchParams(window.location.search);
+            const rawParamUrl = urlParams.get('url') || '';
+            if (rawParamUrl.includes('youtube.com') || rawParamUrl.includes('youtu.be')) {
+                cleanUrl = rawParamUrl;
+            }
+            showError(`YouTube uses adaptive DASH streams (separate 1080p/4K video & audio tracks).<br><br>
+                <a href="http://localhost:5000/?url=${encodeURIComponent(cleanUrl)}&autoDownload=1" target="_blank" style="display:inline-block; padding:8px 16px; background:#0284c7; color:#fff; border-radius:6px; font-weight:700; text-decoration:none; box-shadow:0 2px 8px rgba(2,132,199,0.4);">
+                    🚀 Download with Zonix Desktop (1080p / 4K)
+                </a>`);
             return;
         }
 
@@ -852,7 +860,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function showError(msg) {
         if (elStatusHeading) elStatusHeading.textContent = 'Download failed';
-        if (elErrorMessage) elErrorMessage.textContent = msg;
+        if (elErrorMessage) elErrorMessage.innerHTML = msg;
         if (elErrorBox) elErrorBox.classList.remove('hidden');
         if (elBtnPause) elBtnPause.classList.add('hidden');
         if (elBtnCancel) elBtnCancel.classList.add('hidden');

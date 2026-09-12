@@ -61,6 +61,9 @@
 
             // 3. Extract Video ID for High-Res Thumbnail
             const urlParams = new URLSearchParams(window.location.search);
+            const listId = urlParams.get('list') || '';
+            const isPlaylist = Boolean(listId || window.location.pathname.includes('/playlist'));
+
             if (urlParams.has('v')) {
                 videoId = urlParams.get('v');
             } else if (window.location.pathname.includes('/shorts/')) {
@@ -82,7 +85,9 @@
                 subtitle: channel,
                 title: finalTitle,
                 thumbnail: thumbnail,
-                videoId: videoId
+                videoId: videoId,
+                listId: listId,
+                isPlaylist: isPlaylist
             };
         },
 

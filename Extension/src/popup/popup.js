@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settingThreads = document.getElementById('settingThreads');
     const settingRemember = document.getElementById('settingRemember');
     const settingAutoEpisode = document.getElementById('settingAutoEpisode');
+    const ytChoiceModal = document.getElementById('ytChoiceModal');
+    const btnCloseYtModal = document.getElementById('btnCloseYtModal');
+    const btnYtModalSingle = document.getElementById('btnYtModalSingle');
+    const btnYtModalPlaylist = document.getElementById('btnYtModalPlaylist');
 
     let livePageMetadata = null;
     let liveThumbnail = '';
@@ -45,6 +49,60 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const currentSiteName = resolveSiteName();
     const stableDeterministicId = `vid_${tab.id}_${currentSiteName.toLowerCase()}`;
+
+    function getYouTubeDetails(url) {
+        try {
+            if (!url) return null;
+            const u = new URL(url);
+            const isYtHost = u.hostname.includes('youtube.com') || u.hostname.includes('youtu.be');
+            if (!isYtHost) return null;
+
+            const v = u.searchParams.get('v');
+            const list = u.searchParams.get('list');
+            const isPlaylistPage = u.pathname.includes('/playlist');
+            const hasPlaylist = Boolean(list || isPlaylistPage);
+            const singleVideoUrl = v ? `https://www.youtube.com/watch?v=${v}` : url;
+            const playlistUrl = url;
+
+            return {
+                isYt: true,
+                hasPlaylist,
+                isPlaylistPage,
+                videoId: v,
+                listId: list,
+                singleVideoUrl,
+                playlistUrl
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    const ytDetails = getYouTubeDetails(currentTabUrl);
+
+    if (btnCloseYtModal) {
+        btnCloseYtModal.addEventListener('click', () => {
+            if (ytChoiceModal) ytChoiceModal.classList.add('hidden');
+        });
+    }
+    if (btnYtModalSingle) {
+        btnYtModalSingle.addEventListener('click', () => {
+            const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
+            chrome.tabs.create({
+                url: `http://localhost:5000/?url=${encodeURIComponent(singleUrl)}&autoDownload=1`
+            });
+            window.close();
+        });
+    }
+    if (btnYtModalPlaylist) {
+        btnYtModalPlaylist.addEventListener('click', () => {
+            const plUrl = (ytDetails && ytDetails.playlistUrl) || currentTabUrl;
+            chrome.tabs.create({
+                url: `http://localhost:5000/playlist?url=${encodeURIComponent(plUrl)}`
+            });
+            window.close();
+        });
+    }
 
     function getFallbackTitle() {
         if (!currentTabTitle) return 'Video';
@@ -320,6 +378,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                     ? `<span class="duration-chip">${video.duration}</span>`
                     : '';
 
+                let actionRowHtml = '';
+                if ((currentSiteName === 'YouTube' || video.isYouTube || isYT) && ytDetails && ytDetails.hasPlaylist && ytDetails.videoId) {
+                    actionRowHtml = `
+                        <div class="card-action-row" style="margin-top: 10px;">
+                            <div class="yt-choice-group">
+                                <button class="btn-yt-choice btn-yt-single" id="btn_yt_single_${video.id}">
+                                    <span>🎬 Download Single Video (1080p/4K)</span>
+                                </button>
+                                <button class="btn-yt-choice btn-yt-playlist" id="btn_yt_playlist_${video.id}">
+                                    <span>📁 Download Full Playlist / Mix</span>
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                } else if ((currentSiteName === 'YouTube' || video.isYouTube || isYT) && ytDetails && ytDetails.isPlaylistPage) {
+                    actionRowHtml = `
+                        <div class="card-action-row" style="margin-top: 10px;">
+                            <button class="btn-yt-choice btn-yt-playlist" id="btn_yt_playlist_${video.id}" style="width: 100%;">
+                                <span>📁 Download Entire Playlist in Zonix Studio</span>
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    actionRowHtml = `
+                        <div class="card-action-row" style="margin-top: 10px;">
+                            <button class="btn-primary-download" id="btn_dl_${video.id}" style="width: 100%;">
+                                <span>${(currentSiteName === 'YouTube' || video.isYouTube || isYT) ? '🚀 Download with Zonix (1080p / 4K)' : buttonLabel}</span>
+                            </button>
+                        </div>
+                    `;
+                }
+
                 card.innerHTML = `
                     <div class="card-main-row">
                         <div class="card-thumb-box" id="thumb_box_${video.id}">
@@ -331,7 +421,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div class="show-subtitle-text" id="sub_${video.id}">${currentSub}</div>
                             <div class="meta-badges-row">
                                 <span class="badge-tag" id="res_tag_${video.id}">${isAlreadyDownloaded ? 'Downloaded' : (isDownloadPossible ? 'Ready' : 'Stream')}</span>
-                                <span class="badge-tag">${currentSiteName}</span>
+                                <span class="badge-tag">${(ytDetails && ytDetails.hasPlaylist) ? 'YouTube Mix' : currentSiteName}</span>
                             </div>
                         </div>
                     </div>
@@ -348,11 +438,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                     </div>
 
-                    <div class="card-action-row" style="margin-top: 10px;">
-                        <button class="btn-primary-download" id="btn_dl_${video.id}" style="width: 100%;">
-                            <span>${buttonLabel}</span>
-                        </button>
-                    </div>
+                    ${actionRowHtml}
                     <div class="error-banner ${isDownloadPossible ? 'hidden' : ''}" id="err_${video.id}">
                         ${video.downloadNotice || `${currentSiteName} stream detected.`}
                     </div>
@@ -395,10 +481,57 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (video.isYouTube || siteName === 'YouTube' || isYT) {
             const qOpt = video.qualityLabel || (video.resolution ? `${video.resolution} HD (MP4)` : '1080p Full HD (MP4)');
             qualSelect.innerHTML = `<option value="${currentTabUrl}">${qOpt}</option>`;
-            dlBtn.innerHTML = `<span>🚀 Download with Zonix (Desktop)</span>`;
-            dlBtn.disabled = false;
-            resTag.textContent = 'Ready';
+            resTag.textContent = (ytDetails && ytDetails.hasPlaylist) ? 'Playlist' : 'Ready';
             errBanner.classList.add('hidden');
+
+            const btnYtSingle = card.querySelector(`#btn_yt_single_${video.id}`);
+            const btnYtPlaylist = card.querySelector(`#btn_yt_playlist_${video.id}`);
+
+            if (btnYtSingle) {
+                btnYtSingle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
+                    chrome.tabs.create({
+                        url: `http://localhost:5000/?url=${encodeURIComponent(singleUrl)}&autoDownload=1`
+                    });
+                    window.close();
+                });
+            }
+
+            if (btnYtPlaylist) {
+                btnYtPlaylist.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const plUrl = (ytDetails && ytDetails.playlistUrl) || currentTabUrl;
+                    chrome.tabs.create({
+                        url: `http://localhost:5000/playlist?url=${encodeURIComponent(plUrl)}`
+                    });
+                    window.close();
+                });
+            }
+
+            if (dlBtn) {
+                dlBtn.disabled = false;
+                dlBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (ytDetails && ytDetails.hasPlaylist && ytDetails.videoId) {
+                        if (ytChoiceModal) ytChoiceModal.classList.remove('hidden');
+                        return;
+                    }
+                    if (ytDetails && ytDetails.isPlaylistPage) {
+                        chrome.tabs.create({
+                            url: `http://localhost:5000/playlist?url=${encodeURIComponent(currentTabUrl)}`
+                        });
+                        window.close();
+                        return;
+                    }
+                    const target = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
+                    chrome.tabs.create({
+                        url: `http://localhost:5000/?url=${encodeURIComponent(target)}&autoDownload=1`
+                    });
+                    window.close();
+                });
+            }
+            return;
         }
 
         if (video.platform === 'Instagram' && video.isRestricted && !video.isDownloadable) {
@@ -467,6 +600,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (dlBtn.disabled) return;
 
             const targetUrl = qualSelect.value || video.url;
+
+            if (isYT || video.isYouTube || (targetUrl && (targetUrl.includes('youtube.com') || targetUrl.includes('youtu.be') || targetUrl.includes('googlevideo.com')))) {
+                if (ytDetails && ytDetails.hasPlaylist && ytDetails.videoId) {
+                    if (ytChoiceModal) ytChoiceModal.classList.remove('hidden');
+                    return;
+                }
+                if (ytDetails && ytDetails.isPlaylistPage) {
+                    chrome.tabs.create({ url: `http://localhost:5000/playlist?url=${encodeURIComponent(currentTabUrl)}` });
+                    window.close();
+                    return;
+                }
+                const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
+                chrome.tabs.create({
+                    url: `http://localhost:5000/?url=${encodeURIComponent(singleUrl)}&autoDownload=1`
+                });
+                window.close();
+                return;
+            }
+
             if (targetUrl && targetUrl.startsWith('http')) {
                 // KVS pages expose a short-lived signed `/get_file/` MP4 URL.  A
                 // Manifest-V3 extension runs from an isolated origin, which can
