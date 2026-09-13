@@ -12,7 +12,7 @@ const DEFAULT_CONFIG = {
   freeDailyLimit: 10,
   lock4KForVip: true,
   vipMonthlyPriceINR: 99,
-  appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/latest',
+  appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe',
   announcementMessage: ''
 };
 

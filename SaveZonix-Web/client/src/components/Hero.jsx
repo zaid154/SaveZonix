@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function Hero({ appConfig }) {
-  const downloadUrl = appConfig?.appDownloadUrl || 'https://github.com/zaid154/SaveZonix/releases/latest';
+  const downloadUrl = appConfig?.appDownloadUrl || 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe';
   const version = appConfig?.latestAppVersion || '2.5.0';
 
   return (
