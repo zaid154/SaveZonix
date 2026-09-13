@@ -1,0 +1,472 @@
+@{
+    ViewData["Title"] = "Ultra High-Speed Video Stream Downloader";
+    ViewData["ActiveNav"] = "Home";
+}
+
+<!-- Hero Section -->
+<section class="hero" style="padding: 20px 0 24px;">
+    <div class="container">
+        <div class="hero-header-compact" style="text-align: center; margin-bottom: 20px;">
+            <h1 style="font-size: 24px; font-weight: 800; color: #f8fafc; letter-spacing: -0.3px; margin: 0 0 6px 0;">
+                Zonix Turbo <span style="background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Downloader</span>
+            </h1>
+            <p style="font-size: 13px; color: #94a3b8; margin: 0;">
+                Ultra high-speed parallel video, music, and playlist downloads
+            </p>
+        </div>
+
+        <!-- Core Video & Playlist Downloader Card -->
+        <div class="downloader-wrapper">
+            <div class="downloader-card">
+                <div class="card-heading">
+                    <div class="heading-left">
+                        <h2 class="card-title">Paste Video or Playlist Link</h2>
+                    </div>
+                    <div class="heading-right">
+                        <span class="badge badge-strategy" id="strategyBadge">Auto-Detect &bull; High Speed</span>
+                        <span class="badge badge-threads" id="topThreadsBadge" style="display:none;">256x Hyper Engine</span>
+                    </div>
+                </div>
+
+                <!-- Input Form -->
+                <div class="input-group">
+                    <div class="input-wrapper">
+                        <input type="url" id="streamUrl" placeholder="Paste YouTube, Playlist, or Video URL here..." autocomplete="off">
+                        <button id="btnPaste" class="btn btn-secondary btn-icon-text" type="button" title="Paste from clipboard">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                            <span>Paste</span>
+                        </button>
+                        <button id="btnAnalyze" class="btn btn-primary btn-icon-text" type="button">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            <span class="btn-text">Analyze</span>
+                            <div class="spinner hidden" id="analyzeSpinner"></div>
+                        </button>
+                    </div>
+                    <div class="input-helper-tip">
+                        <span>💡 Paste any YouTube video link, shorts, or full playlist URL to start.</span>
+                    </div>
+                </div>
+
+                <!-- Error Alert -->
+                <div id="errorBox" class="alert error hidden">
+                    <span class="alert-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    </span>
+                    <span id="errorMessage">Error analyzing stream URL</span>
+                </div>
+
+                <!-- Stream Details (Populated on Analyze) -->
+                <div id="streamDetails" class="stream-details hidden">
+                    <div class="divider"></div>
+                    
+                    <!-- Clean Video & Audio Preview Card -->
+                    <div class="video-preview-card" style="display: flex; gap: 18px; align-items: center; background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+                        <div class="video-thumb" id="videoThumbWrapper" style="position: relative; width: 140px; height: 85px; border-radius: 8px; overflow: hidden; background: #0d1117; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 1px solid #30363d;">
+                            <img id="videoThumbImg" src="" alt="Thumbnail" referrerpolicy="no-referrer" style="width: 100%; height: 100%; object-fit: cover; display: none;">
+                            <div class="thumb-fallback" id="thumbFallback" style="font-size: 28px; color: #58a6ff;">🎬</div>
+                            <span class="thumb-duration-badge" id="thumbDuration" style="position: absolute; bottom: 6px; right: 6px; background: rgba(0,0,0,0.8); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">00:00</span>
+                        </div>
+
+                        <div class="video-meta" style="flex: 1; min-width: 0;">
+                            <div class="meta-badges" style="display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap;">
+                                <span class="badge badge-platform" id="badgePlatform" style="background: #21262d; color: #58a6ff; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Web Stream</span>
+                                <span class="badge badge-duration" id="badgeDuration" style="background: #21262d; color: #8b949e; font-size: 11px; padding: 2px 8px; border-radius: 4px;">--:--</span>
+                                <span class="badge badge-size" id="badgeEstSize" style="background: #238636; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">0 MB</span>
+                            </div>
+                            <h3 class="video-title" id="videoTitleDisplay" style="font-size: 15px; font-weight: 700; color: #f0f6fc; margin: 0 0 4px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Video Title</h3>
+                            <p class="video-desc" id="videoDescDisplay" style="font-size: 12px; color: #8b949e; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: none;"></p>
+                        </div>
+                    </div>
+
+                    <!-- Modern Format Switcher Tabs (Video vs Audio MP3) -->
+                    <div class="format-switcher" style="display: flex; gap: 10px; margin-bottom: 18px;">
+                        <button type="button" id="tabModeVideo" class="btn-format-tab active" onclick="switchFormatMode('video')" style="flex: 1; padding: 12px; border-radius: 8px; border: 1.5px solid #38bdf8; background: #1e293b; color: #38bdf8; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
+                            <span>🎬 Video (MP4)</span>
+                        </button>
+                        <button type="button" id="tabModeAudio" class="btn-format-tab" onclick="switchFormatMode('audio')" style="flex: 1; padding: 12px; border-radius: 8px; border: 1.5px solid #30363d; background: #0f172a; color: #94a3b8; font-weight: 700; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s ease;">
+                            <span>🎵 Audio Only (MP3)</span>
+                        </button>
+                    </div>
+
+                    <!-- Configuration Grid -->
+                    <div class="config-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px;">
+                        <div class="form-control">
+                            <label for="qualitySelect" id="lblQualitySelect" style="font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; display: block;">Video Quality</label>
+                            <select id="qualitySelect" class="select-input" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 10px 12px; border-radius: 8px; font-size: 13px;">
+                                <option value="">Detecting qualities...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-control">
+                            <label for="fileNameInput" style="font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; display: block;">File Name</label>
+                            <input type="text" id="fileNameInput" class="text-input" placeholder="video_name.mp4" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #f8fafc; padding: 10px 12px; border-radius: 8px; font-size: 13px;">
+                        </div>
+                    </div>
+
+                    <!-- Collapsible Clean Advanced Settings Accordion -->
+                    <details class="advanced-options-accordion">
+                        <summary class="advanced-summary">
+                            <span class="advanced-summary-text">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                <span>Advanced Speed &amp; Thread Options</span>
+                            </span>
+                            <span class="advanced-arrow">▾</span>
+                        </summary>
+                        <div class="advanced-body">
+                            <div class="concurrency-control-box" style="background: transparent; border: none; padding: 0; margin-bottom: 12px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                    <label style="font-size: 12.5px; font-weight: 600; color: #cbd5e1; margin: 0;">⚡ Parallel Concurrency Threads</label>
+                                    <span id="threadsValue" style="font-size: 12px; font-weight: 700; color: #38bdf8; font-family: monospace; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.2); padding: 2px 8px; border-radius: 6px;">64 Workers (Turbo)</span>
+                                </div>
+                                <div class="thread-presets" style="display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap;">
+                                    <button type="button" class="btn-thread-preset" data-threads="16">16x</button>
+                                    <button type="button" class="btn-thread-preset" data-threads="32">32x</button>
+                                    <button type="button" class="btn-thread-preset active" data-threads="64">64x Turbo</button>
+                                    <button type="button" class="btn-thread-preset" data-threads="128">128x Ultra</button>
+                                    <button type="button" class="btn-thread-preset" data-threads="256">256x Max</button>
+                                </div>
+                                <input type="range" id="threadsRange" min="16" max="256" step="16" value="64" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+                            </div>
+
+                            <!-- Destination Directory -->
+                            <div class="dest-location-row" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 8px 12px; margin-bottom: 4px;">
+                                <div class="dest-info" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    <span>Folder:</span>
+                                    <span class="dest-path" id="destPathDisplay" style="color: #cbd5e1; font-family: monospace;">/Downloads/</span>
+                                </div>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btnBrowseFolder" style="padding: 3px 8px; font-size: 11px;">Open Folder</button>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Main Action Download Button -->
+                    <button id="btnStartDownload" class="btn-turbo" style="width: 100%; padding: 14px; font-size: 15px; font-weight: 700; border-radius: 10px;">
+                        <span id="btnDownloadText">⬇️ Download Video (MP4)</span>
+                    </button>
+                </div>
+
+                <!-- Progress Section with Live Video Banner, Canvas Graph & Rich Metrics -->
+                <div id="progressSection" class="progress-section hidden">
+                    <div class="divider"></div>
+
+                    <!-- Compact Active Download Video Banner -->
+                    <div class="active-download-banner">
+                        <div class="active-thumb-wrap">
+                            <img id="activeThumbImg" src="" alt="" style="display: none;">
+                            <div class="active-thumb-fallback" id="activeThumbFallback">▶</div>
+                        </div>
+                        <div class="active-info">
+                            <h4 class="active-title" id="activeTitleDisplay">Downloading Video Stream...</h4>
+                            <div class="active-badges">
+                                <span class="badge badge-platform" id="activePlatformBadge">Web Stream</span>
+                                <span class="badge badge-threads" id="activeThreadsBadge">64 Active Workers</span>
+                                <span class="badge badge-size" id="activeQualityBadge">1080p FHD</span>
+                                <span class="badge badge-strategy" id="activeStrategyBadge">Multi-Segment</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Visible Pause / Resume and Cancel Action Controls -->
+                        <div class="download-action-controls">
+                            <button type="button" class="btn btn-secondary btn-icon-text" id="btnPauseResume">
+                                <svg id="pauseResumeIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
+                                <span id="pauseResumeText">Pause</span>
+                            </button>
+                            <button type="button" class="btn btn-danger-subtle btn-icon-text" id="btnCancelDownload">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                <span>Cancel</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-header">
+                        <div class="status-indicator-group">
+                            <span class="status-dot pulsing"></span>
+                            <span class="status-badge" id="statusBadge">Downloading in Parallel...</span>
+                        </div>
+                        <span class="percentage-text" id="percentText">0%</span>
+                    </div>
+
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="progressBarFill" style="width: 0%;"></div>
+                    </div>
+
+                    <!-- Clean Real-Time Throughput Graph -->
+                    <div class="throughput-container">
+                        <div class="throughput-header">
+                            <span class="throughput-title">Live Transfer Speed</span>
+                            <div class="throughput-stats">
+                                <span class="stat-tag" id="statCurSpeed">Current: 0.0 MB/s</span>
+                                <span class="stat-tag peak" id="statPeakSpeed">Peak: 0.0 MB/s</span>
+                                <span class="stat-tag avg" id="statAvgSpeed">Avg: 0.0 MB/s</span>
+                            </div>
+                        </div>
+                        <canvas id="speedSparklineCanvas" class="speed-sparkline-canvas" width="600" height="48"></canvas>
+                    </div>
+
+                    <!-- Clean 3 Primary Metric Cards (With Secondary Technical Stats Preserved for JS) -->
+                    <div class="metrics-grid six-cards">
+                        <div class="metric-card">
+                            <span class="metric-label">Download Speed</span>
+                            <span class="metric-value speed" id="metricSpeed">0.0 MB/s</span>
+                            <span class="metric-sub" id="metricPeakSpeedSub">Peak: 0.0 MB/s</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Downloaded Size</span>
+                            <span class="metric-value" id="metricSize">0 MB / 0 MB</span>
+                            <span class="metric-sub" id="metricSizePct">0% complete</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-label">Estimated Time Left</span>
+                            <span class="metric-value" id="metricEta">Calculating...</span>
+                            <span class="metric-sub" id="metricElapsedSub">Elapsed: 00:00</span>
+                        </div>
+                        <div class="metric-card" style="opacity: 0.75;">
+                            <span class="metric-label">Active Connections</span>
+                            <span class="metric-value" id="metricWorkers">64 Workers</span>
+                            <span class="metric-sub" id="metricMaxThreadsSub">Max: 64 Concurrency</span>
+                        </div>
+                        <div class="metric-card" style="opacity: 0.75;">
+                            <span class="metric-label">Downloaded Parts</span>
+                            <span class="metric-value" id="metricChunks">0 / 0 Parts</span>
+                            <span class="metric-sub" id="metricChunksSub">0 Retrying</span>
+                        </div>
+                        <div class="metric-card" style="opacity: 0.75;">
+                            <span class="metric-label">Connection Health</span>
+                            <span class="metric-value status-good" id="metricHealth">Optimal</span>
+                            <span class="metric-sub" id="metricRetrySub">100% Stable</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modern Luxury Success Section -->
+                <div id="successSection" class="success-section hidden">
+                    <div class="divider"></div>
+                    <div class="pro-success-card">
+                        <div class="pro-success-glow"></div>
+                        <div class="pro-success-icon-wrap">
+                            <div class="pro-success-pulse-ring"></div>
+                            <div class="pro-success-icon">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="pro-success-text-block">
+                            <h3 class="pro-success-title">Download Completed Successfully!</h3>
+                            <p id="successSummary" class="pro-success-meta">Completed in 5.8s • File Size: 457 MB • Peak: 12.9 MB/s</p>
+                        </div>
+
+                        <div class="pro-success-metrics-pill">
+                            <div class="pro-metric-chip">
+                                <span class="chip-dot dot-green"></span>
+                                <span>100% Verified</span>
+                            </div>
+                            <div class="pro-metric-chip">
+                                <span class="chip-dot dot-blue"></span>
+                                <span>Saved in Downloads</span>
+                            </div>
+                            <div class="pro-metric-chip">
+                                <span class="chip-dot dot-amber"></span>
+                                <span>Zero Losses</span>
+                            </div>
+                        </div>
+
+                        <div class="pro-success-actions">
+                            <a id="btnDirectSave" class="pro-btn-action pro-btn-primary" href="#" download>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                <span id="btnDirectSaveText">Save Video (.mp4)</span>
+                            </a>
+                            <button id="btnOpenFolder" class="pro-btn-action pro-btn-secondary" type="button">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                <span>Open Folder</span>
+                            </button>
+                            <button id="btnReset" class="pro-btn-action pro-btn-ghost" type="button">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                                <span>Download Another</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Professional Performance Stats Banner -->
+        <div class="pro-stats-container">
+            <div class="pro-stat-card">
+                <div class="pro-stat-icon-wrapper icon-emerald">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </div>
+                <div class="pro-stat-content">
+                    <div class="pro-stat-num">100% Free</div>
+                    <div class="pro-stat-sub">Zero Ads • No Subscription</div>
+                </div>
+            </div>
+
+            <div class="pro-stat-divider"></div>
+
+            <div class="pro-stat-card">
+                <div class="pro-stat-icon-wrapper icon-sky">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                </div>
+                <div class="pro-stat-content">
+                    <div class="pro-stat-num">4K &amp; 1080p</div>
+                    <div class="pro-stat-sub">Lossless 60fps Full HD</div>
+                </div>
+            </div>
+
+            <div class="pro-stat-divider"></div>
+
+            <div class="pro-stat-card">
+                <div class="pro-stat-icon-wrapper icon-purple">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                </div>
+                <div class="pro-stat-content">
+                    <div class="pro-stat-num">MP3 &amp; MP4</div>
+                    <div class="pro-stat-sub">320kbps Studio Master</div>
+                </div>
+            </div>
+
+            <div class="pro-stat-divider"></div>
+
+            <div class="pro-stat-card">
+                <div class="pro-stat-icon-wrapper icon-amber">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <div class="pro-stat-content">
+                    <div class="pro-stat-num">10x Turbo</div>
+                    <div class="pro-stat-sub">Parallel Multi-Chunk</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Sleek Modern Features Showcase -->
+<section class="features-section-pro">
+    <div class="container">
+        <div class="section-header-pro">
+            <div class="pro-badge-glow">
+                <span class="pro-badge-dot"></span>
+                <span>ENGINEERED FOR PEAK PERFORMANCE</span>
+            </div>
+            <h2 class="pro-section-title">Built for Speed, Simplicity &amp; Master Quality</h2>
+            <p class="pro-section-desc">Harness direct CDN streaming with parallel chunk acceleration and studio-grade encoding fidelity.</p>
+        </div>
+
+        <div class="pro-feature-grid">
+            <!-- Feature 1: Multi-Thread Speed -->
+            <div class="pro-feature-card">
+                <div class="pro-card-glow-bg glow-emerald"></div>
+                <div class="pro-feature-header">
+                    <div class="pro-icon-box pro-icon-emerald">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                    <span class="pro-feature-tag">Turbo Engine</span>
+                </div>
+                <h3 class="pro-feature-heading">Parallel Multi-Chunk Acceleration</h3>
+                <p class="pro-feature-text">Splits video streams into concurrent high-speed segments across multiple threads, downloading at your maximum bandwidth with zero provider throttling.</p>
+                <div class="pro-feature-footer">
+                    <span class="pro-pill">Up to 100 MB/s</span>
+                    <span class="pro-pill">Zero Throttling</span>
+                </div>
+            </div>
+
+            <!-- Feature 2: 4K & 1080p Ultra HD -->
+            <div class="pro-feature-card">
+                <div class="pro-card-glow-bg glow-sky"></div>
+                <div class="pro-feature-header">
+                    <div class="pro-icon-box pro-icon-sky">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                    </div>
+                    <span class="pro-feature-tag">Lossless Video</span>
+                </div>
+                <h3 class="pro-feature-heading">4K &amp; 1080p Full HD Video</h3>
+                <p class="pro-feature-text">Preserves authentic source bitrate up to 4K 60fps HDR. Zonix remuxes discrete video and audio channels in real-time into universal MP4 containers.</p>
+                <div class="pro-feature-footer">
+                    <span class="pro-pill">60 FPS Smooth</span>
+                    <span class="pro-pill">Native MP4 Remux</span>
+                </div>
+            </div>
+
+            <!-- Feature 3: Studio MP3 Extraction -->
+            <div class="pro-feature-card">
+                <div class="pro-card-glow-bg glow-purple"></div>
+                <div class="pro-feature-header">
+                    <div class="pro-icon-box pro-icon-purple">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    </div>
+                    <span class="pro-feature-tag">Hi-Fi Audio</span>
+                </div>
+                <h3 class="pro-feature-heading">Studio-Quality MP3 &amp; M4A</h3>
+                <p class="pro-feature-text">Extracts pristine 320kbps audio from any music video, podcast, or stream with embedded metadata, artist tags, and HD album art for all devices.</p>
+                <div class="pro-feature-footer">
+                    <span class="pro-pill">320kbps Hi-Res</span>
+                    <span class="pro-pill">Auto ID3 Metadata</span>
+                </div>
+            </div>
+
+            <!-- Feature 4: Batch & Playlist Studio -->
+            <div class="pro-feature-card">
+                <div class="pro-card-glow-bg glow-amber"></div>
+                <div class="pro-feature-header">
+                    <div class="pro-icon-box pro-icon-amber">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                    </div>
+                    <span class="pro-feature-tag">Power Studio</span>
+                </div>
+                <h3 class="pro-feature-heading">Batch &amp; Playlist Studio</h3>
+                <p class="pro-feature-text">Queue up entire playlists, multi-video series, or albums with 1 click. Features smart progress tracking, individual item pausing, and automated ZIP export.</p>
+                <div class="pro-feature-footer">
+                    <span class="pro-pill">Auto Queue</span>
+                    <span class="pro-pill">One-Click ZIP</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- URL Choice Modal: Single Video vs Playlist -->
+<div id="urlChoiceModal" class="confirm-modal-backdrop" style="display:none;">
+    <div class="confirm-modal-box url-choice-box">
+        <div class="confirm-modal-header">
+            <div class="confirm-modal-icon url-choice-icon">🔗</div>
+            <div class="confirm-modal-title-wrap">
+                <h3 class="confirm-modal-title">Video or Full Playlist?</h3>
+                <p class="confirm-modal-subtitle">This YouTube link contains both a video and a playlist ID</p>
+            </div>
+            <button type="button" class="confirm-modal-close" id="btnCloseUrlChoice" aria-label="Close modal">✕</button>
+        </div>
+        <div class="confirm-modal-body">
+            <p class="confirm-modal-text" id="urlChoiceDescription">
+                Would you like to download just this individual video or open the full playlist in Playlist Studio?
+            </p>
+            <div class="url-choice-options">
+                <button type="button" id="btnChoiceSingleVideo" class="url-choice-btn choice-single">
+                    <span class="choice-icon">🎬</span>
+                    <span class="choice-content">
+                        <span class="choice-title">Download This Video Only</span>
+                        <span class="choice-desc">Fast download for just this one video track</span>
+                    </span>
+                    <span class="choice-arrow">→</span>
+                </button>
+                <button type="button" id="btnChoiceFullPlaylist" class="url-choice-btn choice-playlist">
+                    <span class="choice-icon">📋</span>
+                    <span class="choice-content">
+                        <span class="choice-title">Open Full Playlist Studio</span>
+                        <span class="choice-desc">Browse & select from all videos in this playlist</span>
+                    </span>
+                    <span class="choice-arrow">→</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/app.js" asp-append-version="true"></script>
+}
+
+

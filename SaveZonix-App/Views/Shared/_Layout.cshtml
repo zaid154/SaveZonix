@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>@ViewData["Title"] — SaveZonix</title>
+    <meta name="description" content="High-performance media stream analyzer and multi-threaded video downloader. Supports HLS, DASH, and direct video streams with up to 256 parallel connections.">
+    
+    <!-- Favicon and App Icons -->
+    <!-- Favicon and App Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="~/assets/logo.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="~/assets/logo.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="~/assets/logo.png">
+    <link rel="shortcut icon" href="~/assets/logo.png">
+
+    <!-- Fonts & Styling -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="~/style.css" asp-append-version="true">
+    @await RenderSectionAsync("Styles", required: false)
+</head>
+<body>
+    <div class="site-wrapper">
+        <!-- Navigation Header -->
+        <header class="navbar">
+            <div class="container nav-container">
+                <a asp-controller="Home" asp-action="Index" class="brand-link">
+                    <partial name="_Logo" model='(string?)"brand-logo-img"' />
+                    <div class="brand-text">Save<span>Zonix</span></div>
+                </a>
+                <ul class="nav-links">
+                    <li><a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a></li>
+                    <li><a href="/playlist" class="@(ViewData["ActiveNav"]?.ToString() == "Playlist" ? "active" : "")">Playlist Studio</a></li>
+                    <li><a href="/cinema" class="@(ViewData["ActiveNav"]?.ToString() == "Cinema" ? "active" : "")">Cinema</a></li>
+                    <li>
+                        <a asp-controller="Account" asp-action="Downloads" class="nav-link-downloads @(ViewData["ActiveNav"]?.ToString() == "Downloads" ? "active" : "")">
+                            <span>Downloads</span>
+                            <span id="navActiveDownloadsBadge" class="nav-active-badge" style="display:none;">0</span>
+                        </a>
+                    </li>
+                </ul>
+                <div class="nav-actions">
+                    @if (SignInManager.IsSignedIn(User))
+                    {
+                        var currentUser = await UserManager.GetUserAsync(User);
+                        bool isAdmin = User.IsInRole("Admin") || (currentUser?.Email?.Equals("zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) == true) || (currentUser?.Email?.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) == true);
+
+                        <div class="user-dropdown-container">
+                            <button class="btn btn-user-menu" id="userMenuBtn" type="button">
+                                <div class="user-avatar-initials">
+                                    @(currentUser?.FullName?.Length > 0 ? currentUser.FullName.Substring(0, 1).ToUpper() : "U")
+                                </div>
+                                <span class="user-menu-name">@(currentUser?.FullName ?? "Account")</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </button>
+
+                            <div class="user-dropdown-menu" id="userDropdownMenu">
+                                <div class="user-dropdown-header">
+                                    <div style="font-weight: 700; color: var(--text-main);">@(currentUser?.FullName ?? "User")</div>
+                                    <div style="font-size: 12px; color: var(--text-muted);">@(currentUser?.Email ?? "")</div>
+                                </div>
+                                <div class="dropdown-divider"></div>
+                                <a asp-controller="Account" asp-action="Profile" class="dropdown-item">
+                                    <span>👤 My Profile</span>
+                                </a>
+                                <a asp-controller="Account" asp-action="Downloads" class="dropdown-item">
+                                    <span>⚡ Download History</span>
+                                </a>
+                                @if (isAdmin)
+                                {
+                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item" style="color: #38bdf8;">
+                                        <span>👑 Admin Dashboard</span>
+                                    </a>
+                                }
+                                <div class="dropdown-divider"></div>
+                                <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0;">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="dropdown-item text-danger" style="width: 100%; text-align: left; background: none; border: none; font-family: inherit; cursor: pointer;">
+                                        <span>🚪 Sign Out</span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <a asp-controller="Account" asp-action="Login" class="btn btn-subtle">Sign In</a>
+                        <a asp-controller="Account" asp-action="Register" class="btn btn-primary">Sign Up</a>
+                    }
+                    
+                    <a asp-controller="Home" asp-action="Download" class="btn btn-nav-cta">Get Extension</a>
+                    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Mobile Drawer -->
+            <div class="mobile-nav-drawer" id="mobileNavDrawer">
+                <a asp-controller="Home" asp-action="Index" class="@(ViewData["ActiveNav"]?.ToString() == "Home" ? "active" : "")">Home</a>
+                <a href="/playlist" class="@(ViewData["ActiveNav"]?.ToString() == "Playlist" ? "active" : "")">Playlist Studio</a>
+                <a href="/cinema" class="@(ViewData["ActiveNav"]?.ToString() == "Cinema" ? "active" : "")">Cinema</a>
+                <a asp-controller="Account" asp-action="Downloads" class="@(ViewData["ActiveNav"]?.ToString() == "Downloads" ? "active" : "")" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Downloads &amp; History</span>
+                    <span id="mobileActiveDownloadsBadge" class="nav-active-badge" style="display:none;">0</span>
+                </a>
+                
+                @if (SignInManager.IsSignedIn(User))
+                {
+                    <a asp-controller="Account" asp-action="Profile">👤 My Profile</a>
+                    <a asp-controller="Account" asp-action="Downloads">⚡ My Downloads</a>
+                    <a asp-controller="Account" asp-action="Settings">⚙️ Settings</a>
+                    @if (User.IsInRole("Admin"))
+                    {
+                        <a asp-controller="Admin" asp-action="Index" style="color: #38bdf8;">🛡️ Admin Dashboard</a>
+                    }
+                    <form asp-controller="Account" asp-action="Logout" method="post" style="padding: 10px 0;">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-secondary" style="width: 100%;">Sign Out</button>
+                    </form>
+                }
+                else
+                {
+                    <a asp-controller="Account" asp-action="Login">Sign In</a>
+                    <a asp-controller="Account" asp-action="Register">Create Account</a>
+                }
+
+                <a asp-controller="Legal" asp-action="Privacy">Privacy Policy</a>
+                <a asp-controller="Legal" asp-action="Terms">Terms of Service</a>
+                <a asp-controller="Home" asp-action="Download" class="btn btn-primary" style="text-align: center; margin-top: 8px;">Install Extension</a>
+            </div>
+        </header>
+
+        <!-- Main Content Body -->
+        <main role="main">
+            @RenderBody()
+        </main>
+
+        <!-- Footer -->
+        @{
+            bool isAuthPage = (ViewData["ActiveNav"]?.ToString() == "Auth") || 
+                              (Context.Request.Path.Value?.Contains("/Account/Login", StringComparison.OrdinalIgnoreCase) == true) || 
+                              (Context.Request.Path.Value?.Contains("/Account/Register", StringComparison.OrdinalIgnoreCase) == true);
+        }
+        @if (isAuthPage)
+        {
+            <footer style="text-align: center; padding: 14px 16px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-color); background: rgba(7, 10, 19, 0.95); flex-shrink: 0;">
+                <p style="margin: 0;">&copy; @DateTime.UtcNow.Year SaveZonix &bull; High-Performance Media Suite &bull; <a asp-controller="Legal" asp-action="Privacy" style="color: var(--text-muted); text-decoration: none;">Privacy</a> &bull; <a asp-controller="Legal" asp-action="Terms" style="color: var(--text-muted); text-decoration: none;">Terms</a></p>
+            </footer>
+        }
+        else
+        {
+            <!-- Production Footer -->
+            <footer class="footer">
+                <div class="container">
+                    <div class="footer-grid">
+                        <div class="footer-brand">
+                            <div class="brand-link">
+                                <partial name="_Logo" model='(string?)"brand-logo-img"' />
+                                <div class="brand-text">Save<span>Zonix</span></div>
+                            </div>
+                            <p>High-performance media stream analyzer and authorized local saver built with .NET 10 and Manifest V3 stealth architecture.</p>
+                        </div>
+
+                        <div class="footer-column">
+                            <h4>Product</h4>
+                            <ul>
+                                <li><a asp-controller="Home" asp-action="Features">Features</a></li>
+                                <li><a asp-controller="Home" asp-action="HowItWorks">How It Works</a></li>
+                                <li><a asp-controller="Home" asp-action="Download">Download Hub</a></li>
+                                <li><a asp-controller="Home" asp-action="FAQ">FAQ</a></li>
+                            </ul>
+                        </div>
+
+                        <div class="footer-column">
+                            <h4>Account &amp; History</h4>
+                            <ul>
+                                @if (SignInManager.IsSignedIn(User))
+                                {
+                                    <li><a asp-controller="Account" asp-action="Profile">My Profile</a></li>
+                                    <li><a asp-controller="Account" asp-action="Downloads">My Downloads</a></li>
+                                    <li><a asp-controller="Account" asp-action="Settings">Security Settings</a></li>
+                                }
+                                else
+                                {
+                                    <li><a asp-controller="Account" asp-action="Login">Sign In</a></li>
+                                    <li><a asp-controller="Account" asp-action="Register">Create Free Account</a></li>
+                                }
+                                <li><a asp-controller="Home" asp-action="Contact">Help Center</a></li>
+                            </ul>
+                        </div>
+
+                        <div class="footer-column">
+                            <h4>Legal &amp; Policy</h4>
+                            <ul>
+                                <li><a asp-controller="Legal" asp-action="Privacy">Privacy Policy</a></li>
+                                <li><a asp-controller="Legal" asp-action="Terms">Terms of Service</a></li>
+                                <li><a asp-controller="Legal" asp-action="Copyright">Copyright Policy</a></li>
+                                <li><a asp-controller="Legal" asp-action="DMCA">DMCA &amp; Takedown</a></li>
+                                <li><a asp-controller="Legal" asp-action="Disclaimer">Legal Disclaimer</a></li>
+                                <li><a asp-controller="Legal" asp-action="Cookies">Cookie Policy</a></li>
+                                <li><a asp-controller="Legal" asp-action="AcceptableUse">Acceptable Use</a></li>
+                                <li><a asp-controller="Legal" asp-action="Grievance">Grievance Officer</a></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div class="footer-bottom">
+                        <p>&copy; @DateTime.UtcNow.Year Stream Helper / Zonix. All rights reserved. Open-source personal utility tool.</p>
+                        <p>Stream Helper is a neutral protocol analyzer. All third-party trademarks belong to their respective owners.</p>
+                    </div>
+                </div>
+            </footer>
+        }
+    </div>
+
+    <script src="~/nav.js" asp-append-version="true"></script>
+    <script>
+        // User Dropdown Interaction
+        const userMenuBtn = document.getElementById('userMenuBtn');
+        const userDropdownMenu = document.getElementById('userDropdownMenu');
+        if (userMenuBtn && userDropdownMenu) {
+            userMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdownMenu.classList.toggle('show');
+            });
+            document.addEventListener('click', () => {
+                userDropdownMenu.classList.remove('show');
+            });
+        }
+
+        // Global Active Downloads Badge Monitor
+        (function() {
+            const badgeDesktop = document.getElementById('navActiveDownloadsBadge');
+            const badgeMobile = document.getElementById('mobileActiveDownloadsBadge');
+            if (!badgeDesktop && !badgeMobile) return;
+
+            async function checkActiveDownloads() {
+                try {
+                    let jobId = null;
+                    const raw = localStorage.getItem('sz_active_playlist_job');
+                    if (raw) {
+                        try {
+                            const session = JSON.parse(raw);
+                            if (session && session.jobId) jobId = session.jobId;
+                        } catch { }
+                    }
+
+                    if (jobId) {
+                        const resp = await fetch(`/api/playlist/status/${jobId}`);
+                        if (resp.ok) {
+                            const job = await resp.json();
+                            const isBusy = (job.status === 'Running' || job.status === 'Downloading' || job.status === 'Queued') &&
+                                           ((job.activeCount || 0) > 0 || (job.queuedCount || 0) > 0);
+                            if (isBusy) {
+                                const count = (job.activeCount || 0) + (job.queuedCount || 0);
+                                updateBadge(count);
+                                return;
+                            }
+                        }
+                    }
+
+                    // Check server active jobs list across all active playlists
+                    const activeResp = await fetch('/api/playlist/active-jobs');
+                    if (activeResp.ok) {
+                        const activeList = await activeResp.json();
+                        if (Array.isArray(activeList) && activeList.length > 0) {
+                            const totalCount = activeList.reduce((sum, j) => sum + (j.activeCount || 0) + (j.queuedCount || 0), 0);
+                            updateBadge(totalCount);
+                            return;
+                        }
+                    }
+
+                    updateBadge(0);
+                } catch {
+                    updateBadge(0);
+                }
+            }
+
+            function updateBadge(count) {
+                [badgeDesktop, badgeMobile].forEach(el => {
+                    if (!el) return;
+                    if (count > 0) {
+                        el.textContent = count;
+                        el.style.display = 'inline-flex';
+                    } else {
+                        el.style.display = 'none';
+                    }
+                });
+            }
+
+            checkActiveDownloads();
+            setInterval(checkActiveDownloads, 2500);
+        })();
+    </script>
+    <script src="~/cloud-sync.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

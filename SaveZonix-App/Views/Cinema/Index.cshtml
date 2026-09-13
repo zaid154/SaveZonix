@@ -1,0 +1,970 @@
+@{
+    ViewData["Title"] = "CleanStream Cinema — Ad-Free Player";
+    ViewData["ActiveNav"] = "Cinema";
+
+    var streamUrl = ViewData["StreamUrl"]?.ToString() ?? "";
+    var originalUrl = ViewData["OriginalUrl"]?.ToString() ?? streamUrl;
+    var streamType = ViewData["StreamType"]?.ToString() ?? "unknown";
+    var videoTitle = ViewData["VideoTitle"]?.ToString() ?? "CleanStream Video";
+    var posterUrl = ViewData["PosterUrl"]?.ToString() ?? "";
+    var quality = ViewData["Quality"]?.ToString() ?? "Best Available (4K / HD)";
+    var sourceSite = ViewData["SourceSite"]?.ToString() ?? "";
+    var hasPlaylist = (bool)(ViewData["HasPlaylist"] ?? false);
+    var playlistUrl = ViewData["PlaylistUrl"]?.ToString() ?? "";
+}
+
+@section Styles {
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Zonix CleanStream Cinema — Dark Obsidian Luxury Theatre UI
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --cinema-bg: #050810;
+    --cinema-surface: rgba(12, 18, 35, 0.92);
+    --cinema-card: rgba(18, 26, 48, 0.85);
+    --cinema-border: rgba(56, 189, 248, 0.12);
+    --cinema-border-hover: rgba(56, 189, 248, 0.32);
+    --cinema-text: #f1f5f9;
+    --cinema-muted: #94a3b8;
+    --cinema-dim: #64748b;
+    --cinema-cyan: #0ea5e9;
+    --cinema-cyan-glow: rgba(14, 165, 233, 0.25);
+    --cinema-emerald: #10b981;
+    --cinema-rose: #f43f5e;
+    --cinema-amber: #f59e0b;
+    --cinema-radius: 14px;
+}
+
+.cinema-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    min-height: calc(100vh - 200px);
+}
+
+/* ─── Welcome / Empty State ─────────────────────────────────────────────── */
+.cinema-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+    padding: 48px 24px;
+}
+
+.cinema-welcome-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(16, 185, 129, 0.1));
+    border: 1px solid var(--cinema-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    color: var(--cinema-cyan);
+    animation: cinemaIconFloat 3s ease-in-out infinite;
+}
+
+@@keyframes cinemaIconFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+.cinema-welcome h2 {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 10px;
+    letter-spacing: -0.3px;
+}
+
+.cinema-welcome p {
+    color: var(--cinema-muted);
+    font-size: 14px;
+    max-width: 520px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+.cinema-url-form {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 640px;
+}
+
+.cinema-url-input {
+    flex: 1;
+    padding: 12px 16px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid var(--cinema-border);
+    border-radius: var(--cinema-radius);
+    color: #fff;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.cinema-url-input:focus {
+    border-color: var(--cinema-cyan);
+    box-shadow: 0 0 0 3px var(--cinema-cyan-glow);
+}
+
+.cinema-url-input::placeholder {
+    color: var(--cinema-dim);
+}
+
+.btn-cinema-load {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    color: #fff;
+    border: none;
+    border-radius: var(--cinema-radius);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-cinema-load:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
+}
+
+.cinema-features-row {
+    display: flex;
+    gap: 24px;
+    margin-top: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.cinema-feature-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    background: var(--cinema-card);
+    border: 1px solid var(--cinema-border);
+    border-radius: 40px;
+    color: var(--cinema-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.cinema-feature-pill svg { color: var(--cinema-cyan); flex-shrink: 0; }
+
+/* ─── Theatre Player ─────────────────────────────────────────────────────── */
+.cinema-theatre {
+    display: none;
+}
+
+.cinema-theatre.active {
+    display: block;
+}
+
+.cinema-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.cinema-title-block h1 {
+    font-size: 18px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: -0.3px;
+    line-height: 1.3;
+}
+
+.cinema-title-block .cinema-source {
+    font-size: 12px;
+    color: var(--cinema-dim);
+    margin-top: 2px;
+    font-weight: 600;
+}
+
+.cinema-badges {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.badge-shield {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.badge-adfree {
+    background: rgba(16, 185, 129, 0.12);
+    color: var(--cinema-emerald);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-quality {
+    background: rgba(14, 165, 233, 0.12);
+    color: var(--cinema-cyan);
+    border: 1px solid rgba(14, 165, 233, 0.25);
+}
+
+.badge-protected {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--cinema-amber);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* ─── Player Frame ─────────────────────────────────────────────────────── */
+.cinema-player-frame {
+    position: relative;
+    width: 100%;
+    max-width: calc(70vh * 16 / 9);
+    max-height: 70vh;
+    aspect-ratio: 16 / 9;
+    margin: 0 auto;
+    background: #000;
+    border-radius: var(--cinema-radius);
+    overflow: hidden;
+    border: 1px solid var(--cinema-border);
+    box-shadow: 0 12px 40px -8px rgba(0, 0, 0, 0.6);
+}
+
+.cinema-player-frame video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+.cinema-player-frame iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: #000;
+}
+
+.cinema-poster-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    cursor: pointer;
+    z-index: 2;
+    transition: opacity 0.3s ease;
+}
+
+.cinema-poster-overlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+}
+
+.cinema-poster-overlay .play-icon-circle {
+    position: relative;
+    z-index: 3;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: rgba(14, 165, 233, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s ease;
+    box-shadow: 0 0 30px rgba(14, 165, 233, 0.5);
+}
+
+.cinema-poster-overlay:hover .play-icon-circle {
+    transform: scale(1.08);
+    box-shadow: 0 0 50px rgba(14, 165, 233, 0.7);
+}
+
+.cinema-poster-overlay .play-icon-circle svg {
+    color: #fff;
+    margin-left: 3px;
+}
+
+/* ─── Controls Bar ─────────────────────────────────────────────────────── */
+.cinema-controls-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 0;
+    margin-top: 12px;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cinema-controls-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cinema-controls-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-cinema {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border: 1px solid var(--cinema-border);
+    border-radius: 10px;
+    background: var(--cinema-card);
+    color: var(--cinema-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-cinema:hover {
+    background: rgba(30, 40, 72, 0.9);
+    border-color: var(--cinema-border-hover);
+}
+
+.btn-cinema svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+}
+
+.btn-cinema-download {
+    background: linear-gradient(135deg, #0ea5e9, #2563eb);
+    border-color: transparent;
+    color: #fff;
+    font-weight: 700;
+    padding: 10px 22px;
+}
+
+.btn-cinema-download:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.4);
+    border-color: transparent;
+}
+
+.cinema-download-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cinema-quality-dropdown {
+    padding: 10px 14px;
+    background: var(--cinema-card);
+    border: 1px solid var(--cinema-border);
+    border-radius: 10px;
+    color: var(--cinema-text);
+    font-size: 12px;
+    font-weight: 600;
+    outline: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cinema-quality-dropdown:focus, .cinema-quality-dropdown:hover {
+    border-color: var(--cinema-cyan);
+    box-shadow: 0 0 0 2px var(--cinema-cyan-glow);
+}
+
+.cinema-quality-dropdown option {
+    background: #0c1223;
+    color: #fff;
+}
+
+.btn-cinema-playlist {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: var(--cinema-emerald);
+    font-weight: 700;
+}
+
+.btn-cinema-playlist:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: var(--cinema-emerald);
+    color: #fff;
+}
+
+.btn-cinema-lights {
+    position: relative;
+}
+
+.btn-cinema-lights.lights-off {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: var(--cinema-amber);
+}
+
+/* ─── Lights Off Mode ──────────────────────────────────────────────────── */
+body.cinema-lights-off {
+    background: #000 !important;
+    background-image: none !important;
+}
+
+body.cinema-lights-off .navbar,
+body.cinema-lights-off .footer {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
+
+body.cinema-lights-off .cinema-container {
+    max-width: 100%;
+    padding: 0;
+}
+
+body.cinema-lights-off .cinema-topbar,
+body.cinema-lights-off .cinema-controls-bar {
+    opacity: 0;
+    pointer-events: none;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    transition: opacity 0.4s ease;
+}
+
+body.cinema-lights-off .cinema-player-frame {
+    border-radius: 0;
+    border: none;
+    height: 100vh;
+    aspect-ratio: unset;
+    box-shadow: none;
+}
+
+/* Exit lights-off button */
+.cinema-exit-lights-off {
+    display: none;
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 9999;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+body.cinema-lights-off .cinema-exit-lights-off {
+    display: block;
+}
+
+.cinema-exit-lights-off:hover {
+    opacity: 1 !important;
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ─── Info Cards Below Player ──────────────────────────────────────────── */
+.cinema-info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.cinema-info-card {
+    padding: 18px 20px;
+    background: var(--cinema-card);
+    border: 1px solid var(--cinema-border);
+    border-radius: var(--cinema-radius);
+}
+
+.cinema-info-card h4 {
+    font-size: 11px;
+    color: var(--cinema-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.cinema-info-card .info-value {
+    font-size: 14px;
+    color: #fff;
+    font-weight: 600;
+    word-break: break-all;
+}
+
+.cinema-info-card .info-value.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    display: block;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────────────── */
+@@media (max-width: 768px) {
+    .cinema-container { padding: 12px; }
+    .cinema-info-grid { grid-template-columns: 1fr; }
+    .cinema-url-form { flex-direction: column; }
+    .cinema-topbar { flex-direction: column; align-items: flex-start; }
+    .cinema-controls-bar { flex-direction: column; align-items: stretch; }
+    .cinema-controls-left, .cinema-controls-right { justify-content: center; flex-wrap: wrap; }
+}
+</style>
+}
+
+<div class="cinema-container">
+    <!-- Exit Lights Off Button (Fixed overlay) -->
+    <button class="cinema-exit-lights-off" id="btnExitLightsOff" title="Exit Cinema Mode">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        Exit Cinema Mode
+    </button>
+
+    @if (string.IsNullOrEmpty(streamUrl))
+    {
+        <!-- Welcome / Empty State -->
+        <div class="cinema-welcome" id="cinemaWelcome">
+            <div class="cinema-welcome-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect>
+                    <line x1="7" y1="2" x2="7" y2="22"></line>
+                    <line x1="17" y1="2" x2="17" y2="22"></line>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <line x1="2" y1="7" x2="7" y2="7"></line>
+                    <line x1="2" y1="17" x2="7" y2="17"></line>
+                    <line x1="17" y1="7" x2="22" y2="7"></line>
+                    <line x1="17" y1="17" x2="22" y2="17"></line>
+                </svg>
+            </div>
+            <h2>Zonix CleanStream Cinema</h2>
+            <p>
+                Watch any video stream ad-free with zero popups and zero redirects.
+                Paste a stream URL below or use the SaveZonix Chrome Extension to open any video directly here.
+            </p>
+
+            <div class="cinema-url-form">
+                <input type="text" class="cinema-url-input" id="cinemaUrlInput"
+                       placeholder="Paste .m3u8, .mp4, embed, or video page URL..." autocomplete="off" />
+                <button type="button" class="btn-cinema-load" id="btnCinemaLoad">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
+                    Watch Now
+                </button>
+            </div>
+
+            <div class="cinema-features-row">
+                <div class="cinema-feature-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    Anti-Ad Shield
+                </div>
+                <div class="cinema-feature-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    Zero Popups
+                </div>
+                <div class="cinema-feature-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    1-Click Download
+                </div>
+                <div class="cinema-feature-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                    Lights Off Mode
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Theatre Mode (Active Player) -->
+        <div class="cinema-theatre active" id="cinemaTheatre">
+            <!-- Top Bar -->
+            <div class="cinema-topbar">
+                <div class="cinema-title-block">
+                    <h1 id="cinemaVideoTitle">@videoTitle</h1>
+                    @if (!string.IsNullOrEmpty(sourceSite))
+                    {
+                        <div class="cinema-source">Source: @sourceSite</div>
+                    }
+                </div>
+                <div class="cinema-badges">
+                    <span class="badge-shield badge-adfree">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                        Ad-Free
+                    </span>
+                    <span class="badge-shield badge-quality" id="qualityBadge">@quality</span>
+                    <span class="badge-shield badge-protected">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                        Sandbox Protected
+                    </span>
+                </div>
+            </div>
+
+            <!-- Player Frame -->
+            <div class="cinema-player-frame" id="cinemaPlayerFrame">
+                @if (!string.IsNullOrEmpty(posterUrl))
+                {
+                    <div class="cinema-poster-overlay" id="cinemaPosterOverlay" style="background-image: url('@posterUrl')">
+                        <div class="play-icon-circle">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                            </svg>
+                        </div>
+                    </div>
+                }
+
+                @if (streamType == "youtube")
+                {
+                    <iframe id="cinemaIframe"
+                            src="@streamUrl"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                            allowfullscreen
+                            loading="lazy"
+                            referrerpolicy="strict-origin-when-cross-origin">
+                    </iframe>
+                }
+                else if (streamType == "hls" || streamType == "direct")
+                {
+                    <video id="cinemaVideo" controls playsinline crossorigin="anonymous"
+                           @(string.IsNullOrEmpty(posterUrl) ? "" : $"poster=\"{posterUrl}\"")>
+                        @if (streamType == "direct")
+                        {
+                            <source src="@streamUrl" type="video/mp4" />
+                        }
+                    </video>
+                }
+                else
+                {
+                    <!-- Sandboxed iframe for embed URLs — blocks ALL popups & redirects -->
+                    <div class="cinema-embed-banner" style="position: absolute; top: 10px; left: 10px; right: 10px; z-index: 10; background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #cbd5e1; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
+                        <span>🔒 <strong>Webpage Frame:</strong> If player is blank due to site security, click Download to stream locally.</span>
+                        <a href="/?url=@Uri.EscapeDataString(originalUrl)&autoDownload=1" target="_blank" style="color: #38bdf8; text-decoration: underline; font-weight: 700; margin-left: 8px;">Download Stream</a>
+                    </div>
+                    <iframe id="cinemaIframe"
+                            src="@streamUrl"
+                            sandbox="allow-scripts allow-same-origin allow-presentation allow-forms"
+                            allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                            allowfullscreen
+                            loading="lazy"
+                            referrerpolicy="no-referrer">
+                    </iframe>
+                }
+            </div>
+
+            <!-- Controls Bar -->
+            <div class="cinema-controls-bar">
+                <div class="cinema-controls-left">
+                    <button type="button" class="btn-cinema btn-cinema-lights" id="btnLightsOff" title="Cinema Lights Off Mode">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
+                        Lights Off
+                    </button>
+                    <button type="button" class="btn-cinema" id="btnFullscreen" title="Toggle Fullscreen">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="15 3 21 3 21 9"></polyline>
+                            <polyline points="9 21 3 21 3 15"></polyline>
+                            <line x1="21" y1="3" x2="14" y2="10"></line>
+                            <line x1="3" y1="21" x2="10" y2="14"></line>
+                        </svg>
+                        Fullscreen
+                    </button>
+                    <a href="/" class="btn-cinema" title="Go back to Home">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M19 12H5M12 19l-7-7 7-7"></path>
+                        </svg>
+                        Back
+                    </a>
+                </div>
+                <div class="cinema-controls-right">
+                    @if (hasPlaylist)
+                    {
+                        <a href="@playlistUrl" class="btn-cinema btn-cinema-playlist" title="Open and download full playlist in Playlist Studio">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="8" y1="6" x2="21" y2="6"></line>
+                                <line x1="8" y1="12" x2="21" y2="12"></line>
+                                <line x1="8" y1="18" x2="21" y2="18"></line>
+                                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                            </svg>
+                            <span>Open Playlist in Studio</span>
+                        </a>
+                    }
+                    <div class="cinema-download-group">
+                        <select id="cinemaQualitySelect" class="cinema-quality-dropdown" title="Choose Download Quality">
+                            <option value="best" selected>⭐ Best Available (4K / HD)</option>
+                            <option value="2160p">4K Ultra HD (2160p)</option>
+                            <option value="1440p">2K Quad HD (1440p)</option>
+                            <option value="1080p">1080p Full HD</option>
+                            <option value="720p">720p HD</option>
+                            <option value="audio">🎵 Audio Only (MP3)</option>
+                        </select>
+                        <button type="button" class="btn-cinema btn-cinema-download" id="btnCinemaDownload" title="Download with Zonix Turbo">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span id="cinemaDownloadBtnText">Download Video</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info Grid -->
+            <div class="cinema-info-grid">
+                <div class="cinema-info-card">
+                    <h4>Stream Source</h4>
+                    <span class="info-value truncate" title="@streamUrl">@streamUrl</span>
+                </div>
+                <div class="cinema-info-card">
+                    <h4>Protection Mode</h4>
+                    <span class="info-value">
+                        @if (streamType == "embed") { <text>Strict Sandbox — Popups &amp; Redirects Blocked</text> }
+                        else { <text>Direct Stream — Clean Playback (No External Scripts)</text> }
+                    </span>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script>
+(function() {
+    'use strict';
+
+    // ─── Welcome State: Manual URL Entry ────────────────────────────────
+    const urlInput = document.getElementById('cinemaUrlInput');
+    const btnLoad = document.getElementById('btnCinemaLoad');
+
+    if (urlInput && btnLoad) {
+        function navigateToCinema() {
+            const url = urlInput.value.trim();
+            if (!url) return;
+            btnLoad.disabled = true;
+            btnLoad.innerHTML = '<span style="display:inline-flex;align-items:center;gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spinning"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 1 10 10"></path></svg> Resolving Stream...</span>';
+            window.location.href = '/cinema?url=' + encodeURIComponent(url) + '&title=' + encodeURIComponent('Stream');
+        }
+
+        btnLoad.addEventListener('click', navigateToCinema);
+        urlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') navigateToCinema();
+        });
+    }
+
+    // ─── Theatre Player Logic ───────────────────────────────────────────
+    const streamUrl = '@Html.Raw(streamUrl.Replace("'", "\\'"))';
+    const originalDownloadUrl = '@Html.Raw(originalUrl.Replace("'", "\\'"))';
+    const streamType = '@streamType';
+    const video = document.getElementById('cinemaVideo');
+    const posterOverlay = document.getElementById('cinemaPosterOverlay');
+    const playerFrame = document.getElementById('cinemaPlayerFrame');
+
+    function showStreamFallback(reason) {
+        if (!playerFrame || playerFrame.querySelector('.cinema-fallback-box')) return;
+        if (posterOverlay) posterOverlay.style.display = 'none';
+        const fallback = document.createElement('div');
+        fallback.className = 'cinema-fallback-box';
+        fallback.style.cssText = 'position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(9,13,22,0.94); z-index:20; padding:28px; text-align:center;';
+        fallback.innerHTML = `
+            <div style="width:56px; height:56px; border-radius:50%; background:rgba(14,165,233,0.12); border:1px solid rgba(14,165,233,0.3); display:flex; align-items:center; justify-content:center; color:#38bdf8; margin-bottom:16px;">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            </div>
+            <h3 style="color:#fff; font-size:17px; font-weight:800; margin-bottom:6px;">Stream Requires Direct Saver</h3>
+            <p style="color:#94a3b8; font-size:13px; max-width:460px; line-height:1.5; margin-bottom:20px;">
+                ${reason || 'This provider uses dynamic cross-domain tokens that prevent inline browser playback. You can download and play it offline smoothly without ads.'}
+            </p>
+            <a href="/?url=${encodeURIComponent(originalDownloadUrl)}&autoDownload=1" target="_blank" style="display:inline-flex; align-items:center; gap:8px; padding:11px 24px; background:linear-gradient(135deg, #0ea5e9, #2563eb); color:#fff; border-radius:10px; font-size:13px; font-weight:700; text-decoration:none; box-shadow:0 4px 16px rgba(14,165,233,0.4);">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Download Stream Ad-Free (Zonix Turbo)
+            </a>
+        `;
+        playerFrame.appendChild(fallback);
+    }
+
+    // Direct video element error listener
+    if (video) {
+        video.addEventListener('error', () => {
+            console.warn('[Cinema] Video element playback error:', video.error);
+            showStreamFallback('Direct media stream blocked by upstream CDN token. Download to watch in full quality.');
+        });
+    }
+
+    // Poster overlay click-to-play
+    if (posterOverlay) {
+        posterOverlay.addEventListener('click', () => {
+            posterOverlay.style.opacity = '0';
+            setTimeout(() => posterOverlay.remove(), 300);
+
+            if (streamType === 'youtube') {
+                const iframe = document.getElementById('cinemaIframe');
+                if (iframe) {
+                    try {
+                        iframe.contentWindow.postMessage(JSON.stringify({
+                            event: 'command',
+                            func: 'playVideo'
+                        }), '*');
+                    } catch { }
+                    // Fallback to updating src with autoplay=1 if JS API blocked
+                    if (!iframe.src.includes('autoplay=1')) {
+                        iframe.src = iframe.src.replace('autoplay=0', 'autoplay=1');
+                    }
+                }
+            } else if (video) {
+                video.play().catch(() => {});
+            }
+        });
+    }
+
+    // HLS.js initialization for .m3u8 streams
+    if (video && streamType === 'hls' && streamUrl) {
+        if (Hls.isSupported()) {
+            const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: false,
+                maxBufferLength: 60,
+                maxMaxBufferLength: 120,
+                startLevel: -1
+            });
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                if (data && data.levels && data.levels.length > 0) {
+                    const qualityBadge = document.getElementById('qualityBadge');
+                    if (qualityBadge) {
+                        const topLevel = data.levels[data.levels.length - 1];
+                        if (topLevel && topLevel.height) {
+                            qualityBadge.textContent = `${topLevel.height}p HD`;
+                        }
+                    }
+                }
+                if (posterOverlay) return; // wait for poster click
+                video.play().catch(() => {});
+            });
+            hls.on(Hls.Events.ERROR, (event, data) => {
+                if (data.fatal) {
+                    console.warn('[Cinema] HLS fatal error:', data.type);
+                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                        hls.startLoad();
+                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                        hls.recoverMediaError();
+                    } else {
+                        showStreamFallback('HLS stream network error or expired CDN token.');
+                    }
+                }
+            });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Safari native HLS
+            video.src = streamUrl;
+        }
+    }
+
+    // ─── Lights Off Mode ────────────────────────────────────────────────
+    const btnLights = document.getElementById('btnLightsOff');
+    const btnExitLights = document.getElementById('btnExitLightsOff');
+    let lightsTimer;
+
+    function toggleLightsOff() {
+        document.body.classList.toggle('cinema-lights-off');
+        if (btnLights) btnLights.classList.toggle('lights-off');
+
+        if (document.body.classList.contains('cinema-lights-off') && btnExitLights) {
+            btnExitLights.style.opacity = '0.6';
+            clearTimeout(lightsTimer);
+            lightsTimer = setTimeout(() => {
+                btnExitLights.style.opacity = '0';
+            }, 3000);
+        }
+    }
+
+    if (btnLights) btnLights.addEventListener('click', toggleLightsOff);
+    if (btnExitLights) {
+        btnExitLights.addEventListener('click', () => {
+            document.body.classList.remove('cinema-lights-off');
+            if (btnLights) btnLights.classList.remove('lights-off');
+        });
+
+        // Show exit button on mouse move in lights-off mode
+        document.addEventListener('mousemove', () => {
+            if (document.body.classList.contains('cinema-lights-off') && btnExitLights) {
+                btnExitLights.style.opacity = '0.6';
+                clearTimeout(lightsTimer);
+                lightsTimer = setTimeout(() => {
+                    btnExitLights.style.opacity = '0';
+                }, 3000);
+            }
+        });
+    }
+
+    // Escape key exits lights-off
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.body.classList.contains('cinema-lights-off')) {
+            document.body.classList.remove('cinema-lights-off');
+            if (btnLights) btnLights.classList.remove('lights-off');
+        }
+    });
+
+    // ─── Fullscreen ─────────────────────────────────────────────────────
+    const btnFull = document.getElementById('btnFullscreen');
+    if (btnFull && playerFrame) {
+        btnFull.addEventListener('click', () => {
+            if (playerFrame.requestFullscreen) playerFrame.requestFullscreen();
+            else if (playerFrame.webkitRequestFullscreen) playerFrame.webkitRequestFullscreen();
+        });
+    }
+
+    // ─── Download Button & Quality Logic ────────────────────────────────
+    const originalDownloadUrl = '@Html.Raw(originalUrl.Replace("'", "\\'"))';
+    const btnDownload = document.getElementById('btnCinemaDownload');
+    const qualitySelect = document.getElementById('cinemaQualitySelect');
+    const qualityBadge = document.getElementById('qualityBadge');
+
+    if (qualitySelect && qualityBadge) {
+        qualitySelect.addEventListener('change', () => {
+            const selectedText = qualitySelect.options[qualitySelect.selectedIndex].text;
+            qualityBadge.textContent = selectedText.replace(/^[^\w]+/, '').trim();
+        });
+    }
+
+    if (btnDownload && originalDownloadUrl) {
+        btnDownload.addEventListener('click', () => {
+            const chosenQuality = qualitySelect ? qualitySelect.value : 'best';
+            let targetUrl = '/?url=' + encodeURIComponent(originalDownloadUrl) + '&autoDownload=1';
+            if (chosenQuality && chosenQuality !== 'best') {
+                targetUrl += '&quality=' + encodeURIComponent(chosenQuality);
+            }
+            window.open(targetUrl, '_blank');
+        });
+    }
+})();
+</script>
+}

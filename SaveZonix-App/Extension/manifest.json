@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "SaveZonix — Video Downloader",
+  "version": "2.5.0",
+  "description": "Stealth, high-performance multi-site video stream detector and authorized local saver with video thumbnail preview, duration timestamp overlay, and dynamic size badges.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "webRequest",
+    "declarativeNetRequest",
+    "storage",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/utils/helpers.js",
+        "src/utils/thumbnail.js",
+        "src/utils/metadata.js",
+        "src/detectors/media-detector.js",
+        "src/detectors/stream-detector.js",
+        "src/sites/youtube.js",
+        "src/sites/instagram.js",
+        "src/sites/generic.js",
+        "src/content/content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/**/*", "icons/*"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "action": {
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Stream Helper"
+  }
+}

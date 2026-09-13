@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaveZonix</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="brand">
+            <img src="../../assets/logo.png" alt="SaveZonix" class="logo">
+            <span class="app-name">SaveZonix</span>
+        </div>
+        <div class="header-actions">
+            <button id="btnRefresh" class="icon-btn" title="Refresh">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+            </button>
+            <button id="btnSettingsToggle" class="icon-btn" title="Settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Settings Panel -->
+    <div id="settingsPanel" class="settings-panel hidden">
+        <div class="settings-header">
+            <span class="settings-header-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+                Downloader Settings
+            </span>
+            <button id="btnCloseSettings" class="close-btn" title="Close">&times;</button>
+        </div>
+        <div class="form-group">
+            <label for="settingQuality">Default Download Quality</label>
+            <select id="settingQuality" class="select-box">
+                <option value="best">Highest (Auto 4K / 1080p)</option>
+                <option value="2160p">4K Ultra HD (2160p)</option>
+                <option value="1440p">2K Quad HD (1440p)</option>
+                <option value="1080p">1080p Full HD</option>
+                <option value="720p">720p HD</option>
+                <option value="480p">480p SD</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label for="settingThreads">Parallel Threads (Max Speed)</label>
+            <select id="settingThreads" class="select-box">
+                <option value="8">8 Threads (Standard)</option>
+                <option value="16">16 Threads (Fast)</option>
+                <option value="32">32 Threads (Turbo)</option>
+                <option value="64" selected>64 Threads (Extreme Max — Recommended)</option>
+                <option value="128">128 Threads (Ultra Fiber)</option>
+                <option value="256">256 Threads (Hyper Max)</option>
+            </select>
+        </div>
+        <div class="checkbox-row">
+            <label for="settingRemember">Remember selected quality</label>
+            <input type="checkbox" id="settingRemember" checked>
+        </div>
+        <div class="checkbox-row">
+            <label for="settingAutoEpisode">Clean &amp; format video title</label>
+            <input type="checkbox" id="settingAutoEpisode" checked>
+        </div>
+        <button id="btnSaveSettings" class="btn btn-primary btn-full">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Save Preferences
+        </button>
+    </div>
+
+    <!-- Main -->
+    <main class="main">
+        <div class="status-line">
+            <span class="dot"></span>
+            <span id="statusLabel" class="status-text">Scanning for media...</span>
+        </div>
+
+        <div id="videoList" class="video-list">
+            <!-- Injected via popup.js -->
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+            <span class="empty-title">No media found</span>
+            <span class="empty-desc">Play a video in the active tab to detect streams.</span>
+        </div>
+
+        <!-- Downloads History -->
+        <div id="completedSection" class="history-section hidden">
+            <div class="history-header">
+                <span class="history-header-title">Recent Downloads</span>
+                <button type="button" id="btnClearAllHistory" title="Clear All History" class="btn-clear-all">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    <span>Clear All</span>
+                </button>
+            </div>
+            <div id="completedList" class="history-list"></div>
+        </div>
+    </main>
+
+    <!-- YouTube Playlist vs Video Choice Modal -->
+    <div id="ytChoiceModal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span class="modal-title">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444;"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                    YouTube Playlist / Mix Detected
+                </span>
+                <button id="btnCloseYtModal" class="modal-close-btn" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-desc">This video belongs to a playlist or mix. What would you like to download?</p>
+                <div class="modal-actions">
+                    <button id="btnYtModalSingle" class="modal-btn modal-btn-primary">
+                        <span class="modal-btn-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                        </span>
+                        <div class="modal-btn-text">
+                            <strong>Download Single Video Only</strong>
+                            <small>Download current video in 1080p / 4K with audio</small>
+                        </div>
+                    </button>
+                    <button id="btnYtModalPlaylist" class="modal-btn modal-btn-playlist">
+                        <span class="modal-btn-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                        </span>
+                        <div class="modal-btn-text">
+                            <strong>Download Full Playlist / Mix</strong>
+                            <small>Open Playlist Studio with queue items</small>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../utils/helpers.js"></script>
+    <script src="../utils/thumbnail.js"></script>
+    <script src="../utils/metadata.js"></script>
+    <script src="../utils/storage.js"></script>
+    <script src="../detectors/stream-detector.js"></script>
+    <script src="../download/filename-generator.js"></script>
+    <script src="../download/quality-selector.js"></script>
+    <script src="../download/media-processor.js"></script>
+    <script src="../download/download-manager.js"></script>
+    <script src="popup.js"></script>
+</body>
+</html>
