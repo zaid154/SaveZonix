@@ -394,8 +394,14 @@ public class Program
         builder.Services.AddControllersWithViews();
 
         var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
-        var hostIp = Environment.GetEnvironmentVariable("PORT") != null ? "0.0.0.0" : "127.0.0.1";
-        builder.WebHost.UseUrls($"http://{hostIp}:{port}");
+        if (Environment.GetEnvironmentVariable("PORT") != null)
+        {
+            builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+        }
+        else
+        {
+            builder.WebHost.UseUrls($"http://127.0.0.1:{port}", $"http://localhost:{port}");
+        }
 
         var app = builder.Build();
         bool forceReset = args.Any(a => a.Equals("--seed-reset", StringComparison.OrdinalIgnoreCase) || 
@@ -2344,42 +2350,30 @@ public class Program
         Console.WriteLine($" 🌐 Access URL: http://localhost:{port}\n");
         Console.ResetColor();
 
-        // Auto-launch dedicated standalone desktop window
+        // Auto-launch browser once server is confirmed listening and healthy
         _ = Task.Run(async () =>
         {
-            await Task.Delay(1000);
-            try
+            using var http = new HttpClient();
+            for (int i = 0; i < 40; i++)
             {
-                var edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft\\Edge\\Application\\msedge.exe");
-                if (!File.Exists(edgePath))
+                await Task.Delay(250);
+                try
                 {
-                    edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft\\Edge\\Application\\msedge.exe");
-                }
-
-                if (File.Exists(edgePath))
-                {
-                    var edgeProcess = Process.Start(new ProcessStartInfo
+                    var res = await http.GetAsync($"http://127.0.0.1:{port}");
+                    if (res.IsSuccessStatusCode)
                     {
-                        FileName = edgePath,
-                        Arguments = $"--app=http://127.0.0.1:{port} --window-size=1280,820",
-                        UseShellExecute = false
-                    });
-
-                    if (edgeProcess != null)
-                    {
-                        edgeProcess.WaitForExit();
-                        Environment.Exit(0);
-                        return;
+                        break;
                     }
                 }
+                catch { }
             }
-            catch { }
 
+            // Server is ready! Launch browser to localhost
             try
             {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"http://127.0.0.1:{port}",
+                    FileName = $"http://localhost:{port}",
                     UseShellExecute = true
                 });
             }
