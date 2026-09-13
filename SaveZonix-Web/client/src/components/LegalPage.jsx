@@ -160,7 +160,7 @@ export default function LegalPage({ type = 'privacy', onNavigate }) {
       content: (
         <>
           <p className="legal-lead">
-            This disclaimer clarifies the legal status, brand affiliations, and open-architecture principles of the SaveZonix project.
+            This disclaimer clarifies the legal status, brand affiliations, and research &amp; educational focus of the SaveZonix project.
           </p>
 
           <section className="legal-block">
@@ -174,9 +174,9 @@ export default function LegalPage({ type = 'privacy', onNavigate }) {
           </section>
 
           <section className="legal-block">
-            <h3>2. Open Source &amp; Research Intent</h3>
+            <h3>2. Research &amp; Development (R&amp;D) and Educational Purpose</h3>
             <p>
-              SaveZonix is distributed for academic research into high-throughput network streaming, HTTP Range requests, multi-threaded TCP socket multiplexing, and FFmpeg muxing workflows.
+              SaveZonix is strictly a Research &amp; Development (R&amp;D) and educational project engineered for academic learning into high-throughput network streaming, HTTP Range requests, multi-threaded TCP socket multiplexing, and FFmpeg workflows. It is NOT intended or licensed for commercial enterprise or professional business use. While the software is closed-source/proprietary personal work of the authors, all builds are distributed solely for educational exploration and personal non-commercial study. Unauthorized resale or commercial exploitation is strictly prohibited.
             </p>
           </section>
 

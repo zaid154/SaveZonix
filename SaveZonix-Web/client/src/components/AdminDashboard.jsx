@@ -4,6 +4,8 @@ export default function AdminDashboard({ user, onBack }) {
   const [adminKey, setAdminKey] = useState(localStorage.getItem('savezonix_admin_key') || '');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [keyInput, setKeyInput] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview'); // overview, users, downloads, updates, engine
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -21,24 +23,33 @@ export default function AdminDashboard({ user, onBack }) {
   }, [adminKey]);
 
   async function testAuth(key) {
+    if (!key) return;
+    setAuthLoading(true);
+    setAuthError('');
     try {
       const res = await fetch('/api/admin/stats', {
         headers: { 'x-admin-key': key }
       });
       if (res.ok) {
         setIsAuthenticated(true);
+        setAdminKey(key);
         localStorage.setItem('savezonix_admin_key', key);
         loadAllData(key);
       } else {
         setIsAuthenticated(false);
+        setAuthError('Authentication failed: Invalid Master Admin Key.');
       }
-    } catch {
+    } catch (err) {
       setIsAuthenticated(false);
+      setAuthError('Connection error: Could not reach SaveZonix backend. Please retry.');
+    } finally {
+      setAuthLoading(false);
     }
   }
 
   function handleLogin(e) {
     e.preventDefault();
+    if (!keyInput.trim()) return;
     testAuth(keyInput.trim());
   }
 
@@ -53,8 +64,14 @@ export default function AdminDashboard({ user, onBack }) {
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
-      if (usersRes.ok) setUsers(await usersRes.json());
-      if (dlRes.ok) setDownloads(await dlRes.json());
+      if (usersRes.ok) {
+        const uData = await usersRes.json();
+        setUsers(Array.isArray(uData) ? uData : []);
+      }
+      if (dlRes.ok) {
+        const dData = await dlRes.json();
+        setDownloads(Array.isArray(dData) ? dData : []);
+      }
       if (settingsRes.ok) setSettings(await settingsRes.json());
     } catch (err) {
       console.error(err);
@@ -121,7 +138,13 @@ export default function AdminDashboard({ user, onBack }) {
         <div className="glass-card" style={{ maxWidth: '420px', width: '100%', padding: '36px', textAlign: 'center', background: '#0a0f1d', border: '1px solid #1e293b', borderRadius: '16px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>🛡️</div>
           <h2 style={{ fontSize: '22px', fontWeight: 800, color: '#f8fafc', marginBottom: '6px' }}>SaveZonix Master Admin</h2>
-          <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '24px' }}>Enter your Master Admin Key to access global user controls and app update rollouts.</p>
+          <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '20px' }}>Enter your Master Admin Key to access global user controls and app update rollouts.</p>
+
+          {authError && (
+            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', color: '#f87171', fontSize: '12.5px', marginBottom: '16px', textAlign: 'left' }}>
+              ⚠️ {authError}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <input
@@ -130,10 +153,11 @@ export default function AdminDashboard({ user, onBack }) {
               value={keyInput}
               onChange={(e) => setKeyInput(e.target.value)}
               style={{ padding: '12px 16px', background: '#030712', border: '1px solid #334155', borderRadius: '8px', color: '#fff', fontSize: '14px' }}
+              disabled={authLoading}
               required
             />
-            <button type="submit" className="btn btn-primary" style={{ padding: '12px', fontSize: '14px', fontWeight: 700 }}>
-              Authenticate Admin Access 🚀
+            <button type="submit" className="btn btn-primary" style={{ padding: '12px', fontSize: '14px', fontWeight: 700, opacity: authLoading ? 0.7 : 1, cursor: authLoading ? 'wait' : 'pointer' }} disabled={authLoading}>
+              {authLoading ? 'Verifying Credentials... ⏳' : 'Authenticate Admin Access 🚀'}
             </button>
             <button type="button" onClick={onBack} style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '13px', cursor: 'pointer', marginTop: '8px' }}>
               ← Return to Main Website
@@ -297,17 +321,23 @@ export default function AdminDashboard({ user, onBack }) {
                 </tr>
               </thead>
               <tbody>
-                {users
-                  .filter((u) => u.name.toLowerCase().includes(searchUser.toLowerCase()) || u.email.toLowerCase().includes(searchUser.toLowerCase()))
+                {(users || [])
+                  .filter((u) => {
+                    if (!u) return false;
+                    const name = (u.name || '').toLowerCase();
+                    const email = (u.email || '').toLowerCase();
+                    const query = (searchUser || '').toLowerCase().trim();
+                    return !query || name.includes(query) || email.includes(query);
+                  })
                   .map((u) => (
-                    <tr key={u._id} style={{ borderBottom: '1px solid #0f172a' }}>
+                    <tr key={u._id || Math.random()} style={{ borderBottom: '1px solid #0f172a' }}>
                       <td style={{ padding: '12px 10px' }}>
-                        <div style={{ fontWeight: 700, color: '#f8fafc' }}>{u.name}</div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>{u.email}</div>
+                        <div style={{ fontWeight: 700, color: '#f8fafc' }}>{u.name || 'Anonymous User'}</div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>{u.email || 'No email'}</div>
                       </td>
                       <td style={{ padding: '12px 10px' }}>
                         <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700, background: u.role === 'Admin' ? 'rgba(244,63,94,0.2)' : 'rgba(255,255,255,0.05)', color: u.role === 'Admin' ? '#fb7185' : '#94a3b8' }}>
-                          {u.role}
+                          {u.role || 'User'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 10px' }}>
@@ -316,11 +346,11 @@ export default function AdminDashboard({ user, onBack }) {
                         </span>
                       </td>
                       <td style={{ padding: '12px 10px', color: '#cbd5e1' }}>
-                        {u.dailyDownloads} / {settings?.freeDailyLimit || 10}
+                        {u.dailyDownloads || 0} / {settings?.freeDailyLimit || 10}
                       </td>
                       <td style={{ padding: '12px 10px' }}>
-                        <span style={{ color: u.isActive ? '#34d399' : '#f87171', fontSize: '12px', fontWeight: 700 }}>
-                          {u.isActive ? '🟢 Active' : '🔴 Suspended'}
+                        <span style={{ color: u.isActive !== false ? '#34d399' : '#f87171', fontSize: '12px', fontWeight: 700 }}>
+                          {u.isActive !== false ? '🟢 Active' : '🔴 Suspended'}
                         </span>
                       </td>
                       <td style={{ padding: '12px 10px', textAlign: 'right' }}>
@@ -334,7 +364,7 @@ export default function AdminDashboard({ user, onBack }) {
                           onClick={() => toggleActive(u._id)}
                           style={{ padding: '4px 10px', fontSize: '11.5px', borderRadius: '6px', cursor: 'pointer', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}
                         >
-                          {u.isActive ? 'Suspend' : 'Unban'}
+                          {u.isActive !== false ? 'Suspend' : 'Unban'}
                         </button>
                       </td>
                     </tr>
@@ -368,16 +398,16 @@ export default function AdminDashboard({ user, onBack }) {
                 </tr>
               </thead>
               <tbody>
-                {downloads.map((d) => (
-                  <tr key={d._id} style={{ borderBottom: '1px solid #0f172a' }}>
-                    <td style={{ padding: '10px', color: '#f8fafc', fontWeight: 600 }}>{d.fileName}</td>
-                    <td style={{ padding: '10px', color: '#38bdf8' }}>{d.quality}</td>
-                    <td style={{ padding: '10px', color: '#94a3b8' }}>{d.format.toUpperCase()}</td>
-                    <td style={{ padding: '10px', color: '#cbd5e1' }}>{d.userEmail}</td>
+                {(downloads || []).map((d) => (
+                  <tr key={d._id || Math.random()} style={{ borderBottom: '1px solid #0f172a' }}>
+                    <td style={{ padding: '10px', color: '#f8fafc', fontWeight: 600 }}>{d.fileName || 'Direct Stream'}</td>
+                    <td style={{ padding: '10px', color: '#38bdf8' }}>{d.quality || 'Auto'}</td>
+                    <td style={{ padding: '10px', color: '#94a3b8' }}>{(d.format || 'MP4').toUpperCase()}</td>
+                    <td style={{ padding: '10px', color: '#cbd5e1' }}>{d.userEmail || 'Guest / Offline'}</td>
                     <td style={{ padding: '10px' }}>
-                      <span style={{ color: d.status === 'Completed' ? '#34d399' : '#f87171', fontWeight: 700 }}>{d.status}</span>
+                      <span style={{ color: d.status === 'Completed' ? '#34d399' : '#f87171', fontWeight: 700 }}>{d.status || 'Completed'}</span>
                     </td>
-                    <td style={{ padding: '10px', textAlign: 'right', color: '#64748b' }}>{new Date(d.createdAt).toLocaleTimeString()}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', color: '#64748b' }}>{d.createdAt ? new Date(d.createdAt).toLocaleTimeString() : 'Recent'}</td>
                   </tr>
                 ))}
               </tbody>
