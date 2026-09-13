@@ -41,6 +41,9 @@ export default function AdminDashboard({ user, onBack }) {
   const [dbStatus, setDbStatus] = useState(null);
   const [settings, setSettings] = useState(null);
 
+  // Loaded Tabs Cache for 0ms Instant Switching
+  const [loadedTabs, setLoadedTabs] = useState(() => new Set());
+
   // User History Inspector Modal
   const [selectedUserInspector, setSelectedUserInspector] = useState(null);
 
@@ -67,7 +70,7 @@ export default function AdminDashboard({ user, onBack }) {
     setAuthError('');
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+      const timer = setTimeout(() => controller.abort(), 12000);
 
       const res = await fetch('/api/admin/stats', {
         headers: getAuthHeaders(key, token),
@@ -77,8 +80,10 @@ export default function AdminDashboard({ user, onBack }) {
       clearTimeout(timer);
 
       if (res && res.ok) {
+        const statsData = await res.json().catch(() => null);
+        if (statsData) setStats(statsData);
         setIsAuthenticated(true);
-        loadAllData(key, token);
+        loadTabData('overview', false, key, token);
       } else {
         setIsAuthenticated(false);
       }
@@ -124,55 +129,9 @@ export default function AdminDashboard({ user, onBack }) {
         localStorage.setItem('savezonix_admin_token', token);
         localStorage.setItem('savezonix_admin_key', key);
         setIsAuthenticated(true);
-        loadAllData(key, token);
+        loadTabData('overview', false, key, token);
       } else {
         setAuthError(data.error || 'Authentication failed: Invalid Admin ID or Password.');
-      }
-    } catch (err) {
-      setAuthError(err.message || 'Connection error: Could not reach backend server.');
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function handleLoginWithKey(key) {
-    if (!key.trim()) {
-      setAuthError('Please enter Master Admin Key.');
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError('');
-
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ adminKey: key.trim() }),
-        signal: controller.signal
-      }).catch((err) => {
-        if (err.name === 'AbortError') {
-          throw new Error('Connection timed out: Server may be booting on Render. Please retry.');
-        }
-        throw err;
-      });
-
-      clearTimeout(timer);
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data.success) {
-        const token = data.token || '';
-        const validKey = data.adminKey || key.trim();
-        setAdminToken(token);
-        setAdminKey(validKey);
-        localStorage.setItem('savezonix_admin_token', token);
-        localStorage.setItem('savezonix_admin_key', validKey);
-        setIsAuthenticated(true);
-        loadAllData(validKey, token);
-      } else {
-        setAuthError(data.error || 'Authentication failed: Invalid Master Admin Key.');
       }
     } catch (err) {
       setAuthError(err.message || 'Connection error: Could not reach backend server.');
@@ -186,39 +145,118 @@ export default function AdminDashboard({ user, onBack }) {
     localStorage.removeItem('savezonix_admin_token');
     setAdminKey('');
     setAdminToken('');
+    setLoadedTabs(new Set());
     setIsAuthenticated(false);
   }
 
-  async function loadAllData(key = adminKey, token = adminToken) {
+  // High-Speed Lazy Loader: Loads only what is needed for the requested tab and caches in React state
+  async function loadTabData(tab = activeTab, force = false, key = adminKey, token = adminToken) {
+    if (!force && loadedTabs.has(tab)) {
+      return; // 0ms instant transition from cache
+    }
+
     setLoading(true);
     const headers = getAuthHeaders(key, token);
-    try {
-      const [statsRes, usersRes, dlRes, diagRes, dbRes, settingsRes] = await Promise.all([
-        fetch('/api/admin/stats', { headers }),
-        fetch('/api/admin/users', { headers }),
-        fetch('/api/admin/downloads', { headers }),
-        fetch('/api/admin/diagnostics', { headers }),
-        fetch('/api/admin/database-status', { headers }),
-        fetch('/api/admin/settings', { headers })
-      ]);
 
-      if (statsRes.ok) setStats(await statsRes.json());
-      if (usersRes.ok) {
-        const uData = await usersRes.json();
-        setUsers(Array.isArray(uData) ? uData : []);
+    try {
+      const calls = [];
+
+      // 1. Overview tab: needs stats + downloads
+      if (tab === 'overview') {
+        if (!stats || force) {
+          calls.push(
+            fetch('/api/admin/stats', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d) setStats(d); })
+              .catch(() => null)
+          );
+        }
+        if (downloads.length === 0 || force) {
+          calls.push(
+            fetch('/api/admin/downloads', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (Array.isArray(d)) setDownloads(d); })
+              .catch(() => null)
+          );
+        }
       }
-      if (dlRes.ok) {
-        const dData = await dlRes.json();
-        setDownloads(Array.isArray(dData) ? dData : []);
+
+      // 2. Users / Security tabs: needs users list + settings
+      if (tab === 'users' || tab === 'security') {
+        if (users.length === 0 || force) {
+          calls.push(
+            fetch('/api/admin/users', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (Array.isArray(d)) setUsers(d); })
+              .catch(() => null)
+          );
+        }
+        if (!settings || force) {
+          calls.push(
+            fetch('/api/admin/settings', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d) setSettings(d); })
+              .catch(() => null)
+          );
+        }
       }
-      if (diagRes.ok) setDiagnostics(await diagRes.json());
-      if (dbRes.ok) setDbStatus(await dbRes.json());
-      if (settingsRes.ok) setSettings(await settingsRes.json());
+
+      // 3. Downloads tab: needs downloads list
+      if (tab === 'downloads') {
+        if (downloads.length === 0 || force) {
+          calls.push(
+            fetch('/api/admin/downloads', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (Array.isArray(d)) setDownloads(d); })
+              .catch(() => null)
+          );
+        }
+      }
+
+      // 4. Diagnostics tab: needs diagnostics + dbStatus
+      if (tab === 'diagnostics') {
+        if (!diagnostics || force) {
+          calls.push(
+            fetch('/api/admin/diagnostics', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d) setDiagnostics(d); })
+              .catch(() => null)
+          );
+        }
+      }
+
+      // 5. Engine tab: needs dbStatus + settings
+      if (tab === 'engine') {
+        if (!dbStatus || force) {
+          calls.push(
+            fetch('/api/admin/database-status', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d) setDbStatus(d); })
+              .catch(() => null)
+          );
+        }
+        if (!settings || force) {
+          calls.push(
+            fetch('/api/admin/settings', { headers })
+              .then(r => r.ok ? r.json() : null)
+              .then(d => { if (d) setSettings(d); })
+              .catch(() => null)
+          );
+        }
+      }
+
+      await Promise.all(calls);
+      setLoadedTabs(prev => new Set([...prev, tab]));
     } catch (err) {
-      console.error(err);
+      console.error('Error loading tab:', tab, err);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleTabClick(tabId) {
+    setActiveTab(tabId);
+    loadTabData(tabId);
   }
 
   // User Actions
@@ -319,7 +357,7 @@ export default function AdminDashboard({ user, onBack }) {
       if (res.ok) {
         setSaveMessage(`Cleaned ${data.reconciledCount || 0} orphaned download sessions.`);
         setTimeout(() => setSaveMessage(''), 4000);
-        loadAllData();
+        loadTabData('downloads', true);
       }
     } catch (err) {
       alert('Error: ' + err.message);
@@ -352,7 +390,7 @@ export default function AdminDashboard({ user, onBack }) {
       if (res.ok) {
         setSaveMessage(data.message || 'Databases synced successfully.');
         setTimeout(() => setSaveMessage(''), 4000);
-        loadAllData();
+        loadTabData('engine', true);
       }
     } catch (err) {
       alert('Sync error: ' + err.message);
@@ -390,7 +428,6 @@ export default function AdminDashboard({ user, onBack }) {
         authError={authError}
         authLoading={authLoading}
         onLoginWithCredentials={handleLoginWithCredentials}
-        onLoginWithKey={handleLoginWithKey}
         onBack={onBack}
       />
     );
@@ -417,7 +454,7 @@ export default function AdminDashboard({ user, onBack }) {
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => loadAllData()}
+            onClick={() => loadTabData(activeTab, true)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#cbd5e1', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
           >
             <IconRefresh size={13} color="#94a3b8" spinning={loading} />
@@ -444,8 +481,8 @@ export default function AdminDashboard({ user, onBack }) {
       <div style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '24px', flexWrap: 'wrap' }}>
         {[
           { id: 'overview', label: 'Overview', icon: IconActivity },
-          { id: 'users', label: `Users (${users.length})`, icon: IconUsers },
-          { id: 'downloads', label: `Downloads (${downloads.length})`, icon: IconDownload },
+          { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
+          { id: 'downloads', label: `Downloads (${downloads.length || stats?.totalDownloads || 0})`, icon: IconDownload },
           { id: 'ai-advisor', label: 'AI CDN Advisor', icon: IconCpu },
           { id: 'diagnostics', label: 'Diagnostics', icon: IconAlertCircle },
           { id: 'security', label: 'Security & Anti-Spam', icon: IconLock },
@@ -456,7 +493,7 @@ export default function AdminDashboard({ user, onBack }) {
           return (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
