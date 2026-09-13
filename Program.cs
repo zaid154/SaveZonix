@@ -1893,31 +1893,42 @@ public class Program
         // ─────────────────────────────────────────────────────────────
         app.MapGet("/api/extension/recent-downloads", async (IDownloadHistoryService historyService) =>
         {
-            var (items, total) = await historyService.GetAllDownloadsAsync(1, 20, null, "Completed", null, null);
-            var list = items.Select(i => new
+            var (items, total) = await historyService.GetAllDownloadsAsync(1, 30, null, "Completed", null, null);
+            var list = items.Select(i =>
             {
-                id = i.Id,
-                title = i.Title,
-                filename = i.FileName,
-                quality = i.Quality,
-                size = i.FormattedFileSize,
-                site = i.Platform,
-                downloadId = (int?)null,
-                timestamp = i.CreatedAt.ToString("o")
-            });
+                var cleanTitle = (string.IsNullOrWhiteSpace(i.Title) || i.Title.Equals("Video.mp4", StringComparison.OrdinalIgnoreCase) || i.Title.Equals("video.mp4", StringComparison.OrdinalIgnoreCase) || i.Title.Equals("Video", StringComparison.OrdinalIgnoreCase))
+                    ? (!string.IsNullOrWhiteSpace(i.FileName) && !i.FileName.Equals("video.mp4", StringComparison.OrdinalIgnoreCase) ? i.FileName : "Media Item")
+                    : i.Title;
+
+                var cleanFileName = !string.IsNullOrWhiteSpace(i.FileName) && !i.FileName.Equals("video.mp4", StringComparison.OrdinalIgnoreCase)
+                    ? i.FileName
+                    : (cleanTitle.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ? cleanTitle : $"{cleanTitle}.mp4");
+
+                return new
+                {
+                    id = i.Id,
+                    title = cleanTitle,
+                    filename = cleanFileName,
+                    quality = string.IsNullOrWhiteSpace(i.Quality) ? "1080p Full HD" : i.Quality,
+                    size = string.IsNullOrWhiteSpace(i.FormattedFileSize) ? "Completed" : i.FormattedFileSize,
+                    site = string.IsNullOrWhiteSpace(i.Platform) ? "Web Stream" : i.Platform,
+                    downloadId = (int?)null,
+                    timestamp = i.CreatedAt.ToString("o")
+                };
+            }).Where(i => !i.title.Equals("video.mp4", StringComparison.OrdinalIgnoreCase));
             return Results.Ok(new { success = true, items = list });
         });
 
-        app.MapPost("/api/extension/clear-history", async (AppDbContext db) =>
+        app.MapPost("/api/extension/clear-history", async (IDownloadHistoryService historyService) =>
         {
-            db.DownloadHistories.RemoveRange(db.DownloadHistories);
-            await db.SaveChangesAsync();
-            return Results.Ok(new { success = true });
+            var success = await historyService.ClearAllDownloadsAsync();
+            return Results.Ok(new { success });
         });
 
         app.MapDelete("/api/extension/history/{id}", async (string id, IDownloadHistoryService historyService) =>
         {
-            var deleted = await historyService.DeleteDownloadAsync(id);
+            var decodedId = System.Uri.UnescapeDataString(id);
+            var deleted = await historyService.DeleteDownloadAsync(decodedId);
             return Results.Ok(new { success = deleted });
         });
 

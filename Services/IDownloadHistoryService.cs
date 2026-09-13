@@ -43,6 +43,7 @@ public interface IDownloadHistoryService
     Task<(List<DownloadHistory> Items, int TotalCount)> GetAllDownloadsAsync(int page, int pageSize, string? search, string? status, string? platform, string? userEmail);
     Task<DownloadHistory?> GetDownloadByIdAsync(string id);
     Task<bool> DeleteDownloadAsync(string id, string? userId = null);
+    Task<bool> ClearAllDownloadsAsync();
     string SanitizeUrl(string url);
 }
 
@@ -73,8 +74,9 @@ public class DownloadHistoryService : IDownloadHistoryService
             _mongoDb = client.GetDatabase(dbName);
             _isMongoConfigured = true;
         }
-        catch
+        catch (Exception ex)
         {
+            Console.WriteLine($"[DownloadHistoryService Mongo Init Error] {ex.Message}");
             _isMongoConfigured = false;
         }
     }
@@ -102,13 +104,16 @@ public class DownloadHistoryService : IDownloadHistoryService
         DateTime stTime = m.StartTime ?? m.CreatedAt;
         DateTime? compTime = m.CompletionTime ?? (m.TimeTakenSeconds > 0 ? stTime.AddSeconds(m.TimeTakenSeconds) : (DateTime?)null);
 
+        var effectiveTitle = string.IsNullOrEmpty(m.VideoTitle) ? "Video" : m.VideoTitle;
+        var safeExt = effectiveTitle.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ? effectiveTitle : $"{effectiveTitle}.mp4";
+
         return new DownloadHistory
         {
             Id = string.IsNullOrEmpty(m.TaskId) ? (m.Id ?? Guid.NewGuid().ToString("N")) : m.TaskId,
             UserId = m.UserId,
             UserEmail = m.UserEmail,
-            Title = string.IsNullOrEmpty(m.VideoTitle) ? "Video" : m.VideoTitle,
-            FileName = "video.mp4",
+            Title = effectiveTitle,
+            FileName = safeExt,
             OriginalUrl = m.OriginalUrl ?? "",
             ThumbnailUrl = m.ThumbnailUrl,
             Platform = string.IsNullOrEmpty(m.Platform) ? "Web Stream" : m.Platform,
@@ -570,32 +575,94 @@ public class DownloadHistoryService : IDownloadHistoryService
 
     public async Task<bool> DeleteDownloadAsync(string id, string? userId = null)
     {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        Console.WriteLine($"[DeleteDownloadAsync] Received request to delete: '{id}', userId: '{userId}', mongoConfigured: {_isMongoConfigured}");
+
         if (_isMongoConfigured && _mongoDb != null)
         {
             try
             {
                 var coll = _mongoDb.GetCollection<SaveZonix.Models.DownloadRecord>("downloads");
-                var filter = MongoDB.Driver.Builders<SaveZonix.Models.DownloadRecord>.Filter.Or(
-                    MongoDB.Driver.Builders<SaveZonix.Models.DownloadRecord>.Filter.Eq(x => x.TaskId, id),
-                    MongoDB.Driver.Builders<SaveZonix.Models.DownloadRecord>.Filter.Eq(x => x.Id, id)
-                );
+                var fb = MongoDB.Driver.Builders<SaveZonix.Models.DownloadRecord>.Filter;
+                var filters = new List<MongoDB.Driver.FilterDefinition<SaveZonix.Models.DownloadRecord>>
+                {
+                    fb.Eq(x => x.TaskId, id),
+                    fb.Eq(x => x.VideoTitle, id),
+                    fb.Regex(x => x.VideoTitle, new MongoDB.Bson.BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(id), "i")),
+                    fb.Regex(x => x.TaskId, new MongoDB.Bson.BsonRegularExpression(System.Text.RegularExpressions.Regex.Escape(id), "i"))
+                };
+
+                if (MongoDB.Bson.ObjectId.TryParse(id, out _))
+                {
+                    filters.Add(fb.Eq(x => x.Id, id));
+                }
+
+                var filter = fb.Or(filters);
                 if (userId != null)
                 {
-                    filter &= MongoDB.Driver.Builders<SaveZonix.Models.DownloadRecord>.Filter.Eq(x => x.UserId, userId);
+                    filter &= fb.Eq(x => x.UserId, userId);
                 }
-                await coll.DeleteOneAsync(filter);
+                var mResult = await coll.DeleteManyAsync(filter);
+                Console.WriteLine($"[DeleteDownloadAsync] MongoDB DeletedCount: {mResult.DeletedCount} for filter '{id}'");
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MongoDB Delete Error] {ex.Message}");
+            }
         }
 
-        var record = await _context.DownloadHistories.FirstOrDefaultAsync(d => d.Id == id);
-        if (record == null) return true;
+        try
+        {
+            var records = await _context.DownloadHistories.Where(d => d.Id == id || d.FileName == id || d.Title == id).ToListAsync();
+            Console.WriteLine($"[DeleteDownloadAsync] SQL found {records.Count} matching records for '{id}'");
+            if (records.Any())
+            {
+                if (userId != null)
+                {
+                    records = records.Where(r => r.UserId == userId).ToList();
+                }
+                _context.DownloadHistories.RemoveRange(records);
+                await _context.SaveChangesAsync();
+                Console.WriteLine($"[DeleteDownloadAsync] SQL successfully removed {records.Count} records");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SQL Delete Notice] {ex.Message}");
+        }
 
-        // Ensure user can only delete their own download
-        if (userId != null && record.UserId != userId) return false;
+        return true;
+    }
 
-        _context.DownloadHistories.Remove(record);
-        await _context.SaveChangesAsync();
+    public async Task<bool> ClearAllDownloadsAsync()
+    {
+        if (_isMongoConfigured && _mongoDb != null)
+        {
+            try
+            {
+                var coll = _mongoDb.GetCollection<SaveZonix.Models.DownloadRecord>("downloads");
+                await coll.DeleteManyAsync(MongoDB.Driver.Builders<SaveZonix.Models.DownloadRecord>.Filter.Empty);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MongoDB Clear History Error] {ex.Message}");
+            }
+        }
+
+        try
+        {
+            var records = await _context.DownloadHistories.ToListAsync();
+            if (records.Any())
+            {
+                _context.DownloadHistories.RemoveRange(records);
+                await _context.SaveChangesAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SQL Clear History Error] {ex.Message}");
+        }
+
         return true;
     }
 }

@@ -35,7 +35,7 @@
             try {
                 const data = await chrome.storage.local.get([key, 'completed_downloads', 'user_settings', activeDlKey]);
                 // Clean legacy generic "Video.mp4" entries if present
-                let completed = (data.completed_downloads || []).filter(i => i && i.filename && i.filename !== 'Video.mp4');
+                let completed = (data.completed_downloads || []).filter(i => i && i.filename && i.filename.toLowerCase() !== 'video.mp4' && (i.title || '').toLowerCase() !== 'video.mp4');
                 return {
                     videos: data[key] || [],
                     completed: completed,
@@ -48,10 +48,10 @@
         },
 
         async saveCompletedDownload(item) {
-            if (!item || !item.filename || item.filename === 'Video.mp4') return false;
+            if (!item || !item.filename || item.filename.toLowerCase() === 'video.mp4') return false;
             try {
                 const data = await chrome.storage.local.get('completed_downloads');
-                let list = (data.completed_downloads || []).filter(i => i && i.filename && i.filename !== 'Video.mp4');
+                let list = (data.completed_downloads || []).filter(i => i && i.filename && i.filename.toLowerCase() !== 'video.mp4' && (i.title || '').toLowerCase() !== 'video.mp4');
                 
                 // Deduplicate by filename or title
                 list = list.filter(i => i.filename !== item.filename && i.title !== item.title);
@@ -80,8 +80,23 @@
         async removeCompletedDownload(id) {
             try {
                 const data = await chrome.storage.local.get('completed_downloads');
-                const list = (data.completed_downloads || []).filter(i => i.id !== id);
+                const list = (data.completed_downloads || []).filter(i => {
+                    if (!i) return false;
+                    if (i.id !== undefined && i.id !== null && String(i.id) === String(id)) return false;
+                    if (i.filename && String(i.filename) === String(id)) return false;
+                    if (i.title && String(i.title) === String(id)) return false;
+                    return true;
+                });
                 await chrome.storage.local.set({ completed_downloads: list });
+                return true;
+            } catch {
+                return false;
+            }
+        },
+
+        async clearAllCompletedDownloads() {
+            try {
+                await chrome.storage.local.set({ completed_downloads: [] });
                 return true;
             } catch {
                 return false;

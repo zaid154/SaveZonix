@@ -227,7 +227,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (syncResp.ok) {
                 const syncData = await syncResp.json();
                 if (syncData && syncData.success && Array.isArray(syncData.items)) {
-                    completed = syncData.items;
+                    completed = syncData.items.filter(i => {
+                        if (!i) return false;
+                        const fn = (i.filename || '').toLowerCase();
+                        const t = (i.title || '').toLowerCase();
+                        return (fn !== 'video.mp4' || (t && t !== 'video.mp4' && t !== 'video')) && (t !== 'video.mp4');
+                    });
                     await chrome.storage.local.set({ completed_downloads: completed });
                 }
             } else {
@@ -446,10 +451,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="card-action-row" style="margin-top: 10px;">
                             <div class="yt-choice-group">
                                 <button class="btn-yt-choice btn-yt-single" id="btn_yt_single_${video.id}">
-                                    <span>🎬 Download Single Video (1080p/4K)</span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                    <span>Download Video (1080p / 4K)</span>
                                 </button>
                                 <button class="btn-yt-choice btn-yt-playlist" id="btn_yt_playlist_${video.id}">
-                                    <span>📁 Download Full Playlist / Mix</span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                                    <span>Open in Playlist Studio</span>
                                 </button>
                             </div>
                         </div>
@@ -458,7 +465,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     actionRowHtml = `
                         <div class="card-action-row" style="margin-top: 10px;">
                             <button class="btn-yt-choice btn-yt-playlist" id="btn_yt_playlist_${video.id}" style="width: 100%;">
-                                <span>📁 Download Entire Playlist in Zonix Studio</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                                <span>Open Entire Playlist in Zonix Studio</span>
                             </button>
                         </div>
                     `;
@@ -466,7 +474,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     actionRowHtml = `
                         <div class="card-action-row" style="margin-top: 10px;">
                             <button class="btn-primary-download" id="btn_dl_${video.id}" style="width: 100%;">
-                                <span>${(currentSiteName === 'YouTube' || video.isYouTube || isYT) ? '🚀 Download with Zonix (1080p / 4K)' : buttonLabel}</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                                <span>${(currentSiteName === 'YouTube' || video.isYouTube || isYT) ? 'Download with Zonix (1080p / 4K)' : buttonLabel}</span>
                             </button>
                         </div>
                     `;
@@ -718,52 +727,109 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Render Download History
+    // Render Download History
     function renderCompletedList(items) {
         completedList.innerHTML = '';
+
+        const validItems = (items || []).filter(item => {
+            if (!item) return false;
+            const fn = (item.filename || '').toLowerCase();
+            const t = (item.title || '').toLowerCase();
+            if (fn === 'video.mp4' && (!t || t === 'video.mp4' || t === 'video')) return false;
+            if (t === 'video.mp4' && (!fn || fn === 'video.mp4' || fn === 'video')) return false;
+            return true;
+        });
+
+        if (validItems.length === 0) {
+            completedSection.classList.add('hidden');
+            return;
+        }
+
+        completedSection.classList.remove('hidden');
 
         const btnClearAllHistory = document.getElementById('btnClearAllHistory');
         if (btnClearAllHistory && !btnClearAllHistory.dataset.bound) {
             btnClearAllHistory.dataset.bound = 'true';
             btnClearAllHistory.addEventListener('click', async (e) => {
                 e.stopPropagation();
+                // Instant tactile UI feedback
+                completedList.innerHTML = '';
+                completedSection.classList.add('hidden');
+
+                try {
+                    await window.Storage.clearAllCompletedDownloads();
+                } catch { }
+
                 try {
                     await fetch('http://localhost:5000/api/extension/clear-history', { method: 'POST' });
                 } catch { }
-                await chrome.storage.local.set({ completed_downloads: [] });
-                loadData();
             });
         }
 
-        items.slice(0, 10).forEach(item => {
+        validItems.slice(0, 15).forEach(item => {
+            const rawTitle = (item.title && item.title.toLowerCase() !== 'video.mp4' && item.title.toLowerCase() !== 'video')
+                ? item.title
+                : ((item.filename && item.filename.toLowerCase() !== 'video.mp4') ? item.filename.replace(/\.[^/.]+$/, "") : 'Media Download');
+
             const div = document.createElement('div');
             div.className = 'history-item';
             div.innerHTML = `
-                <div class="history-title-col">
-                    <span class="history-filename" title="${item.filename || item.title}">${item.filename || item.title}</span>
-                    <span class="history-meta">${item.quality || ''} • ${item.size || ''} • ${item.site || ''}</span>
+                <div class="history-item-left">
+                    <div class="history-icon-badge">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    </div>
+                    <div class="history-title-col">
+                        <span class="history-filename" title="${rawTitle}">${rawTitle}</span>
+                        <div class="history-meta-row">
+                            <span class="hist-pill hist-quality">${item.quality || '1080p'}</span>
+                            <span class="hist-pill hist-size">${item.size || 'Saved'}</span>
+                            <span class="hist-site">${item.site || 'YouTube'}</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="history-actions">
-                    ${item.downloadId ? `<button class="history-btn btn-open-folder" data-dlid="${item.downloadId}" title="Open Folder">Open</button>` : ''}
-                    <button class="history-btn btn-remove-hist" data-id="${item.id}" title="Remove">✕</button>
+                    ${item.downloadId ? `
+                        <button class="history-btn btn-open-folder" data-dlid="${item.downloadId}" title="Show in folder">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                        </button>
+                    ` : ''}
+                    <button class="history-btn btn-remove-hist" data-id="${item.id || item.filename}" title="Remove from history">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
                 </div>
             `;
 
             const openBtn = div.querySelector('.btn-open-folder');
             if (openBtn) {
-                openBtn.addEventListener('click', () => {
+                openBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
                     const dlId = parseInt(openBtn.dataset.dlid, 10);
                     if (dlId) chrome.downloads.show(dlId);
                 });
             }
 
-            div.querySelector('.btn-remove-hist').addEventListener('click', async () => {
-                const itemId = item.id;
-                try {
-                    await fetch(`http://localhost:5000/api/extension/history/${itemId}`, { method: 'DELETE' });
-                } catch { }
-                await window.Storage.removeCompletedDownload(itemId);
-                loadData();
-            });
+            const removeBtn = div.querySelector('.btn-remove-hist');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const targetId = item.id || item.filename || item.title;
+                    div.classList.add('row-exit');
+                    setTimeout(() => {
+                        div.remove();
+                        if (completedList.children.length === 0) {
+                            completedSection.classList.add('hidden');
+                        }
+                    }, 220);
+
+                    try {
+                        await window.Storage.removeCompletedDownload(targetId);
+                    } catch { }
+
+                    try {
+                        await fetch(`http://localhost:5000/api/extension/history/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
+                    } catch { }
+                });
+            }
 
             completedList.appendChild(div);
         });

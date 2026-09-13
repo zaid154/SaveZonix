@@ -363,13 +363,16 @@ public class DatabaseSyncService : IDatabaseSyncService
                         parsedStatus = st;
                     }
 
+                    var mTitle = string.IsNullOrEmpty(mDl.VideoTitle) ? "Video" : mDl.VideoTitle;
+                    var mSafeFile = mTitle.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ? mTitle : $"{mTitle}.mp4";
+
                     var newSDl = new DownloadHistory
                     {
                         Id = key,
                         UserId = mDl.UserId,
                         UserEmail = mDl.UserEmail,
-                        Title = string.IsNullOrEmpty(mDl.VideoTitle) ? "Video" : mDl.VideoTitle,
-                        FileName = "video.mp4",
+                        Title = mTitle,
+                        FileName = mSafeFile,
                         OriginalUrl = mDl.OriginalUrl ?? "",
                         ThumbnailUrl = mDl.ThumbnailUrl,
                         Platform = string.IsNullOrEmpty(mDl.Platform) ? "Web Stream" : mDl.Platform,
