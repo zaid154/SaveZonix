@@ -3,28 +3,40 @@ const mongoose = require('mongoose');
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: true,
+    trim: true
+  },
+  FullName: {
+    type: String,
     trim: true
   },
   email: {
     type: String,
-    required: true,
-    unique: true,
     lowercase: true,
     trim: true
   },
-  password: {
+  Email: {
     type: String,
-    required: true
+    trim: true
+  },
+  password: {
+    type: String
+  },
+  PasswordHash: {
+    type: String
   },
   role: {
     type: String,
-    enum: ['User', 'Admin'],
     default: 'User'
+  },
+  Role: {
+    type: String
   },
   isActive: {
     type: Boolean,
     default: true
+  },
+  IsActive: {
+    type: Boolean
   },
   isVip: {
     type: Boolean,
@@ -50,6 +62,6 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { strict: false });
 
 module.exports = mongoose.model('User', UserSchema);
