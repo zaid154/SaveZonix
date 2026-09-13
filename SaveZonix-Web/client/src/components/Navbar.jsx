@@ -16,15 +16,6 @@ export default function Navbar({ appConfig, user, onOpenAuth, onLogout, onOpenAd
         </nav>
 
         <div className="nav-actions">
-          <button
-            onClick={onOpenAdmin}
-            className="btn-auth-nav"
-            style={{ borderColor: 'rgba(56, 189, 248, 0.4)', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.08)' }}
-            title="Open Central Cloud Admin Dashboard"
-          >
-            🛡️ Admin
-          </button>
-
           {user ? (
             <div className="user-tag">
               <span>{user.isVip ? '👑' : '👤'} {user.name}</span>
