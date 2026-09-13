@@ -73,6 +73,8 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
         onOpenAdmin={() => navigate('/admin')}
+        onNavigate={navigate}
+        currentPath={currentPath}
       />
 
       <main>
