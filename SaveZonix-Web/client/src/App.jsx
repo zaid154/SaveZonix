@@ -8,15 +8,11 @@ import FAQ from './components/FAQ';
 import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './components/AdminDashboard';
-import LegalModal from './components/LegalModal';
+import LegalPage from './components/LegalPage';
 
 export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
-  const [isLegalOpen, setIsLegalOpen] = useState(false);
-  const [legalType, setLegalType] = useState('privacy');
-  const [isAdminView, setIsAdminView] = useState(
-    window.location.pathname === '/admin' || window.location.search.includes('admin')
-  );
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [user, setUser] = useState(null);
   const [appConfig, setAppConfig] = useState(null);
 
@@ -45,33 +41,29 @@ export default function App() {
       });
   }, []);
 
+  // Listen for browser back / forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  function navigate(path) {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+    window.scrollTo(0, 0);
+  }
+
   function handleLogout() {
     localStorage.removeItem('savezonix_token');
     localStorage.removeItem('savezonix_user');
     setUser(null);
   }
 
-  // Handle browser back/forward for /admin
-  useEffect(() => {
-    window.onpopstate = () => {
-      setIsAdminView(window.location.pathname === '/admin' || window.location.search.includes('admin'));
-    };
-  }, []);
-
-  function openAdmin() {
-    window.history.pushState({}, '', '/admin');
-    setIsAdminView(true);
-  }
-
-  function closeAdmin() {
-    window.history.pushState({}, '', '/');
-    setIsAdminView(false);
-  }
-
-  function openLegal(type) {
-    setLegalType(type);
-    setIsLegalOpen(true);
-  }
+  const isLegalRoute = ['/privacy', '/terms', '/dmca', '/disclaimer'].includes(currentPath);
+  const legalType = isLegalRoute ? currentPath.replace('/', '') : 'privacy';
 
   return (
     <div className="app-wrapper">
@@ -80,12 +72,14 @@ export default function App() {
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
-        onOpenAdmin={openAdmin}
+        onOpenAdmin={() => navigate('/admin')}
       />
 
       <main>
-        {isAdminView ? (
-          <AdminDashboard user={user} onBack={closeAdmin} />
+        {currentPath === '/admin' ? (
+          <AdminDashboard user={user} onBack={() => navigate('/')} />
+        ) : isLegalRoute ? (
+          <LegalPage type={legalType} onNavigate={navigate} />
         ) : (
           <>
             <Hero appConfig={appConfig} />
@@ -106,21 +100,17 @@ export default function App() {
         )}
       </main>
 
-      {!isAdminView && (
-        <Footer onOpenAdmin={openAdmin} onOpenLegal={openLegal} />
+      {currentPath !== '/admin' && (
+        <Footer
+          onOpenAdmin={() => navigate('/admin')}
+          onOpenLegal={(type) => navigate(`/${type}`)}
+        />
       )}
 
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={(u) => setUser(u)}
-      />
-
-      <LegalModal
-        isOpen={isLegalOpen}
-        type={legalType}
-        onClose={() => setIsLegalOpen(false)}
-        onSwitchType={(t) => setLegalType(t)}
       />
     </div>
   );
