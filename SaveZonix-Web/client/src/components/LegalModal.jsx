@@ -55,7 +55,7 @@ export default function LegalModal({ isOpen, type, onClose, onSwitchType }) {
             <li>A statement that you have a good faith belief that the disputed use is not authorized by the copyright owner.</li>
           </ul>
           <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.25)', borderRadius: '8px', color: '#38bdf8' }}>
-            📧 <strong>DMCA Designated Contact:</strong> <a href="mailto:dmca@savezonix.com" style={{ color: '#38bdf8', textDecoration: 'underline' }}>dmca@savezonix.com</a>
+            📧 <strong>Official Contact &amp; DMCA:</strong> <a href="mailto:savezonix@gmail.com" style={{ color: '#38bdf8', textDecoration: 'underline' }}>savezonix@gmail.com</a>
           </div>
         </>
       )

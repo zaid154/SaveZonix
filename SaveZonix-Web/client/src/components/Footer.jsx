@@ -48,7 +48,7 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
               <li><a href="#how-it-works" style={{ color: '#94a3b8', textDecoration: 'none' }}>How It Works Guide</a></li>
               <li><a href="#faq" style={{ color: '#94a3b8', textDecoration: 'none' }}>Frequently Asked Questions</a></li>
               <li><a href="https://github.com/zaid154/SaveZonix" target="_blank" rel="noreferrer" style={{ color: '#94a3b8', textDecoration: 'none' }}>GitHub Repository</a></li>
-              <li><a href="https://github.com/zaid154/SaveZonix/releases" target="_blank" rel="noreferrer" style={{ color: '#94a3b8', textDecoration: 'none' }}>Release Changelog (v2.5.0)</a></li>
+              <li><a href="mailto:savezonix@gmail.com" style={{ color: '#38bdf8', fontWeight: '600', textDecoration: 'none' }}>📧 savezonix@gmail.com</a></li>
             </ul>
           </div>
 
