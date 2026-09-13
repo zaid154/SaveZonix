@@ -2,17 +2,25 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Features from './components/Features';
+import HowItWorks from './components/HowItWorks';
 import Pricing from './components/Pricing';
+import FAQ from './components/FAQ';
+import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './components/AdminDashboard';
+import LegalModal from './components/LegalModal';
 
 export default function App() {
-  const [appConfig, setAppConfig] = useState(null);
-  const [user, setUser] = useState(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const [legalType, setLegalType] = useState('privacy');
   const [isAdminView, setIsAdminView] = useState(
     window.location.pathname === '/admin' || window.location.search.includes('admin')
   );
+  const [user, setUser] = useState(null);
+  const [appConfig, setAppConfig] = useState(null);
+
+  const DIRECT_EXE_URL = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe';
 
   useEffect(() => {
     // Check local storage for logged-in user
@@ -32,7 +40,7 @@ export default function App() {
           latestAppVersion: '2.5.0',
           freeDailyLimit: 10,
           vipMonthlyPriceINR: 99,
-          appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe'
+          appDownloadUrl: DIRECT_EXE_URL
         });
       });
   }, []);
@@ -60,6 +68,11 @@ export default function App() {
     setIsAdminView(false);
   }
 
+  function openLegal(type) {
+    setLegalType(type);
+    setIsLegalOpen(true);
+  }
+
   return (
     <div className="app-wrapper">
       <Navbar
@@ -77,36 +90,37 @@ export default function App() {
           <>
             <Hero appConfig={appConfig} />
             <Features />
+            <HowItWorks />
             <Pricing
               appConfig={appConfig}
               onSelectVip={() => {
                 if (!user) {
                   setIsAuthOpen(true);
                 } else {
-                  alert('Redirecting to secure payment checkout...');
+                  alert('Redirecting to secure VIP checkout...');
                 }
               }}
             />
+            <FAQ />
           </>
         )}
       </main>
 
-      <footer className="site-footer">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <p>© 2026 SaveZonix Inc. Built in C# .NET &amp; MERN. All rights reserved.</p>
-          <button
-            onClick={openAdmin}
-            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}
-          >
-            🛡️ Admin Portal
-          </button>
-        </div>
-      </footer>
+      {!isAdminView && (
+        <Footer onOpenAdmin={openAdmin} onOpenLegal={openLegal} />
+      )}
 
       <AuthModal
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={(u) => setUser(u)}
+      />
+
+      <LegalModal
+        isOpen={isLegalOpen}
+        type={legalType}
+        onClose={() => setIsLegalOpen(false)}
+        onSwitchType={(t) => setLegalType(t)}
       />
     </div>
   );
