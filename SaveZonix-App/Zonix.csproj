@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <RootNamespace>SaveZonix</RootNamespace>
     <AssemblyName>Zonix</AssemblyName>
+    <OutputType>WinExe</OutputType>
+    <ApplicationIcon>wwwroot\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

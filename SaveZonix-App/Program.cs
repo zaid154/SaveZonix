@@ -394,7 +394,8 @@ public class Program
         builder.Services.AddControllersWithViews();
 
         var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
-        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+        var hostIp = Environment.GetEnvironmentVariable("PORT") != null ? "0.0.0.0" : "127.0.0.1";
+        builder.WebHost.UseUrls($"http://{hostIp}:{port}");
 
         var app = builder.Build();
         bool forceReset = args.Any(a => a.Equals("--seed-reset", StringComparison.OrdinalIgnoreCase) || 
@@ -2342,6 +2343,21 @@ public class Program
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine($" 🌐 Access URL: http://localhost:{port}\n");
         Console.ResetColor();
+
+        // Auto-launch default browser for seamless desktop app experience
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1000);
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = $"http://localhost:{port}",
+                    UseShellExecute = true
+                });
+            }
+            catch { }
+        });
 
         app.Run();
     }
