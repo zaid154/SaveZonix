@@ -299,7 +299,13 @@ public class Program
 
     public static async Task Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory,
+            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+        });
         
         // 1. Database Context (SQLite / SQL Server)
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
@@ -400,7 +406,7 @@ public class Program
         }
         else
         {
-            builder.WebHost.UseUrls($"http://127.0.0.1:{port}", $"http://localhost:{port}");
+            builder.WebHost.UseUrls($"http://localhost:{port}");
         }
 
         var app = builder.Build();
@@ -2359,7 +2365,7 @@ public class Program
                 await Task.Delay(250);
                 try
                 {
-                    var res = await http.GetAsync($"http://127.0.0.1:{port}");
+                    var res = await http.GetAsync($"http://localhost:{port}");
                     if (res.IsSuccessStatusCode)
                     {
                         break;
