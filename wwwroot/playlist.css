@@ -2275,103 +2275,145 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   17. Live Terminal Logger & Progressive Load Controls
+/* ─────────────────────────────────────────────────────────────
+   17. Professional Modern SaaS Loader (No Terminal Gimmicks)
    ───────────────────────────────────────────────────────────── */
-.studio-terminal-logger {
-    background: #070b13;
-    border: 1px solid rgba(14, 165, 233, 0.25);
-    border-radius: 10px;
-    overflow: hidden;
-    text-align: left;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+.pro-loader-card {
+    max-width: 480px;
+    margin: 32px auto;
+    padding: 38px 28px;
+    background: rgba(11, 17, 30, 0.9);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    text-align: center;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.25s ease-out;
 }
 
-.terminal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: rgba(255, 255, 255, 0.03);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    padding: 8px 14px;
-}
-
-.terminal-dots {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.terminal-dots .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.terminal-dots .dot-red { background: #ef4444; }
-.terminal-dots .dot-amber { background: #f59e0b; }
-.terminal-dots .dot-green { background: #10b981; }
-
-.terminal-title {
-    font-family: monospace;
-    font-size: 11px;
-    font-weight: 700;
-    color: #64748b;
-    letter-spacing: 0.5px;
-}
-
-.terminal-badge {
-    font-family: monospace;
-    font-size: 10px;
-    font-weight: 800;
-    color: #10b981;
-    background: rgba(16, 185, 129, 0.15);
-    border: 1px solid rgba(16, 185, 129, 0.35);
-    padding: 2px 7px;
-    border-radius: 4px;
-    letter-spacing: 0.5px;
-}
-
-.terminal-body {
-    max-height: 180px;
-    overflow-y: auto;
-    padding: 12px 14px;
-    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-    font-size: 12px;
-    line-height: 1.6;
+.pro-loader-content {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    align-items: center;
 }
 
-.terminal-log-line {
+.pro-spinner-wrap {
+    position: relative;
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 20px auto;
     display: flex;
-    align-items: baseline;
-    gap: 8px;
-    color: #cbd5e1;
-    animation: fadeIn 0.2s ease-out;
+    align-items: center;
+    justify-content: center;
 }
 
-.terminal-log-line.log-highlight {
+.pro-spinner-glow {
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.3) 0%, transparent 70%);
+    filter: blur(8px);
+    animation: proGlowPulse 2s ease-in-out infinite alternate;
+}
+
+.pro-spinner-ring {
+    position: absolute;
+    inset: 0;
+    border: 3px solid rgba(255, 255, 255, 0.06);
+    border-top-color: #0ea5e9;
+    border-right-color: #38bdf8;
+    border-radius: 50%;
+    animation: proRotateRing 0.85s cubic-bezier(0.5, 0.15, 0.45, 0.85) infinite;
+}
+
+.pro-spinner-icon {
+    position: relative;
+    z-index: 2;
     color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
+}
+
+.pro-loader-title {
+    font-size: 17px;
     font-weight: 700;
+    color: #f8fafc;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.01em;
 }
 
-.log-time {
-    color: #64748b;
-    font-size: 11px;
-    min-width: 50px;
-    flex-shrink: 0;
+.pro-loader-sub {
+    font-size: 13px;
+    color: #94a3b8;
+    margin: 0 0 22px 0;
+    line-height: 1.45;
+    max-width: 360px;
 }
 
-.log-icon {
-    font-size: 12px;
-    flex-shrink: 0;
+.pro-loader-progress-track {
+    width: 100%;
+    max-width: 340px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 16px;
 }
 
-.log-msg {
-    flex: 1;
-    word-break: break-word;
+.pro-loader-progress-fill {
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, #0ea5e9, #38bdf8, #a855f7, transparent);
+    border-radius: 999px;
+    animation: proSlideFill 1.3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.pro-loader-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.pro-loader-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #0ea5e9;
+    box-shadow: 0 0 8px #0ea5e9;
+    animation: proDotPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes proRotateRing {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes proGlowPulse {
+    0% { opacity: 0.5; transform: scale(0.95); }
+    100% { opacity: 1; transform: scale(1.1); }
+}
+
+@keyframes proSlideFill {
+    0% { left: -40%; }
+    100% { left: 100%; }
+}
+
+@keyframes proDotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.75); }
 }
 
 /* Progressive Load Card */

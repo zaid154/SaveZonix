@@ -84,7 +84,12 @@
 
         <!-- Downloads History -->
         <div id="completedSection" class="history-section hidden">
-            <div class="history-header">Recent Downloads</div>
+            <div class="history-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Recent Downloads</span>
+                <button type="button" id="btnClearAllHistory" title="Clear All History" style="background: transparent; border: none; color: #ef4444; font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; opacity: 0.85; transition: opacity 0.2s;">
+                    <span>Clear All</span>
+                </button>
+            </div>
             <div id="completedList" class="history-list"></div>
         </div>
     </main>

@@ -219,7 +219,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         let rawVideos = (tabData && tabData.videos) ? tabData.videos : [];
-        const completed = (tabData && tabData.completed) ? tabData.completed : [];
+        let completed = [];
+        try {
+            const syncResp = await fetch('http://localhost:5000/api/extension/recent-downloads', {
+                signal: AbortSignal.timeout(1500)
+            });
+            if (syncResp.ok) {
+                const syncData = await syncResp.json();
+                if (syncData && syncData.success && Array.isArray(syncData.items)) {
+                    completed = syncData.items;
+                    await chrome.storage.local.set({ completed_downloads: completed });
+                }
+            } else {
+                completed = (tabData && tabData.completed) ? tabData.completed : [];
+            }
+        } catch {
+            completed = (tabData && tabData.completed) ? tabData.completed : [];
+        }
         const activeDl = (tabData && tabData.activeDownload) ? tabData.activeDownload : null;
 
         // Strict Site Isolation & Filtering
@@ -704,6 +720,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Render Download History
     function renderCompletedList(items) {
         completedList.innerHTML = '';
+
+        const btnClearAllHistory = document.getElementById('btnClearAllHistory');
+        if (btnClearAllHistory && !btnClearAllHistory.dataset.bound) {
+            btnClearAllHistory.dataset.bound = 'true';
+            btnClearAllHistory.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                try {
+                    await fetch('http://localhost:5000/api/extension/clear-history', { method: 'POST' });
+                } catch { }
+                await chrome.storage.local.set({ completed_downloads: [] });
+                loadData();
+            });
+        }
+
         items.slice(0, 10).forEach(item => {
             const div = document.createElement('div');
             div.className = 'history-item';
@@ -727,7 +757,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             div.querySelector('.btn-remove-hist').addEventListener('click', async () => {
-                await window.Storage.removeCompletedDownload(item.id);
+                const itemId = item.id;
+                try {
+                    await fetch(`http://localhost:5000/api/extension/history/${itemId}`, { method: 'DELETE' });
+                } catch { }
+                await window.Storage.removeCompletedDownload(itemId);
                 loadData();
             });
 

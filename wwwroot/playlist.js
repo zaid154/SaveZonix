@@ -144,23 +144,20 @@
     const progressiveLoadingMsg = document.getElementById('progressiveLoadingMsg');
 
     function resetTerminalLogs() {
-        if (!playlistTerminalLogs) return;
-        playlistTerminalLogs.innerHTML = '';
-        logStartTime = Date.now();
+        setLoaderStatus('Connecting to YouTube...', 'Retrieving playlist metadata and available quality streams...');
+    }
+
+    function setLoaderStatus(statusText, subText = null) {
+        const statusEl = document.getElementById('proLoaderStatusText');
+        if (statusEl && statusText) statusEl.textContent = statusText;
+        if (subText) {
+            const subEl = document.getElementById('playlistLoadingText');
+            if (subEl) subEl.textContent = subText;
+        }
     }
 
     function addTerminalLog(icon, msg, isHighlight = false) {
-        if (!playlistTerminalLogs) return;
-        const elapsed = ((Date.now() - logStartTime) / 1000).toFixed(1);
-        const line = document.createElement('div');
-        line.className = 'terminal-log-line' + (isHighlight ? ' log-highlight' : '');
-        line.innerHTML = `
-            <span class="log-time">[+${elapsed}s]</span>
-            <span class="log-icon">${icon}</span>
-            <span class="log-msg">${escapeHtml(msg)}</span>
-        `;
-        playlistTerminalLogs.appendChild(line);
-        playlistTerminalLogs.scrollTop = playlistTerminalLogs.scrollHeight;
+        setLoaderStatus(msg);
     }
 
     function isDownloadActive() {
@@ -863,18 +860,16 @@
         if (progressiveLoadSection) progressiveLoadSection.style.display = 'none';
 
         resetTerminalLogs();
-        addTerminalLog('🌐', 'Connecting to YouTube Innertube API...');
         const isMixUrl = url.includes('list=RD') || url.includes('start_radio=1');
         if (isMixUrl) {
-            addTerminalLog('📻', 'Detected: YouTube Mix Radio Queue');
-            addTerminalLog('⚡', 'Progressive Mode: Loading first 25 queue videos for instant preview...');
+            setLoaderStatus('Loading YouTube Mix Queue...', 'Fetching first 25 mix tracks and streaming manifests...');
         } else {
-            addTerminalLog('🔍', 'Querying YouTube playlist metadata and stream info...');
+            setLoaderStatus('Querying YouTube Playlist...', 'Fetching video metadata, audio streams, and available qualities...');
         }
 
         try {
             if (activeQueueKey) {
-                addTerminalLog('⚡', 'Active Tab Sync: Synchronizing exact queue from Chrome Extension...');
+                setLoaderStatus('Synchronizing Active Tab Queue...', 'Importing exact tracklist from your browser tab...');
             }
             const resp = await fetch('/api/playlist/load', {
                 method: 'POST',
@@ -884,15 +879,13 @@
 
             const data = await resp.json();
             if (!resp.ok || !data.success) {
-                addTerminalLog('❌', data.message || 'Failed to load playlist.', true);
+                setLoaderStatus('Playlist Loading Failed', data.message || 'Unable to fetch YouTube playlist.');
                 showAlert('Playlist Loading Failed', data.message || 'Unable to fetch YouTube playlist.');
                 if (playlistWelcomeState) playlistWelcomeState.style.display = 'block';
                 return;
             }
 
-            const elapsed = ((Date.now() - logStartTime) / 1000).toFixed(1);
-            addTerminalLog('📦', `Received ${data.videos?.length || 0} videos in ${elapsed}s`);
-            addTerminalLog('✅', 'Ready! Initializing Studio table workspace...', true);
+            setLoaderStatus('Ready! Opening Workspace...', 'Rendering table...');
 
             currentPlaylist = data;
             selectedVideoIds.clear();

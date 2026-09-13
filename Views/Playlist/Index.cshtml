@@ -124,35 +124,28 @@
         </div>
     </div>
 
-    <!-- Loading State Box with Live Studio Terminal Logger -->
-    <div id="playlistLoadingBox" class="studio-card" style="display: none; padding: 32px 24px; max-width: 680px; margin: 0 auto;">
-        <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 12px;">
-            <div style="width: 32px; height: 32px; border: 3px solid rgba(14,165,233,0.2); border-top-color: #0ea5e9; border-radius: 50%; animation: pulseRotate 0.8s linear infinite;"></div>
-            <h3 id="playlistLoadingTitle" style="color: #fff; font-size: 18px; margin: 0; font-weight: 700;">Fetching Playlist Information...</h3>
-        </div>
-        <p id="playlistLoadingText" style="color: #94a3b8; font-size: 13px; text-align: center; margin: 0 0 20px 0;">
-            Retrieving videos list and metadata from YouTube. Please wait a moment...
-        </p>
-
-        <!-- Live Terminal Logger Window -->
-        <div class="studio-terminal-logger">
-            <div class="terminal-header">
-                <div class="terminal-dots">
-                    <span class="dot dot-red"></span>
-                    <span class="dot dot-amber"></span>
-                    <span class="dot dot-green"></span>
+    <!-- Professional Modern Loader (Clean SaaS State) -->
+    <div id="playlistLoadingBox" class="studio-card pro-loader-card" style="display: none;">
+        <div class="pro-loader-content">
+            <div class="pro-spinner-wrap">
+                <div class="pro-spinner-glow"></div>
+                <div class="pro-spinner-ring"></div>
+                <div class="pro-spinner-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                    </svg>
                 </div>
-                <div class="terminal-title">
-                    <span>⚡ YOUTUBE INNERTUBE STREAM RECORDER</span>
-                </div>
-                <div class="terminal-badge" id="terminalLiveBadge">LIVE</div>
             </div>
-            <div class="terminal-body" id="playlistTerminalLogs">
-                <div class="terminal-log-line">
-                    <span class="log-time">[00:00]</span>
-                    <span class="log-icon">🌐</span>
-                    <span class="log-msg">Initializing connection to YouTube...</span>
-                </div>
+            <h3 id="playlistLoadingTitle" class="pro-loader-title">Loading YouTube Playlist</h3>
+            <p id="playlistLoadingText" class="pro-loader-sub">Retrieving playlist metadata and available quality streams...</p>
+            
+            <div class="pro-loader-progress-track">
+                <div class="pro-loader-progress-fill"></div>
+            </div>
+
+            <div class="pro-loader-status-pill">
+                <span class="pro-loader-dot"></span>
+                <span id="proLoaderStatusText">Connecting to YouTube</span>
             </div>
         </div>
     </div>

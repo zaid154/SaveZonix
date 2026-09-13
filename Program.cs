@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using SaveZonix.Models;
 using SaveZonix.Services;
 using StreamHelper.Data;
+using StreamHelper.Services;
 using Zonix.Core;
 
 namespace SaveZonix;
@@ -1885,6 +1886,39 @@ public class Program
             }
             catch { }
             return Results.Ok(new { success = true, path = downloadsFolder });
+        });
+
+        // ─────────────────────────────────────────────────────────────
+        // Extension Recent Downloads Sync APIs (Direct Database Driven)
+        // ─────────────────────────────────────────────────────────────
+        app.MapGet("/api/extension/recent-downloads", async (IDownloadHistoryService historyService) =>
+        {
+            var (items, total) = await historyService.GetAllDownloadsAsync(1, 20, null, "Completed", null, null);
+            var list = items.Select(i => new
+            {
+                id = i.Id,
+                title = i.Title,
+                filename = i.FileName,
+                quality = i.Quality,
+                size = i.FormattedFileSize,
+                site = i.Platform,
+                downloadId = (int?)null,
+                timestamp = i.CreatedAt.ToString("o")
+            });
+            return Results.Ok(new { success = true, items = list });
+        });
+
+        app.MapPost("/api/extension/clear-history", async (AppDbContext db) =>
+        {
+            db.DownloadHistories.RemoveRange(db.DownloadHistories);
+            await db.SaveChangesAsync();
+            return Results.Ok(new { success = true });
+        });
+
+        app.MapDelete("/api/extension/history/{id}", async (string id, IDownloadHistoryService historyService) =>
+        {
+            var deleted = await historyService.DeleteDownloadAsync(id);
+            return Results.Ok(new { success = deleted });
         });
 
         // ─────────────────────────────────────────────────────────────

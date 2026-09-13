@@ -174,6 +174,29 @@
                         }
                     }
                 }
+
+                // 3. Ensure currently playing video is at Index 0 (Video #01)
+                const meta = this.extractMetadata();
+                if (meta && meta.videoId) {
+                    const existingIdx = queue.findIndex(item => item.id === meta.videoId);
+                    if (existingIdx > 0) {
+                        const [curr] = queue.splice(existingIdx, 1);
+                        queue.unshift(curr);
+                    } else if (existingIdx === -1) {
+                        queue.unshift({
+                            index: 1,
+                            id: meta.videoId,
+                            title: meta.showName || meta.title,
+                            author: meta.subtitle || 'YouTube Creator',
+                            duration: '00:00',
+                            thumbnailUrl: meta.thumbnail,
+                            url: `https://www.youtube.com/watch?v=${meta.videoId}`
+                        });
+                    }
+                }
+
+                // Re-index sequentially 1..N
+                queue.forEach((it, i) => it.index = i + 1);
             } catch (err) {
                 console.warn('[SaveZonix] YouTube queue extraction error:', err);
             }

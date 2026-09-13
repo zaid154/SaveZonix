@@ -55,9 +55,18 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         return null;
     }
 
+    public string? ExtractVideoId(string urlOrId)
+    {
+        if (string.IsNullOrWhiteSpace(urlOrId)) return null;
+        var match = Regex.Match(urlOrId, @"(?:v=|\/embed\/|\/v\/|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
     public async Task<PlaylistInfoResult> LoadPlaylistAsync(string urlOrId, int? limit = null, int? offset = null, CancellationToken cancellationToken = default)
     {
         string? playlistId = ExtractPlaylistId(urlOrId);
+        string? seedVideoId = ExtractVideoId(urlOrId);
+
         if (string.IsNullOrWhiteSpace(playlistId))
         {
             return new PlaylistInfoResult
@@ -111,26 +120,80 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         try
         {
             var playlist = await _youtubeClient.Playlists.GetAsync(playlistId, cancellationToken);
+
+            // Fetch seed video (the active playing video from v=...) if present
+            PlaylistVideoDto? seedVideoDto = null;
+            if (!string.IsNullOrWhiteSpace(seedVideoId))
+            {
+                try
+                {
+                    var seedVid = await _youtubeClient.Videos.GetAsync(seedVideoId, cancellationToken);
+                    int seedSec = (int)(seedVid.Duration?.TotalSeconds ?? 0);
+                    string seedDur = seedVid.Duration.HasValue
+                        ? (seedVid.Duration.Value.TotalHours >= 1 
+                            ? seedVid.Duration.Value.ToString(@"hh\:mm\:ss") 
+                            : seedVid.Duration.Value.ToString(@"mm\:ss"))
+                        : "00:00";
+
+                    seedVideoDto = new PlaylistVideoDto
+                    {
+                        VideoId = seedVid.Id.Value,
+                        Index = 1,
+                        Title = seedVid.Title,
+                        Author = seedVid.Author?.ChannelTitle ?? "YouTube Creator",
+                        DurationSeconds = seedSec,
+                        FormattedDuration = seedDur,
+                        ThumbnailUrl = seedVid.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{seedVid.Id}/hqdefault.jpg",
+                        IsAvailable = true,
+                        AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
+                        AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
+                    };
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[YouTube Playlist] Could not probe seed video {seedVideoId}: {ex.Message}");
+                }
+            }
+
+            // Clean title: remove "Mix - " prefix if present so clean song title is displayed
+            string cleanTitle = playlist.Title;
+            if (cleanTitle.StartsWith("Mix - ", StringComparison.OrdinalIgnoreCase))
+            {
+                cleanTitle = cleanTitle.Substring("Mix - ".Length).Trim();
+            }
+
             var result = new PlaylistInfoResult
             {
                 Success = true,
                 Id = playlist.Id.Value,
-                Title = playlist.Title,
-                Author = playlist.Author?.ChannelTitle ?? "YouTube Creator",
+                Title = !string.IsNullOrWhiteSpace(cleanTitle) ? cleanTitle : (seedVideoDto?.Title ?? playlist.Title),
+                Author = seedVideoDto?.Author ?? (playlist.Author?.ChannelTitle ?? "YouTube Creator"),
                 AuthorUrl = playlist.Author?.ChannelUrl ?? "",
-                ThumbnailUrl = playlist.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{playlistId}/hqdefault.jpg",
+                ThumbnailUrl = seedVideoDto?.ThumbnailUrl ?? (playlist.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{playlistId}/hqdefault.jpg"),
                 Description = playlist.Description,
                 IsMix = isMix
             };
 
             var videos = new List<PlaylistVideoDto>();
-            int streamIndex = 0;
-            int addedIndex = 1 + skipCount;
             long totalSeconds = 0;
             bool hasMore = false;
 
+            // If seed video exists, it MUST be Track #01 in the table
+            if (seedVideoDto != null && skipCount == 0)
+            {
+                videos.Add(seedVideoDto);
+                totalSeconds += seedVideoDto.DurationSeconds;
+            }
+
+            int streamIndex = 0;
             await foreach (var video in _youtubeClient.Playlists.GetVideosAsync(playlist.Id, cancellationToken))
             {
+                // Skip seed video if YouTube includes it in the recommendations to avoid duplicate
+                if (seedVideoDto != null && video.Id.Value == seedVideoDto.VideoId)
+                {
+                    continue;
+                }
+
                 streamIndex++;
 
                 // Skip items before offset
@@ -162,7 +225,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                     videos.Add(new PlaylistVideoDto
                     {
                         VideoId = video.Id.Value,
-                        Index = addedIndex++,
+                        Index = videos.Count + 1,
                         Title = video.Title,
                         Author = video.Author?.ChannelTitle ?? "Unknown",
                         DurationSeconds = durationSec,
@@ -178,7 +241,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                     videos.Add(new PlaylistVideoDto
                     {
                         VideoId = video.Id.Value,
-                        Index = addedIndex++,
+                        Index = videos.Count + 1,
                         Title = video.Title ?? "Unavailable Video",
                         Author = video.Author?.ChannelTitle ?? "Unknown",
                         DurationSeconds = 0,
@@ -293,13 +356,20 @@ public class YouTubePlaylistService : IYouTubePlaylistService
             };
         }).ToList();
 
+        string cleanTitle = (request.Title ?? "YouTube Mix (Active Tab)").Trim();
+        if (cleanTitle.StartsWith("Mix - ", StringComparison.OrdinalIgnoreCase))
+        {
+            cleanTitle = cleanTitle.Substring("Mix - ".Length).Trim();
+        }
+
+        var firstVid = videos.FirstOrDefault();
         var result = new PlaylistInfoResult
         {
             Success = true,
             Id = key,
-            Title = string.IsNullOrWhiteSpace(request.Title) ? "YouTube Mix (Active Tab)" : request.Title,
-            Author = request.Author ?? "YouTube Mix",
-            ThumbnailUrl = videos.FirstOrDefault()?.ThumbnailUrl ?? "",
+            Title = !string.IsNullOrWhiteSpace(cleanTitle) ? cleanTitle : (firstVid?.Title ?? "YouTube Mix"),
+            Author = firstVid?.Author ?? (request.Author ?? "YouTube Mix"),
+            ThumbnailUrl = firstVid?.ThumbnailUrl ?? "",
             VideoCount = videos.Count,
             TotalKnownVideos = videos.Count,
             HasMore = false,
