@@ -2344,15 +2344,42 @@ public class Program
         Console.WriteLine($" 🌐 Access URL: http://localhost:{port}\n");
         Console.ResetColor();
 
-        // Auto-launch default browser for seamless desktop app experience
+        // Auto-launch dedicated standalone desktop window
         _ = Task.Run(async () =>
         {
             await Task.Delay(1000);
             try
             {
+                var edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft\\Edge\\Application\\msedge.exe");
+                if (!File.Exists(edgePath))
+                {
+                    edgePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft\\Edge\\Application\\msedge.exe");
+                }
+
+                if (File.Exists(edgePath))
+                {
+                    var edgeProcess = Process.Start(new ProcessStartInfo
+                    {
+                        FileName = edgePath,
+                        Arguments = $"--app=http://127.0.0.1:{port} --window-size=1280,820",
+                        UseShellExecute = false
+                    });
+
+                    if (edgeProcess != null)
+                    {
+                        edgeProcess.WaitForExit();
+                        Environment.Exit(0);
+                        return;
+                    }
+                }
+            }
+            catch { }
+
+            try
+            {
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = $"http://localhost:{port}",
+                    FileName = $"http://127.0.0.1:{port}",
                     UseShellExecute = true
                 });
             }
