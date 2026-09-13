@@ -32,7 +32,7 @@ export default function App() {
           latestAppVersion: '2.5.0',
           freeDailyLimit: 10,
           vipMonthlyPriceINR: 99,
-          appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/latest'
+          appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe'
         });
       });
   }, []);

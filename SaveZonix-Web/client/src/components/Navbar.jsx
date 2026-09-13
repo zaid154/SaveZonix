@@ -29,7 +29,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onLogout, onOpenAd
             </button>
           )}
 
-          <a href={appConfig?.appDownloadUrl || 'https://github.com/zaid154/SaveZonix/releases/latest'} className="btn-nav-download">
+          <a href={(appConfig?.appDownloadUrl && !appConfig.appDownloadUrl.includes('/releases/latest')) ? appConfig.appDownloadUrl : 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe'} className="btn-nav-download">
             Download App
           </a>
         </div>
