@@ -26,8 +26,8 @@ import EngineTab from './admin/EngineTab';
 
 export default function AdminDashboard({ user, onBack }) {
   const [adminKey, setAdminKey] = useState(localStorage.getItem('savezonix_admin_key') || '');
+  const [adminToken, setAdminToken] = useState(localStorage.getItem('savezonix_admin_token') || '');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [keyInput, setKeyInput] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
 
@@ -49,53 +49,157 @@ export default function AdminDashboard({ user, onBack }) {
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  useEffect(() => {
-    if (adminKey) {
-      testAuth(adminKey);
-    }
-  }, [adminKey]);
+  function getAuthHeaders(key = adminKey, token = adminToken) {
+    const headers = {};
+    if (key) headers['x-admin-key'] = key;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
+  }
 
-  async function testAuth(key) {
-    if (!key) return;
+  useEffect(() => {
+    if (adminKey || adminToken) {
+      testSession(adminKey, adminToken);
+    }
+  }, []);
+
+  async function testSession(key, token) {
     setAuthLoading(true);
     setAuthError('');
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+
       const res = await fetch('/api/admin/stats', {
-        headers: { 'x-admin-key': key }
-      });
-      if (res.ok) {
+        headers: getAuthHeaders(key, token),
+        signal: controller.signal
+      }).catch(() => null);
+
+      clearTimeout(timer);
+
+      if (res && res.ok) {
         setIsAuthenticated(true);
-        setAdminKey(key);
-        localStorage.setItem('savezonix_admin_key', key);
-        loadAllData(key);
+        loadAllData(key, token);
       } else {
         setIsAuthenticated(false);
-        setAuthError('Authentication failed: Invalid Master Admin Key.');
       }
     } catch {
       setIsAuthenticated(false);
-      setAuthError('Connection error: Could not reach SaveZonix backend. Please retry.');
     } finally {
       setAuthLoading(false);
     }
   }
 
-  function handleLogin(e) {
-    e.preventDefault();
-    if (!keyInput.trim()) return;
-    testAuth(keyInput.trim());
+  async function handleLoginWithCredentials(id, password) {
+    if (!id || !password) {
+      setAuthError('Please enter both Admin ID/Email and Password.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id.trim(), password: password.trim() }),
+        signal: controller.signal
+      }).catch((err) => {
+        if (err.name === 'AbortError') {
+          throw new Error('Connection timed out: Server may be booting on Render. Please retry.');
+        }
+        throw err;
+      });
+
+      clearTimeout(timer);
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        const token = data.token || '';
+        const key = data.adminKey || 'savezonix_admin_2026';
+        setAdminToken(token);
+        setAdminKey(key);
+        localStorage.setItem('savezonix_admin_token', token);
+        localStorage.setItem('savezonix_admin_key', key);
+        setIsAuthenticated(true);
+        loadAllData(key, token);
+      } else {
+        setAuthError(data.error || 'Authentication failed: Invalid Admin ID or Password.');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Connection error: Could not reach backend server.');
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
-  async function loadAllData(key = adminKey) {
+  async function handleLoginWithKey(key) {
+    if (!key.trim()) {
+      setAuthError('Please enter Master Admin Key.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminKey: key.trim() }),
+        signal: controller.signal
+      }).catch((err) => {
+        if (err.name === 'AbortError') {
+          throw new Error('Connection timed out: Server may be booting on Render. Please retry.');
+        }
+        throw err;
+      });
+
+      clearTimeout(timer);
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        const token = data.token || '';
+        const validKey = data.adminKey || key.trim();
+        setAdminToken(token);
+        setAdminKey(validKey);
+        localStorage.setItem('savezonix_admin_token', token);
+        localStorage.setItem('savezonix_admin_key', validKey);
+        setIsAuthenticated(true);
+        loadAllData(validKey, token);
+      } else {
+        setAuthError(data.error || 'Authentication failed: Invalid Master Admin Key.');
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Connection error: Could not reach backend server.');
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('savezonix_admin_key');
+    localStorage.removeItem('savezonix_admin_token');
+    setAdminKey('');
+    setAdminToken('');
+    setIsAuthenticated(false);
+  }
+
+  async function loadAllData(key = adminKey, token = adminToken) {
     setLoading(true);
+    const headers = getAuthHeaders(key, token);
     try {
       const [statsRes, usersRes, dlRes, diagRes, dbRes, settingsRes] = await Promise.all([
-        fetch('/api/admin/stats', { headers: { 'x-admin-key': key } }),
-        fetch('/api/admin/users', { headers: { 'x-admin-key': key } }),
-        fetch('/api/admin/downloads', { headers: { 'x-admin-key': key } }),
-        fetch('/api/admin/diagnostics', { headers: { 'x-admin-key': key } }),
-        fetch('/api/admin/database-status', { headers: { 'x-admin-key': key } }),
-        fetch('/api/admin/settings', { headers: { 'x-admin-key': key } })
+        fetch('/api/admin/stats', { headers }),
+        fetch('/api/admin/users', { headers }),
+        fetch('/api/admin/downloads', { headers }),
+        fetch('/api/admin/diagnostics', { headers }),
+        fetch('/api/admin/database-status', { headers }),
+        fetch('/api/admin/settings', { headers })
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -124,7 +228,7 @@ export default function AdminDashboard({ user, onBack }) {
     try {
       const res = await fetch(`/api/admin/users/${userId}/vip`, {
         method: 'POST',
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -147,7 +251,7 @@ export default function AdminDashboard({ user, onBack }) {
     try {
       const res = await fetch(`/api/admin/users/${userId}/active`, {
         method: 'POST',
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -168,7 +272,7 @@ export default function AdminDashboard({ user, onBack }) {
     if (!userId) return;
     try {
       const res = await fetch(`/api/admin/users/${userId}/details`, {
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       if (res.ok) {
         setSelectedUserInspector(await res.json());
@@ -186,7 +290,7 @@ export default function AdminDashboard({ user, onBack }) {
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -209,7 +313,7 @@ export default function AdminDashboard({ user, onBack }) {
     try {
       const res = await fetch('/api/admin/downloads/clean-stale', {
         method: 'POST',
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -227,7 +331,7 @@ export default function AdminDashboard({ user, onBack }) {
     try {
       const res = await fetch(`/api/admin/downloads/${id}`, {
         method: 'DELETE',
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       if (res.ok) {
         setDownloads(downloads.filter((d) => d._id !== id));
@@ -242,7 +346,7 @@ export default function AdminDashboard({ user, onBack }) {
     try {
       const res = await fetch('/api/admin/sync-databases', {
         method: 'POST',
-        headers: { 'x-admin-key': adminKey }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -263,7 +367,7 @@ export default function AdminDashboard({ user, onBack }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-key': adminKey
+          ...getAuthHeaders()
         },
         body: JSON.stringify(settings)
       });
@@ -279,15 +383,14 @@ export default function AdminDashboard({ user, onBack }) {
     }
   }
 
-  // Unauthenticated Login
+  // Unauthenticated Login Screen
   if (!isAuthenticated) {
     return (
       <AdminLoginModal
-        keyInput={keyInput}
-        setKeyInput={setKeyInput}
         authError={authError}
         authLoading={authLoading}
-        onLogin={handleLogin}
+        onLoginWithCredentials={handleLoginWithCredentials}
+        onLoginWithKey={handleLoginWithKey}
         onBack={onBack}
       />
     );
@@ -328,10 +431,7 @@ export default function AdminDashboard({ user, onBack }) {
             Website
           </button>
           <button
-            onClick={() => {
-              localStorage.removeItem('savezonix_admin_key');
-              setIsAuthenticated(false);
-            }}
+            onClick={handleLogout}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', color: '#f87171', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
           >
             <IconLogOut size={13} color="#f87171" />

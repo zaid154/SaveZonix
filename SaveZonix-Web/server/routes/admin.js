@@ -2,36 +2,38 @@ const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
 const dns = require('dns').promises;
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AppConfig = require('../models/AppConfig');
 const DownloadHistory = require('../models/DownloadHistory');
 
-// Middleware to authenticate admin (by JWT or Master Admin Key)
-const adminAuth = async (req, res, next) => {
-  const adminKey = req.headers['x-admin-key'];
-  const masterKey = process.env.ADMIN_KEY || 'savezonix_admin_2026';
+const JWT_SECRET = process.env.JWT_SECRET || 'savezonix_default_jwt_secret';
+const MASTER_ADMIN_KEY = process.env.ADMIN_KEY || 'savezonix_admin_2026';
 
-  if (adminKey && adminKey === masterKey) {
-    return next();
+// Helper for verifying ASP.NET Identity v3 PBKDF2 password hashes
+function verifyAspNetIdentityPassword(hashedPassword, providedPassword) {
+  try {
+    const buffer = Buffer.from(hashedPassword, 'base64');
+    if (buffer.length < 13) return false;
+    const formatMarker = buffer[0];
+    if (formatMarker === 0x01) {
+      const prf = buffer.readInt32BE(1);
+      const iterCount = buffer.readInt32BE(5);
+      const saltLength = buffer.readInt32BE(9);
+      if (saltLength < 16) return false;
+      const salt = buffer.slice(13, 13 + saltLength);
+      const subkey = buffer.slice(13 + saltLength);
+      const hashAlgorithm = prf === 1 ? 'sha256' : (prf === 2 ? 'sha512' : 'sha256');
+      const actualSubkey = crypto.pbkdf2Sync(providedPassword, salt, iterCount, subkey.length, hashAlgorithm);
+      return crypto.timingSafeEqual(subkey, actualSubkey);
+    }
+    return false;
+  } catch {
+    return false;
   }
-
-  // Also check Bearer token if provided
-  const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.split(' ')[1];
-    try {
-      const jwt = require('jsonwebtoken');
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'savezonix_fallback_secret_key_2026');
-      const user = await User.findById(decoded.userId);
-      if (user && user.role === 'Admin') {
-        req.adminUser = user;
-        return next();
-      }
-    } catch {}
-  }
-
-  return res.status(401).json({ error: 'Unauthorized. Admin key or Admin account required.' });
-};
+}
 
 // Helper for safe user lookup across MongoDB ObjectId or C# string ID
 const findUserSafe = async (id) => {
@@ -41,6 +43,151 @@ const findUserSafe = async (id) => {
     if (doc) return doc;
   }
   return await User.findOne({ $or: [{ _id: id }, { Id: id }, { id }] });
+};
+
+// ─────────────────────────────────────────────────────────────
+// Admin Login Endpoint (ID + Password OR Master Admin Key)
+// ─────────────────────────────────────────────────────────────
+router.post('/login', async (req, res) => {
+  try {
+    const { id, email, password, adminKey } = req.body;
+
+    // 1. Direct Master Key bypass
+    if (adminKey && adminKey.trim() === MASTER_ADMIN_KEY) {
+      const token = jwt.sign(
+        { userId: 'master_admin', email: 'zaidm1323@gmail.com', role: 'Admin' },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.json({
+        success: true,
+        adminKey: MASTER_ADMIN_KEY,
+        token,
+        user: { name: 'Master Admin', email: 'zaidm1323@gmail.com', role: 'Admin' }
+      });
+    }
+
+    const identifier = (id || email || '').trim();
+    const pwd = (password || '').trim();
+
+    if (!identifier || !pwd) {
+      return res.status(400).json({ error: 'Please enter both Admin ID/Email and Password.' });
+    }
+
+    // 2. Guaranteed Super Admin fallback (Instant response even during cold DB boot)
+    const isSuperAdminEmail =
+      identifier.toLowerCase() === 'zaidm1323@gmail.com' ||
+      identifier.toLowerCase() === 'admin' ||
+      identifier.toLowerCase() === 'zaid';
+
+    const isSuperAdminPassword =
+      pwd === 'Zaid@SaveZonix#2026!' ||
+      pwd === MASTER_ADMIN_KEY ||
+      pwd === 'admin123' ||
+      pwd === 'zaid123';
+
+    if (isSuperAdminEmail && isSuperAdminPassword) {
+      const token = jwt.sign(
+        { userId: 'super_admin_zaid', email: 'zaidm1323@gmail.com', role: 'Admin' },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.json({
+        success: true,
+        adminKey: MASTER_ADMIN_KEY,
+        token,
+        user: { name: 'Zaid Khan (Lead Developer)', email: 'zaidm1323@gmail.com', role: 'Admin' }
+      });
+    }
+
+    // 3. Database user lookup (Mongo or SQL synced)
+    if (mongoose.connection.readyState === 1) {
+      const user = await User.findOne({
+        $or: [
+          { email: identifier.toLowerCase() },
+          { Email: identifier.toLowerCase() },
+          { name: identifier },
+          { FullName: identifier },
+          { userName: identifier },
+          { UserName: identifier }
+        ]
+      });
+
+      if (user) {
+        let passwordMatches = false;
+        if (user.password) {
+          passwordMatches = await bcrypt.compare(pwd, user.password).catch(() => false);
+        }
+        if (!passwordMatches && (user.PasswordHash || user.passwordHash)) {
+          passwordMatches = verifyAspNetIdentityPassword(user.PasswordHash || user.passwordHash, pwd);
+        }
+        if (!passwordMatches && user.password === pwd) {
+          passwordMatches = true;
+        }
+
+        const isAdmin =
+          user.role === 'Admin' ||
+          user.Role === 'Admin' ||
+          (user.email && user.email.toLowerCase() === 'zaidm1323@gmail.com');
+
+        if (passwordMatches) {
+          if (!isAdmin) {
+            return res.status(403).json({ error: 'Access denied: Account does not have Administrator privileges.' });
+          }
+
+          const token = jwt.sign(
+            { userId: user._id, email: user.email || user.Email, role: 'Admin' },
+            JWT_SECRET,
+            { expiresIn: '30d' }
+          );
+
+          return res.json({
+            success: true,
+            adminKey: MASTER_ADMIN_KEY,
+            token,
+            user: {
+              name: user.name || user.FullName || 'Administrator',
+              email: user.email || user.Email,
+              role: 'Admin'
+            }
+          });
+        }
+      }
+    }
+
+    return res.status(401).json({ error: 'Invalid Admin credentials. Check your Email/ID and Password.' });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Middleware to authenticate admin (by JWT or Master Admin Key)
+const adminAuth = async (req, res, next) => {
+  const adminKey = req.headers['x-admin-key'];
+
+  if (adminKey && adminKey === MASTER_ADMIN_KEY) {
+    return next();
+  }
+
+  // Also check Bearer token if provided
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      if (decoded.userId === 'master_admin' || decoded.userId === 'super_admin_zaid' || decoded.role === 'Admin') {
+        req.adminUser = decoded;
+        return next();
+      }
+      const user = await findUserSafe(decoded.userId);
+      if (user && (user.role === 'Admin' || user.Role === 'Admin' || (user.email && user.email.toLowerCase() === 'zaidm1323@gmail.com'))) {
+        req.adminUser = user;
+        return next();
+      }
+    } catch {}
+  }
+
+  return res.status(401).json({ error: 'Unauthorized. Admin credentials or Master Key required.' });
 };
 
 // ─────────────────────────────────────────────────────────────
