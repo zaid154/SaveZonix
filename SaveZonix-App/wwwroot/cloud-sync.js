@@ -100,30 +100,85 @@
     }
 
     let isSilentUpdateRunning = false;
+    let updatePollInterval = null;
+
     function triggerSilentAutoUpdate(url, version) {
         if (isSilentUpdateRunning) return;
         isSilentUpdateRunning = true;
 
-        showSilentToast(`✨ Updating SaveZonix to v${version} silently in background...`);
+        showSilentToast(`⚡ Preparing SaveZonix v${version} update...`, 0);
 
         fetch('/api/system/silent-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ downloadUrl: url, targetVersion: version })
+        }).then(res => res.json()).then(data => {
+            if (!data.success) {
+                showGraceUpdateBanner();
+                removeSilentToast();
+                return;
+            }
+            startUpdateProgressPolling(version);
         }).catch(() => {
             showGraceUpdateBanner();
+            removeSilentToast();
         });
     }
 
-    function showSilentToast(msg) {
+    function startUpdateProgressPolling(version) {
+        if (updatePollInterval) clearInterval(updatePollInterval);
+        updatePollInterval = setInterval(async () => {
+            try {
+                const res = await fetch('/api/system/update-progress');
+                if (!res.ok) return;
+                const state = await res.json();
+
+                if (state.isError) {
+                    clearInterval(updatePollInterval);
+                    removeSilentToast();
+                    showGraceUpdateBanner();
+                    return;
+                }
+
+                if (state.isComplete) {
+                    clearInterval(updatePollInterval);
+                    showSilentToast(`🚀 Installing v${version}... Launching new engine!`, 100);
+                    setTimeout(() => removeSilentToast(), 6000);
+                    return;
+                }
+
+                if (state.isActive) {
+                    const pct = state.percent || 0;
+                    const mbText = state.totalMB > 0 ? ` (${state.downloadedMB} MB / ${state.totalMB} MB)` : '';
+                    showSilentToast(`⚡ Downloading v${version}: ${pct}%${mbText}`, pct);
+                }
+            } catch { }
+        }, 1000);
+    }
+
+    function showSilentToast(msg, percent) {
         let toast = document.getElementById('silentUpdateToast');
         if (!toast) {
             toast = document.createElement('div');
             toast.id = 'silentUpdateToast';
-            toast.style.cssText = 'position: fixed; bottom: 24px; right: 24px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 99999; display: flex; align-items: center; gap: 10px; backdrop-filter: blur(8px);';
+            toast.style.cssText = 'position: fixed; bottom: 24px; right: 24px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 99999; display: flex; flex-direction: column; gap: 6px; backdrop-filter: blur(8px); min-width: 280px;';
             document.body.appendChild(toast);
         }
-        toast.innerHTML = `<span>⚡</span><span>${msg}</span>`;
+        const barWidth = typeof percent === 'number' ? Math.max(0, Math.min(100, percent)) : 0;
+        toast.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span>${msg}</span>
+            </div>
+            <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-top: 4px;">
+                <div style="width: ${barWidth}%; height: 100%; background: #38bdf8; transition: width 0.3s ease;"></div>
+            </div>
+        `;
+    }
+
+    function removeSilentToast() {
+        const toast = document.getElementById('silentUpdateToast');
+        if (toast) toast.remove();
+        isSilentUpdateRunning = false;
     }
 
     function compareVersions(v1, v2) {

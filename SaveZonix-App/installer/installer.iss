@@ -26,7 +26,21 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 CloseApplications=yes
+CloseApplicationsFilter=Zonix.exe
 RestartApplications=no
+
+[InstallDelete]
+Type: files; Name: "{app}\Zonix.exe"
+
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  // Cleanly kill any running Zonix processes without user prompts
+  Exec('taskkill.exe', '/F /IM Zonix.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

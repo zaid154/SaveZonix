@@ -708,12 +708,12 @@ public class M3U8Parser
             }
         }
 
-        // 0a. xHamster Multi-Resolution HLS Template Parser (e.g. multi=..._TPL_.av1.mp4.m3u8)
-        var xhMultiMatch = Regex.Match(cleanedHtml, @"(https?:\/\/[^\s""'<>]+multi=[^\s""'<>]+\/[^\s""'<>]+_TPL_[^\s""'<>]+\.m3u8)", RegexOptions.IgnoreCase);
+        // 0a. xHamster Multi-Resolution HLS Parser (supports _TPL_ template or direct resolution suffix like 144p.av1.mp4.m3u8)
+        var xhMultiMatch = Regex.Match(cleanedHtml, @"(https?:\/\/[^\s""'<>]+multi=[^\s""'<>]+\/[^\s""'<>]+\/(?:_TPL_|\d+p)[^\s""'<>]+\.m3u8)", RegexOptions.IgnoreCase);
         if (xhMultiMatch.Success)
         {
-            string masterTplUrl = xhMultiMatch.Groups[1].Value;
-            var multiPartMatch = Regex.Match(masterTplUrl, @"multi=([^/]+)");
+            string masterRawUrl = xhMultiMatch.Groups[1].Value;
+            var multiPartMatch = Regex.Match(masterRawUrl, @"multi=([^/]+)");
             if (multiPartMatch.Success)
             {
                 string multiPart = multiPartMatch.Groups[1].Value;
@@ -721,20 +721,22 @@ public class M3U8Parser
                 foreach (Match qe in qEntries)
                 {
                     string res = qe.Groups[1].Value;
-                    string label = qe.Groups[2].Value; // e.g. 1080p, 720p, 480p
-                    string specificPlaylistUrl = masterTplUrl.Replace("_TPL_", label);
+                    string label = qe.Groups[2].Value; // e.g. 2160p, 1080p, 720p, 480p, 240p, 144p
+                    string specificPlaylistUrl = Regex.Replace(masterRawUrl, @"\/(_TPL_|\d+p)", $"/{label}");
                     int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                    string resDisplay = h >= 2160 ? $"{label} 4K UHD ({res})" : (h >= 1080 ? $"{label} Full HD ({res})" : (h >= 720 ? $"{label} HD ({res})" : $"{label} SD ({res})"));
                     qualities.Add(new StreamQuality
                     {
-                        Resolution = $"{label} HD ({res})",
+                        Resolution = resDisplay,
                         Url = specificPlaylistUrl,
-                        Bandwidth = h * 5000,
+                        Bandwidth = h * 6000,
                         IsDirectFile = false
                     });
                 }
                 if (qualities.Count > 0)
                 {
-                    return (qualities[0].Url, qualities.OrderByDescending(q => q.Bandwidth).ToList());
+                    var sortedQualities = qualities.OrderByDescending(q => q.Bandwidth).ToList();
+                    return (sortedQualities[0].Url, sortedQualities);
                 }
             }
         }

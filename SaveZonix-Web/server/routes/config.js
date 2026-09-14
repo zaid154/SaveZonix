@@ -5,14 +5,14 @@ const router = express.Router();
 
 // Fallback config defaults
 const DEFAULT_CONFIG = {
-  latestAppVersion: '2.5.0',
+  latestAppVersion: '2.5.1',
   minAllowedVersion: '2.0.0',
   forceUpdate: false,
   gracePeriodDays: 7,
   freeDailyLimit: 10,
   lock4KForVip: true,
   vipMonthlyPriceINR: 99,
-  appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe',
+  appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.1/SaveZonix-Setup-v2.5.1.exe',
   silentAutoUpdate: true,
   announcementMessage: ''
 };

@@ -421,6 +421,7 @@ public class Program
         builder.Services.AddScoped<StreamHelper.Services.IDownloadHistoryService, StreamHelper.Services.DownloadHistoryService>();
         builder.Services.AddScoped<StreamHelper.Services.IAdminSettingsService, StreamHelper.Services.AdminSettingsService>();
         builder.Services.AddScoped<SaveZonix.Services.IDatabaseSyncService, SaveZonix.Services.DatabaseSyncService>();
+        builder.Services.AddHostedService<SaveZonix.Services.CloudSettingsSyncWorker>();
 
         var dbProvider = builder.Configuration["DatabaseProvider"] ?? "MongoDB";
         if (dbProvider.Equals("MongoDB", StringComparison.OrdinalIgnoreCase))
@@ -1568,24 +1569,26 @@ public class Program
                                 break;
                             }
                         }
-                        bool isDirectDownload = req.IsDirectFile;
-                        // Guard: if URL contains .m3u8 or ends with .m3u8, it is ALWAYS an HLS playlist, NEVER a direct file!
-                        if (isDirectDownload && req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
-                        {
-                            isDirectDownload = false;
-                        }
-
-                        if (isDirectDownload)
-                        {
-                            var chunks = await downloader.DownloadDirectFileAsync(
-                                req.StreamUrl, tempDirectory, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
-
-                            await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, tempDirectory, false);
-                        }
                         else
                         {
-                            var parser = new M3U8Parser(httpClient);
-                            var mediaPlaylist = await parser.ParseAsync(req.StreamUrl);
+                            bool isDirectDownload = req.IsDirectFile;
+                            // Guard: if URL contains .m3u8 or ends with .m3u8, it is ALWAYS an HLS playlist, NEVER a direct file!
+                            if (isDirectDownload && req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
+                            {
+                                isDirectDownload = false;
+                            }
+
+                            if (isDirectDownload)
+                            {
+                                var chunks = await downloader.DownloadDirectFileAsync(
+                                    req.StreamUrl, tempDirectory, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+
+                                await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, tempDirectory, false);
+                            }
+                            else
+                            {
+                                var parser = new M3U8Parser(httpClient);
+                                var mediaPlaylist = await parser.ParseAsync(req.StreamUrl);
 
                             // Check if this is a live rolling stream (RFC 8216: no #EXT-X-ENDLIST)
                             if (mediaPlaylist.IsLiveStream)
@@ -1679,6 +1682,7 @@ public class Program
                                     }
                                 }
                             }
+                        }
                         }
 
                         // ─── STRICT POST-DOWNLOAD MEDIA VALIDATION ───────────────
@@ -2053,43 +2057,27 @@ public class Program
                 return Results.BadRequest(new { success = false, message = "Invalid download URL" });
             }
 
-            _ = Task.Run(async () =>
+            bool started = SaveZonix.Services.SilentUpdateManager.StartUpdate(req.DownloadUrl, req.TargetVersion ?? "2.5.1");
+            return Results.Ok(new { success = started, message = started ? "Update download initialized." : "Update already running." });
+        });
+
+        app.MapGet("/api/system/update-progress", () =>
+        {
+            var state = SaveZonix.Services.SilentUpdateManager.State;
+            return Results.Ok(new
             {
-                try
-                {
-                    string tempFolder = Path.Combine(Path.GetTempPath(), "SaveZonix-Updates");
-                    Directory.CreateDirectory(tempFolder);
-                    string targetVer = string.IsNullOrWhiteSpace(req.TargetVersion) ? "latest" : req.TargetVersion;
-                    string setupExe = Path.Combine(tempFolder, $"SaveZonix-Setup-{targetVer}.exe");
-
-                    using var http = new HttpClient();
-                    http.Timeout = TimeSpan.FromMinutes(10);
-                    using var response = await http.GetAsync(req.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
-                    if (!response.IsSuccessStatusCode) return;
-
-                    using var stream = await response.Content.ReadAsStreamAsync();
-                    using var fs = new FileStream(setupExe, FileMode.Create, FileAccess.Write, FileShare.None);
-                    await stream.CopyToAsync(fs);
-                    fs.Close();
-
-                    if (File.Exists(setupExe) && new FileInfo(setupExe).Length > 1024 * 1024)
-                    {
-                        var psi = new ProcessStartInfo
-                        {
-                            FileName = setupExe,
-                            Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART",
-                            UseShellExecute = true
-                        };
-                        Process.Start(psi);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[Silent Updater Error] {ex.Message}");
-                }
+                isActive = state.IsActive,
+                targetVersion = state.TargetVersion,
+                percent = state.Percent,
+                downloadedBytes = state.DownloadedBytes,
+                totalBytes = state.TotalBytes,
+                downloadedMB = Math.Round((double)state.DownloadedBytes / (1024 * 1024), 1),
+                totalMB = Math.Round((double)state.TotalBytes / (1024 * 1024), 1),
+                status = state.Status,
+                isComplete = state.IsComplete,
+                isError = state.IsError,
+                errorMessage = state.ErrorMessage
             });
-
-            return Results.Ok(new { success = true, message = "Silent update started in background." });
         });
 
         // ─────────────────────────────────────────────────────────────
