@@ -1,29 +1,41 @@
-// src/content/floating-button.js  IDM-Style Floating Video Downloader Overlay
+// src/content/floating-button.js — IDM-Style Floating Video Downloader Overlay
 (function () {
+    // Only inject on top-level window to avoid duplicate buttons in iframes
+    if (window.top !== window.self) return;
     if (window.__SZ_FLOATING_INJECTED__) return;
     window.__SZ_FLOATING_INJECTED__ = true;
 
     const ATTACHED_CLASS = 'sz-video-tracked';
 
     function createFloatingPill(videoEl) {
+        // Prevent duplicate buttons on page
+        const existing = document.querySelector('.sz-floating-btn-wrap');
+        if (existing) return;
+
         const wrap = document.createElement('div');
         wrap.className = 'sz-floating-btn-wrap';
         wrap.setAttribute('data-sz-ignore', 'true');
 
         wrap.innerHTML = `
             <div class="sz-floating-btn-logo">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>
                     <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
             </div>
             <span class="sz-floating-btn-title">SaveZonix</span>
-            <span class="sz-floating-btn-badge">HD</span>
+            <span class="sz-floating-btn-badge">4K / HD</span>
             <div class="sz-floating-options">
-                <div class="sz-floating-opt-item" data-quality="best">?? Best Quality (1080p/4K)</div>
-                <div class="sz-floating-opt-item" data-quality="720p">? Fast HD (720p)</div>
-                <div class="sz-floating-opt-item" data-quality="mp3">?? Audio Only (MP3)</div>
+                <div class="sz-floating-opt-item" data-quality="best">
+                    <span>⚡ 4K / 1080p Ultra HD</span>
+                </div>
+                <div class="sz-floating-opt-item" data-quality="720p">
+                    <span>🎬 720p Fast HD</span>
+                </div>
+                <div class="sz-floating-opt-item" data-quality="mp3">
+                    <span>🎵 Audio Only (MP3)</span>
+                </div>
             </div>
         `;
 
@@ -33,13 +45,18 @@
                 return;
             }
             const rect = videoEl.getBoundingClientRect();
-            if (rect.width < 160 || rect.height < 120) {
+            // Don't show on tiny preview video thumbnails
+            if (rect.width < 320 || rect.height < 180) {
                 wrap.style.display = 'none';
                 return;
             }
             wrap.style.display = 'inline-flex';
-            wrap.style.top = `${Math.max(10, rect.top + window.scrollY + 12)}px`;
-            wrap.style.left = `${Math.max(10, rect.left + window.scrollX + 12)}px`;
+            // Anchor neatly to top-right corner of the video player like IDM
+            const topPos = Math.max(14, rect.top + window.scrollY + 14);
+            const rightOffset = (window.innerWidth - (rect.right + window.scrollX)) + 14;
+            wrap.style.top = `${topPos}px`;
+            wrap.style.right = `${Math.max(14, rightOffset)}px`;
+            wrap.style.left = 'auto';
         }
 
         wrap.addEventListener('click', (e) => {
