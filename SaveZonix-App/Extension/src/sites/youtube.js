@@ -1,4 +1,4 @@
-// src/sites/youtube.js — Dedicated YouTube Video & Shorts Site Adapter (Legitimate Non-DRM Media)
+// src/sites/youtube.js â Dedicated YouTube Video & Shorts Site Adapter (Legitimate Non-DRM Media)
 
 (function (root) {
     function parseItagInfo(url) {
@@ -352,7 +352,7 @@
                         break;
                     }
 
-                    // Live videoplayback stream — clean byte-range chunk parameters to get full stream
+                    // Live videoplayback stream â clean byte-range chunk parameters to get full stream
                     if (name.includes('googlevideo.com/videoplayback')) {
                         const cleanUrl = name.replace(/[?&]range=[^&]+/g, '').replace(/[?&]sq=[^&]+/g, '');
                         if (name.includes('mime=audio') || name.includes('itag=140') || name.includes('itag=251')) {

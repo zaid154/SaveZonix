@@ -1,14 +1,14 @@
-// src/utils/metadata.js — Dynamic 6-Tier Metadata & Duration Extractor (Universal)
+// src/utils/metadata.js â Dynamic 6-Tier Metadata & Duration Extractor (Universal)
 
 (function (root) {
     function cleanTitleString(title) {
         if (!title || typeof title !== 'string') return '';
         return title
             .replace(/^Watch\s+/i, '')
-            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|OK\.XXX|OKXXX|SpankBang|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/\s*[-|ââ]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|OK\.XXX|OKXXX|SpankBang|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
             .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
             .trim()
-            .replace(/[:\-–—\s]+$/, '');
+            .replace(/[:\-ââ\s]+$/, '');
     }
 
     function parseIsoDuration(durationStr) {
@@ -43,7 +43,7 @@
         let episodeTitle = '';
         let durationSeconds = 0;
 
-        // ─── TIER 1: JSON-LD Schema.org ─────────────────────────────────────────
+        // âââ TIER 1: JSON-LD Schema.org âââââââââââââââââââââââââââââââââââââââââ
         const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
         for (const script of jsonLdScripts) {
             try {
@@ -66,7 +66,7 @@
             } catch { }
         }
 
-        // ─── TIER 2: Page Main Video Heading (H1 first, never bare H2) ─────────
+        // âââ TIER 2: Page Main Video Heading (H1 first, never bare H2) âââââââââ
         if (!showName) {
             const h1 = document.querySelector('.video-info h1, h1.video-title, h1.title, h1, .main-title, .watch-title');
             if (h1 && h1.innerText.trim().length >= 2) {
@@ -74,12 +74,12 @@
             }
         }
 
-        // ─── TIER 2B: In-Page Script Title ($history_title, etc.) ───────────────
+        // âââ TIER 2B: In-Page Script Title ($history_title, etc.) âââââââââââââââ
         if (!showName && root.$history_title) {
             showName = cleanTitleString(root.$history_title);
         }
 
-        // ─── TIER 3: Visible Season Selector / Dropdown ────────────────────────
+        // âââ TIER 3: Visible Season Selector / Dropdown ââââââââââââââââââââââââ
         if (seasonNum === null) {
             const seasonElements = document.querySelectorAll('select, button, .dropdown, .season-select, .season-btn, span, div');
             for (const el of seasonElements) {
@@ -92,7 +92,7 @@
             }
         }
 
-        // ─── TIER 4: Visible Episode Selector / Dropdown ───────────────────────
+        // âââ TIER 4: Visible Episode Selector / Dropdown âââââââââââââââââââââââ
         if (episodeNum === null) {
             const epElements = document.querySelectorAll('.episode-btn.active, .ep-item.active, button.active, select, .episode-select, h1, h2, h3, .episode-title');
             for (const el of epElements) {
@@ -109,7 +109,7 @@
             }
         }
 
-        // ─── TIER 5: HTML Meta & OpenGraph ─────────────────────────────────────
+        // âââ TIER 5: HTML Meta & OpenGraph âââââââââââââââââââââââââââââââââââââ
         if (!showName) {
             const ogTitle = document.querySelector('meta[property="og:title"], meta[name="twitter:title"]')?.getAttribute('content');
             if (ogTitle) {
@@ -128,7 +128,7 @@
         const metaEpisode = document.querySelector('meta[property="video:episode"]')?.getAttribute('content');
         if (metaEpisode && episodeNum === null) episodeNum = parseInt(metaEpisode, 10);
 
-        // ─── TIER 6: HTML5 Video Tag Duration & URL Search Parameters ─────────
+        // âââ TIER 6: HTML5 Video Tag Duration & URL Search Parameters âââââââââ
         if (!durationSeconds) {
             const videoTag = document.querySelector('video');
             if (videoTag && !isNaN(videoTag.duration) && videoTag.duration > 0 && videoTag.duration !== Infinity) {
@@ -162,11 +162,11 @@
         if (seasonNum !== null && episodeNum !== null) {
             const sStr = String(seasonNum).padStart(2, '0');
             const eStr = String(episodeNum).padStart(2, '0');
-            subtitle = `S${sStr}E${eStr} • Episode ${episodeNum}`;
+            subtitle = `S${sStr}E${eStr} â¢ Episode ${episodeNum}`;
 
             if (episodeTitle && episodeTitle.toLowerCase() !== `episode ${episodeNum}`) {
                 finalTitle = `${showName} - S${sStr}E${eStr} - ${episodeTitle}`;
-                subtitle = `S${sStr}E${eStr} • ${episodeTitle}`;
+                subtitle = `S${sStr}E${eStr} â¢ ${episodeTitle}`;
             } else {
                 finalTitle = `${showName} - S${sStr}E${eStr} - Episode ${episodeNum}`;
             }

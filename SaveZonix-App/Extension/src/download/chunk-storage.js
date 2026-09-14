@@ -1,4 +1,4 @@
-// src/download/chunk-storage.js — High-Performance Persistent OPFS & IndexedDB Chunk Storage (Zero-RAM Streaming)
+// src/download/chunk-storage.js â High-Performance Persistent OPFS & IndexedDB Chunk Storage (Zero-RAM Streaming)
 
 (function (root) {
     const DB_NAME = 'StreamHelper_ChunkStorage';
@@ -6,7 +6,7 @@
     const STORE_META = 'download_metadata';
     const STORE_CHUNKS = 'download_chunks';
 
-    // ─── 1. INDEXEDDB PERSISTENT METADATA & FALLBACK CHUNK STORE ─────────────
+    // âââ 1. INDEXEDDB PERSISTENT METADATA & FALLBACK CHUNK STORE âââââââââââââ
     function openDatabase() {
         return new Promise((resolve, reject) => {
             if (typeof indexedDB === 'undefined') {
@@ -28,7 +28,7 @@
         });
     }
 
-    // ─── 2. OPFS (ORIGIN PRIVATE FILE SYSTEM) STREAMING SINK ─────────────────
+    // âââ 2. OPFS (ORIGIN PRIVATE FILE SYSTEM) STREAMING SINK âââââââââââââââââ
     class ChunkStorage {
         constructor() {
             this.hasOPFS = typeof navigator !== 'undefined' && !!navigator.storage?.getDirectory;

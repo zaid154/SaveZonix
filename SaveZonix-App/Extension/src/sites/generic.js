@@ -1,4 +1,4 @@
-// src/sites/generic.js — Universal Streaming Site Adapter (Non-DRM HLS/MP4 Stream Sniffer)
+// src/sites/generic.js â Universal Streaming Site Adapter (Non-DRM HLS/MP4 Stream Sniffer)
 
 (function (root) {
     function isValidMediaStreamUrl(url) {
@@ -40,7 +40,7 @@
                 };
             }
 
-            const title = (document.title || 'Video').replace(/^Watch\s+/i, '').replace(/[-|–—].*$/, '').trim();
+            const title = (document.title || 'Video').replace(/^Watch\s+/i, '').replace(/[-|ââ].*$/, '').trim();
             return {
                 platform: 'Stream',
                 showName: title || 'Video',

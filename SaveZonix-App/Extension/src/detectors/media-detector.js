@@ -1,4 +1,4 @@
-// src/detectors/media-detector.js — Comprehensive HTML5 & Streaming Media Sniffer (Universal)
+// src/detectors/media-detector.js â Comprehensive HTML5 & Streaming Media Sniffer (Universal)
 
 (function (root) {
     // Strictly match genuine media stream extensions and patterns (NEVER bare 'index' or 'master' without .m3u8)

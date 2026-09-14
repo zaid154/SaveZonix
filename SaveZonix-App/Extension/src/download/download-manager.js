@@ -1,4 +1,4 @@
-// src/download/download-manager.js — Complete Validated Media Download Pipeline & Multi-Candidate Fallback (Universal)
+// src/download/download-manager.js â Complete Validated Media Download Pipeline & Multi-Candidate Fallback (Universal)
 
 (function (root) {
     function isInvalidMediaUrl(url) {
@@ -70,8 +70,8 @@
             const finalFileName = (root.FilenameGenerator && root.FilenameGenerator.generate(video, selectedQualityLabel)) || (video.title + '.mp4');
             const threadCount = Math.max(1, Math.min(8, parseInt(requestedThreads || 4, 10)));
 
-            console.log(`[StreamHelper] 🎬 [DOWNLOAD PIPELINE INITIATED] (${threadCount} threads)`);
-            console.log(`[StreamHelper] 🎬 [FILE TARGET] "${finalFileName}"`);
+            console.log(`[StreamHelper] ð¬ [DOWNLOAD PIPELINE INITIATED] (${threadCount} threads)`);
+            console.log(`[StreamHelper] ð¬ [FILE TARGET] "${finalFileName}"`);
 
             // Build candidate URL list
             let candidateUrls = [];
@@ -92,11 +92,11 @@
             candidateUrls = candidateUrls.filter(u => !isInvalidMediaUrl(u));
 
             if (candidateUrls.length === 0) {
-                console.error('[StreamHelper] ❌ No valid media stream URLs found in candidates');
+                console.error('[StreamHelper] â No valid media stream URLs found in candidates');
                 throw new Error('Download unavailable: No accessible media stream found for this video. Please play the video for 2 seconds and retry.');
             }
 
-            console.log(`[StreamHelper] 📋 [CANDIDATE STREAMS EVALUATING] ${candidateUrls.length} stream(s):`, candidateUrls);
+            console.log(`[StreamHelper] ð [CANDIDATE STREAMS EVALUATING] ${candidateUrls.length} stream(s):`, candidateUrls);
 
             const processor = new root.MediaProcessor();
             this.activeProcessors[video.id] = processor;
@@ -107,7 +107,7 @@
             // Iterate through candidates until a valid media stream successfully downloads
             for (let i = 0; i < candidateUrls.length; i++) {
                 const targetUrl = candidateUrls[i];
-                console.log(`[StreamHelper] 🚀 [TRYING CANDIDATE ${i + 1}/${candidateUrls.length}] ${targetUrl}`);
+                console.log(`[StreamHelper] ð [TRYING CANDIDATE ${i + 1}/${candidateUrls.length}] ${targetUrl}`);
 
                 try {
                     const isDirectMedia = targetUrl.includes('.mp4') || targetUrl.includes('.webm') || targetUrl.includes('.m4v') || targetUrl.includes('videoplayback');
@@ -133,7 +133,7 @@
 
                         if (manifest.isMaster && manifest.variants?.length > 0) {
                             const lockedVariant = manifest.variants.find(v => v.url === targetUrl) || manifest.bestVariant || manifest.variants[0];
-                            console.log(`[StreamHelper] 🎯 [SELECTED VARIANT] ${lockedVariant.label || 'Default'} -> ${lockedVariant.url}`);
+                            console.log(`[StreamHelper] ð¯ [SELECTED VARIANT] ${lockedVariant.label || 'Default'} -> ${lockedVariant.url}`);
                             
                             const mediaManifest = await root.StreamDetector.parseHls(lockedVariant.url, tabId);
                             if (mediaManifest && !mediaManifest.isInvalid) {
@@ -174,11 +174,11 @@
                     }
 
                     if (assembled && assembled.blob && assembled.sizeBytes >= 2097152) {
-                        console.log(`[StreamHelper] ✅ [CANDIDATE ${i + 1} SUCCEEDED] Assembled ${(assembled.sizeBytes / 1024 / 1024).toFixed(2)} MB`);
+                        console.log(`[StreamHelper] â [CANDIDATE ${i + 1} SUCCEEDED] Assembled ${(assembled.sizeBytes / 1024 / 1024).toFixed(2)} MB`);
                         break;
                     }
                 } catch (err) {
-                    console.warn(`[StreamHelper] ⚠️ Candidate ${i + 1} failed: ${err.message}`);
+                    console.warn(`[StreamHelper] â ï¸ Candidate ${i + 1} failed: ${err.message}`);
                     lastError = err;
                     if (processor.isAborted) {
                         break;

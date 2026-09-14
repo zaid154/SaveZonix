@@ -1,4 +1,4 @@
-// src/popup/popup.js — High-Performance Event-Driven Popup Controller (Universal)
+// src/popup/popup.js â High-Performance Event-Driven Popup Controller (Universal)
 
 document.addEventListener('DOMContentLoaded', async () => {
     const videoList = document.getElementById('videoList');
@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!currentTabTitle) return 'Video';
         return currentTabTitle
             .replace(/^Watch\s+/i, '')
-            .replace(/\s*[-|–—]\s*(PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/\s*[-|ââ]\s*(PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
             .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
             .trim() || 'Video';
     }
@@ -686,7 +686,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 1. Highest / Best Available option matches the highest quality available for this video
                 qualityOptions.push({
                     value: 'best',
-                    label: `⭐ Best Available (${topQualityTag}) • ~${bestSize}`,
+                    label: `â­ Best Available (${topQualityTag}) â¢ ~${bestSize}`,
                     tag: topQualityTag,
                     size: `~${bestSize}`,
                     selected: (targetQuality === 'best')
@@ -706,7 +706,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     qualityOptions.push({
                         value: normVal,
-                        label: `${displayLabel} • ~${sizeStr}`,
+                        label: `${displayLabel} â¢ ~${sizeStr}`,
                         tag: displayLabel.split(' (')[0],
                         size: `~${sizeStr}`,
                         selected: (targetQuality === normVal)
@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const mp3Size = estimateQualitySize('mp3', durSeconds);
                 qualityOptions.push({
                     value: 'mp3',
-                    label: `🎵 MP3 Audio (320 kbps) • ~${mp3Size}`,
+                    label: `ðµ MP3 Audio (320 kbps) â¢ ~${mp3Size}`,
                     tag: 'MP3 320k',
                     size: `~${mp3Size}`,
                     selected: (targetQuality === 'mp3')
@@ -731,13 +731,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const sMp3 = estimateQualitySize('mp3', durSeconds);
 
                 qualityOptions = [
-                    { value: 'best', label: `⭐ Best Available (Auto 4K/1080p) • ~${s1080}`, tag: 'Best Quality', size: `~${s1080}`, selected: (targetQuality === 'best') },
-                    { value: '2160p', label: `4K Ultra HD (2160p) • ~${s4k}`, tag: '4K Ultra HD', size: `~${s4k}`, selected: (targetQuality === '2160p') },
-                    { value: '1440p', label: `2K Quad HD (1440p) • ~${s2k}`, tag: '2K Quad HD', size: `~${s2k}`, selected: (targetQuality === '1440p') },
-                    { value: '1080p', label: `1080p Full HD (MP4) • ~${s1080}`, tag: '1080p Full HD', size: `~${s1080}`, selected: (targetQuality === '1080p') },
-                    { value: '720p', label: `720p HD (Fast) • ~${s720}`, tag: '720p HD', size: `~${s720}`, selected: (targetQuality === '720p') },
-                    { value: '480p', label: `480p Standard • ~${s480}`, tag: '480p', size: `~${s480}`, selected: (targetQuality === '480p') },
-                    { value: 'mp3', label: `🎵 MP3 Audio (320 kbps) • ~${sMp3}`, tag: 'MP3 320k', size: `~${sMp3}`, selected: (targetQuality === 'mp3') }
+                    { value: 'best', label: `â­ Best Available (Auto 4K/1080p) â¢ ~${s1080}`, tag: 'Best Quality', size: `~${s1080}`, selected: (targetQuality === 'best') },
+                    { value: '2160p', label: `4K Ultra HD (2160p) â¢ ~${s4k}`, tag: '4K Ultra HD', size: `~${s4k}`, selected: (targetQuality === '2160p') },
+                    { value: '1440p', label: `2K Quad HD (1440p) â¢ ~${s2k}`, tag: '2K Quad HD', size: `~${s2k}`, selected: (targetQuality === '1440p') },
+                    { value: '1080p', label: `1080p Full HD (MP4) â¢ ~${s1080}`, tag: '1080p Full HD', size: `~${s1080}`, selected: (targetQuality === '1080p') },
+                    { value: '720p', label: `720p HD (Fast) â¢ ~${s720}`, tag: '720p HD', size: `~${s720}`, selected: (targetQuality === '720p') },
+                    { value: '480p', label: `480p Standard â¢ ~${s480}`, tag: '480p', size: `~${s480}`, selected: (targetQuality === '480p') },
+                    { value: 'mp3', label: `ðµ MP3 Audio (320 kbps) â¢ ~${sMp3}`, tag: 'MP3 320k', size: `~${sMp3}`, selected: (targetQuality === 'mp3') }
                 ];
             }
 
@@ -779,14 +779,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             backendOptions.push({
                                 value: 'best',
-                                label: `⭐ Best Available (${topTag}) • ${top.formattedEstimatedSize || ''}`,
+                                label: `â­ Best Available (${topTag}) â¢ ${top.formattedEstimatedSize || ''}`,
                                 tag: topTag,
                                 size: top.formattedEstimatedSize || ''
                             });
                             data.qualities.forEach(q => {
                                 backendOptions.push({
                                     value: q.resolution,
-                                    label: `${q.resolution} • ${q.formattedEstimatedSize || ''}`,
+                                    label: `${q.resolution} â¢ ${q.formattedEstimatedSize || ''}`,
                                     tag: q.resolution,
                                     size: q.formattedEstimatedSize || ''
                                 });
@@ -794,7 +794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const serverMp3 = estimateQualitySize('mp3', data.durationSeconds || durSeconds);
                             backendOptions.push({
                                 value: 'mp3',
-                                label: `🎵 MP3 Audio (320 kbps) • ~${serverMp3}`,
+                                label: `ðµ MP3 Audio (320 kbps) â¢ ~${serverMp3}`,
                                 tag: 'MP3 320k',
                                 size: `~${serverMp3}`
                             });
@@ -911,7 +911,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             dlBtn.innerHTML = '<span>Download Unavailable</span>';
             dlBtn.disabled = true;
             resTag.textContent = 'Instagram Reel';
-            errBanner.textContent = video.downloadNotice || 'Instagram Reel detected — direct media stream is protected.';
+            errBanner.textContent = video.downloadNotice || 'Instagram Reel detected â direct media stream is protected.';
             errBanner.classList.remove('hidden');
             return;
         }
@@ -919,7 +919,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (video.isDirectMp4 && video.url && video.url.startsWith('http') && !video.url.includes('.m3u8')) {
             const qOpt = video.qualityLabel || (video.resolution ? `Original MP4 (${video.resolution})` : 'Original Quality (MP4)');
             qualSelect.innerHTML = `<option value="">${qOpt}</option>`;
-            dlBtn.innerHTML = `<span>⬇️ Download ${siteName === 'Instagram' ? 'Reel' : 'Video'}</span>`;
+            dlBtn.innerHTML = `<span>â¬ï¸ Download ${siteName === 'Instagram' ? 'Reel' : 'Video'}</span>`;
             dlBtn.disabled = false;
             resTag.textContent = 'Ready';
             errBanner.classList.add('hidden');
@@ -938,7 +938,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else if (parsed.isMaster && parsed.variants?.length > 0) {
                     window.QualitySelector.populate(qualSelect, parsed.variants);
                     const best = parsed.bestVariant || parsed.variants[0];
-                    const cleanLabel = best.label.split(' • ')[0];
+                    const cleanLabel = best.label.split(' â¢ ')[0];
                     resTag.textContent = `${cleanLabel}`;
                     dlBtn.innerHTML = `<span>Download ${cleanLabel}</span>`;
                     dlBtn.disabled = false;
@@ -958,7 +958,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         qualSelect.addEventListener('change', () => {
             const selectedText = qualSelect.options[qualSelect.selectedIndex]?.text || '';
-            const cleanTier = selectedText.replace('⭐ Best Quality — ', '').split(' • ')[0];
+            const cleanTier = selectedText.replace('â­ Best Quality â ', '').split(' â¢ ')[0];
             if (!dlBtn.disabled) {
                 dlBtn.innerHTML = `<span>Download ${cleanTier}</span>`;
             }

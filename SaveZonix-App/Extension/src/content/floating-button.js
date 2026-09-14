@@ -1,4 +1,4 @@
-// src/content/floating-button.js — IDM-Style Floating Video Downloader Overlay
+// src/content/floating-button.js Â— IDM-Style Floating Video Downloader Overlay
 (function () {
     if (window.__SZ_FLOATING_INJECTED__) return;
     window.__SZ_FLOATING_INJECTED__ = true;

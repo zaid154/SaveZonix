@@ -1,4 +1,4 @@
-// src/downloader/downloader.js — Dedicated High-Speed Tab Downloader Engine (Manifest V3)
+// src/downloader/downloader.js â Dedicated High-Speed Tab Downloader Engine (Manifest V3)
 
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -7,13 +7,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const videoTitle = urlParams.get('title') || 'Video';
     const videoShow = urlParams.get('showName') || videoTitle;
     const videoSub = urlParams.get('subtitle') || '';
-    const qualityLabel = (urlParams.get('quality') || '1080p Full HD').replace('⭐ Best Quality — ', '');
+    const qualityLabel = (urlParams.get('quality') || '1080p Full HD').replace('â­ Best Quality â ', '');
     const platform = urlParams.get('platform') || 'PixelFlix';
     const thumbnail = urlParams.get('thumbnail') || '';
     const durationParam = urlParams.get('duration') || '';
     const originTabId = parseInt(urlParams.get('tabId') || '0', 10);
 
-    // Initial Concurrency Parameter (Supports up to 256 Threads — Default: 64)
+    // Initial Concurrency Parameter (Supports up to 256 Threads â Default: 64)
     const rawThreadParam = urlParams.get('threads') || '64';
     let initialThreads = parseInt(rawThreadParam, 10);
     if (isNaN(initialThreads) || initialThreads < 1 || initialThreads > 256) {
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Duration Display Handler
     function updateDurationDisplay(durString) {
         if (!durString) return;
-        const cleanDur = durString.replace(/^⏱️\s*/, '').trim();
+        const cleanDur = durString.replace(/^â±ï¸\s*/, '').trim();
         if (cleanDur) {
             if (elThumbTimeDisplay) {
                 elThumbTimeDisplay.textContent = `00:00 / ${cleanDur}`;
@@ -196,9 +196,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const finalFileName = (window.FilenameGenerator && window.FilenameGenerator.generate(videoObj, qualityLabel)) || (videoTitle + '.mp4');
     if (elFilename) elFilename.textContent = finalFileName;
-    document.title = `Downloading (${0}%) — ${finalFileName}`;
+    document.title = `Downloading (${0}%) â ${finalFileName}`;
 
-    // ─── THROUGHPUT SPARKLINE GRAPH CONTROLLER ────────────────────────────
+    // âââ THROUGHPUT SPARKLINE GRAPH CONTROLLER ââââââââââââââââââââââââââââ
     const speedHistory = new Array(35).fill(0);
     let peakSpeedMBps = 0;
 
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ctx.stroke();
     }
 
-    // ─── SYNTHESIZED WEB AUDIO COMPLETION CHIME ────────────────────────────
+    // âââ SYNTHESIZED WEB AUDIO COMPLETION CHIME ââââââââââââââââââââââââââââ
     function playCompletionChime() {
         try {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -281,7 +281,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const processor = new window.MediaProcessor();
 
-    // ─── SAVE PARTIAL DOWNLOADED VIDEO ────────────────────────────────────
+    // âââ SAVE PARTIAL DOWNLOADED VIDEO ââââââââââââââââââââââââââââââââââââ
     function savePartialVideo() {
         const partial = processor.getPartialBlob();
         if (!partial || !partial.blob) {
@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         elBtnSavePartialError.addEventListener('click', savePartialVideo);
     }
 
-    // ─── ACCIDENTAL TAB CLOSE PROTECTION (beforeunload) ───────────────────
+    // âââ ACCIDENTAL TAB CLOSE PROTECTION (beforeunload) âââââââââââââââââââ
     window.addEventListener('beforeunload', (e) => {
         if (!isCompleted && !processor.isAborted) {
             e.preventDefault();
@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ─── NETWORK LOSS & RECOVERY HANDLERS ─────────────────────────────────
+    // âââ NETWORK LOSS & RECOVERY HANDLERS âââââââââââââââââââââââââââââââââ
     window.addEventListener('offline', () => {
         if (!isCompleted && !processor.isAborted) {
             processor.pause();
@@ -348,13 +348,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // ─── LIVE THREAD SWITCHER ──────────────────────────────────────────────
+    // âââ LIVE THREAD SWITCHER ââââââââââââââââââââââââââââââââââââââââââââââ
     if (elSelThreads) {
         elSelThreads.addEventListener('change', () => {
             const count = parseInt(elSelThreads.value, 10) || 64;
             processor.setConcurrency(count);
             if (elThreadsBadge) {
-                elThreadsBadge.textContent = `⚡ ${count} Threads`;
+                elThreadsBadge.textContent = `â¡ ${count} Threads`;
             }
             if (elValActiveWorkers) {
                 elValActiveWorkers.textContent = `${count} Workers`;
@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // ─── LIVE PREVIEW PLAYER (WATCH WHILE DOWNLOADING) ───────────────────
+    // âââ LIVE PREVIEW PLAYER (WATCH WHILE DOWNLOADING) âââââââââââââââââââ
     let isPreviewOpen = false;
 
     function openPreview() {
@@ -463,7 +463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         elBtnClosePreview.addEventListener('click', closePreview);
     }
 
-    // ─── KEYBOARD SHORTCUTS ───────────────────────────────────────────────
+    // âââ KEYBOARD SHORTCUTS âââââââââââââââââââââââââââââââââââââââââââââââ
     window.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && e.target.tagName !== 'SELECT' && e.target.tagName !== 'INPUT') {
             e.preventDefault();
@@ -530,7 +530,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             showError(`YouTube uses adaptive DASH streams (separate 1080p/4K video & audio tracks).<br><br>
                 <a href="http://localhost:5000/?url=${encodeURIComponent(cleanUrl)}&autoDownload=1" target="_blank" style="display:inline-block; padding:8px 16px; background:#0284c7; color:#fff; border-radius:6px; font-weight:700; text-decoration:none; box-shadow:0 2px 8px rgba(2,132,199,0.4);">
-                    🚀 Download with Zonix Desktop (1080p / 4K)
+                    ð Download with Zonix Desktop (1080p / 4K)
                 </a>`);
             return;
         }
@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (manifest.isMaster && manifest.variants?.length > 0) {
                         const lockedVariant = manifest.variants.find(v => v.url === targetUrl) || manifest.bestVariant || manifest.variants[0];
                         if (elQuality && lockedVariant?.label) {
-                            elQuality.textContent = lockedVariant.label.split(' • ')[0];
+                            elQuality.textContent = lockedVariant.label.split(' â¢ ')[0];
                         }
                         
                         const mediaManifest = await window.StreamDetector.parseHls(lockedVariant.url, originTabId);
@@ -637,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (dynManifest.isMaster && dynManifest.variants?.length > 0) {
                                     const bestVar = dynManifest.variants.find(v => v.url === targetUrl) || dynManifest.bestVariant || dynManifest.variants[0];
                                     if (elQuality && bestVar?.label) {
-                                        elQuality.textContent = bestVar.label.split(' • ')[0];
+                                        elQuality.textContent = bestVar.label.split(' â¢ ')[0];
                                     }
                                     const mVar = await window.StreamDetector.parseHls(bestVar.url, originTabId);
                                     if (mVar?.segments?.length > 0) {
@@ -682,7 +682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const partial = processor.getPartialBlob();
             if (partial && partial.blob && partial.sizeBytes >= 32768) {
                 // Auto-save partial video to Downloads
-                console.log(`[Downloader] ⚠️ Full download incomplete but ${window.Helpers.formatBytes(partial.sizeBytes)} available. Auto-saving partial video.`);
+                console.log(`[Downloader] â ï¸ Full download incomplete but ${window.Helpers.formatBytes(partial.sizeBytes)} available. Auto-saving partial video.`);
                 assembled = partial;
             } else {
                 showError(lastError?.message || 'Downloaded stream is empty or corrupt. Please play the video on the original tab and retry.');
@@ -726,7 +726,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (elBtnCancel) elBtnCancel.classList.add('hidden');
         if (elBtnSavePartial) elBtnSavePartial.classList.add('hidden');
         if (elSuccessBox) elSuccessBox.classList.remove('hidden');
-        document.title = `✓ ${finalFileName}`;
+        document.title = `â ${finalFileName}`;
         playCompletionChime();
 
         const blobUrl = URL.createObjectURL(assembled.blob);
@@ -868,7 +868,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             elBtnSavePartialError.classList.remove('hidden');
             elBtnSavePartialError.textContent = `Save Partial (${currentPct}%)`;
         }
-        document.title = `Failed — ${finalFileName}`;
+        document.title = `Failed â ${finalFileName}`;
     }
 
     // Launch pipeline immediately

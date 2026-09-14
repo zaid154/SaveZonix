@@ -1,4 +1,4 @@
-// src/download/quality-selector.js — Quality Variant Sorter & UI Selector Builder (Universal)
+// src/download/quality-selector.js â Quality Variant Sorter & UI Selector Builder (Universal)
 
 (function (root) {
     const QualitySelector = {
@@ -17,7 +17,7 @@
             variants.forEach((v, idx) => {
                 const opt = document.createElement('option');
                 opt.value = v.url;
-                opt.textContent = idx === 0 ? `⭐ Max Quality — ${v.label}` : v.label;
+                opt.textContent = idx === 0 ? `â­ Max Quality â ${v.label}` : v.label;
                 if (idx === 0) {
                     opt.selected = true;
                 }

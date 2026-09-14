@@ -1,4 +1,4 @@
-// src/background/service-worker.js — Pure Native Stealth Stream Sniffer (Manifest V3)
+// src/background/service-worker.js â Pure Native Stealth Stream Sniffer (Manifest V3)
 
 // Smart Dynamic Header Spoofing for Downloader Tab (Bypasses Hotlink Protection on phncdn, xnxx, pixelflix)
 if (chrome.declarativeNetRequest) {
@@ -436,7 +436,7 @@ async function resolveInstagramForDashboard(pageUrl) {
     }
 
     if (!stream) {
-        return { success: false, message: 'Instagram has not exposed this Reel’s media stream yet. Keep the Reel tab open, start playback, and retry.' };
+        return { success: false, message: 'Instagram has not exposed this Reelâs media stream yet. Keep the Reel tab open, start playback, and retry.' };
     }
 
     return {
@@ -491,7 +491,7 @@ async function resolvePageForDashboard(pageUrl) {
     };
 }
 
-// ─── TAB LIFECYCLE MANAGEMENT ─────────────────────────────────────────────
+// âââ TAB LIFECYCLE MANAGEMENT âââââââââââââââââââââââââââââââââââââââââââââ
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'loading') {
         const key = `tab_media_${tabId}`;
@@ -504,7 +504,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (tab.title) {
         let clean = tab.title
             .replace(/^Watch\s+/i, '')
-            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/\s*[-|ââ]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
             .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
             .trim();
         if (clean && clean.length > 2) {
@@ -520,7 +520,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     delete tabThumbnails[tabId];
 });
 
-// ─── PURE NETWORK SNIFFING (Zero Performance Impact) ─────────────────────
+// âââ PURE NETWORK SNIFFING (Zero Performance Impact) âââââââââââââââââââââ
 // 1. Passive Background Request Sniffing
 chrome.webRequest.onBeforeRequest.addListener(
     (details) => {
@@ -630,7 +630,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         if (tabId > 0 && req.title) {
             let clean = req.title
                 .replace(/^Watch\s+/i, '')
-                .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+                .replace(/\s*[-|ââ]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
                 .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
                 .trim();
             if (clean && clean.length > 2) {

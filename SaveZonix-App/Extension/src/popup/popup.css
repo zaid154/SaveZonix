@@ -1,4 +1,4 @@
-/* src/popup/popup.css — Senior Enterprise Luxury SaaS Theme (Glassmorphism, 14px Radius, Micro-Animations) */
+/* src/popup/popup.css â Senior Enterprise Luxury SaaS Theme (Glassmorphism, 14px Radius, Micro-Animations) */
 
 :root {
     --bg-page: #090d16;
@@ -67,7 +67,7 @@ body::-webkit-scrollbar-thumb:hover {
     background: rgba(56, 189, 248, 0.4);
 }
 
-/* ─── HEADER ────────────────────────────────────────────────────────────── */
+/* âââ HEADER ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .header {
     display: flex;
     justify-content: space-between;
@@ -144,7 +144,7 @@ body::-webkit-scrollbar-thumb:hover {
     to { transform: rotate(360deg); }
 }
 
-/* ─── SETTINGS PANEL (Obsidian Glassmorphism Modal) ────────────────────────── */
+/* âââ SETTINGS PANEL (Obsidian Glassmorphism Modal) ââââââââââââââââââââââââââ */
 .settings-panel {
     background: rgba(11, 17, 32, 0.97);
     backdrop-filter: blur(24px);
@@ -288,7 +288,7 @@ body::-webkit-scrollbar-thumb:hover {
     width: 100%;
 }
 
-/* ─── MAIN ──────────────────────────────────────────────────────────────── */
+/* âââ MAIN ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .main {
     padding: 12px 14px;
     display: flex;
@@ -339,7 +339,7 @@ body::-webkit-scrollbar-thumb:hover {
     letter-spacing: 0.2px;
 }
 
-/* ─── VIDEO CARDS (GLASSMORPHIC & ROUNDED) ──────────────────────────────── */
+/* âââ VIDEO CARDS (GLASSMORPHIC & ROUNDED) ââââââââââââââââââââââââââââââââ */
 .video-list {
     display: flex;
     flex-direction: column;
@@ -524,7 +524,7 @@ body::-webkit-scrollbar-thumb:hover {
     display: none;
 }
 
-/* ─── ACTION BUTTONS (NO EMOJIS, SLEEK ICONS, TACTILE) ──────────────────── */
+/* âââ ACTION BUTTONS (NO EMOJIS, SLEEK ICONS, TACTILE) ââââââââââââââââââââ */
 .card-action-row {
     width: 100%;
 }
@@ -633,7 +633,7 @@ body::-webkit-scrollbar-thumb:hover {
     line-height: 1.4;
 }
 
-/* ─── EMPTY STATE ───────────────────────────────────────────────────────── */
+/* âââ EMPTY STATE âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .empty-state {
     padding: 38px 20px;
     text-align: center;
@@ -674,7 +674,7 @@ body::-webkit-scrollbar-thumb:hover {
     line-height: 1.5;
 }
 
-/* ─── RECENT DOWNLOADS (MODERN POLISHED ROW CARDS) ───────────────────────── */
+/* âââ RECENT DOWNLOADS (MODERN POLISHED ROW CARDS) âââââââââââââââââââââââââ */
 .history-section {
     display: flex;
     flex-direction: column;
@@ -897,7 +897,7 @@ body::-webkit-scrollbar-thumb:hover {
     display: none !important;
 }
 
-/* ─── YOUTUBE CHOICE MODAL ───────────────────────────────────────────────── */
+/* âââ YOUTUBE CHOICE MODAL âââââââââââââââââââââââââââââââââââââââââââââââââ */
 .modal-overlay {
     position: fixed;
     top: 0;

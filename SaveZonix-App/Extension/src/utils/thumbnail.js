@@ -1,4 +1,4 @@
-// src/utils/thumbnail.js — Strict 6-Tier Thumbnail Priority Resolver (Universal)
+// src/utils/thumbnail.js â Strict 6-Tier Thumbnail Priority Resolver (Universal)
 
 (function (root) {
     function extractBestThumbnail(videoElement) {

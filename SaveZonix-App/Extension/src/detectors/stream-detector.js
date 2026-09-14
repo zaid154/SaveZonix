@@ -1,4 +1,4 @@
-// src/detectors/stream-detector.js — HLS & DASH Stream Analyzer with Token-Preserving Resolution (Universal)
+// src/detectors/stream-detector.js â HLS & DASH Stream Analyzer with Token-Preserving Resolution (Universal)
 
 (function (root) {
     const manifestCache = new Map();
@@ -60,7 +60,7 @@
                     : `${Math.round(bandwidth / 1000)} kbps`;
             }
 
-            return bwText ? `${tier} • ${bwText}` : tier;
+            return bwText ? `${tier} â¢ ${bwText}` : tier;
         },
 
         async parseHls(url, tabId) {

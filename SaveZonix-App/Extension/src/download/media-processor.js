@@ -1,7 +1,7 @@
-// src/download/media-processor.js — Ultra High-Speed Multi-Threaded Range & HLS Media Processing Engine (Up to 32 Threads)
+// src/download/media-processor.js â Ultra High-Speed Multi-Threaded Range & HLS Media Processing Engine (Up to 32 Threads)
 
 (function (root) {
-    // ─── 1. BINARY MEDIA VALIDATORS ──────────────────────────────────────────
+    // âââ 1. BINARY MEDIA VALIDATORS ââââââââââââââââââââââââââââââââââââââââââ
     function isBinaryMediaBuffer(input) {
         if (!input) return false;
         const bytes = (input instanceof Uint8Array) ? input : new Uint8Array(input);
@@ -96,7 +96,7 @@
         return { isValid: true, format: 'binary_stream', mimeType: 'video/mp4', extension: 'mp4' };
     }
 
-    // ─── AES-128 CRYPTO UTILITIES ──────────────────────────────────────────
+    // âââ AES-128 CRYPTO UTILITIES ââââââââââââââââââââââââââââââââââââââââââ
     function hexToUint8Array(hexString) {
         const clean = hexString.replace(/^0x/i, '');
         const bytes = new Uint8Array(clean.length / 2);
@@ -113,7 +113,7 @@
         return iv;
     }
 
-    // ─── HIGH-SPEED MULTI-THREADED PIPELINE WITH RANGE CHUNKING (4-32 THREADS) ───
+    // âââ HIGH-SPEED MULTI-THREADED PIPELINE WITH RANGE CHUNKING (4-32 THREADS) âââ
     class MediaProcessor {
         constructor() {
             this.isAborted = false;
@@ -169,13 +169,13 @@
         setConcurrency(newCount) {
             const count = Math.max(1, Math.min(256, parseInt(newCount || 64, 10)));
             this.concurrency = count;
-            console.log(`[StreamHelper] ⚡ Threads dynamically adjusted to ${count} connections`);
+            console.log(`[StreamHelper] â¡ Threads dynamically adjusted to ${count} connections`);
             if (this._onConcurrencyChange) {
                 this._onConcurrencyChange(count);
             }
         }
 
-        // ─── 1. ULTRA HIGH-SPEED MULTI-THREADED HTTP RANGE CHUNKED DOWNLOAD ───
+        // âââ 1. ULTRA HIGH-SPEED MULTI-THREADED HTTP RANGE CHUNKED DOWNLOAD âââ
         async processDirectStream(url, onProgress, requestedConcurrency = 64) {
             this.isAborted = false;
             this.isPaused = false;
@@ -225,7 +225,7 @@
             }
 
             // Step 2B: Fallback to Single-Thread Progressive Stream Reader
-            console.log(`[StreamHelper] ℹ️ Using progressive single-stream mode.`);
+            console.log(`[StreamHelper] â¹ï¸ Using progressive single-stream mode.`);
             return await this._downloadSingleStream(url, contentLength, onProgress);
         }
 
@@ -237,7 +237,7 @@
             const targetChunkSize = Math.max(4 * 1024 * 1024, Math.min(12 * 1024 * 1024, Math.floor(totalBytes / (safeConcurrency * 4)) || 4194304));
             const totalChunks = Math.ceil(totalBytes / targetChunkSize);
 
-            console.log(`[StreamHelper] 🚀 [RANGE ENGINE] Spawning ${safeConcurrency} concurrent workers across ${totalChunks} chunks (${(targetChunkSize / 1024 / 1024).toFixed(1)} MB each) for total ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
+            console.log(`[StreamHelper] ð [RANGE ENGINE] Spawning ${safeConcurrency} concurrent workers across ${totalChunks} chunks (${(targetChunkSize / 1024 / 1024).toFixed(1)} MB each) for total ${(totalBytes / 1024 / 1024).toFixed(2)} MB`);
 
             const chunks = new Array(totalChunks);
             this.currentChunks = chunks;
@@ -369,7 +369,7 @@
                             completedCount++;
                         } else if (!this.isAborted && chunkAttempts[chunkIndex] <= 15) {
                             // Re-enqueue incomplete chunk so it is guaranteed to be retried
-                            console.warn(`[StreamHelper] 🔄 Re-enqueuing incomplete chunk ${chunkIndex + 1}/${totalChunks}`);
+                            console.warn(`[StreamHelper] ð Re-enqueuing incomplete chunk ${chunkIndex + 1}/${totalChunks}`);
                             queue.push(chunkIndex);
                             await new Promise(r => setTimeout(r, 500));
                         }
@@ -406,7 +406,7 @@
             const inspection = inspectMediaBuffer(firstChunk);
 
             const mergedBlob = new Blob(finalBuffers, { type: 'video/mp4' });
-            console.log(`[StreamHelper] 🏁 [RANGE DOWNLOAD COMPLETE] Full Size: ${(totalAssembledBytes / 1024 / 1024).toFixed(2)} MB (${completedCount}/${totalChunks} chunks verified)`);
+            console.log(`[StreamHelper] ð [RANGE DOWNLOAD COMPLETE] Full Size: ${(totalAssembledBytes / 1024 / 1024).toFixed(2)} MB (${completedCount}/${totalChunks} chunks verified)`);
 
             return {
                 blob: mergedBlob,
@@ -508,7 +508,7 @@
             };
         }
 
-        // ─── 2. ULTRA FAST WORKER QUEUE FOR HLS SEGMENTS (Up to 256 Threads) ───
+        // âââ 2. ULTRA FAST WORKER QUEUE FOR HLS SEGMENTS (Up to 256 Threads) âââ
         async processSegments(videoUrls, audioUrls, onProgress, initSegmentUrl, keyInfo, requestedConcurrency = 64) {
             // Support alternate parameter ordering (concurrency passed at pos 4)
             if (typeof initSegmentUrl === 'number') {
@@ -537,7 +537,7 @@
             let lastSampleBytes = 0;
             let speedMBps = 0;
 
-            console.log(`[StreamHelper] 🚀 [TURBO HLS POOL] Spawning ${this.concurrency} concurrent workers for ${total} segments`);
+            console.log(`[StreamHelper] ð [TURBO HLS POOL] Spawning ${this.concurrency} concurrent workers for ${total} segments`);
 
             // Fetch AES-128 Key if stream is encrypted
             let cryptoKey = null;
@@ -635,7 +635,7 @@
 
                     if (!bytes && !this.isAborted) {
                         failedCount++;
-                        console.warn(`[StreamHelper] ⚠️ Skipping missing segment ${segIndex + 1}/${total}: ${lastErr?.message}`);
+                        console.warn(`[StreamHelper] â ï¸ Skipping missing segment ${segIndex + 1}/${total}: ${lastErr?.message}`);
                         completedCount++;
                         continue;
                     }
@@ -713,7 +713,7 @@
             }
 
             if (fatalError && totalBytes > 0) {
-                console.warn(`[StreamHelper] ⚠️ HLS segments partially failed: ${fatalError.message}. Assembling ${completedCount - failedCount}/${total} downloaded segments (${(totalBytes / 1024 / 1024).toFixed(2)} MB).`);
+                console.warn(`[StreamHelper] â ï¸ HLS segments partially failed: ${fatalError.message}. Assembling ${completedCount - failedCount}/${total} downloaded segments (${(totalBytes / 1024 / 1024).toFixed(2)} MB).`);
             }
 
             if (this.isAborted) {
@@ -738,7 +738,7 @@
 
             const firstChunk = finalChunks[0];
             const inspection = inspectMediaBuffer(firstChunk);
-            console.log(`[StreamHelper] 🏁 [ASSEMBLY COMPLETE] Total Size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB, Format: ${inspection.format}`);
+            console.log(`[StreamHelper] ð [ASSEMBLY COMPLETE] Total Size: ${(totalBytes / 1024 / 1024).toFixed(2)} MB, Format: ${inspection.format}`);
 
             if (!inspection.isValid) {
                 throw new Error(`Downloaded stream verification failed: ${inspection.reason || 'Invalid media signature'}`);
