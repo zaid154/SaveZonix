@@ -549,12 +549,18 @@ function renderVideoQualities() {
 
     if (streamData.qualities && streamData.qualities.length > 0) {
         let bestIndex = 0;
-        if (prefQuality !== 'highest') {
+        
+        // Find best quality matching preference or default to highest available resolution (1080p/4K)
+        if (prefQuality && prefQuality !== 'highest' && prefQuality !== 'best') {
             const foundIdx = streamData.qualities.findIndex(q => 
                 (q.resolution && q.resolution.toLowerCase().includes(prefQuality)) ||
                 (q.displayName && q.displayName.toLowerCase().includes(prefQuality))
             );
             if (foundIdx !== -1) bestIndex = foundIdx;
+        } else {
+            // Default to Highest/Best: Skip pure audio streams and pick top video resolution
+            const topVideoIdx = streamData.qualities.findIndex(q => !q.resolution.toLowerCase().includes('audio only'));
+            if (topVideoIdx !== -1) bestIndex = topVideoIdx;
         }
 
         streamData.qualities.forEach((q, i) => {

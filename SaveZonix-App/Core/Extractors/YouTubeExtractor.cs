@@ -95,8 +95,19 @@ public class YouTubeExtractor : IVideoExtractor
 
                 if (result.Qualities.Count > 0)
                 {
-                    result.Qualities = result.Qualities.OrderByDescending(q => q.Bandwidth).ToList();
-                    Console.WriteLine($"[YouTube Extractor] SUCCESS: Extracted {result.Qualities.Count} quality options");
+                    // Sort primarily by video resolution height (4K 2160p, 2K 1440p, 1080p, 720p, 480p, etc.)
+                    int GetResHeight(string res)
+                    {
+                        var m = Regex.Match(res ?? string.Empty, @"\d+");
+                        return m.Success && int.TryParse(m.Value, out var h) ? h : 0;
+                    }
+
+                    result.Qualities = result.Qualities
+                        .OrderByDescending(q => GetResHeight(q.Resolution))
+                        .ThenByDescending(q => q.Bandwidth)
+                        .ToList();
+
+                    Console.WriteLine($"[YouTube Extractor] SUCCESS: Extracted {result.Qualities.Count} quality options (Top: {result.Qualities[0].Resolution})");
                     return result;
                 }
             }

@@ -398,8 +398,23 @@ export default function AdminDashboard({ user, onBack }) {
   }
 
   async function handleSaveSettings(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setSaveMessage('');
+
+    // 1. Validation for release version and URL
+    if (settings.latestAppVersion && !/^\d+\.\d+\.\d+$/.test(settings.latestAppVersion.trim())) {
+      alert('Validation Error: Latest App Version must be in format x.y.z (e.g. 2.5.1)');
+      return;
+    }
+
+    if (settings.appDownloadUrl && settings.appDownloadUrl.trim().length > 0) {
+      const url = settings.appDownloadUrl.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        alert('Validation Error: Setup Download URL must start with https:// or http://');
+        return;
+      }
+    }
+
     try {
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
@@ -410,15 +425,34 @@ export default function AdminDashboard({ user, onBack }) {
         body: JSON.stringify(settings)
       });
       if (res.ok) {
-        setSaveMessage('Engine parameters saved and synchronized across fleet.');
-        setTimeout(() => setSaveMessage(''), 4000);
+        setSaveMessage('✅ Engine parameters saved and synchronized across fleet!');
+        showAdminToast('✅ Engine configuration saved to MongoDB & live across all apps!');
+        setTimeout(() => setSaveMessage(''), 5000);
       } else {
         const data = await res.json().catch(() => ({}));
-        setSaveMessage('Error saving settings: ' + (data.error || 'Server error'));
+        const errMsg = 'Error saving settings: ' + (data.error || 'Server error');
+        setSaveMessage(errMsg);
+        alert(errMsg);
       }
     } catch (err) {
       setSaveMessage('Error: ' + err.message);
+      alert('Network error: ' + err.message);
     }
+  }
+
+  function showAdminToast(text) {
+    let toast = document.getElementById('adminFloatingToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'adminFloatingToast';
+      toast.style.cssText = 'position: fixed; top: 24px; right: 24px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(16, 185, 129, 0.6); color: #34d399; padding: 14px 24px; border-radius: 12px; font-size: 14px; font-weight: 700; box-shadow: 0 12px 36px rgba(0,0,0,0.8), 0 0 20px rgba(16, 185, 129, 0.3); z-index: 999999; display: flex; align-items: center; gap: 10px; backdrop-filter: blur(12px); animation: fadeIn 0.3s ease;';
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = text;
+    toast.style.display = 'flex';
+    setTimeout(() => {
+      if (toast) toast.style.display = 'none';
+    }, 4500);
   }
 
   // Unauthenticated Login Screen
