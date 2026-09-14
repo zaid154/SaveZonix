@@ -44,7 +44,6 @@
                     @if (SignInManager.IsSignedIn(User))
                     {
                         var currentUser = await UserManager.GetUserAsync(User);
-                        bool isAdmin = User.IsInRole("Admin") || (currentUser?.Email?.Equals("zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) == true) || (currentUser?.Email?.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) == true);
 
                         <div class="user-dropdown-container">
                             <button class="btn btn-user-menu" id="userMenuBtn" type="button">
