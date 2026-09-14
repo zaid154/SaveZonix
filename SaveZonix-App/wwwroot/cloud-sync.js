@@ -338,7 +338,8 @@
         // Check 4K Lock for VIP
         if (is4K && cloudConfig?.lock4KForVip === true) {
             if (!currentUser || currentUser.isVip !== true) {
-                alert('🔒 4K Ultra-HD is reserved for VIP members.\n\nPlease select 1080p or upgrade to VIP for unrestricted 4K access!');
+                openAuthModal('signIn');
+                showAuthMessage('🔒 4K Ultra-HD is reserved for VIP members. Please sign in or select 1080p.', 'error');
                 return { allowed: false, reason: '4K VIP Restricted' };
             }
         }
@@ -358,7 +359,7 @@
 
             const freeLimit = cloudConfig?.freeDailyLimit || 10;
             if ((currentUser.dailyDownloads || 0) >= freeLimit) {
-                alert(`⚠️ Daily Limit Reached!\n\nYou have used your ${freeLimit} free downloads for today.\nUpgrade to VIP for unlimited downloads, or return tomorrow!`);
+                openAuthModal('limitReached', currentUser.dailyDownloads || freeLimit, freeLimit);
                 return { allowed: false, reason: 'Free daily limit reached' };
             }
 
@@ -371,8 +372,7 @@
 
         // If Guest (not logged in)
         if (cloudConfig?.allowGuestDownloads === false) {
-            alert('🔐 Sign In Required\n\nGuest downloads are currently disabled. Please sign in or create a free account to download.');
-            openAuthModal('register');
+            openAuthModal('limitReached', 0, 0);
             return { allowed: false, reason: 'Guest mode disabled' };
         }
 
@@ -382,8 +382,7 @@
         const guestLimit = cloudConfig?.guestDailyDownloadLimit || 5;
 
         if (guestUsed >= guestLimit) {
-            alert(`⚠️ Guest Limit Exceeded!\n\nYou have completed ${guestLimit} guest downloads today.\nCreate a free account in 10 seconds to get ${cloudConfig?.freeDailyLimit || 10} downloads!`);
-            openAuthModal('register');
+            openAuthModal('limitReached', guestUsed, guestLimit);
             return { allowed: false, reason: 'Guest limit exceeded' };
         }
 
@@ -404,62 +403,113 @@
 
         const modal = document.createElement('div');
         modal.id = 'cloudAuthModal';
-        modal.style.cssText = 'display: none; position: fixed; inset: 0; background: rgba(3, 7, 18, 0.85); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(8px); padding: 20px;';
+        modal.style.cssText = 'display: none; position: fixed; inset: 0; background: rgba(3, 7, 18, 0.88); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(10px); padding: 20px; box-sizing: border-box;';
         modal.innerHTML = `
-            <div style="max-width: 440px; width: 100%; background: #0a0f1d; border: 1px solid #1e293b; border-radius: 16px; padding: 32px 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.8); position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                <button id="btnCloudAuthClose" style="position: absolute; top: 16px; right: 16px; background: transparent; border: none; color: #64748b; font-size: 18px; cursor: pointer;">✕</button>
+            <div style="max-width: 440px; width: 100%; background: #0a0f1d; border: 1px solid #1e293b; border-radius: 18px; padding: 30px 26px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85); position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box;">
+                <button id="btnCloudAuthClose" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 14px; cursor: pointer; transition: all 0.2s ease;">✕</button>
 
                 <!-- Status Message -->
-                <div id="cloudAuthMessage" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px;"></div>
+                <div id="cloudAuthMessage" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; line-height: 1.4;"></div>
+
+                <!-- VIEW 0: GUEST LIMIT REACHED -->
+                <div id="viewLimitReached" style="display: none; text-align: center;">
+                    <div style="width: 58px; height: 58px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto 14px auto;">
+                        ⚠️
+                    </div>
+                    <h2 style="color: #f8fafc; font-size: 21px; font-weight: 800; margin: 0 0 6px 0;">Guest Limit Reached</h2>
+                    <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px 0;">
+                        You have completed your free guest downloads today.<br>
+                        Sign in with your account or register to unlock more downloads!
+                    </p>
+
+                    <div style="background: #030712; border: 1px solid #1e293b; border-radius: 12px; padding: 14px; margin-bottom: 20px; display: flex; justify-content: space-around; align-items: center;">
+                        <div>
+                            <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Today's Guest Usage</div>
+                            <div id="lblLimitCount" style="font-size: 18px; font-weight: 800; color: #f59e0b; margin-top: 3px;">5 / 5 Used</div>
+                        </div>
+                        <div style="width: 1px; height: 36px; background: #1e293b;"></div>
+                        <div>
+                            <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">With Free Account</div>
+                            <div style="font-size: 18px; font-weight: 800; color: #38bdf8; margin-top: 3px;">Unlimited / 10+</div>
+                        </div>
+                    </div>
+
+                    <!-- Direct Links to Dedicated Pages -->
+                    <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+                        <a href="/Account/Register" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 12px 18px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(2,132,199,0.35);">
+                            <span>✨ Create Free Account (Full Page)</span>
+                        </a>
+                        <a href="/Account/Login" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 12px 18px; background: #161f30; color: #e2e8f0; border: 1px solid #334155; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none;">
+                            <span>🔑 Sign In with ID / Password</span>
+                        </a>
+                    </div>
+
+                    <div style="padding-top: 14px; border-top: 1px solid #1e293b; font-size: 12.5px; color: #64748b;">
+                        Quick In-App Access:
+                        <a href="#" id="linkQuickSignIn" style="color: #38bdf8; font-weight: 700; text-decoration: none; margin-left: 5px;">Sign In Here</a>
+                        <span style="margin: 0 5px;">•</span>
+                        <a href="#" id="linkQuickRegister" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Register Here</a>
+                    </div>
+                </div>
 
                 <!-- VIEW 1: SIGN IN -->
-                <div id="viewSignIn">
+                <div id="viewSignIn" style="display: none;">
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Sign In to SaveZonix</h2>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 20px 0;">Access your profile, sync downloads, and enjoy VIP speeds.</p>
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
+                        Access your profile, sync downloads, and enjoy VIP speeds.
+                    </p>
                     
-                    <form id="formSignIn" style="display: flex; flexDirection: column; gap: 14px;">
+                    <form id="formSignIn" style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Email Address</label>
-                            <input type="email" id="inputSignInEmail" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@example.com" required />
+                            <input type="email" id="inputSignInEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@example.com" required />
                         </div>
                         <div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
                                 <label style="font-size: 12px; font-weight: 700; color: #cbd5e1;">Password</label>
                                 <a href="#" id="linkForgotPassword" style="font-size: 11.5px; color: #38bdf8; text-decoration: none;">Forgot password?</a>
                             </div>
-                            <input type="password" id="inputSignInPassword" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="••••••••" required />
+                            <input type="password" id="inputSignInPassword" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="••••••••" required />
                         </div>
-                        <button type="submit" id="btnSubmitSignIn" style="margin-top: 6px; padding: 12px; background: #0284c7; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Sign In 🚀</button>
+                        <button type="submit" id="btnSubmitSignIn" style="box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Sign In 🚀</button>
                     </form>
 
                     <div style="text-align: center; margin-top: 18px; font-size: 12.5px; color: #94a3b8;">
                         Don't have an account? <a href="#" id="linkGoToRegister" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Create Free Account</a>
+                        <div style="margin-top: 8px;">
+                            <a href="/Account/Login" style="color: #64748b; font-size: 11.5px; text-decoration: none;">Prefer full screen sign-in page? Click here →</a>
+                        </div>
                     </div>
                 </div>
 
                 <!-- VIEW 2: REGISTER -->
                 <div id="viewRegister" style="display: none;">
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Create Free Account</h2>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 20px 0;">We will email you a 6-digit verification code.</p>
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
+                        Sign up with your details to get started.
+                    </p>
 
-                    <form id="formRegister" style="display: flex; flexDirection: column; gap: 14px;">
+                    <form id="formRegister" style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Full Name</label>
-                            <input type="text" id="inputRegisterName" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="Zaid" required />
+                            <input type="text" id="inputRegisterName" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="Zaid" required />
                         </div>
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Email Address</label>
-                            <input type="email" id="inputRegisterEmail" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@gmail.com" required />
+                            <input type="email" id="inputRegisterEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@gmail.com" required />
                         </div>
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Choose Password</label>
-                            <input type="password" id="inputRegisterPassword" minlength="6" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="At least 6 characters" required />
+                            <input type="password" id="inputRegisterPassword" minlength="6" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="At least 6 characters" required />
                         </div>
-                        <button type="submit" id="btnSubmitRegister" style="margin-top: 6px; padding: 12px; background: #0284c7; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Send Verification Code ✉️</button>
+                        <button type="submit" id="btnSubmitRegister" style="box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Create Free Account ✨</button>
                     </form>
 
                     <div style="text-align: center; margin-top: 18px; font-size: 12.5px; color: #94a3b8;">
                         Already registered? <a href="#" id="linkGoToSignIn" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Sign In</a>
+                        <div style="margin-top: 8px;">
+                            <a href="/Account/Register" style="color: #64748b; font-size: 11.5px; text-decoration: none;">Prefer full screen register page? Click here →</a>
+                        </div>
                     </div>
                 </div>
 
@@ -469,10 +519,10 @@
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Enter 6-Digit Code</h2>
                     <p id="txtOtpNotice" style="color: #94a3b8; font-size: 13px; margin: 0 0 20px 0;">We sent a verification code to your email.</p>
 
-                    <form id="formOtp" style="display: flex; flexDirection: column; gap: 18px;">
-                        <input type="text" id="inputOtpCode" maxlength="6" pattern="[0-9]{6}" style="width: 220px; margin: 0 auto; text-align: center; font-size: 28px; font-weight: 900; letter-spacing: 8px; padding: 12px; background: #030712; border: 2px solid #38bdf8; border-radius: 12px; color: #38bdf8; font-family: monospace;" placeholder="------" required />
+                    <form id="formOtp" style="display: flex; flex-direction: column; gap: 18px;">
+                        <input type="text" id="inputOtpCode" maxlength="6" pattern="[0-9]{6}" style="box-sizing: border-box; width: 220px; margin: 0 auto; text-align: center; font-size: 28px; font-weight: 900; letter-spacing: 8px; padding: 12px; background: #030712; border: 2px solid #38bdf8; border-radius: 12px; color: #38bdf8; font-family: monospace;" placeholder="------" required />
                         
-                        <button type="submit" id="btnSubmitOtp" style="padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">
+                        <button type="submit" id="btnSubmitOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">
                             Verify &amp; Activate Account ✅
                         </button>
                     </form>
@@ -487,24 +537,24 @@
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Reset Password</h2>
                     <p style="color: #94a3b8; font-size: 13px; margin: 0 0 20px 0;">Enter your registered email to receive a reset code.</p>
 
-                    <form id="formForgotStep1" style="display: flex; flexDirection: column; gap: 14px;">
+                    <form id="formForgotStep1" style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Registered Email</label>
-                            <input type="email" id="inputForgotEmail" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@gmail.com" required />
+                            <input type="email" id="inputForgotEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@gmail.com" required />
                         </div>
-                        <button type="submit" id="btnSendResetOtp" style="padding: 12px; background: #0284c7; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Send Reset Code ✉️</button>
+                        <button type="submit" id="btnSendResetOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Send Reset Code ✉️</button>
                     </form>
 
-                    <form id="formForgotStep2" style="display: none; flexDirection: column; gap: 14px; margin-top: 14px;">
+                    <form id="formForgotStep2" style="display: none; flex-direction: column; gap: 14px; margin-top: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">6-Digit OTP Code</label>
-                            <input type="text" id="inputForgotOtp" maxlength="6" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #38bdf8; font-weight: 700; font-size: 16px; text-align: center; letter-spacing: 4px;" placeholder="123456" required />
+                            <input type="text" id="inputForgotOtp" maxlength="6" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #38bdf8; font-weight: 700; font-size: 16px; text-align: center; letter-spacing: 4px;" placeholder="123456" required />
                         </div>
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">New Password</label>
-                            <input type="password" id="inputForgotNewPassword" minlength="6" style="width: 100%; padding: 10px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="At least 6 characters" required />
+                            <input type="password" id="inputForgotNewPassword" minlength="6" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="At least 6 characters" required />
                         </div>
-                        <button type="submit" id="btnSubmitResetPassword" style="padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Save New Password &amp; Sign In</button>
+                        <button type="submit" id="btnSubmitResetPassword" style="box-sizing: border-box; width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Save New Password &amp; Sign In</button>
                     </form>
 
                     <div style="text-align: center; margin-top: 16px;">
@@ -519,6 +569,8 @@
         document.getElementById('btnCloudAuthClose')?.addEventListener('click', closeAuthModal);
         document.getElementById('linkGoToRegister')?.addEventListener('click', (e) => { e.preventDefault(); switchAuthView('register'); });
         document.getElementById('linkGoToSignIn')?.addEventListener('click', (e) => { e.preventDefault(); switchAuthView('signIn'); });
+        document.getElementById('linkQuickSignIn')?.addEventListener('click', (e) => { e.preventDefault(); switchAuthView('signIn'); });
+        document.getElementById('linkQuickRegister')?.addEventListener('click', (e) => { e.preventDefault(); switchAuthView('register'); });
         document.getElementById('linkForgotPassword')?.addEventListener('click', (e) => { e.preventDefault(); switchAuthView('forgot'); });
         document.getElementById('btnBackToSignInFromForgot')?.addEventListener('click', () => switchAuthView('signIn'));
         document.getElementById('btnBackFromOtp')?.addEventListener('click', () => switchAuthView('register'));
@@ -680,8 +732,8 @@
                 localStorage.setItem('savezonix_cloud_user', JSON.stringify(data.user));
                 currentUser = data.user;
                 renderUserBadge();
-                closeAuthModal();
-                alert('✅ Password updated successfully! You are now logged in.');
+                showAuthMessage('✅ Password updated successfully! You are now logged in.', 'success');
+                setTimeout(closeAuthModal, 1200);
             } catch (err) {
                 showAuthMessage(err.message, 'error');
             } finally {
@@ -694,17 +746,20 @@
     function switchAuthView(viewName) {
         showAuthMessage('');
         const views = {
+            limitReached: document.getElementById('viewLimitReached'),
             signIn: document.getElementById('viewSignIn'),
             register: document.getElementById('viewRegister'),
             otp: document.getElementById('viewOtp'),
             forgot: document.getElementById('viewForgotPassword')
         };
         Object.keys(views).forEach(k => {
-            if (views[k]) views[k].style.display = k === viewName ? 'block' : 'none';
+            if (views[k]) views[k].style.display = (k === viewName) ? 'block' : 'none';
         });
         if (viewName === 'forgot') {
-            document.getElementById('formForgotStep1').style.display = 'flex';
-            document.getElementById('formForgotStep2').style.display = 'none';
+            const s1 = document.getElementById('formForgotStep1');
+            const s2 = document.getElementById('formForgotStep2');
+            if (s1) s1.style.display = 'flex';
+            if (s2) s2.style.display = 'none';
         }
     }
 
@@ -728,8 +783,14 @@
         }
     }
 
-    function openAuthModal(initialView = 'signIn') {
+    function openAuthModal(initialView = 'signIn', guestCount = 5, maxCount = 5) {
         injectAuthModalHTML();
+        if (initialView === 'limitReached') {
+            const countEl = document.getElementById('lblLimitCount');
+            const summaryEl = document.getElementById('lblLimitSummary');
+            if (countEl) countEl.textContent = `${guestCount} / ${maxCount} Used`;
+            if (summaryEl) summaryEl.textContent = `${maxCount} guest downloads`;
+        }
         switchAuthView(initialView);
         const modal = document.getElementById('cloudAuthModal');
         if (modal) modal.style.display = 'flex';
