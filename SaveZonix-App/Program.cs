@@ -2245,46 +2245,64 @@ public class Program
                 // Check popular browser executable paths on Windows
                 string[] browserCandidates = new[]
                 {
-                    // Google Chrome
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"),
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"),
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe"),
-                    // Microsoft Edge
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
-                    // Brave Browser
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
                 };
 
-                string? browserExe = browserCandidates.FirstOrDefault(File.Exists);
+                string? browserExe = browserCandidates.FirstOrDefault(File.Exists) ?? "chrome.exe";
 
-                if (browserExe == null)
+                // Also open explorer to extension path for convenience
+                try
                 {
-                    // Fallback to opening default chrome protocol
-                    browserExe = "chrome.exe";
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{extensionPath}\"") { UseShellExecute = true });
                 }
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = browserExe,
-                    Arguments = $"--load-extension=\"{extensionPath}\" \"http://localhost:5000\"",
-                    UseShellExecute = true
-                };
-
-                Process.Start(psi);
+                catch { }
 
                 return Results.Ok(new
                 {
                     success = true,
-                    message = $"Extension loaded successfully into browser!",
+                    message = "Extension folder opened! Copy path and load into chrome://extensions",
                     browser = Path.GetFileNameWithoutExtension(browserExe),
                     extensionFolder = extensionPath
                 });
             }
             catch (Exception ex)
             {
-                return Results.Problem(detail: ex.Message, title: "Failed to launch browser with extension");
+                return Results.Problem(detail: ex.Message, title: "Failed to locate extension");
+            }
+        });
+
+        app.MapPost("/api/extension/open-folder", () =>
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string extensionPath = Path.Combine(baseDir, "Extension");
+                if (!Directory.Exists(extensionPath))
+                {
+                    extensionPath = Path.Combine(Directory.GetCurrentDirectory(), "Extension");
+                }
+                if (!Directory.Exists(extensionPath))
+                {
+                    var parent = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName;
+                    if (parent != null) extensionPath = Path.Combine(parent, "SaveZonix-App", "Extension");
+                }
+
+                if (Directory.Exists(extensionPath))
+                {
+                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{extensionPath}\"") { UseShellExecute = true });
+                    return Results.Ok(new { success = true, path = extensionPath });
+                }
+                return Results.NotFound(new { success = false, message = "Extension folder not found." });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { success = false, message = ex.Message });
             }
         });
 
