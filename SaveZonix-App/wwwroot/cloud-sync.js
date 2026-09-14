@@ -1,9 +1,7 @@
 // SaveZonix Cloud Sync & In-App Auth Controller (OTA Updates, Guest Limits, VIP Gatekeeper, OTP Auth)
 (function () {
     const CURRENT_VERSION = '2.5.0';
-    const CLOUD_API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://localhost:5001'
-        : 'https://savezonix-api.onrender.com';
+    const CLOUD_API_BASE = 'https://savezonix.onrender.com';
 
     let cloudConfig = null;
     let currentUser = null;
@@ -25,12 +23,12 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 1. Fetch Remote Config
+    // 1. Fetch Remote Config (Always Live from Render Cloud)
     // ─────────────────────────────────────────────────────────────
     async function fetchCloudConfig() {
         try {
-            // First try local C# app-config proxy
-            const res = await fetch('/api/app-config');
+            // Fetch live config from Render Cloud
+            const res = await fetch(`${CLOUD_API_BASE}/api/app-config`);
             if (res.ok) {
                 cloudConfig = await res.json();
                 return;
@@ -38,8 +36,8 @@
         } catch { }
 
         try {
-            // Fallback to direct cloud API
-            const res = await fetch(`${CLOUD_API_BASE}/api/app-config`);
+            // Local C# fallback
+            const res = await fetch('/api/app-config');
             if (res.ok) {
                 cloudConfig = await res.json();
                 return;

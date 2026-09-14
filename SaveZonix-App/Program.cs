@@ -2033,7 +2033,7 @@ public class Program
             var dlUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/latest");
             return Results.Ok(new
             {
-                latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.0"),
+                latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.1"),
                 minAllowedVersion = settings.GetValueOrDefault("MinAllowedVersion", "2.0.0"),
                 forceUpdate = settings.GetValueOrDefault("ForceUpdate", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
                 downloadUrl = dlUrl,
@@ -2145,7 +2145,7 @@ public class Program
             return Results.Ok(new
             {
                 status = "running",
-                version = "2.5.0",
+                version = "2.5.1",
                 engine = "SaveZonix Turbo Multi-Threaded Engine",
                 timestamp = DateTime.UtcNow
             });
