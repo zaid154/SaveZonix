@@ -18,11 +18,11 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=
-OutputDir=C:\Users\user\Desktop\All-Pojects\2 DotNET\SaveZonix\SaveZonix-App\installer
+OutputDir=..\installer
 OutputBaseFilename=SaveZonix-Setup-v2.5.1
-SetupIconFile=C:\Users\user\Desktop\All-Pojects\2 DotNET\SaveZonix\SaveZonix-App\wwwroot\app.ico
+SetupIconFile=..\wwwroot\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
-Compression=lzma2/max
+Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
@@ -50,7 +50,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "C:\Users\user\Desktop\All-Pojects\2 DotNET\SaveZonix\SaveZonix-App\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

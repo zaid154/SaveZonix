@@ -30,6 +30,12 @@ if exist "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" (
     timeout /t 1 /nobreak >nul
 )
 
+set "BUILD_DIR=%TEMP%\SaveZonix-Build"
+if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
+if exist "%BUILD_DIR%\SaveZonix-Setup-v2.5.1.exe" (
+    del /f /q "%BUILD_DIR%\SaveZonix-Setup-v2.5.1.exe" >nul 2>&1
+)
+
 set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 if not exist "%ISCC%" (
     set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
@@ -38,7 +44,7 @@ if not exist "%ISCC%" (
     set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
 )
 
-"%ISCC%" "%~dp0SaveZonix-App\installer\installer.iss"
+"%ISCC%" /O"%BUILD_DIR%" "%~dp0SaveZonix-App\installer\installer.iss"
 if %ERRORLEVEL% neq 0 (
     color 0C
     echo.
@@ -46,6 +52,10 @@ if %ERRORLEVEL% neq 0 (
     pause
     exit /b %ERRORLEVEL%
 )
+
+echo.
+echo Placing finished installer into SaveZonix-App\installer...
+copy /y "%BUILD_DIR%\SaveZonix-Setup-v2.5.1.exe" "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" >nul
 
 echo.
 echo ========================================================
