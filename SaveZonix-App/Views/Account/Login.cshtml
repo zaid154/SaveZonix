@@ -32,7 +32,7 @@
             </div>
         }
 
-        <!-- Google OAuth 1-Click Button -->
+        @* Google OAuth temporarily hidden per user request
         <form asp-controller="Account" asp-action="ExternalLogin" asp-route-returnUrl="@Model.ReturnUrl" method="post" style="margin-bottom: 14px;">
             <button type="submit" name="provider" value="Google" class="btn btn-google" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; background: #21262d; border: 1px solid #30363d; border-radius: 8px; color: #f0f6fc; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
                 <svg width="17" height="17" viewBox="0 0 24 24">
@@ -50,6 +50,7 @@
             <span style="padding: 0 10px;">or sign in with email</span>
             <span style="flex: 1; border-bottom: 1px solid #30363d;"></span>
         </div>
+        *@
 
         <!-- Credentials Form -->
         <form asp-controller="Account" asp-action="Login" asp-route-returnUrl="@Model.ReturnUrl" method="post" class="auth-form">

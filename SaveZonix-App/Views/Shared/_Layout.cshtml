@@ -125,22 +125,8 @@
             @RenderBody()
         </main>
 
-        <!-- Footer -->
-        @{
-            bool isAuthPage = (ViewData["ActiveNav"]?.ToString() == "Auth") || 
-                              (Context.Request.Path.Value?.Contains("/Account/Login", StringComparison.OrdinalIgnoreCase) == true) || 
-                              (Context.Request.Path.Value?.Contains("/Account/Register", StringComparison.OrdinalIgnoreCase) == true);
-        }
-        @if (isAuthPage)
-        {
-            <footer style="text-align: center; padding: 14px 16px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border-color); background: rgba(7, 10, 19, 0.95); flex-shrink: 0;">
-                <p style="margin: 0;">&copy; @DateTime.UtcNow.Year SaveZonix &bull; High-Performance Media Suite &bull; <a asp-controller="Legal" asp-action="Privacy" style="color: var(--text-muted); text-decoration: none;">Privacy</a> &bull; <a asp-controller="Legal" asp-action="Terms" style="color: var(--text-muted); text-decoration: none;">Terms</a></p>
-            </footer>
-        }
-        else
-        {
-            <!-- Production Footer -->
-            <footer class="footer">
+        <!-- Production Footer (Unified across all pages) -->
+        <footer class="footer">
                 <div class="container">
                     <div class="footer-grid">
                         <div class="footer-brand">
@@ -208,7 +194,6 @@
                     </div>
                 </div>
             </footer>
-        }
     </div>
 
     <script src="~/nav.js" asp-append-version="true"></script>

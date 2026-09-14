@@ -5,16 +5,16 @@
 }
 
 <div class="auth-wrapper" style="min-height: calc(100vh - 125px); display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box;">
-    <div class="auth-card" style="width: 100%; max-width: 420px; padding: 24px 28px;">
+    <div class="auth-card" style="width: 100%; max-width: 410px; background: #161b22; border: 1px solid #30363d; border-radius: 16px; padding: 26px 28px; box-shadow: 0 20px 40px rgba(0,0,0,0.5); box-sizing: border-box;">
         
         <!-- Brand Header -->
-        <div class="auth-header" style="text-align: center; margin-bottom: 16px;">
+        <div class="auth-header" style="text-align: center; margin-bottom: 18px;">
             <a href="/" class="brand-link" style="justify-content: center; margin-bottom: 8px; text-decoration: none;">
                 <partial name="_Logo" model='"brand-logo-img"' />
-                <div class="brand-text">Save<span>Zonix</span></div>
+                <div class="brand-text" style="font-size: 20px; font-weight: 800;">Save<span>Zonix</span></div>
             </a>
-            <h1 class="auth-title" id="authTitle" style="font-size: 20px; margin: 0 0 4px 0;">Create your account</h1>
-            <p class="auth-subtitle" id="authSubtitle" style="font-size: 12px; margin: 0;">Join SaveZonix for unlimited high-speed parallel downloads</p>
+            <h1 class="auth-title" id="authTitle" style="font-size: 20px; font-weight: 700; color: #f0f6fc; margin: 0 0 4px 0;">Create your account</h1>
+            <p class="auth-subtitle" id="authSubtitle" style="font-size: 12px; color: #8b949e; margin: 0;">Join SaveZonix for unlimited high-speed downloads</p>
         </div>
 
         @if (TempData["ErrorMessage"] != null)
@@ -26,16 +26,16 @@
         }
 
         <!-- Alert Notification Box -->
-        <div id="regAlert" class="alert error" style="display: none; margin-bottom: 14px; padding: 10px 12px; font-size: 12px;">
+        <div id="regAlert" class="alert error" style="display: none; margin-bottom: 14px; padding: 10px 12px; font-size: 12px; border-radius: 8px; align-items: center; gap: 8px;">
             <span class="alert-icon" id="regAlertIcon">⚠️</span>
             <span id="regAlertMsg"></span>
         </div>
 
         <!-- STEP 1: Registration Form -->
         <div id="stepDetails">
-            <!-- Google OAuth Button -->
+            @* Google OAuth temporarily hidden per user request
             <form asp-controller="Account" asp-action="ExternalLogin" method="post" style="margin-bottom: 12px;">
-                <button type="submit" name="provider" value="Google" class="btn btn-google" style="padding: 10px 16px; font-size: 13px;">
+                <button type="submit" name="provider" value="Google" class="btn btn-google" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; background: #21262d; border: 1px solid #30363d; border-radius: 8px; color: #f0f6fc; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
                     <svg width="17" height="17" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -49,37 +49,38 @@
             <div class="auth-divider" style="margin: 12px 0 14px 0;">
                 <span style="font-size: 11px;">or register with email</span>
             </div>
+            *@
 
             <form id="formStep1" onsubmit="handleSendOtp(event)" class="auth-form">
-                <div class="form-group" style="margin-bottom: 11px;">
-                    <label for="txtFullName" style="font-size: 12px; margin-bottom: 5px;">Full Name</label>
-                    <input id="txtFullName" class="form-control" placeholder="Alex Johnson" required autocomplete="name" style="padding: 9px 12px; font-size: 13px;" />
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label for="txtFullName" style="display: block; font-size: 12px; font-weight: 600; color: #c9d1d9; margin-bottom: 5px;">Full Name</label>
+                    <input id="txtFullName" class="form-control" placeholder="Alex Johnson" required autocomplete="name" style="width: 100%; box-sizing: border-box; padding: 9px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #f0f6fc; font-size: 13px; outline: none; transition: border-color 0.2s;" />
                 </div>
 
-                <div class="form-group" style="margin-bottom: 11px;">
-                    <label for="txtEmail" style="font-size: 12px; margin-bottom: 5px;">Email Address</label>
-                    <input id="txtEmail" type="email" class="form-control" placeholder="you@example.com" required autocomplete="email" style="padding: 9px 12px; font-size: 13px;" />
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label for="txtEmail" style="display: block; font-size: 12px; font-weight: 600; color: #c9d1d9; margin-bottom: 5px;">Email Address</label>
+                    <input id="txtEmail" type="email" class="form-control" placeholder="you@example.com" required autocomplete="email" style="width: 100%; box-sizing: border-box; padding: 9px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #f0f6fc; font-size: 13px; outline: none; transition: border-color 0.2s;" />
                 </div>
 
-                <div class="form-group" style="margin-bottom: 13px;">
-                    <label for="txtPassword" style="font-size: 12px; margin-bottom: 5px;">Password</label>
-                    <input id="txtPassword" type="password" class="form-control" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password" style="padding: 9px 12px; font-size: 13px;" />
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label for="txtPassword" style="display: block; font-size: 12px; font-weight: 600; color: #c9d1d9; margin-bottom: 5px;">Password</label>
+                    <input id="txtPassword" type="password" class="form-control" placeholder="At least 6 characters" minlength="6" required autocomplete="new-password" style="width: 100%; box-sizing: border-box; padding: 9px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #f0f6fc; font-size: 13px; outline: none; transition: border-color 0.2s;" />
                 </div>
 
-                <button type="submit" id="btnSendOtp" class="btn btn-primary btn-block" style="margin-top: 6px; padding: 10px; font-size: 13px;">
+                <button type="submit" id="btnSendOtp" class="btn btn-primary btn-block" style="width: 100%; box-sizing: border-box; margin-top: 6px; padding: 10px 16px; background: #238636; border: 1px solid rgba(240, 246, 252, 0.1); border-radius: 8px; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
                     <span id="btnSendOtpText">Create Account</span>
                 </button>
             </form>
 
-            <div class="auth-footer" style="margin-top: 14px; padding-top: 12px; font-size: 12px;">
-                <p style="margin: 0;">Already have an account? <a asp-action="Login" class="auth-link">Sign in</a></p>
+            <div class="auth-footer" style="text-align: center; margin-top: 16px; padding-top: 12px; font-size: 12px; color: #8b949e;">
+                <p style="margin: 0;">Already have an account? <a asp-action="Login" class="auth-link" style="color: #58a6ff; font-weight: 600; text-decoration: none;">Sign in</a></p>
             </div>
         </div>
 
         <!-- STEP 2: 6-Digit Email Verification Screen -->
         <div id="stepOtp" style="display: none;">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <div style="font-size: 40px; margin-bottom: 8px;">📩</div>
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 38px; margin-bottom: 8px;">📩</div>
                 <p style="font-size: 13px; color: #94a3b8; line-height: 1.5; margin: 0;">
                     We sent a 6-digit confirmation code to <br>
                     <strong id="targetEmailDisplay" style="color: #f8fafc;"></strong>
@@ -97,15 +98,15 @@
                     <input type="text" maxlength="1" class="otp-box" inputmode="numeric" pattern="[0-9]*">
                 </div>
 
-                <button type="submit" id="btnVerifyOtp" class="btn btn-primary btn-block">
+                <button type="submit" id="btnVerifyOtp" class="btn btn-primary btn-block" style="width: 100%; box-sizing: border-box; padding: 10px 16px; background: #238636; border: 1px solid rgba(240, 246, 252, 0.1); border-radius: 8px; color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
                     <span id="btnVerifyText">Verify &amp; Continue</span>
                 </button>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; font-size: 13px;">
-                    <button type="button" onclick="backToStep1()" style="background: none; border: none; color: #64748b; cursor: pointer; padding: 0; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 18px; font-size: 12.5px;">
+                    <button type="button" onclick="backToStep1()" style="background: none; border: none; color: #8b949e; cursor: pointer; padding: 0; font-size: 12.5px;">
                         ← Change email
                     </button>
-                    <button type="button" id="btnResend" onclick="handleResendOtp()" style="background: none; border: none; color: #38bdf8; cursor: pointer; padding: 0; font-size: 13px; font-weight: 600;">
+                    <button type="button" id="btnResend" onclick="handleResendOtp()" style="background: none; border: none; color: #58a6ff; cursor: pointer; padding: 0; font-size: 12.5px; font-weight: 600;">
                         Resend code
                     </button>
                 </div>
@@ -117,23 +118,24 @@
 
 <style>
     .otp-box {
-        width: 48px;
-        height: 54px;
-        background: #0f172a;
-        border: 1.5px solid #334155;
-        border-radius: 10px;
+        width: 44px;
+        height: 50px;
+        background: #0d1117;
+        border: 1.5px solid #30363d;
+        border-radius: 8px;
         color: #38bdf8;
-        font-size: 24px;
+        font-size: 22px;
         font-weight: 800;
         text-align: center;
-        font-family: 'JetBrains Mono', Consolas, monospace;
+        font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
         transition: all 0.15s ease;
         outline: none;
+        box-sizing: border-box;
     }
     .otp-box:focus {
         border-color: #38bdf8;
         box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
-        background: #1e293b;
+        background: #161b22;
     }
 </style>
 

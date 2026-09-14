@@ -2344,6 +2344,7 @@ public class Program
 
             // 3. Generate 6-Digit OTP & Dispatch Email
             var otp = verificationService.GenerateAndStoreOtp(email, fullName, req.Password);
+            Console.WriteLine($"[AUTH OTP] 🔑 Registration code for {email}: {otp}");
             _ = Task.Run(() => emailService.SendOtpVerificationEmailAsync(email, otp, fullName));
 
             return Results.Ok(new 
@@ -2354,7 +2355,7 @@ public class Program
             });
         });
 
-        app.MapPost("/api/auth/verify-registration-otp", async (VerifyOtpRequest req, IDownloadAnalyticsService analytics, IEmailVerificationService verificationService, IEmailService emailService, HttpContext ctx) =>
+        app.MapPost("/api/auth/verify-registration-otp", async (VerifyOtpRequest req, IDownloadAnalyticsService analytics, IEmailVerificationService verificationService, IEmailService emailService, UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, HttpContext ctx) =>
         {
             if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Otp))
             {
@@ -2377,6 +2378,30 @@ public class Program
             };
 
             await analytics.CreateOrUpdateUserAsync(user);
+
+            // Also register and sign in with ASP.NET Core Identity
+            var appUser = await userManager.FindByEmailAsync(user.Email);
+            if (appUser == null)
+            {
+                appUser = new AppUser
+                {
+                    UserName = user.Email,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow,
+                    IsActive = true
+                };
+                var createResult = await userManager.CreateAsync(appUser, pendingData.Password);
+                if (createResult.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(appUser, user.Role);
+                }
+            }
+            if (appUser != null)
+            {
+                await signInManager.SignInAsync(appUser, isPersistent: true);
+            }
 
             // Sign in cookie
             var claims = new List<Claim>
