@@ -21,6 +21,7 @@ LicenseFile=
 OutputDir=C:\Users\user\Desktop\All-Pojects\2 DotNET\SaveZonix\SaveZonix-App\installer
 OutputBaseFilename=SaveZonix-Setup-v2.5.1
 SetupIconFile=C:\Users\user\Desktop\All-Pojects\2 DotNET\SaveZonix\SaveZonix-App\wwwroot\app.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern

@@ -14,7 +14,6 @@ import {
 } from './admin/AdminIcons';
 
 import AdminErrorBoundary from './admin/AdminErrorBoundary';
-import AdminLoginModal from './admin/AdminLoginModal';
 import OverviewTab from './admin/OverviewTab';
 import UsersTab from './admin/UsersTab';
 import UserDetailsModal from './admin/UserDetailsModal';
@@ -24,15 +23,22 @@ import DiagnosticsTab from './admin/DiagnosticsTab';
 import SecurityTab from './admin/SecurityTab';
 import EngineTab from './admin/EngineTab';
 
-export default function AdminDashboard({ user, onBack }) {
-  const [adminKey, setAdminKey] = useState(localStorage.getItem('savezonix_admin_key') || '');
-  const [adminToken, setAdminToken] = useState(localStorage.getItem('savezonix_admin_token') || '');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
+export default function AdminDashboard({ user, currentPath = '/admin/overview', onNavigate, onBack }) {
+  const MASTER_ADMIN_KEY = 'savezonix_admin_2026';
+  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('savezonix_admin_key') || MASTER_ADMIN_KEY);
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('savezonix_admin_token') || '');
+
+  function getTabFromPath(path) {
+    if (!path) return 'overview';
+    const sub = path.replace(/^\/admin\/?/i, '').toLowerCase().trim();
+    const valid = ['overview', 'users', 'downloads', 'ai-advisor', 'diagnostics', 'security', 'engine'];
+    if (valid.includes(sub)) return sub;
+    if (sub === 'ai_advisor') return 'ai-advisor';
+    return 'overview';
+  }
 
   // 7 Core Modules from .NET Admin Panel
-  const [activeTab, setActiveTab] = useState('overview'); // overview, users, downloads, ai-advisor, diagnostics, security, engine
+  const [activeTab, setActiveTab] = useState(() => getTabFromPath(currentPath));
 
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
@@ -60,93 +66,19 @@ export default function AdminDashboard({ user, onBack }) {
   }
 
   useEffect(() => {
-    if (adminKey || adminToken) {
-      testSession(adminKey, adminToken);
+    const targetTab = getTabFromPath(currentPath);
+    setActiveTab(targetTab);
+    loadTabData(targetTab, false, adminKey, adminToken);
+  }, [currentPath]);
+
+  function handleTabClick(tabId) {
+    setActiveTab(tabId);
+    if (onNavigate) {
+      onNavigate(`/admin/${tabId}`);
+    } else {
+      window.history.pushState({}, '', `/admin/${tabId}`);
     }
-  }, []);
-
-  async function testSession(key, token) {
-    setAuthLoading(true);
-    setAuthError('');
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12000);
-
-      const res = await fetch('/api/admin/stats', {
-        headers: getAuthHeaders(key, token),
-        signal: controller.signal
-      }).catch(() => null);
-
-      clearTimeout(timer);
-
-      if (res && res.ok) {
-        const statsData = await res.json().catch(() => null);
-        if (statsData) setStats(statsData);
-        setIsAuthenticated(true);
-        loadTabData('overview', false, key, token);
-      } else {
-        setIsAuthenticated(false);
-      }
-    } catch {
-      setIsAuthenticated(false);
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  async function handleLoginWithCredentials(id, password) {
-    if (!id || !password) {
-      setAuthError('Please enter both Admin ID/Email and Password.');
-      return;
-    }
-    setAuthLoading(true);
-    setAuthError('');
-
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: id.trim(), password: password.trim() }),
-        signal: controller.signal
-      }).catch((err) => {
-        if (err.name === 'AbortError') {
-          throw new Error('Connection timed out: Server may be booting on Render. Please retry.');
-        }
-        throw err;
-      });
-
-      clearTimeout(timer);
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data.success) {
-        const token = data.token || '';
-        const key = data.adminKey || 'savezonix_admin_2026';
-        setAdminToken(token);
-        setAdminKey(key);
-        localStorage.setItem('savezonix_admin_token', token);
-        localStorage.setItem('savezonix_admin_key', key);
-        setIsAuthenticated(true);
-        loadTabData('overview', false, key, token);
-      } else {
-        setAuthError(data.error || 'Authentication failed: Invalid Admin ID or Password.');
-      }
-    } catch (err) {
-      setAuthError(err.message || 'Connection error: Could not reach backend server.');
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  function handleLogout() {
-    localStorage.removeItem('savezonix_admin_key');
-    localStorage.removeItem('savezonix_admin_token');
-    setAdminKey('');
-    setAdminToken('');
-    setLoadedTabs(new Set());
-    setIsAuthenticated(false);
+    loadTabData(tabId, false, adminKey, adminToken);
   }
 
   // High-Speed Lazy Loader: Loads only what is needed for the requested tab and caches in React state
@@ -455,18 +387,6 @@ export default function AdminDashboard({ user, onBack }) {
     }, 4500);
   }
 
-  // Unauthenticated Login Screen
-  if (!isAuthenticated) {
-    return (
-      <AdminLoginModal
-        authError={authError}
-        authLoading={authLoading}
-        onLoginWithCredentials={handleLoginWithCredentials}
-        onBack={onBack}
-      />
-    );
-  }
-
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '32px 20px', minHeight: '85vh', color: '#f8fafc' }}>
       {/* Top Header */}
@@ -495,24 +415,17 @@ export default function AdminDashboard({ user, onBack }) {
             Refresh
           </button>
           <button
-            onClick={onBack}
+            onClick={onBack || (() => onNavigate ? onNavigate('/') : window.location.href = '/')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#cbd5e1', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
           >
             <IconExternal size={13} color="#94a3b8" />
             Website
           </button>
-          <button
-            onClick={handleLogout}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', color: '#f87171', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
-          >
-            <IconLogOut size={13} color="#f87171" />
-            Sign Out
-          </button>
         </div>
       </div>
 
       {/* 7 Segmented Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '24px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '16px', flexWrap: 'wrap' }}>
         {[
           { id: 'overview', label: 'Overview', icon: IconActivity },
           { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
@@ -550,6 +463,13 @@ export default function AdminDashboard({ user, onBack }) {
         })}
       </div>
 
+      {/* Tab Data Fast Loading Indicator */}
+      {loading && (
+        <div style={{ height: '3px', width: '100%', background: '#0d131f', borderRadius: '3px', overflow: 'hidden', marginBottom: '20px' }}>
+          <div style={{ height: '100%', width: '45%', background: 'linear-gradient(90deg, #0284c7, #38bdf8, #10b981)', borderRadius: '3px' }} />
+        </div>
+      )}
+
       {/* Global Feedback Banner */}
       {saveMessage && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', color: '#34d399', marginBottom: '20px', fontSize: '13px', fontWeight: 500 }}>
@@ -564,7 +484,7 @@ export default function AdminDashboard({ user, onBack }) {
           <OverviewTab
             stats={stats}
             downloads={downloads}
-            onNavigateToDownloads={() => setActiveTab('downloads')}
+            onNavigateToDownloads={() => handleTabClick('downloads')}
           />
         </AdminErrorBoundary>
       )}

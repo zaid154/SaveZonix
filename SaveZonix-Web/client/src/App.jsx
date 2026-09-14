@@ -62,6 +62,7 @@ export default function App() {
     setUser(null);
   }
 
+  const isAdminRoute = currentPath === '/admin' || currentPath.startsWith('/admin/');
   const isLegalRoute = ['/privacy', '/terms', '/dmca', '/disclaimer'].includes(currentPath);
   const legalType = isLegalRoute ? currentPath.replace('/', '') : 'privacy';
 
@@ -72,14 +73,14 @@ export default function App() {
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
         onLogout={handleLogout}
-        onOpenAdmin={() => navigate('/admin')}
+        onOpenAdmin={() => navigate('/admin/overview')}
         onNavigate={navigate}
         currentPath={currentPath}
       />
 
       <main>
-        {currentPath === '/admin' ? (
-          <AdminDashboard user={user} onBack={() => navigate('/')} />
+        {isAdminRoute ? (
+          <AdminDashboard user={user} currentPath={currentPath} onNavigate={navigate} onBack={() => navigate('/')} />
         ) : isLegalRoute ? (
           <LegalPage type={legalType} onNavigate={navigate} />
         ) : (
@@ -102,9 +103,9 @@ export default function App() {
         )}
       </main>
 
-      {currentPath !== '/admin' && (
+      {!isAdminRoute && (
         <Footer
-          onOpenAdmin={() => navigate('/admin')}
+          onOpenAdmin={() => navigate('/admin/overview')}
           onOpenLegal={(type) => navigate(`/${type}`)}
         />
       )}

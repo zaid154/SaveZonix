@@ -95,6 +95,8 @@ public class DownloadRequest
     public int DurationSeconds { get; set; } = 0;
     public string? ExpectedResolution { get; set; }
     public string? DestinationFolder { get; set; }
+    public string? UserEmail { get; set; }
+    public string? UserId { get; set; }
 }
 
 public class RegisterRequest
@@ -1366,6 +1368,12 @@ public class Program
                 currentUserEmail = httpContext.User.FindFirstValue(ClaimTypes.Email);
             }
 
+            if (string.IsNullOrEmpty(currentUserEmail) && !string.IsNullOrWhiteSpace(req.UserEmail))
+            {
+                currentUserEmail = req.UserEmail.Trim();
+                currentUserId = req.UserId?.Trim();
+            }
+
             var state = new DownloadTaskState
             {
                 TaskId = taskId,
@@ -1806,6 +1814,38 @@ public class Program
 
                         await scopedAnalytics.LogDownloadAsync(record);
 
+                        // ⚡ Instant Cloud Sync to Render MongoDB (so Cloud Admin Panel gets live download history)
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                using var cloudClient = new HttpClient { Timeout = TimeSpan.FromSeconds(6) };
+                                var cloudPayload = new
+                                {
+                                    taskId = taskId,
+                                    title = videoTitle,
+                                    fileName = Path.GetFileName(outputFilePath),
+                                    originalUrl = pageUrl,
+                                    platform = platform,
+                                    quality = quality,
+                                    fileSize = fi.Length,
+                                    downloadSpeedMBps = state.SpeedMBps,
+                                    peakSpeedMBps = state.PeakSpeedMBps,
+                                    format = targetExt.TrimStart('.'),
+                                    status = "Completed",
+                                    userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "guest@savezonix.com",
+                                    userId = currentUserId,
+                                    ipAddress = clientIp
+                                };
+                                var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(cloudPayload), System.Text.Encoding.UTF8, "application/json");
+                                await cloudClient.PostAsync("https://savezonix.onrender.com/api/admin/record-download", content);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[Cloud Sync] Telemetry notice: {ex.Message}");
+                            }
+                        });
+
                         if (historyService != null)
                         {
                             await historyService.MarkCompletedWithValidationAsync(
@@ -1861,6 +1901,35 @@ public class Program
                         };
 
                         await scopedAnalytics.LogDownloadAsync(failRecord);
+
+                        // ⚡ Sync Failure to Cloud Admin
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                using var cloudClient = new HttpClient { Timeout = TimeSpan.FromSeconds(6) };
+                                var cloudPayload = new
+                                {
+                                    taskId = taskId,
+                                    title = videoTitle,
+                                    fileName = Path.GetFileName(outputFilePath),
+                                    originalUrl = pageUrl,
+                                    platform = platform,
+                                    quality = quality,
+                                    fileSize = 0,
+                                    downloadSpeedMBps = state.SpeedMBps,
+                                    peakSpeedMBps = state.PeakSpeedMBps,
+                                    format = targetExt.TrimStart('.'),
+                                    status = "Failed",
+                                    userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "guest@savezonix.com",
+                                    userId = currentUserId,
+                                    ipAddress = clientIp
+                                };
+                                var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(cloudPayload), System.Text.Encoding.UTF8, "application/json");
+                                await cloudClient.PostAsync("https://savezonix.onrender.com/api/admin/record-download", content);
+                            }
+                            catch { }
+                        });
 
                         if (historyService != null)
                         {

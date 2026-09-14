@@ -447,6 +447,72 @@ router.delete('/users/:id', adminAuth, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Telemetry Record Download (Public - called by Desktop App & Web Client)
+// ─────────────────────────────────────────────────────────────
+router.post('/record-download', async (req, res) => {
+  try {
+    const {
+      taskId,
+      title,
+      fileName,
+      originalUrl,
+      platform,
+      quality,
+      fileSize,
+      downloadSpeedMBps,
+      peakSpeedMBps,
+      format,
+      status,
+      userId,
+      userEmail,
+      ipAddress
+    } = req.body;
+
+    if (!fileName && !title) {
+      return res.status(400).json({ error: 'fileName or title is required.' });
+    }
+
+    const clientIp = ipAddress || req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const email = (userEmail && userEmail.trim()) ? userEmail.trim() : 'guest@savezonix.com';
+
+    const updateData = {
+      title: (title || fileName || 'Media Item').trim(),
+      fileName: (fileName || title || 'download.mp4').trim(),
+      originalUrl: originalUrl || '',
+      platform: platform || 'Web Stream',
+      quality: quality || '1080p',
+      fileSize: Math.max(0, Number(fileSize) || 0),
+      downloadSpeedMBps: Math.max(0, Number(downloadSpeedMBps) || 0),
+      peakSpeedMBps: Math.max(0, Number(peakSpeedMBps) || 0),
+      format: (format || 'mp4').toLowerCase().replace(/^\./, ''),
+      status: status || 'Completed',
+      userEmail: email,
+      ipAddress: clientIp,
+      createdAt: new Date()
+    };
+
+    if (userId) updateData.userId = userId;
+
+    let doc = null;
+    if (taskId) {
+      doc = await DownloadHistory.findOneAndUpdate(
+        { taskId },
+        { $set: updateData },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      );
+    } else {
+      doc = await DownloadHistory.create(updateData);
+    }
+
+    return res.json({ success: true, record: doc });
+  } catch (err) {
+    console.error('[Record Download Error]:', err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // 3. Downloads History & Audit Log
 // ─────────────────────────────────────────────────────────────
 router.get('/downloads', adminAuth, async (req, res) => {
@@ -457,7 +523,9 @@ router.get('/downloads', adminAuth, async (req, res) => {
     if (search) {
       query.$or = [
         { fileName: { $regex: search, $options: 'i' } },
-        { originalUrl: { $regex: search, $options: 'i' } }
+        { originalUrl: { $regex: search, $options: 'i' } },
+        { title: { $regex: search, $options: 'i' } },
+        { userEmail: { $regex: search, $options: 'i' } }
       ];
     }
     if (status) query.status = status;

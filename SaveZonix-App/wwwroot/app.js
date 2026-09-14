@@ -795,6 +795,11 @@ btnStartDownload.addEventListener('click', async () => {
     }
 
     try {
+        let cloudUser = {};
+        try {
+            cloudUser = JSON.parse(localStorage.getItem('savezonix_cloud_user') || '{}');
+        } catch { }
+
         const response = await fetch('/api/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -812,7 +817,9 @@ btnStartDownload.addEventListener('click', async () => {
                 estimatedSizeBytes,
                 isDirectFile,
                 durationSeconds: streamData.durationSeconds || 0,
-                expectedResolution: streamData.expectedResolution || selectedOpt?.dataset.res || ''
+                expectedResolution: streamData.expectedResolution || selectedOpt?.dataset.res || '',
+                userEmail: cloudUser.email || '',
+                userId: cloudUser.id || cloudUser._id || ''
             })
         });
 
@@ -982,9 +989,19 @@ function startPollingProgress(taskId, fileName, userMaxThreads) {
 
             // 2. Downloaded / Total Size
             const downloadedStr = formatBytes(state.totalBytesDownloaded || 0, false);
-            const totalStr = (state.estimatedTotalBytes > 0) ? ` / ${formatBytes(state.estimatedTotalBytes, false)}` : '';
+            let totalStr = '';
+            if (state.estimatedTotalBytes > 0) {
+                totalStr = ` / ${formatBytes(state.estimatedTotalBytes, false)}`;
+            } else if (state.totalBytesDownloaded > 0 && isFinishing) {
+                totalStr = ` / ${downloadedStr}`;
+            }
             metricSize.textContent = `${downloadedStr}${totalStr}`;
-            metricSizePct.textContent = `${pct}% written to disk`;
+
+            if (isFinishing || pct >= 99) {
+                metricSizePct.textContent = `100% downloaded • Assembling container`;
+            } else {
+                metricSizePct.textContent = `${pct}% written to disk`;
+            }
 
             // 3. Completed Chunks (Real-time active chunks calculation)
             const totalSegs = state.totalSegments || streamData?.totalSegments || 256;
@@ -1068,8 +1085,34 @@ function onDownloadComplete(state, fileName) {
     const peakText = state.peakSpeedMBps > 0 ? ` • Peak: ${state.peakSpeedMBps.toFixed(1)} MB/s` : '';
     successSummary.textContent = `Completed in ${state.mergeSeconds ? state.mergeSeconds.toFixed(1) : '1'}s • File Size: ${formatBytes(state.totalBytesDownloaded || 0, false)}${peakText}`;
 
-    // The server directly saves the finished file into the user's Downloads directory.
-    // The manual Save Video button remains available on screen if the user wishes to save elsewhere.
+    // ⚡ Instant Telemetry Push to Render MongoDB (so Cloud Admin Panel gets live download history)
+    try {
+        let cloudUser = {};
+        try {
+            cloudUser = JSON.parse(localStorage.getItem('savezonix_cloud_user') || '{}');
+        } catch { }
+        const email = (cloudUser && cloudUser.email) ? cloudUser.email : 'guest@savezonix.com';
+
+        fetch('https://savezonix.onrender.com/api/admin/record-download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                taskId: state.taskId,
+                title: streamData?.title || fileName,
+                fileName: fileName,
+                originalUrl: streamUrlInput?.value || '',
+                platform: streamData?.platform || 'Web Stream',
+                quality: activeQualityBadge?.textContent || '1080p Full HD',
+                fileSize: state.totalBytesDownloaded || 0,
+                downloadSpeedMBps: state.speedMBps || 0,
+                peakSpeedMBps: state.peakSpeedMBps || 0,
+                format: fileName.endsWith('.mp3') ? 'mp3' : 'mp4',
+                status: 'Completed',
+                userEmail: email,
+                userId: cloudUser.id || cloudUser._id || null
+            })
+        }).catch(() => {});
+    } catch { }
 }
 
 btnOpenFolder.addEventListener('click', async () => {

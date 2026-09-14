@@ -26,6 +26,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/app-config', configRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/telemetry', adminRoutes);
 app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check

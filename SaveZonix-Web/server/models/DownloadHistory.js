@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const DownloadHistorySchema = new mongoose.Schema({
+  taskId: {
+    type: String,
+    default: null,
+    index: true
+  },
   title: {
     type: String,
     default: 'Media Item'
@@ -8,6 +13,14 @@ const DownloadHistorySchema = new mongoose.Schema({
   fileName: {
     type: String,
     required: true
+  },
+  originalUrl: {
+    type: String,
+    default: ''
+  },
+  platform: {
+    type: String,
+    default: 'Web Stream'
   },
   quality: {
     type: String,
@@ -17,23 +30,31 @@ const DownloadHistorySchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  downloadSpeedMBps: {
+    type: Number,
+    default: 0
+  },
+  peakSpeedMBps: {
+    type: Number,
+    default: 0
+  },
   format: {
     type: String,
     default: 'mp4'
   },
   status: {
     type: String,
-    enum: ['Completed', 'Failed', 'Downloading', 'Corrupted'],
+    enum: ['Completed', 'Failed', 'Downloading', 'Corrupted', 'Cancelled'],
     default: 'Completed'
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: mongoose.Schema.Types.Mixed,
     default: null
   },
   userEmail: {
     type: String,
-    default: 'guest@savezonix.com'
+    default: 'guest@savezonix.com',
+    index: true
   },
   ipAddress: {
     type: String,
@@ -41,7 +62,8 @@ const DownloadHistorySchema = new mongoose.Schema({
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
   }
 });
 
