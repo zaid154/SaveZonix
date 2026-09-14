@@ -67,12 +67,6 @@
                                 <a asp-controller="Account" asp-action="Downloads" class="dropdown-item">
                                     <span>⚡ Download History</span>
                                 </a>
-                                @if (isAdmin)
-                                {
-                                    <a asp-controller="Admin" asp-action="Index" class="dropdown-item" style="color: #38bdf8;">
-                                        <span>👑 Admin Dashboard</span>
-                                    </a>
-                                }
                                 <div class="dropdown-divider"></div>
                                 <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0;">
                                     @Html.AntiForgeryToken()
@@ -110,10 +104,6 @@
                     <a asp-controller="Account" asp-action="Profile">👤 My Profile</a>
                     <a asp-controller="Account" asp-action="Downloads">⚡ My Downloads</a>
                     <a asp-controller="Account" asp-action="Settings">⚙️ Settings</a>
-                    @if (User.IsInRole("Admin"))
-                    {
-                        <a asp-controller="Admin" asp-action="Index" style="color: #38bdf8;">🛡️ Admin Dashboard</a>
-                    }
                     <form asp-controller="Account" asp-action="Logout" method="post" style="padding: 10px 0;">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-secondary" style="width: 100%;">Sign Out</button>
