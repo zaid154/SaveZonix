@@ -1,4 +1,4 @@
-// src/utils/storage.js â Robust Chrome Storage Manager with State Persistence & History Sanitizer (Universal)
+// src/utils/storage.js — Robust Chrome Storage Manager with State Persistence & History Sanitizer (Universal)
 
 (function (root) {
     const Storage = {

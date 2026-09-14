@@ -1,4 +1,4 @@
-// src/utils/helpers.js â Common Formatting, Sanitization & Math Utilities (Classic & Module compatible)
+// src/utils/helpers.js — Common Formatting, Sanitization & Math Utilities (Classic & Module compatible)
 
 (function (root) {
     function formatBytes(bytes) {

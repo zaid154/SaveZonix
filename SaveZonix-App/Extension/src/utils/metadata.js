@@ -1,14 +1,14 @@
-// src/utils/metadata.js â Dynamic 6-Tier Metadata & Duration Extractor (Universal)
+// src/utils/metadata.js — Dynamic 6-Tier Metadata & Duration Extractor (Universal)
 
 (function (root) {
     function cleanTitleString(title) {
         if (!title || typeof title !== 'string') return '';
         return title
             .replace(/^Watch\s+/i, '')
-            .replace(/\s*[-|ââ]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|OK\.XXX|OKXXX|SpankBang|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/\s*[-|–—]\s*(Pornhub\.com|Pornhub|XNXX\.COM|XNXX|XVideos\.com|XVideos|OK\.XXX|OKXXX|SpankBang|PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
             .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
             .trim()
-            .replace(/[:\-ââ\s]+$/, '');
+            .replace(/[:\-–—\s]+$/, '');
     }
 
     function parseIsoDuration(durationStr) {
@@ -162,11 +162,11 @@
         if (seasonNum !== null && episodeNum !== null) {
             const sStr = String(seasonNum).padStart(2, '0');
             const eStr = String(episodeNum).padStart(2, '0');
-            subtitle = `S${sStr}E${eStr} â¢ Episode ${episodeNum}`;
+            subtitle = `S${sStr}E${eStr} • Episode ${episodeNum}`;
 
             if (episodeTitle && episodeTitle.toLowerCase() !== `episode ${episodeNum}`) {
                 finalTitle = `${showName} - S${sStr}E${eStr} - ${episodeTitle}`;
-                subtitle = `S${sStr}E${eStr} â¢ ${episodeTitle}`;
+                subtitle = `S${sStr}E${eStr} • ${episodeTitle}`;
             } else {
                 finalTitle = `${showName} - S${sStr}E${eStr} - Episode ${episodeNum}`;
             }

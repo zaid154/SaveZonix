@@ -1,4 +1,4 @@
-// src/download/media-processor.js â Ultra High-Speed Multi-Threaded Range & HLS Media Processing Engine (Up to 32 Threads)
+// src/download/media-processor.js — Ultra High-Speed Multi-Threaded Range & HLS Media Processing Engine (Up to 32 Threads)
 
 (function (root) {
     // âââ 1. BINARY MEDIA VALIDATORS ââââââââââââââââââââââââââââââââââââââââââ

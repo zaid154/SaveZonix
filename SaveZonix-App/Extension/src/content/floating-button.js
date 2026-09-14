@@ -1,6 +1,7 @@
-// src/content/floating-button.js — IDM-Style Floating Video Downloader Overlay
+// src/content/floating-button.js — Disabled per user configuration (downloads managed exclusively via popup)
 (function () {
-    // Only inject on top-level window to avoid duplicate buttons in iframes
+    // Disabled: zero on-page DOM elements
+    return;
     if (window.top !== window.self) return;
     if (window.__SZ_FLOATING_INJECTED__) return;
     window.__SZ_FLOATING_INJECTED__ = true;

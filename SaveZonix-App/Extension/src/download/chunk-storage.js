@@ -1,4 +1,4 @@
-// src/download/chunk-storage.js â High-Performance Persistent OPFS & IndexedDB Chunk Storage (Zero-RAM Streaming)
+// src/download/chunk-storage.js — High-Performance Persistent OPFS & IndexedDB Chunk Storage (Zero-RAM Streaming)
 
 (function (root) {
     const DB_NAME = 'StreamHelper_ChunkStorage';

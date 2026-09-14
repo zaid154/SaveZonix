@@ -1,4 +1,4 @@
-// src/download/download-manager.js â Complete Validated Media Download Pipeline & Multi-Candidate Fallback (Universal)
+// src/download/download-manager.js — Complete Validated Media Download Pipeline & Multi-Candidate Fallback (Universal)
 
 (function (root) {
     function isInvalidMediaUrl(url) {

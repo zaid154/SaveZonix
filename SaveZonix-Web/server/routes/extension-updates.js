@@ -3,7 +3,7 @@ const AppConfig = require('../models/AppConfig');
 
 const router = express.Router();
 
-// GET /api/extension-updates.xml — Chromium Omaha Auto-Update Protocol
+// GET /api/extension-updates.xml  Chromium Omaha Auto-Update Protocol
 router.get('/', async (req, res) => {
   try {
     let config = await AppConfig.findOne();

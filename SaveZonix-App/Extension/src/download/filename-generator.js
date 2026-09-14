@@ -1,4 +1,4 @@
-// src/download/filename-generator.js â Production-Grade Filename & Metadata Formatter (Universal)
+// src/download/filename-generator.js — Production-Grade Filename & Metadata Formatter (Universal)
 
 (function (root) {
     function sanitizeFilenameString(name) {
@@ -57,13 +57,13 @@
             }
             // 2. INSTAGRAM
             else if (platform === 'instagram' || video.isDirectMp4) {
-                let clean = title.replace(/^Instagram\s*[-ââ]\s*/i, '').replace(/^Instagram\s*/i, '').replace(/\bfacebook\b/gi, '').trim();
+                let clean = title.replace(/^Instagram\s*[-–—]\s*/i, '').replace(/^Instagram\s*/i, '').replace(/\bfacebook\b/gi, '').trim();
                 if (clean.toLowerCase() === 'instagram') clean = '';
 
                 if (clean && clean.length > 2 && !CDN_NAMES_REGEX.test(clean) && clean.toLowerCase() !== 'video') {
                     baseName = `Instagram - ${clean}`;
                 } else if (showName && showName.toLowerCase() !== 'instagram' && showName.length > 2) {
-                    baseName = `Instagram - ${showName.replace(/^Instagram\s*[-ââ]\s*/i, '').replace(/\bfacebook\b/gi, '').trim()}`;
+                    baseName = `Instagram - ${showName.replace(/^Instagram\s*[-–—]\s*/i, '').replace(/\bfacebook\b/gi, '').trim()}`;
                 } else if (video.subtitle && video.subtitle.length > 2 && video.subtitle !== 'Instagram Reel') {
                     baseName = `Instagram - ${video.subtitle.replace(/\bfacebook\b/gi, '').trim()}`;
                 } else if (video.shortId) {
@@ -78,7 +78,7 @@
                 if (!show || CDN_NAMES_REGEX.test(show)) {
                     show = 'Show';
                 }
-                show = show.replace(/[-|ââ].*$/, '').trim();
+                show = show.replace(/[-|–—].*$/, '').trim();
 
                 const sStr = String(seasonNum).padStart(2, '0');
                 const eStr = String(episodeNum).padStart(2, '0');
@@ -106,7 +106,7 @@
                 if (!candidate || CDN_NAMES_REGEX.test(candidate) || candidate.toLowerCase() === 'video') {
                     candidate = video.subtitle || 'Video';
                 }
-                baseName = candidate.replace(/^Watch\s+/i, '').replace(/[-|ââ]\s*(PixelFlix|PvrPlay|YouTube|Instagram).*$/i, '').trim();
+                baseName = candidate.replace(/^Watch\s+/i, '').replace(/[-|–—]\s*(PixelFlix|PvrPlay|YouTube|Instagram).*$/i, '').trim();
             }
 
             // Fallback safety check (NEVER allow NaN or undefined in final string)

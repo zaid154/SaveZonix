@@ -1,4 +1,4 @@
-// src/sites/instagram.js â Dedicated Instagram Reels & Videos Site Adapter (Video + Audio Track Support)
+// src/sites/instagram.js — Dedicated Instagram Reels & Videos Site Adapter (Video + Audio Track Support)
 
 (function (root) {
     function getInstagramShortId() {
@@ -128,7 +128,7 @@
 
             for (const a of authorLinks) {
                 const txt = a.innerText?.trim();
-                if (txt && txt.length >= 2 && !txt.toLowerCase().includes('follow') && !txt.toLowerCase().includes('instagram') && !txt.includes('â¢')) {
+                if (txt && txt.length >= 2 && !txt.toLowerCase().includes('follow') && !txt.toLowerCase().includes('instagram') && !txt.includes('•')) {
                     author = txt;
                     break;
                 }
@@ -147,7 +147,7 @@
             // 3. Fallback to Document Title if DOM text is not yet rendered
             if (!caption || !author) {
                 const docTitle = document.title || '';
-                const docMatch = docTitle.match(/^(.+?)\s+on Instagram:\s*["â]?([^"â]*)/i);
+                const docMatch = docTitle.match(/^(.+?)\s+on Instagram:\s*[""]?([^""]*)/i);
                 if (docMatch) {
                     if (!author) author = docMatch[1].trim();
                     if (!caption) caption = docMatch[2].trim();
@@ -330,7 +330,7 @@
                     platform: 'Instagram',
                     isDirectMp4: false,
                     isDownloadable: false,
-                    downloadNotice: 'Video detected â play the reel once to unlock direct stream.'
+                    downloadNotice: 'Video detected — play the reel once to unlock direct stream.'
                 });
             }
 

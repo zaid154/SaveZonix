@@ -1,4 +1,4 @@
-// src/downloader/downloader.js â Dedicated High-Speed Tab Downloader Engine (Manifest V3)
+// src/downloader/downloader.js — Dedicated High-Speed Tab Downloader Engine (Manifest V3)
 
 document.addEventListener('DOMContentLoaded', async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -7,13 +7,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const videoTitle = urlParams.get('title') || 'Video';
     const videoShow = urlParams.get('showName') || videoTitle;
     const videoSub = urlParams.get('subtitle') || '';
-    const qualityLabel = (urlParams.get('quality') || '1080p Full HD').replace('â­ Best Quality â ', '');
+    const qualityLabel = (urlParams.get('quality') || '1080p Full HD').replace('⭐  Best Quality — ', '');
     const platform = urlParams.get('platform') || 'PixelFlix';
     const thumbnail = urlParams.get('thumbnail') || '';
     const durationParam = urlParams.get('duration') || '';
     const originTabId = parseInt(urlParams.get('tabId') || '0', 10);
 
-    // Initial Concurrency Parameter (Supports up to 256 Threads â Default: 64)
+    // Initial Concurrency Parameter (Supports up to 256 Threads — Default: 64)
     const rawThreadParam = urlParams.get('threads') || '64';
     let initialThreads = parseInt(rawThreadParam, 10);
     if (isNaN(initialThreads) || initialThreads < 1 || initialThreads > 256) {
@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const finalFileName = (window.FilenameGenerator && window.FilenameGenerator.generate(videoObj, qualityLabel)) || (videoTitle + '.mp4');
     if (elFilename) elFilename.textContent = finalFileName;
-    document.title = `Downloading (${0}%) â ${finalFileName}`;
+    document.title = `Downloading (${0}%) — ${finalFileName}`;
 
     // âââ THROUGHPUT SPARKLINE GRAPH CONTROLLER ââââââââââââââââââââââââââââ
     const speedHistory = new Array(35).fill(0);
@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (manifest.isMaster && manifest.variants?.length > 0) {
                         const lockedVariant = manifest.variants.find(v => v.url === targetUrl) || manifest.bestVariant || manifest.variants[0];
                         if (elQuality && lockedVariant?.label) {
-                            elQuality.textContent = lockedVariant.label.split(' â¢ ')[0];
+                            elQuality.textContent = lockedVariant.label.split(' • ')[0];
                         }
                         
                         const mediaManifest = await window.StreamDetector.parseHls(lockedVariant.url, originTabId);
@@ -637,7 +637,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 if (dynManifest.isMaster && dynManifest.variants?.length > 0) {
                                     const bestVar = dynManifest.variants.find(v => v.url === targetUrl) || dynManifest.bestVariant || dynManifest.variants[0];
                                     if (elQuality && bestVar?.label) {
-                                        elQuality.textContent = bestVar.label.split(' â¢ ')[0];
+                                        elQuality.textContent = bestVar.label.split(' • ')[0];
                                     }
                                     const mVar = await window.StreamDetector.parseHls(bestVar.url, originTabId);
                                     if (mVar?.segments?.length > 0) {
@@ -868,7 +868,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             elBtnSavePartialError.classList.remove('hidden');
             elBtnSavePartialError.textContent = `Save Partial (${currentPct}%)`;
         }
-        document.title = `Failed â ${finalFileName}`;
+        document.title = `Failed — ${finalFileName}`;
     }
 
     // Launch pipeline immediately

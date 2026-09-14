@@ -1,4 +1,4 @@
-// src/content/content.js â Stealth Content Script (Zero DOM Tampering & Completely Undetectable)
+// src/content/content.js — Stealth Content Script (Zero DOM Tampering & Completely Undetectable)
 
 (function () {
     const isTopFrame = (window.top === window.self);

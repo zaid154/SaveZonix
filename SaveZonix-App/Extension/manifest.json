@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "SaveZonix â Video Downloader",
+  "name": "SaveZonix — Video Downloader",
   "version": "2.5.0",
   "description": "Stealth, high-performance multi-site video stream detector and authorized local saver with video thumbnail preview, duration timestamp overlay, and dynamic size badges.",
   "icons": {
@@ -28,7 +28,6 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "css": ["src/content/floating-button.css"],
       "js": [
         "src/utils/helpers.js",
         "src/utils/thumbnail.js",
@@ -38,8 +37,7 @@
         "src/sites/youtube.js",
         "src/sites/instagram.js",
         "src/sites/generic.js",
-        "src/content/content.js",
-        "src/content/floating-button.js"
+        "src/content/content.js"
       ],
       "all_frames": true,
       "run_at": "document_idle"
