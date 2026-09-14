@@ -23,8 +23,11 @@ echo.
 echo [2/2] Compiling Setup EXE with Inno Setup...
 taskkill /F /IM SaveZonix-Setup* /T >nul 2>&1
 taskkill /F /IM Zonix.exe /T >nul 2>&1
+taskkill /F /IM ISCC.exe /T >nul 2>&1
+timeout /t 1 /nobreak >nul
 if exist "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" (
     del /f /q "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" >nul 2>&1
+    timeout /t 1 /nobreak >nul
 )
 
 set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
