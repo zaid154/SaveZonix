@@ -490,7 +490,37 @@ public class Program
             app.UseHsts();
         }
 
-        app.UseStaticFiles();
+        // Aggressive Cache for Static Assets (with fingerprinting/asp-append-version)
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            OnPrepareResponse = ctx =>
+            {
+                // Cache static assets (CSS, JS, images, fonts) aggressively for 1 year
+                const int durationInSeconds = 60 * 60 * 24 * 365;
+                ctx.Context.Response.Headers.CacheControl = $"public,max-age={durationInSeconds},immutable";
+            }
+        });
+
+        // Security & Anti-Stale Caching Middleware: Never cache auth, account, admin or user-specific data
+        app.Use(async (context, next) =>
+        {
+            var path = context.Request.Path.Value?.ToLowerInvariant() ?? "";
+            bool isSensitive = path.StartsWith("/account") || 
+                               path.StartsWith("/api/auth") || 
+                               path.StartsWith("/api/admin") || 
+                               path.StartsWith("/api/user") ||
+                               context.User.Identity?.IsAuthenticated == true;
+
+            if (isSensitive)
+            {
+                context.Response.Headers.CacheControl = "no-store, no-cache, must-revalidate, private, max-age=0";
+                context.Response.Headers.Pragma = "no-cache";
+                context.Response.Headers.Expires = "0";
+            }
+
+            await next();
+        });
+
         app.UseRouting();
 
         app.UseAuthentication();

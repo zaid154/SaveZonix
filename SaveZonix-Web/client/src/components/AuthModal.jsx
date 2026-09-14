@@ -161,7 +161,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@example.com"
+                  placeholder="rahul.sharma@gmail.com"
                   required
                 />
               </div>
@@ -209,7 +209,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Zaid"
+                  placeholder="Rahul Sharma"
                   required
                 />
               </div>
@@ -220,7 +220,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="user@gmail.com"
+                  placeholder="rahul.sharma@gmail.com"
                   required
                 />
               </div>
@@ -307,7 +307,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="user@example.com"
+                    placeholder="rahul.sharma@gmail.com"
                     required
                   />
                   <button type="submit" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '12px', whiteSpace: 'nowrap' }} disabled={loading}>

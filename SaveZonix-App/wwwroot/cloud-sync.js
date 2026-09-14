@@ -17,6 +17,7 @@
 
     async function initCloudSync() {
         injectAuthModalHTML();
+        renderUserBadge(); // Instant synchronous render on load — NO delay, NO flicker!
         try {
             const healthRes = await fetch('/api/system/health');
             if (healthRes.ok) {
@@ -301,18 +302,22 @@
             });
             document.getElementById('btnCloudLogout')?.addEventListener('click', handleLogout);
         } else {
-            // Guest Mode Badge
+            // Stable Guest Mode Badge (Pre-rendered by Razor to prevent any flicker)
             const today = new Date().toISOString().split('T')[0];
             const guestUsed = parseInt(localStorage.getItem(`savezonix_guest_count_${today}`) || '0', 10);
             const guestLimit = cloudConfig?.guestDailyDownloadLimit || 5;
+            const guestRemaining = Math.max(0, guestLimit - guestUsed);
 
-            badgeContainer.innerHTML = `
-                <button id="btnOpenAuthModal" style="padding: 6px 14px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.4); color: #38bdf8; border-radius: 20px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                    <span>👤 Guest (${guestUsed}/${guestLimit})</span>
-                    <span style="font-size: 11px; opacity: 0.8; font-weight: normal;">• Sign In</span>
-                </button>
-            `;
-            document.getElementById('btnOpenAuthModal')?.addEventListener('click', () => openAuthModal('login'));
+            const guestText = document.getElementById('guestBadgeText');
+            if (guestText) {
+                guestText.textContent = `👤 Guest (${guestRemaining}/${guestLimit})`;
+            }
+
+            const btnAuth = document.getElementById('btnOpenAuthModal');
+            if (btnAuth && !btnAuth.dataset.bound) {
+                btnAuth.dataset.bound = 'true';
+                btnAuth.addEventListener('click', () => openAuthModal('login'));
+            }
         }
     }
 
@@ -462,7 +467,7 @@
                     <form id="formSignIn" style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Email Address</label>
-                            <input type="email" id="inputSignInEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@example.com" required />
+                            <input type="email" id="inputSignInEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="rahul.sharma@gmail.com" required />
                         </div>
                         <div>
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
@@ -492,11 +497,11 @@
                     <form id="formRegister" style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Full Name</label>
-                            <input type="text" id="inputRegisterName" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="Zaid" required />
+                            <input type="text" id="inputRegisterName" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="Rahul Sharma" required />
                         </div>
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Email Address</label>
-                            <input type="email" id="inputRegisterEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@gmail.com" required />
+                            <input type="email" id="inputRegisterEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="rahul.sharma@gmail.com" required />
                         </div>
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Choose Password</label>
@@ -540,7 +545,7 @@
                     <form id="formForgotStep1" style="display: flex; flex-direction: column; gap: 14px;">
                         <div>
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Registered Email</label>
-                            <input type="email" id="inputForgotEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="user@gmail.com" required />
+                            <input type="email" id="inputForgotEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="rahul.sharma@gmail.com" required />
                         </div>
                         <button type="submit" id="btnSendResetOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Send Reset Code ✉️</button>
                     </form>

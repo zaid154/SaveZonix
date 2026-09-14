@@ -7,11 +7,11 @@
     <meta name="description" content="High-performance media stream analyzer and multi-threaded video downloader. Supports HLS, DASH, and direct video streams with up to 256 parallel connections.">
     
     <!-- Favicon and App Icons -->
-    <!-- Favicon and App Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="~/assets/logo.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="~/assets/logo.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="~/assets/logo.png">
-    <link rel="shortcut icon" href="~/assets/logo.png">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2.5.2">
+    <link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=2.5.2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/logo.png?v=2.5.2">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/logo.png?v=2.5.2">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/logo.png?v=2.5.2">
 
     <!-- Fonts & Styling -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -78,8 +78,13 @@
                     }
                     else
                     {
-                        <a asp-controller="Account" asp-action="Login" class="btn btn-subtle">Sign In</a>
-                        <a asp-controller="Account" asp-action="Register" class="btn btn-primary">Sign Up</a>
+                        <div id="cloudUserBadgeContainer" class="guest-badge-container">
+                            <button id="btnOpenAuthModal" class="btn-guest-chip" type="button" title="Guest Daily Quota">
+                                <span id="guestBadgeText">👤 Guest (5/5)</span>
+                            </button>
+                        </div>
+                        <a asp-controller="Account" asp-action="Login" class="btn btn-subtle" id="navBtnSignIn">Sign In</a>
+                        <a asp-controller="Account" asp-action="Register" class="btn btn-primary" id="navBtnSignUp">Sign Up</a>
                     }
                     
                     <a asp-controller="Home" asp-action="Download" class="btn btn-nav-cta">Get Extension</a>
@@ -110,6 +115,9 @@
                 }
                 else
                 {
+                    <div style="padding: 6px 0;">
+                        <span class="btn-guest-chip" style="display: inline-flex;">👤 Guest (5/5)</span>
+                    </div>
                     <a asp-controller="Account" asp-action="Login">Sign In</a>
                     <a asp-controller="Account" asp-action="Register">Create Account</a>
                 }

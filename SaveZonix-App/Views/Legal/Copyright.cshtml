@@ -1,44 +1,46 @@
 @{
-    ViewData["Title"] = "Copyright Policy & Intellectual Property Protection";
+    ViewData["Title"] = "Copyright Policy & Content Creator Rights — SaveZonix";
 }
 
 <section class="legal-page">
     <div class="container container-narrow">
+        <partial name="_LegalNav" model='(string)"Copyright"' />
+
         <div class="legal-header">
             <div class="hero-tag">
-                <span class="badge-tag badge-tag">© Intellectual Property</span>
+                <span class="badge-tag badge-tag">©️ Intellectual Property</span>
             </div>
             <h1 class="legal-title">Copyright Policy</h1>
             <div class="legal-meta">
-                <span>Compliance: Berne Convention &bull; WIPO Copyright Treaty &bull; DMCA</span>
-                <span>Last Updated: August 31, 2026</span>
+                <span>Compliance: International Copyright Treaties &bull; WIPO &bull; Berne Convention</span>
+                <span>Last Updated: September 15, 2026</span>
             </div>
         </div>
 
         <div class="legal-content">
             <div class="highlight-box">
-                <strong>Our Commitment:</strong> Stream Helper deeply respects the intellectual property rights of content creators, film producers, independent artists, and digital broadcasters worldwide.
+                <strong>Our Commitment:</strong> SaveZonix deeply respects the intellectual property rights of content creators, independent artists, and digital broadcasters worldwide. We are dedicated to ensuring our software functions solely as a neutral technical protocol utility.
             </div>
 
-            <h2>1. Neutral Technology Architecture</h2>
-            <p>Stream Helper is a client-side media transport protocol analyzer, similar in function to web browsers, developer network inspectors, and standard download managers. The software does not host, store, index, promote, or distribute any video or audio files.</p>
+            <h2>1. Neutral Protocol Architecture</h2>
+            <p>SaveZonix is a client-side media transport protocol analyzer, similar in architecture to web browsers, network developer inspectors, and command-line utilities like <code>curl</code> and <code>ffmpeg</code>. The software does not host, store, index, promote, or distribute any video or audio files.</p>
 
             <h2>2. User Responsibility &amp; Authorization</h2>
-            <p>All download operations are initiated solely and unilaterally by individual end users. Users are exclusively responsible for verifying that they possess the necessary rights, licenses, or statutory permissions to record or archive any media accessed through the software.</p>
+            <p>All download operations are initiated solely, directly, and unilaterally by individual users on their personal devices. Users bear the sole responsibility for ensuring they possess the necessary rights, licenses, or statutory exemptions to record or archive any media accessed.</p>
 
-            <h2>3. Protection Against Copyright Infringement</h2>
-            <p>We actively discourage copyright infringement and emphasize that Stream Helper must not be used to create unauthorized copies of commercial content. Specifically:</p>
+            <h2>3. Anti-Infringement Safeguards</h2>
+            <p>SaveZonix does not encourage or facilitate copyright infringement. In particular:</p>
             <ul>
-                <li>The software does not provide search engines or directories of copyrighted videos.</li>
-                <li>The software does not bypass commercial Digital Rights Management (DRM) encryption systems.</li>
-                <li>The software is distributed for legitimate educational, fair-use, and authorized private archiving purposes.</li>
+                <li>The software contains no public search engine, index, or directory of copyrighted videos.</li>
+                <li>The software contains no DRM bypass modules for commercial subscription services.</li>
+                <li>The software is distributed for legitimate educational, fair-use, and authorized personal archiving purposes.</li>
             </ul>
 
             <h2>4. Third-Party Trademarks</h2>
-            <p>All product names, trademarks, and registered trademarks mentioned on this website and in software documentation (including YouTube, Vimeo, Twitch, and others) are the property of their respective owners. Their mention does not imply any affiliation, sponsorship, or endorsement by those entity holders.</p>
+            <p>All product names, logos, brands, and registered trademarks mentioned on this website (such as YouTube, Vimeo, Twitch, and others) belong exclusively to their respective owners. Mention of these platforms is for technical compatibility reference only and does not imply endorsement or affiliation.</p>
 
             <h2>5. Notice for Rights Holders</h2>
-            <p>If you are a copyright owner or an authorized agent representing one, and you have questions regarding the technical operation of Stream Helper, please review our <a asp-controller="Legal" asp-action="DMCA">DMCA &amp; Takedown Policy</a> or contact us directly at <a href="mailto:copyright@streamhelper.app">copyright@streamhelper.app</a>.</p>
+            <p>If you are a rights holder and have technical inquiries regarding SaveZonix, please review our <a asp-controller="Legal" asp-action="DMCA">DMCA Procedure</a> or email our compliance team at <a href="mailto:copyright@savezonix.com" class="auth-link">copyright@savezonix.com</a>.</p>
         </div>
     </div>
 </section>

@@ -1,9 +1,11 @@
-﻿@{
-    ViewData["Title"] = "Privacy Policy & Zero-Tracker Transparency";
+@{
+    ViewData["Title"] = "Privacy Policy & Zero-Telemetry Transparency — SaveZonix";
 }
 
 <section class="legal-page">
     <div class="container container-narrow">
+        <partial name="_LegalNav" model='(string)"Privacy"' />
+
         <div class="legal-header">
             <div class="hero-tag">
                 <span class="badge-tag badge-green">🛡️ Privacy &amp; Data Transparency</span>
@@ -11,41 +13,42 @@
             <h1 class="legal-title">Privacy Policy</h1>
             <div class="legal-meta">
                 <span>Effective Date: January 1, 2026</span>
-                <span>Last Updated: September 1, 2026</span>
-                <span>Compliance: GDPR • CCPA • Chrome Web Store Developer Agreement</span>
+                <span>Last Updated: September 15, 2026</span>
+                <span>R&amp;D Architecture &bull; Zero-Telemetry Standards</span>
             </div>
         </div>
 
         <div class="legal-content">
             <div class="highlight-box">
-                <strong>Executive Summary:</strong> Stream Helper operates on a privacy-respecting model. We do not sell your personal data, we do not employ third-party advertising tracking networks, and we never perform device fingerprinting or harvest browser history. Download history is stored exclusively for authenticated users to manage their personal downloads, and can be cleared at any time.
+                <strong>Executive Summary:</strong> SaveZonix is an independent Research &amp; Development (R&amp;D) software utility operating on a strict zero-telemetry and local-execution privacy model. We do not sell or monetize personal data, employ third-party advertising tracking networks, or perform device fingerprinting. All video stream analysis and chunk remuxing occur directly on your local device.
             </div>
 
             <h2>1. Information We Collect</h2>
-            <p>We collect only the minimum information necessary to provide account services and download tracking:</p>
+            <p>We collect only the minimum technical information required to maintain account credentials, daily download quotas, and personal history:</p>
             <ul>
-                <li><strong>Account Details:</strong> When you register an account or sign in with Google OAuth, we store your name, email address, password hash (salted via ASP.NET Core Identity PBKDF2), and creation date. We never ask for or store your Google password.</li>
-                <li><strong>Download History:</strong> When signed in, your download history records the video title, source webpage URL (with temporary authorization tokens stripped), quality, format, file size, and download performance metrics so you can view and manage your downloads.</li>
-                <li><strong>Session Cookies:</strong> We use secure, encrypted HTTP cookies strictly for authentication and security token validation (CSRF protection).</li>
+                <li><strong>Account Credentials:</strong> When you register, we store your full name, email address, password hash (salted via ASP.NET Core Identity PBKDF2), and registration timestamp. Passwords are never stored in plaintext.</li>
+                <li><strong>Personal Download History:</strong> When signed in, your download history stores the video title, source media stream URL, resolution, format, and file size in your personal database record. This data is private to your account and can be deleted at any time.</li>
+                <li><strong>Session &amp; Security Cookies:</strong> We utilize secure HTTP-only session cookies strictly for authentication integrity and anti-forgery (CSRF) protection.</li>
+                <li><strong>Guest Daily Quota:</strong> For unregistered guest users, daily usage counts are stored locally in your browser's <code>localStorage</code> to enforce the fair daily limit of 5 downloads.</li>
             </ul>
 
             <h2>2. Information We Do NOT Collect</h2>
             <ul>
-                <li><strong>No Device Fingerprinting:</strong> We do NOT collect MAC addresses, hardware IDs, Canvas/WebGL fingerprints, or advertising identifiers.</li>
-                <li><strong>No General Browsing History:</strong> The application and browser extension only process video stream manifests on pages where you explicitly trigger analysis.</li>
-                <li><strong>No Third-Party Ad Trackers:</strong> Zero Google Analytics, Meta Pixels, or telemetry SDKs are embedded.</li>
-                <li><strong>No Transmission of Account Data to Media Hosts:</strong> Third-party CDNs only receive standard stream requests; your account credentials are never shared.</li>
+                <li><strong>Zero Device Fingerprinting:</strong> We do not capture MAC addresses, hardware identifiers, WebGL/Canvas fingerprints, or unique device serial numbers.</li>
+                <li><strong>Zero Unrelated Browsing Tracking:</strong> The SaveZonix browser extension activates network request inspection exclusively on video playback pages where stream manifests (HLS/DASH) are present. It never harvests or logs your general browsing history.</li>
+                <li><strong>No Third-Party Advertising Trackers:</strong> There are no Google Analytics, Meta tracking pixels, or commercial telemetry beacons in SaveZonix.</li>
+                <li><strong>No Credential Leakage to Media CDNs:</strong> Your SaveZonix credentials are never transmitted to third-party content delivery networks.</li>
             </ul>
 
-            <h2>3. User Data Rights &amp; Deletion</h2>
-            <p>You have full ownership of your data under GDPR and CCPA:</p>
+            <h2>3. User Data Ownership &amp; Erasure</h2>
+            <p>You have full ownership of your data:</p>
             <ul>
-                <li><strong>Purge Download History:</strong> You can delete any or all download records instantly from your <a asp-controller="Account" asp-action="Downloads" class="auth-link">Downloads Dashboard</a>.</li>
-                <li><strong>Account Deletion:</strong> You can request full account erasure at any time by contacting our Grievance Officer.</li>
+                <li><strong>Download History Purge:</strong> You can clear individual download logs or wipe your entire download history at any time from your <a asp-controller="Account" asp-action="Downloads" class="auth-link">Downloads Dashboard</a>.</li>
+                <li><strong>Account Deletion:</strong> You may request full account deletion and data erasure by contacting our compliance desk at <a href="mailto:privacy@savezonix.com" class="auth-link">privacy@savezonix.com</a>.</li>
             </ul>
 
-            <h2>4. Security Architecture</h2>
-            <p>All authentication communications utilize HTTPS with TLS 1.3 encryption. Passwords are never logged or stored in plaintext.</p>
+            <h2>4. Security &amp; Encryption</h2>
+            <p>All network communications between the browser, local application engine, and cloud authentication servers utilize TLS 1.3 encryption. Passwords and sensitive session tokens are protected against eavesdropping.</p>
         </div>
     </div>
 </section>
