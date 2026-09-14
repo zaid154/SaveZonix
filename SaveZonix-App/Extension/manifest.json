@@ -8,6 +8,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "update_url": "https://save-zonix.vercel.app/api/extension-updates.xml",
   "permissions": [
     "webRequest",
     "declarativeNetRequest",
@@ -27,6 +28,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "css": ["src/content/floating-button.css"],
       "js": [
         "src/utils/helpers.js",
         "src/utils/thumbnail.js",
@@ -36,7 +38,8 @@
         "src/sites/youtube.js",
         "src/sites/instagram.js",
         "src/sites/generic.js",
-        "src/content/content.js"
+        "src/content/content.js",
+        "src/content/floating-button.js"
       ],
       "all_frames": true,
       "run_at": "document_idle"
@@ -44,7 +47,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/**/*", "icons/*"],
+      "resources": ["src/**/*", "icons/*", "assets/*"],
       "matches": ["<all_urls>"]
     }
   ],
@@ -55,6 +58,6 @@
       "128": "icons/icon128.png"
     },
     "default_popup": "src/popup/popup.html",
-    "default_title": "Stream Helper"
+    "default_title": "SaveZonix Downloader"
   }
 }

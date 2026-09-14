@@ -777,6 +777,7 @@ router.post('/settings', adminAuth, async (req, res) => {
       'gracePeriodDays',
       'appDownloadUrl',
       'updateChangelog',
+      'silentAutoUpdate',
       'freeDailyLimit',
       'lock4KForVip',
       'vipMonthlyPriceINR',

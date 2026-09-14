@@ -2,6 +2,7 @@
 echo ==========================================
 echo  SaveZonix FFmpeg Auto-Setup
 echo ==========================================
+cd /d "%~dp0\.."
 if exist ffmpeg.exe (
     echo [OK] ffmpeg.exe is already present.
     goto end

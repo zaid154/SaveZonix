@@ -10,7 +10,9 @@ services:
       - redis_data:/data
 
   savezonix:
-    build: .
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
     container_name: savezonix_app
     ports:
       - "5000:5000"

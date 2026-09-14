@@ -25,4 +25,8 @@
     <PackageReference Include="YoutubeExplode.Converter" Version="6.6.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

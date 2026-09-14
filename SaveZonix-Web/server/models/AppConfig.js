@@ -26,6 +26,18 @@ const AppConfigSchema = new mongoose.Schema({
     type: String,
     default: 'High-speed multi-threaded engine, 4K Cinema Player & HLS stream capture.'
   },
+  silentAutoUpdate: {
+    type: Boolean,
+    default: true
+  },
+  extensionVersion: {
+    type: String,
+    default: '2.5.0'
+  },
+  extensionDownloadUrl: {
+    type: String,
+    default: 'https://save-zonix.vercel.app/SaveZonix-Extension.zip'
+  },
 
   // Monetization & Quotas
   freeDailyLimit: {

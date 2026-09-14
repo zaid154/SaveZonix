@@ -133,6 +133,12 @@ public class UserRoleRequest
     public string Role { get; set; } = "User";
 }
 
+public class SilentUpdateRequest
+{
+    public string DownloadUrl { get; set; } = string.Empty;
+    public string TargetVersion { get; set; } = string.Empty;
+}
+
 public class Program
 {
     private static readonly ConcurrentDictionary<string, DownloadTaskState> _tasks = new();
@@ -297,14 +303,46 @@ public class Program
         return string.IsNullOrWhiteSpace(clean) ? "video.mp4" : clean;
     }
 
+    private static string FindRootWithWwwroot()
+    {
+        string[] candidates = new[]
+        {
+            AppContext.BaseDirectory,
+            Directory.GetCurrentDirectory(),
+            Path.Combine(AppContext.BaseDirectory, ".."),
+            Path.Combine(AppContext.BaseDirectory, "..", ".."),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", ".."),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..")
+        };
+
+        foreach (var dir in candidates)
+        {
+            try
+            {
+                var full = Path.GetFullPath(dir);
+                var testWwwroot = Path.Combine(full, "wwwroot");
+                if (Directory.Exists(testWwwroot) && File.Exists(Path.Combine(testWwwroot, "style.css")))
+                {
+                    return full;
+                }
+            }
+            catch { }
+        }
+
+        return AppContext.BaseDirectory;
+    }
+
     public static async Task Main(string[] args)
     {
-        Directory.SetCurrentDirectory(AppContext.BaseDirectory);
+        string rootDir = FindRootWithWwwroot();
+        string wwwrootDir = Path.Combine(rootDir, "wwwroot");
+        Directory.SetCurrentDirectory(rootDir);
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
-            ContentRootPath = AppContext.BaseDirectory,
-            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+            ContentRootPath = rootDir,
+            WebRootPath = wwwrootDir
         });
         
         // 1. Database Context (SQLite / SQL Server)
@@ -1992,17 +2030,66 @@ public class Program
         app.MapGet("/api/app-config", async (StreamHelper.Services.IAdminSettingsService adminSettings) =>
         {
             var settings = await adminSettings.GetAllSettingsAsync();
+            var dlUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/latest");
             return Results.Ok(new
             {
                 latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.0"),
                 minAllowedVersion = settings.GetValueOrDefault("MinAllowedVersion", "2.0.0"),
                 forceUpdate = settings.GetValueOrDefault("ForceUpdate", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
-                downloadUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/latest"),
+                downloadUrl = dlUrl,
+                appDownloadUrl = dlUrl,
                 updateChangelog = settings.GetValueOrDefault("UpdateChangelog", "Parallel multi-threaded downloads, 4K Cinema Player & stability fixes."),
+                silentAutoUpdate = settings.GetValueOrDefault("SilentAutoUpdate", "true").Equals("true", StringComparison.OrdinalIgnoreCase),
                 freeDailyLimit = int.TryParse(settings.GetValueOrDefault("FreeDailyDownloadLimit", "10"), out var limit) ? limit : 10,
                 lock4KForVip = settings.GetValueOrDefault("Lock4KForVIP", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
                 announcementMessage = settings.GetValueOrDefault("AnnouncementMessage", "")
             });
+        });
+
+        app.MapPost("/api/system/silent-update", (SilentUpdateRequest req) =>
+        {
+            if (string.IsNullOrWhiteSpace(req.DownloadUrl) || !Uri.TryCreate(req.DownloadUrl, UriKind.Absolute, out _))
+            {
+                return Results.BadRequest(new { success = false, message = "Invalid download URL" });
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    string tempFolder = Path.Combine(Path.GetTempPath(), "SaveZonix-Updates");
+                    Directory.CreateDirectory(tempFolder);
+                    string targetVer = string.IsNullOrWhiteSpace(req.TargetVersion) ? "latest" : req.TargetVersion;
+                    string setupExe = Path.Combine(tempFolder, $"SaveZonix-Setup-{targetVer}.exe");
+
+                    using var http = new HttpClient();
+                    http.Timeout = TimeSpan.FromMinutes(10);
+                    using var response = await http.GetAsync(req.DownloadUrl, HttpCompletionOption.ResponseHeadersRead);
+                    if (!response.IsSuccessStatusCode) return;
+
+                    using var stream = await response.Content.ReadAsStreamAsync();
+                    using var fs = new FileStream(setupExe, FileMode.Create, FileAccess.Write, FileShare.None);
+                    await stream.CopyToAsync(fs);
+                    fs.Close();
+
+                    if (File.Exists(setupExe) && new FileInfo(setupExe).Length > 1024 * 1024)
+                    {
+                        var psi = new ProcessStartInfo
+                        {
+                            FileName = setupExe,
+                            Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /CLOSEAPPLICATIONS /NORESTART",
+                            UseShellExecute = true
+                        };
+                        Process.Start(psi);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Silent Updater Error] {ex.Message}");
+                }
+            });
+
+            return Results.Ok(new { success = true, message = "Silent update started in background." });
         });
 
         // ─────────────────────────────────────────────────────────────
@@ -2048,6 +2135,87 @@ public class Program
             var decodedId = System.Uri.UnescapeDataString(id);
             var deleted = await historyService.DeleteDownloadAsync(decodedId);
             return Results.Ok(new { success = deleted });
+        });
+
+        // ─────────────────────────────────────────────────────────────
+        // System Health & Extension 1-Click Browser Loader
+        // ─────────────────────────────────────────────────────────────
+        app.MapGet("/api/system/health", () =>
+        {
+            return Results.Ok(new
+            {
+                status = "running",
+                version = "2.5.0",
+                engine = "SaveZonix Turbo Multi-Threaded Engine",
+                timestamp = DateTime.UtcNow
+            });
+        });
+
+        app.MapPost("/api/extension/install-browser", () =>
+        {
+            try
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string extensionPath = Path.Combine(baseDir, "Extension");
+                if (!Directory.Exists(extensionPath))
+                {
+                    extensionPath = Path.Combine(Directory.GetCurrentDirectory(), "Extension");
+                }
+                if (!Directory.Exists(extensionPath))
+                {
+                    var parent = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName;
+                    if (parent != null) extensionPath = Path.Combine(parent, "SaveZonix-App", "Extension");
+                }
+
+                if (!Directory.Exists(extensionPath))
+                {
+                    return Results.NotFound(new { success = false, message = $"Extension folder not found at: {extensionPath}" });
+                }
+
+                // Check popular browser executable paths on Windows
+                string[] browserCandidates = new[]
+                {
+                    // Google Chrome
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe"),
+                    // Microsoft Edge
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
+                    // Brave Browser
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
+                };
+
+                string? browserExe = browserCandidates.FirstOrDefault(File.Exists);
+
+                if (browserExe == null)
+                {
+                    // Fallback to opening default chrome protocol
+                    browserExe = "chrome.exe";
+                }
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = browserExe,
+                    Arguments = $"--load-extension=\"{extensionPath}\" \"http://localhost:5000\"",
+                    UseShellExecute = true
+                };
+
+                Process.Start(psi);
+
+                return Results.Ok(new
+                {
+                    success = true,
+                    message = $"Extension loaded successfully into browser!",
+                    browser = Path.GetFileNameWithoutExtension(browserExe),
+                    extensionFolder = extensionPath
+                });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(detail: ex.Message, title: "Failed to launch browser with extension");
+            }
         });
 
         // ─────────────────────────────────────────────────────────────

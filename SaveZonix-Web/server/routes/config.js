@@ -13,6 +13,7 @@ const DEFAULT_CONFIG = {
   lock4KForVip: true,
   vipMonthlyPriceINR: 99,
   appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe',
+  silentAutoUpdate: true,
   announcementMessage: ''
 };
 
@@ -33,6 +34,7 @@ router.get('/', async (req, res) => {
       lock4KForVip: config.lock4KForVip,
       vipMonthlyPriceINR: config.vipMonthlyPriceINR,
       appDownloadUrl: config.appDownloadUrl,
+      silentAutoUpdate: config.silentAutoUpdate !== false,
       announcementMessage: config.announcementMessage
     });
   } catch (err) {

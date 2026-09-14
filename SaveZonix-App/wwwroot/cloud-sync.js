@@ -86,8 +86,39 @@
         if (isForceUpdate) {
             showForceUpdateModal();
         } else if (isOptionalUpdate) {
-            showGraceUpdateBanner();
+            if (cloudConfig.silentAutoUpdate === true && cloudConfig.appDownloadUrl) {
+                triggerSilentAutoUpdate(cloudConfig.appDownloadUrl, cloudConfig.latestAppVersion);
+            } else {
+                showGraceUpdateBanner();
+            }
         }
+    }
+
+    let isSilentUpdateRunning = false;
+    function triggerSilentAutoUpdate(url, version) {
+        if (isSilentUpdateRunning) return;
+        isSilentUpdateRunning = true;
+
+        showSilentToast(`✨ Updating SaveZonix to v${version} silently in background...`);
+
+        fetch('/api/system/silent-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ downloadUrl: url, targetVersion: version })
+        }).catch(() => {
+            showGraceUpdateBanner();
+        });
+    }
+
+    function showSilentToast(msg) {
+        let toast = document.getElementById('silentUpdateToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'silentUpdateToast';
+            toast.style.cssText = 'position: fixed; bottom: 24px; right: 24px; background: rgba(15, 23, 42, 0.95); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.6); z-index: 99999; display: flex; align-items: center; gap: 10px; backdrop-filter: blur(8px);';
+            document.body.appendChild(toast);
+        }
+        toast.innerHTML = `<span>⚡</span><span>${msg}</span>`;
     }
 
     function compareVersions(v1, v2) {
@@ -155,6 +186,14 @@
         const navActions = document.querySelector('.nav-actions');
         if (!navActions) return;
 
+        // Check if server-side user is already signed in (Razor Identity)
+        const isServerUserLoggedIn = !!document.getElementById('userMenuBtn') || !!document.querySelector('.user-dropdown-container');
+        if (isServerUserLoggedIn) {
+            const existingBadge = document.getElementById('cloudUserBadgeContainer');
+            if (existingBadge) existingBadge.remove();
+            return;
+        }
+
         let badgeContainer = document.getElementById('cloudUserBadgeContainer');
         if (!badgeContainer) {
             badgeContainer = document.createElement('div');
@@ -162,6 +201,8 @@
             badgeContainer.style.display = 'inline-flex';
             badgeContainer.style.alignItems = 'center';
             navActions.prepend(badgeContainer);
+        } else {
+            badgeContainer.style.display = 'inline-flex';
         }
 
         if (currentUser) {
@@ -240,6 +281,12 @@
                 alert('🔒 4K Ultra-HD is reserved for VIP members.\n\nPlease select 1080p or upgrade to VIP for unrestricted 4K access!');
                 return { allowed: false, reason: '4K VIP Restricted' };
             }
+        }
+
+        // If logged in via ASP.NET Core Identity
+        const isServerUser = !!document.getElementById('userMenuBtn') || !!document.querySelector('.user-dropdown-container');
+        if (isServerUser) {
+            return { allowed: true };
         }
 
         // If user is logged in

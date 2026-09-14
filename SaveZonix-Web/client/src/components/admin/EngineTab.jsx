@@ -194,6 +194,37 @@ export default function EngineTab({
               style={{ width: '100%', padding: '10px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#38bdf8', fontSize: '13px' }}
             />
           </div>
+
+          <div style={{ marginTop: '16px', padding: '12px 16px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>⚡ Zero-Click Silent Auto-Update</span>
+                <span style={{ fontSize: '10px', padding: '2px 8px', background: settings.silentAutoUpdate !== false ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: settings.silentAutoUpdate !== false ? '#10b981' : '#f87171', borderRadius: '12px', fontWeight: 800 }}>
+                  {settings.silentAutoUpdate !== false ? 'ACTIVE' : 'DISABLED'}
+                </span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
+                When active, client desktop apps silently download & apply updates in the background without user wizard prompt.
+              </div>
+            </div>
+            <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={settings.silentAutoUpdate !== false}
+                onChange={(e) => setSettings({ ...settings, silentAutoUpdate: e.target.checked })}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute', inset: 0, backgroundColor: settings.silentAutoUpdate !== false ? '#10b981' : '#334155',
+                borderRadius: '24px', transition: '0.2s', display: 'block'
+              }}>
+                <span style={{
+                  position: 'absolute', height: '18px', width: '18px', left: settings.silentAutoUpdate !== false ? '23px' : '3px', bottom: '3px',
+                  backgroundColor: '#ffffff', borderRadius: '50%', transition: '0.2s', display: 'block'
+                }} />
+              </span>
+            </label>
+          </div>
         </div>
 
         <button

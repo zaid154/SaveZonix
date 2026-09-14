@@ -7,6 +7,6 @@ echo =========================================================
 echo.
 echo Wiping old data and inserting fresh seed data...
 echo.
-cd /d "%~dp0"
+cd /d "%~dp0\.."
 dotnet run --seed-reset
 pause

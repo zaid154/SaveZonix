@@ -9,6 +9,7 @@ SaveZonix-App/Downloads/
 SaveZonix-App/app_data/
 SaveZonix-App/ffmpeg.exe
 SaveZonix-App/*.exe
+SaveZonix-App/installer/*.exe
 SaveZonix-App/*.zip
 
 # ─── Node.js / MERN (SaveZonix-Web) ───

@@ -8,6 +8,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const configRoutes = require('./routes/config');
 const adminRoutes = require('./routes/admin');
+const extensionUpdatesRoutes = require('./routes/extension-updates');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -25,6 +26,7 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/app-config', configRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check
 app.get('/api/health', (req, res) => {

@@ -19,6 +19,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCloseYtModal = document.getElementById('btnCloseYtModal');
     const btnYtModalSingle = document.getElementById('btnYtModalSingle');
     const btnYtModalPlaylist = document.getElementById('btnYtModalPlaylist');
+    const engineStatusPill = document.getElementById('engineStatusPill');
+    const enginePulseDot = document.getElementById('enginePulseDot');
+    const engineStatusText = document.getElementById('engineStatusText');
+
+    // Live Engine Handshake & Health Monitor
+    async function checkEngineHealth() {
+        if (!engineStatusPill) return;
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000);
+            const res = await fetch('http://localhost:5000/api/system/health', { signal: controller.signal });
+            clearTimeout(timeout);
+            if (res.ok) {
+                const data = await res.json();
+                engineStatusPill.style.background = 'rgba(16, 185, 129, 0.15)';
+                engineStatusPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+                engineStatusPill.style.color = '#34d399';
+                if (enginePulseDot) enginePulseDot.style.background = '#10b981';
+                if (engineStatusText) engineStatusText.textContent = `Engine Active (v${data.version || '2.5.0'})`;
+                engineStatusPill.title = 'SaveZonix Desktop Turbo Engine is connected & ready';
+            } else {
+                throw new Error('Engine not ready');
+            }
+        } catch {
+            engineStatusPill.style.background = 'rgba(245, 158, 11, 0.15)';
+            engineStatusPill.style.borderColor = 'rgba(245, 158, 11, 0.35)';
+            engineStatusPill.style.color = '#fbbf24';
+            if (enginePulseDot) enginePulseDot.style.background = '#f59e0b';
+            if (engineStatusText) engineStatusText.textContent = 'App Sleeping (Launch)';
+            engineStatusPill.title = 'SaveZonix Desktop App is not running. Click to launch or open http://localhost:5000';
+            engineStatusPill.onclick = () => {
+                chrome.tabs.create({ url: 'http://localhost:5000' });
+            };
+        }
+    }
+    checkEngineHealth();
 
     let livePageMetadata = null;
     let liveThumbnail = '';

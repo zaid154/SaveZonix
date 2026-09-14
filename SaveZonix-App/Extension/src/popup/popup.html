@@ -79,8 +79,14 @@
     <!-- Main -->
     <main class="main">
         <div class="status-line">
-            <span class="dot"></span>
-            <span id="statusLabel" class="status-text">Scanning for media...</span>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span class="dot"></span>
+                <span id="statusLabel" class="status-text">Scanning for media...</span>
+            </div>
+            <div id="engineStatusPill" class="engine-status-badge" style="display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.3); color: #38bdf8; cursor: pointer;" title="SaveZonix Engine Status">
+                <span id="enginePulseDot" style="width: 6px; height: 6px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
+                <span id="engineStatusText">Checking Engine...</span>
+            </div>
         </div>
 
         <div id="videoList" class="video-list">
