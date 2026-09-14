@@ -84,8 +84,12 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
 
         {/* Bottom Sub-Footer */}
         <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', fontSize: '12px', color: '#64748b' }}>
-          <div>
-            © 2026 SaveZonix Inc. All rights reserved. Universal Video Stream Engine.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <span>© 2026 SaveZonix Inc. All rights reserved. Universal Video Stream Engine.</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '2px 8px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '12px', fontSize: '11px', color: '#38bdf8', fontWeight: '700', fontFamily: 'monospace' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8', display: 'inline-block' }}></span>
+              Web Cloud v2.5.0
+            </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <button
