@@ -39,16 +39,17 @@
 }
 
 body {
-    width: 364px;
-    min-height: 420px;
-    max-height: 580px;
-    background: radial-gradient(circle at 50% 0%, #111a2e 0%, #090d16 100%);
+    width: 390px;
+    min-height: 440px;
+    max-height: 600px;
+    background: radial-gradient(circle at 50% -20%, #172554 0%, #090d16 85%);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
     border-radius: var(--radius-lg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 /* Custom modern sleek scrollbar */
@@ -634,28 +635,43 @@ body::-webkit-scrollbar-thumb:hover {
 
 /* ─── EMPTY STATE ───────────────────────────────────────────────────────── */
 .empty-state {
-    padding: 36px 16px;
+    padding: 38px 20px;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    background: var(--bg-card);
-    border: 1px dashed var(--border-subtle);
+    gap: 8px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px dashed rgba(56, 189, 248, 0.25);
     border-radius: var(--radius-lg);
+    backdrop-filter: blur(12px);
+}
+
+.empty-state-icon-wrap {
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
+    background: rgba(56, 189, 248, 0.08);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 4px;
+    box-shadow: 0 0 24px rgba(56, 189, 248, 0.15);
 }
 
 .empty-title {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
-    color: var(--text-primary);
+    color: #f8fafc;
+    letter-spacing: -0.01em;
 }
 
 .empty-desc {
-    font-size: 11px;
-    color: var(--text-muted);
-    max-width: 240px;
-    line-height: 1.4;
+    font-size: 11.5px;
+    color: #94a3b8;
+    max-width: 280px;
+    line-height: 1.5;
 }
 
 /* ─── RECENT DOWNLOADS (MODERN POLISHED ROW CARDS) ───────────────────────── */
