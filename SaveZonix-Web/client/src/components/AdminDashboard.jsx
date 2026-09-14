@@ -24,9 +24,21 @@ import SecurityTab from './admin/SecurityTab';
 import EngineTab from './admin/EngineTab';
 
 export default function AdminDashboard({ user, currentPath = '/admin/overview', onNavigate, onBack }) {
-  const MASTER_ADMIN_KEY = 'savezonix_admin_2026';
-  const [adminKey, setAdminKey] = useState(() => localStorage.getItem('savezonix_admin_key') || MASTER_ADMIN_KEY);
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('savezonix_admin_token') || '');
+  const [adminUser, setAdminUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('savezonix_admin_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Login form state
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
 
   function getTabFromPath(path) {
     if (!path) return 'overview';
@@ -58,9 +70,47 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  function getAuthHeaders(key = adminKey, token = adminToken) {
+  async function handleAdminLogin(e) {
+    e.preventDefault();
+    setLoginError('');
+    setLoginLoading(true);
+
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Authentication failed. Check Admin credentials.');
+      }
+
+      localStorage.setItem('savezonix_admin_token', data.token);
+      localStorage.setItem('savezonix_admin_user', JSON.stringify(data.user));
+      setAdminToken(data.token);
+      setAdminUser(data.user);
+      loadTabData(activeTab, true, data.token);
+    } catch (err) {
+      setLoginError(err.message);
+    } finally {
+      setLoginLoading(false);
+    }
+  }
+
+  function handleAdminLogout() {
+    localStorage.removeItem('savezonix_admin_token');
+    localStorage.removeItem('savezonix_admin_user');
+    localStorage.removeItem('savezonix_admin_key');
+    setAdminToken('');
+    setAdminUser(null);
+    setStats(null);
+    setUsers([]);
+    setDownloads([]);
+  }
+
+  function getAuthHeaders(token = adminToken) {
     const headers = {};
-    if (key) headers['x-admin-key'] = key;
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }
@@ -68,8 +118,10 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   useEffect(() => {
     const targetTab = getTabFromPath(currentPath);
     setActiveTab(targetTab);
-    loadTabData(targetTab, false, adminKey, adminToken);
-  }, [currentPath]);
+    if (adminToken) {
+      loadTabData(targetTab, false, adminToken);
+    }
+  }, [currentPath, adminToken]);
 
   function handleTabClick(tabId) {
     setActiveTab(tabId);
@@ -78,17 +130,20 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     } else {
       window.history.pushState({}, '', `/admin/${tabId}`);
     }
-    loadTabData(tabId, false, adminKey, adminToken);
+    if (adminToken) {
+      loadTabData(tabId, false, adminToken);
+    }
   }
 
   // High-Speed Lazy Loader: Loads only what is needed for the requested tab and caches in React state
-  async function loadTabData(tab = activeTab, force = false, key = adminKey, token = adminToken) {
+  async function loadTabData(tab = activeTab, force = false, token = adminToken) {
+    if (!token) return;
     if (!force && loadedTabs.has(tab)) {
       return; // 0ms instant transition from cache
     }
 
     setLoading(true);
-    const headers = getAuthHeaders(key, token);
+    const headers = getAuthHeaders(token);
 
     try {
       const calls = [];
@@ -387,6 +442,70 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     }, 4500);
   }
 
+  if (!adminToken) {
+    return (
+      <div style={{ maxWidth: '440px', margin: '80px auto', padding: '36px 30px', background: '#090d16', border: '1px solid #1a2333', borderRadius: '16px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', color: '#f8fafc' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', marginBottom: '14px' }}>
+            <IconLock size={28} color="#38bdf8" />
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 6px 0', color: '#fff' }}>SaveZonix Admin Console</h2>
+          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Enter your Administrator credentials to proceed.</p>
+        </div>
+
+        {loginError && (
+          <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#f87171', fontSize: '13px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <IconAlertCircle size={16} color="#f87171" />
+            <span>{loginError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Admin Email / ID</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. zaidm1323@gmail.com"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              style={{ width: '100%', padding: '11px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#f8fafc', fontSize: '14px', outline: 'none' }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Password</label>
+            <input
+              type="password"
+              required
+              placeholder="••••••••••••"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              style={{ width: '100%', padding: '11px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#f8fafc', fontSize: '14px', outline: 'none' }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loginLoading}
+            style={{ width: '100%', padding: '12px', marginTop: '6px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: loginLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+          >
+            {loginLoading ? <span>Verifying...</span> : <span>Sign In to Admin Console &rarr;</span>}
+          </button>
+        </form>
+
+        <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid #1a2333', paddingTop: '16px' }}>
+          <button
+            onClick={onBack || (() => onNavigate ? onNavigate('/') : window.location.href = '/')}
+            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            &larr; Return to Public Website
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '32px 20px', minHeight: '85vh', color: '#f8fafc' }}>
       {/* Top Header */}
@@ -398,7 +517,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             </h1>
             <span style={{ fontSize: '11px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-              Operational
+              {adminUser ? `Signed in as ${adminUser.name || adminUser.email}` : 'Operational'}
             </span>
           </div>
           <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
@@ -420,6 +539,13 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           >
             <IconExternal size={13} color="#94a3b8" />
             Website
+          </button>
+          <button
+            onClick={handleAdminLogout}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', color: '#f87171', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}
+          >
+            <IconLogOut size={13} color="#f87171" />
+            Sign Out
           </button>
         </div>
       </div>
@@ -518,7 +644,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       {/* 4. AI Advisor & CDN Prober Tab with Error Guard */}
       {activeTab === 'ai-advisor' && (
         <AdminErrorBoundary moduleName="AI CDN Prober & Concurrency Advisor">
-          <AiAdvisorTab adminKey={adminKey} />
+          <AiAdvisorTab adminToken={adminToken} />
         </AdminErrorBoundary>
       )}
 
@@ -532,7 +658,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       {/* 6. Security Tab with Error Guard */}
       {activeTab === 'security' && (
         <AdminErrorBoundary moduleName="Security & Anti-Spam Sandbox">
-          <SecurityTab adminKey={adminKey} />
+          <SecurityTab adminToken={adminToken} />
         </AdminErrorBoundary>
       )}
 

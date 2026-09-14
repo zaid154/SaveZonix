@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { IconCpu, IconRefresh } from './AdminIcons';
 
-export default function AiAdvisorTab({ adminKey }) {
+export default function AiAdvisorTab({ adminToken }) {
   const [probeUrl, setProbeUrl] = useState('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   const [probeResult, setProbeResult] = useState(null);
   const [probing, setProbing] = useState(false);
   const [allSitesScan, setAllSitesScan] = useState(null);
   const [scanningSites, setScanningSites] = useState(false);
+
+  function getHeaders() {
+    return adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {};
+  }
 
   async function handleProbeCdn(urlToProbe = probeUrl) {
     if (!urlToProbe.trim()) return;
@@ -14,7 +18,7 @@ export default function AiAdvisorTab({ adminKey }) {
     setProbeResult(null);
     try {
       const res = await fetch(`/api/admin/probe-cdn?target=${encodeURIComponent(urlToProbe.trim())}`, {
-        headers: { 'x-admin-key': adminKey }
+        headers: getHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -33,7 +37,7 @@ export default function AiAdvisorTab({ adminKey }) {
     setScanningSites(true);
     try {
       const res = await fetch('/api/admin/scan-all-sites', {
-        headers: { 'x-admin-key': adminKey }
+        headers: getHeaders()
       });
       if (res.ok) {
         setAllSitesScan(await res.json());

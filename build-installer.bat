@@ -25,15 +25,15 @@ taskkill /F /IM SaveZonix-Setup* /T >nul 2>&1
 taskkill /F /IM Zonix.exe /T >nul 2>&1
 taskkill /F /IM ISCC.exe /T >nul 2>&1
 timeout /t 1 /nobreak >nul
-if exist "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" (
-    del /f /q "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" >nul 2>&1
+if exist "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.2.exe" (
+    del /f /q "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.2.exe" >nul 2>&1
     timeout /t 1 /nobreak >nul
 )
 
 set "BUILD_DIR=%TEMP%\SaveZonix-Build"
 if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
-if exist "%BUILD_DIR%\SaveZonix-Setup-v2.5.1.exe" (
-    del /f /q "%BUILD_DIR%\SaveZonix-Setup-v2.5.1.exe" >nul 2>&1
+if exist "%BUILD_DIR%\SaveZonix-Setup-v2.5.2.exe" (
+    del /f /q "%BUILD_DIR%\SaveZonix-Setup-v2.5.2.exe" >nul 2>&1
 )
 
 set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
@@ -55,12 +55,12 @@ if %ERRORLEVEL% neq 0 (
 
 echo.
 echo Placing finished installer into SaveZonix-App\installer...
-copy /y "%BUILD_DIR%\SaveZonix-Setup-v2.5.1.exe" "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe" >nul
+copy /y "%BUILD_DIR%\SaveZonix-Setup-v2.5.2.exe" "%~dp0SaveZonix-App\installer\SaveZonix-Setup-v2.5.2.exe" >nul
 
 echo.
 echo ========================================================
 echo   SUCCESS! Setup EXE is ready in:
-echo   SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe
+echo   SaveZonix-App\installer\SaveZonix-Setup-v2.5.2.exe
 echo ========================================================
 echo.
 pause

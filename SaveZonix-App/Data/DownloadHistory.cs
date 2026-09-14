@@ -104,7 +104,7 @@ public class DownloadHistory
     public string? AudioVideoDetails { get; set; }
 
     [MaxLength(64)]
-    public string AppVersion { get; set; } = "SaveZonix v2.5.0";
+    public string AppVersion { get; set; } = "SaveZonix v2.5.2";
 
     [MaxLength(128)]
     public string SystemVersion { get; set; } = ".NET 10.0 Windows";

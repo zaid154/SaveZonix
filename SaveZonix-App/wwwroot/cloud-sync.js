@@ -1,6 +1,6 @@
 // SaveZonix Cloud Sync & In-App Auth Controller (OTA Updates, Guest Limits, VIP Gatekeeper, OTP Auth)
 (function () {
-    let CURRENT_VERSION = '2.5.0';
+    let CURRENT_VERSION = '2.5.2';
     const CLOUD_API_BASE = 'https://savezonix.onrender.com';
 
     let cloudConfig = null;

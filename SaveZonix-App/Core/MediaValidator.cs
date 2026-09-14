@@ -41,7 +41,7 @@ public class MediaValidationResult
 
 public static class MediaValidator
 {
-    public const string CurrentAppVersion = "SaveZonix v2.5.0";
+    public const string CurrentAppVersion = "SaveZonix v2.5.2";
     public static readonly string CurrentSystemVersion = $"{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription} {System.Runtime.InteropServices.RuntimeInformation.OSDescription} ({System.Runtime.InteropServices.RuntimeInformation.OSArchitecture})";
 
     public static async Task<MediaValidationResult> ValidateMediaFileAsync(string filePath, int expectedDurationSeconds = 0, string targetFormat = "MP4", bool requireAudio = false, string? expectedResolution = null)

@@ -26,7 +26,7 @@
 | **Official Web Portal** | Vercel | [https://save-zonix.vercel.app](https://save-zonix.vercel.app) |
 | **Super Admin Control Center** | Vercel | [https://save-zonix.vercel.app/admin](https://save-zonix.vercel.app/admin) |
 | **Cloud API & Telemetry Engine** | Render | [https://savezonix.onrender.com](https://savezonix.onrender.com) |
-| **Desktop App Installer** | Windows x64 | Built via `build-installer.bat` (v2.5.1) |
+| **Desktop App Installer** | Windows x64 | Built via `build-installer.bat` (v2.5.2) |
 
 ---
 
@@ -49,7 +49,7 @@
    - [Building 1-Click Windows Setup EXE](#5-building-the-production-installer)
 5. [API Reference](#-api-reference)
 6. [Environment Variables](#-environment-variables)
-7. [What's New in v2.5.1](#-whats-new-in-v251)
+7. [What's New in v2.5.2](#-whats-new-in-v252)
 8. [License](#-license)
 
 ---
@@ -241,7 +241,7 @@ To produce the production-ready Windows setup executable with 1 click:
    - Run Inno Setup 6 with isolated temp output to prevent antivirus lockouts.
    - Embed the official `app.ico` into the installer and Windows registry.
    - Place the output executable into:
-     📁 `SaveZonix-App\installer\SaveZonix-Setup-v2.5.1.exe`
+     📁 `SaveZonix-App\installer\SaveZonix-Setup-v2.5.2.exe`
 
 ---
 
@@ -286,18 +286,16 @@ CLIENT_URL=https://save-zonix.vercel.app
 
 ---
 
-## 🆕 What's New in v2.5.1
+## 🆕 What's New in v2.5.2
 
-* **Admin Panel Complete Revamp:**
-  * Removed blocking demo verification screen.
-  * Direct URL sub-routing (`/admin/overview`, `/admin/users`, `/admin/downloads`, etc.).
-  * Real-time download history feed synced from all active desktop clients.
-* **Accurate Size & Progress Tracking:**
-  * Displays actual completed size (`1.36 GB / 1.36 GB` with `100% downloaded • Assembling container`).
-* **Windows "Installed Apps" Real Logo:**
-  * Integrated official `app.ico` into `UninstallDisplayIcon` so Windows Settings displays the real SaveZonix logo instead of a generic blank icon.
-* **Inno Setup Error 110 Fix:**
-  * Added isolated compilation pipeline in `build-installer.bat` ensuring zero antivirus sharing violations during `EndUpdateResource`.
+* **YouTube Rate-Limit (429) & Stream Remux Fix:**
+  * Configured stealth mobile headers bypassing YouTube's HTTP 429 rate limit.
+  * Direct 4K/1080p stream extraction without fallback corruption.
+* **1-Click Open Extension Folder & Auto-Copy Path:**
+  * Replaced deceptive "1-click silent load" claim with an honest 1-click folder opener.
+  * Auto-copies the `Extension` path to clipboard and guides users with clear 3-step setup instructions.
+* **Automated Silent Update Sync:**
+  * Seamless remote update synchronization with Admin Panel and cloud releases.
 
 ---
 

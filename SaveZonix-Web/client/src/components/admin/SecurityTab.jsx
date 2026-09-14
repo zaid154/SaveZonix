@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { IconLock } from './AdminIcons';
 
-export default function SecurityTab({ adminKey }) {
+export default function SecurityTab({ adminToken }) {
   const [testEmailInput, setTestEmailInput] = useState('');
   const [emailCheckResult, setEmailCheckResult] = useState(null);
   const [emailChecking, setEmailChecking] = useState(false);
@@ -16,7 +16,7 @@ export default function SecurityTab({ adminKey }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-admin-key': adminKey
+          ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {})
         },
         body: JSON.stringify({ email: testEmailInput.trim() })
       });

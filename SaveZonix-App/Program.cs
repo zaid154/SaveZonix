@@ -1830,32 +1830,37 @@ public class Program
                         // ⚡ Instant Cloud Sync to Render MongoDB (so Cloud Admin Panel gets live download history)
                         _ = Task.Run(async () =>
                         {
-                            try
+                            for (int retry = 0; retry < 2; retry++)
                             {
-                                using var cloudClient = new HttpClient { Timeout = TimeSpan.FromSeconds(6) };
-                                var cloudPayload = new
+                                try
                                 {
-                                    taskId = taskId,
-                                    title = videoTitle,
-                                    fileName = Path.GetFileName(outputFilePath),
-                                    originalUrl = pageUrl,
-                                    platform = platform,
-                                    quality = quality,
-                                    fileSize = fi.Length,
-                                    downloadSpeedMBps = state.SpeedMBps,
-                                    peakSpeedMBps = state.PeakSpeedMBps,
-                                    format = targetExt.TrimStart('.'),
-                                    status = "Completed",
-                                    userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "guest@savezonix.com",
-                                    userId = currentUserId,
-                                    ipAddress = clientIp
-                                };
-                                var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(cloudPayload), System.Text.Encoding.UTF8, "application/json");
-                                await cloudClient.PostAsync("https://savezonix.onrender.com/api/admin/record-download", content);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[Cloud Sync] Telemetry notice: {ex.Message}");
+                                    using var cloudClient = new HttpClient { Timeout = TimeSpan.FromSeconds(35) };
+                                    var cloudPayload = new
+                                    {
+                                        taskId = taskId,
+                                        title = videoTitle,
+                                        fileName = Path.GetFileName(outputFilePath),
+                                        originalUrl = pageUrl,
+                                        platform = platform,
+                                        quality = quality,
+                                        fileSize = fi.Length,
+                                        downloadSpeedMBps = state.SpeedMBps,
+                                        peakSpeedMBps = state.PeakSpeedMBps,
+                                        format = targetExt.TrimStart('.'),
+                                        status = "Completed",
+                                        userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "guest@savezonix.com",
+                                        userId = currentUserId,
+                                        ipAddress = clientIp
+                                    };
+                                    var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(cloudPayload), System.Text.Encoding.UTF8, "application/json");
+                                    var resp = await cloudClient.PostAsync("https://savezonix.onrender.com/api/admin/record-download", content);
+                                    if (resp.IsSuccessStatusCode) break;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"[Cloud Sync] Telemetry notice (attempt {retry + 1}): {ex.Message}");
+                                    await Task.Delay(2000);
+                                }
                             }
                         });
 
@@ -2116,10 +2121,10 @@ public class Program
         app.MapGet("/api/app-config", async (StreamHelper.Services.IAdminSettingsService adminSettings) =>
         {
             var settings = await adminSettings.GetAllSettingsAsync();
-            var dlUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/latest");
+            var dlUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/download/v2.5.2/SaveZonix-Setup-v2.5.2.exe");
             return Results.Ok(new
             {
-                latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.1"),
+                latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.2"),
                 minAllowedVersion = settings.GetValueOrDefault("MinAllowedVersion", "2.0.0"),
                 forceUpdate = settings.GetValueOrDefault("ForceUpdate", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
                 downloadUrl = dlUrl,
@@ -2139,7 +2144,7 @@ public class Program
                 return Results.BadRequest(new { success = false, message = "Invalid download URL" });
             }
 
-            bool started = SaveZonix.Services.SilentUpdateManager.StartUpdate(req.DownloadUrl, req.TargetVersion ?? "2.5.1");
+            bool started = SaveZonix.Services.SilentUpdateManager.StartUpdate(req.DownloadUrl, req.TargetVersion ?? "2.5.2");
             return Results.Ok(new { success = started, message = started ? "Update download initialized." : "Update already running." });
         });
 
@@ -2215,7 +2220,7 @@ public class Program
             return Results.Ok(new
             {
                 status = "running",
-                version = "2.5.1",
+                version = "2.5.2",
                 engine = "SaveZonix Turbo Multi-Threaded Engine",
                 timestamp = DateTime.UtcNow
             });

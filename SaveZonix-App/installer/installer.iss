@@ -1,6 +1,6 @@
 ; Inno Setup Script for SaveZonix Windows Installer
 #define MyAppName "SaveZonix"
-#define MyAppVersion "2.5.1"
+#define MyAppVersion "2.5.2"
 #define MyAppPublisher "SaveZonix Inc."
 #define MyAppURL "https://save-zonix.vercel.app"
 #define MyAppExeName "Zonix.exe"
@@ -19,7 +19,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=
 OutputDir=..\installer
-OutputBaseFilename=SaveZonix-Setup-v2.5.1
+OutputBaseFilename=SaveZonix-Setup-v2.5.2
 SetupIconFile=..\wwwroot\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

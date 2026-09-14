@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 const mongoose = require('mongoose');
@@ -25,12 +25,12 @@ async function runSeed() {
     if (!config) {
       config = new AppConfig();
     }
-    config.latestAppVersion = '2.5.1';
+    config.latestAppVersion = '2.5.2';
     config.minAllowedVersion = '2.0.0';
     config.forceUpdate = false;
     config.gracePeriodDays = 7;
-    config.appDownloadUrl = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.1/SaveZonix-Setup-v2.5.1.exe';
-    config.updateChangelog = 'High-speed multi-threaded engine & 4K Cinema Player';
+    config.appDownloadUrl = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.2/SaveZonix-Setup-v2.5.2.exe';
+    config.updateChangelog = 'YouTube 429 rate limit bypass, 1-Click extension folder copy, and fast 4K stream extraction.';
     config.silentAutoUpdate = true;
     config.freeDailyLimit = 10;
     config.lock4KForVip = true;
@@ -43,7 +43,7 @@ async function runSeed() {
     config.maintenanceMode = false;
     config.updatedAt = new Date();
     await config.save();
-    console.log('[Seed] App Config successfully updated to v2.5.1.');
+    console.log('[Seed] App Config successfully updated to v2.5.2.');
 
     // 2. Super Admin Account
     console.log('[Seed] Seeding Master Super Admin...');

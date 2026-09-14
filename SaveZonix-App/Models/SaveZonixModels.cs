@@ -47,7 +47,7 @@ public class DownloadRecord
     public string AudioVideoDetails { get; set; } = string.Empty;
     public string? CorruptionReason { get; set; }
     public int RetryCount { get; set; } = 0;
-    public string AppVersion { get; set; } = "SaveZonix v2.5.0";
+    public string AppVersion { get; set; } = "SaveZonix v2.5.2";
     public string SystemVersion { get; set; } = ".NET 10.0 Windows";
     public string? ClientErrorLogs { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -95,7 +95,7 @@ public class AnalyticsSummary
     public string FormattedTotalBandwidth { get; set; } = "0 MB";
     public long TotalUsers { get; set; }
     public int TodayDownloads { get; set; }
-    public string AppVersion { get; set; } = "SaveZonix v2.5.0";
+    public string AppVersion { get; set; } = "SaveZonix v2.5.2";
     public string SystemVersion { get; set; } = ".NET 10.0 Windows";
     public Dictionary<string, int> PlatformBreakdown { get; set; } = new();
     public List<DownloadRecord> RecentLogs { get; set; } = new();
@@ -116,7 +116,7 @@ public class ErrorDiagnosticLog
     public string? StackTrace { get; set; }
     public string UserAgent { get; set; } = string.Empty;
     public string ClientIp { get; set; } = "127.0.0.1";
-    public string AppVersion { get; set; } = "SaveZonix v2.5.0";
+    public string AppVersion { get; set; } = "SaveZonix v2.5.2";
     public string SystemVersion { get; set; } = ".NET 10.0 Windows";
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
