@@ -11,7 +11,7 @@ namespace Zonix.Core;
 public class M3U8Parser
 {
     private readonly HttpClient _httpClient;
-    private readonly YoutubeClient _youtubeClient = new();
+    private readonly YoutubeClient _youtubeClient = YouTubeClientFactory.SharedClient;
     private readonly ExtractorDispatcher _dispatcher;
 
     public M3U8Parser(HttpClient httpClient)
@@ -1519,26 +1519,10 @@ public class M3U8Parser
                 if (doc.RootElement.TryGetProperty("thumbnail_url", out var thProp)) 
                     result.ThumbnailUrl = thProp.GetString() ?? result.ThumbnailUrl;
 
-                // Add placeholder quality options
-                result.Qualities.Add(new StreamQuality
-                {
-                    Resolution = "1080p Full HD (Desktop - Requires browser context)",
-                    Url = url,
-                    IsDirectFile = false,
-                    Bandwidth = 4500000
-                });
-                result.Qualities.Add(new StreamQuality
-                {
-                    Resolution = "720p HD (Desktop - Requires browser context)",
-                    Url = url,
-                    IsDirectFile = false,
-                    Bandwidth = 2200000
-                });
-
                 result.RequiresBrowserContext = true;
-                result.StatusMessage = "This video requires browser-based playback. Please use the SaveZonix Browser Extension for best results.";
+                result.StatusMessage = "This video is restricted or rate-limited by YouTube for automated clients. Please use the SaveZonix Browser Extension for instant high-speed capture.";
                 
-                Console.WriteLine("[YouTube Extractor] Fallback method succeeded with limited quality options");
+                Console.WriteLine("[YouTube Extractor] Fallback method populated metadata; actual streams require browser extension context.");
                 return result;
             }
         }

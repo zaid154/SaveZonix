@@ -23,7 +23,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         Timeout = TimeSpan.FromMinutes(10)
     };
 
-    private readonly YoutubeClient _youtubeClient = new(_sharedHttpClient);
+    private readonly YoutubeClient _youtubeClient = Zonix.Core.YouTubeClientFactory.SharedClient;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime CachedAt, PlaylistInfoResult Result)> _cache = new();
 
     public string? ExtractPlaylistId(string urlOrId)

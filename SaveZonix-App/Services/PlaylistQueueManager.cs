@@ -24,7 +24,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
     };
 
     private readonly ConcurrentDictionary<string, PlaylistBatchJobState> _jobs = new();
-    private readonly YoutubeClient _youtubeClient = new(_sharedHttpClient);
+    private readonly YoutubeClient _youtubeClient = Zonix.Core.YouTubeClientFactory.SharedClient;
     private static int _playlistCounter = 0;
 
     private static string FormatFriendlyError(string? rawError)

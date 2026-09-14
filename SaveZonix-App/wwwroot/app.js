@@ -576,6 +576,14 @@ function renderVideoQualities() {
             if (i === bestIndex) opt.selected = true;
             qualitySelect.appendChild(opt);
         });
+    } else if (streamData?.requiresBrowserContext) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '🔒 Stream requires SaveZonix Chrome Extension';
+        opt.disabled = true;
+        qualitySelect.appendChild(opt);
+        if (btnStartDownload) btnStartDownload.disabled = true;
+        showError(streamData.statusMessage || 'This video requires the SaveZonix Chrome Extension for direct browser-authenticated playback.');
     } else {
         const isDirect = streamData?.isDirectMediaFile === true;
         const opt = document.createElement('option');

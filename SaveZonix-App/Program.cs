@@ -1579,6 +1579,19 @@ public class Program
                         }
                         else
                         {
+                            // Guard: Check if the streamUrl is a raw YouTube webpage URL instead of a direct media stream
+                            if (req.StreamUrl.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) ||
+                                req.StreamUrl.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                finalValidation = new Zonix.Core.MediaValidationResult
+                                {
+                                    IsValid = false,
+                                    IntegrityStatus = Zonix.Core.MediaIntegrityStatus.Corrupted,
+                                    ErrorReason = "Cannot download YouTube webpage directly. Please re-analyze the video with the updated engine or use the SaveZonix Chrome Extension."
+                                };
+                                break;
+                            }
+
                             bool isDirectDownload = req.IsDirectFile;
                             // Guard: if URL contains .m3u8 or ends with .m3u8, it is ALWAYS an HLS playlist, NEVER a direct file!
                             if (isDirectDownload && req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase))
