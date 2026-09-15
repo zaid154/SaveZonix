@@ -33,7 +33,7 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', color: '#94a3b8' }}>
               <li><a href="#features" style={{ color: '#94a3b8', textDecoration: 'none' }}>64-Thread Engine</a></li>
               <li><a href="#how-it-works" style={{ color: '#94a3b8', textDecoration: 'none' }}>Cinema Player 4K HDR</a></li>
-              <li><a href="#features" style={{ color: '#94a3b8', textDecoration: 'none' }}>HLS Live Capturer</a></li>
+              <li><a href="#features" style={{ color: '#94a3b8', textDecoration: 'none' }}>Playlist Studio</a></li>
               <li><a href="#pricing" style={{ color: '#94a3b8', textDecoration: 'none' }}>VIP Pro Tier</a></li>
               <li><a href={DIRECT_EXE_URL} style={{ color: '#38bdf8', fontWeight: '600', textDecoration: 'none' }}>Windows Setup (.exe)</a></li>
             </ul>
@@ -88,7 +88,7 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
             <span>© 2026 SaveZonix Inc. All rights reserved. Universal Video Stream Engine.</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '2px 8px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '12px', fontSize: '11px', color: '#38bdf8', fontWeight: '700', fontFamily: 'monospace' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#38bdf8', display: 'inline-block' }}></span>
-              Web Cloud v2.5.0
+              Web Cloud v2.5.2
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>

@@ -365,14 +365,7 @@ public class Program
         builder.Services.AddDbContext<AppDbContext>(options =>
         {
             options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-            if (connectionString.Contains(".db") || (connectionString.StartsWith("Data Source=", StringComparison.OrdinalIgnoreCase) && !connectionString.Contains("Initial Catalog")))
-            {
-                options.UseSqlite(connectionString);
-            }
-            else
-            {
-                options.UseSqlServer(connectionString);
-            }
+            options.UseSqlite(connectionString);
         });
 
         // 2. ASP.NET Core Identity
@@ -433,7 +426,6 @@ public class Program
         builder.Services.AddSingleton<IEmailVerificationService, EmailVerificationService>();
         builder.Services.AddScoped<StreamHelper.Services.IDownloadHistoryService, StreamHelper.Services.DownloadHistoryService>();
         builder.Services.AddScoped<StreamHelper.Services.IAdminSettingsService, StreamHelper.Services.AdminSettingsService>();
-        builder.Services.AddScoped<SaveZonix.Services.IDatabaseSyncService, SaveZonix.Services.DatabaseSyncService>();
         builder.Services.AddHostedService<SaveZonix.Services.CloudSettingsSyncWorker>();
 
         var dbProvider = builder.Configuration["DatabaseProvider"] ?? "MongoDB";
@@ -648,18 +640,6 @@ public class Program
             return Results.Redirect($"/api/proxy-image?url={Uri.EscapeDataString(url)}");
         });
 
-        app.MapMethods("/api/admin/reset-seed", new[] { "GET", "POST" }, async (IServiceProvider sp, IConfiguration cfg) =>
-        {
-            try
-            {
-                await DbSeeder.SeedAsync(sp, cfg, forceReset: true);
-                return Results.Ok(new { success = true, message = "Database successfully wiped and fresh seed data re-inserted!" });
-            }
-            catch (Exception ex)
-            {
-                return Results.Problem(detail: ex.Message, title: "Seed Reset Failed");
-            }
-        });
 
         // ─────────────────────────────────────────────────────────────
         // 1.5. Real-Time AI CDN Prober & Concurrency Advisor API
@@ -1336,29 +1316,6 @@ public class Program
             });
         });
 
-        app.MapPost("/api/admin/auto-fix-all", async (StreamHelper.Services.IAdminSettingsService adminSettingsService) =>
-        {
-            // Comprehensive pre-calibrated domain filters
-            string calibratedDomains = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo,streamtape,doodstream,filemoon,streamwish";
-
-            var updates = new Dictionary<string, string>
-            {
-                ["DefaultThreads"] = "48",
-                ["StrictCdnMaxThreads"] = "24",
-                ["OpenCdnMaxThreads"] = "256",
-                ["DefaultDownloadQuality"] = "Highest",
-                ["StrictCdnDomains"] = calibratedDomains
-            };
-
-            await adminSettingsService.UpdateSettingsAsync(updates);
-
-            return Results.Ok(new
-            {
-                success = true,
-                message = "All download engine parameters calibrated and optimized across 16+ platforms!",
-                appliedSettings = updates
-            });
-        });
 
         // ─────────────────────────────────────────────────────────────
         // 2. Start Parallel Multi-Threaded Download API (with Guest Gatekeeper & MongoDB Logging)
@@ -2694,80 +2651,7 @@ public class Program
             return Results.Ok(history);
         });
 
-        // ─────────────────────────────────────────────────────────────
-        // 5. Admin Control & Analytics APIs (/api/admin/...) - Strictly Protected
-        // ─────────────────────────────────────────────────────────────
-        bool IsAdminAuthorized(HttpContext ctx)
-        {
-            if (ctx.User.Identity?.IsAuthenticated != true) return false;
-            var email = ctx.User.FindFirstValue(ClaimTypes.Email) ?? "";
-            var role = ctx.User.FindFirstValue(ClaimTypes.Role) ?? "";
-            return role.Equals("Admin", StringComparison.OrdinalIgnoreCase) || 
-                   email.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase);
-        }
 
-        app.MapGet("/api/admin/stats", async (HttpContext ctx, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var summary = await analytics.GetAnalyticsSummaryAsync();
-            return Results.Ok(summary);
-        });
-
-        app.MapGet("/api/admin/logs", async (HttpContext ctx, string? search, int limit, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var logs = await analytics.GetRecentLogsAsync(limit > 0 ? limit : 50, search);
-            return Results.Ok(logs);
-        });
-
-        app.MapGet("/api/admin/settings", async (HttpContext ctx, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var settings = await analytics.GetSettingsAsync();
-            return Results.Ok(settings);
-        });
-
-        app.MapPost("/api/admin/settings", async (HttpContext ctx, PlatformSettings newSettings, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var updated = await analytics.UpdateSettingsAsync(newSettings);
-            return Results.Ok(updated);
-        });
-
-        app.MapGet("/api/admin/users", async (HttpContext ctx, string? search, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var users = await analytics.GetAllUsersAsync(search);
-            return Results.Ok(users);
-        });
-
-        app.MapPost("/api/admin/users/toggle-status", async (HttpContext ctx, UserStatusRequest body, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var success = await analytics.ToggleUserStatusAsync(body.Email);
-            return Results.Ok(new { success });
-        });
-
-        app.MapPost("/api/admin/users/change-role", async (HttpContext ctx, UserRoleRequest body, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var success = await analytics.ChangeUserRoleAsync(body.Email, body.Role);
-            return Results.Ok(new { success });
-        });
-
-        app.MapDelete("/api/admin/users", async (HttpContext ctx, string email, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var success = await analytics.DeleteUserAsync(email);
-            return Results.Ok(new { success });
-        });
-
-        app.MapDelete("/api/admin/logs/clear", async (HttpContext ctx, IDownloadAnalyticsService analytics) =>
-        {
-            if (!IsAdminAuthorized(ctx)) return Results.Unauthorized();
-            var success = await analytics.ClearLogsAsync();
-            return Results.Ok(new { success });
-        });
 
         // 6. Map Default Controller Route
         app.MapControllerRoute(

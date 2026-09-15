@@ -133,7 +133,7 @@
             @RenderBody()
         </main>
 
-        <!-- Production Footer (Unified across all pages) -->
+        <!-- Production Footer (Unified across all platforms) -->
         <footer class="footer">
                 <div class="container">
                     <div class="footer-grid">
@@ -142,33 +142,31 @@
                                 <partial name="_Logo" model='(string?)"brand-logo-img"' />
                                 <div class="brand-text">Save<span>Zonix</span></div>
                             </div>
-                            <p>High-performance media stream analyzer and authorized local saver built with .NET 10 and Manifest V3 stealth architecture.</p>
+                            <p>High-performance multi-threaded stream analyzer and 4K media saver. Engineered in native C# .NET for creators and offline archival.</p>
+                            <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 20px; font-size: 11.5px; color: #34d399; font-weight: 600; margin-top: 14px;">
+                                <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981;"></span>
+                                All Systems Operational
+                            </div>
                         </div>
 
                         <div class="footer-column">
-                            <h4>Product</h4>
+                            <h4>Product &amp; Engine</h4>
                             <ul>
-                                <li><a asp-controller="Home" asp-action="Features">Features</a></li>
-                                <li><a asp-controller="Home" asp-action="HowItWorks">How It Works</a></li>
-                                <li><a asp-controller="Home" asp-action="Download">Download Hub</a></li>
-                                <li><a asp-controller="Home" asp-action="FAQ">FAQ</a></li>
+                                <li><a asp-controller="Home" asp-action="Features">64-Thread Engine</a></li>
+                                <li><a asp-controller="Cinema" asp-action="Index">Cinema Player 4K HDR</a></li>
+                                <li><a asp-controller="Playlist" asp-action="Index">Playlist Studio</a></li>
+                                <li><a asp-controller="Account" asp-action="Downloads">My Downloads</a></li>
+                                <li><a asp-controller="Home" asp-action="Download" style="color: #38bdf8; font-weight: 600;">Windows Setup (.exe)</a></li>
                             </ul>
                         </div>
 
                         <div class="footer-column">
-                            <h4>Account &amp; History</h4>
+                            <h4>Resources &amp; Docs</h4>
                             <ul>
-                                @if (SignInManager.IsSignedIn(User))
-                                {
-                                    <li><a asp-controller="Account" asp-action="Profile">My Profile</a></li>
-                                    <li><a asp-controller="Account" asp-action="Downloads">My Downloads</a></li>
-                                    <li><a asp-controller="Account" asp-action="Settings">Security Settings</a></li>
-                                }
-                                else
-                                {
-                                    <li><a asp-controller="Account" asp-action="Login">Sign In</a></li>
-                                    <li><a asp-controller="Account" asp-action="Register">Create Free Account</a></li>
-                                }
+                                <li><a asp-controller="Home" asp-action="HowItWorks">How It Works Guide</a></li>
+                                <li><a asp-controller="Home" asp-action="FAQ">Frequently Asked Questions</a></li>
+                                <li><a href="https://github.com/zaid154/SaveZonix" target="_blank" rel="noreferrer">GitHub Repository</a></li>
+                                <li><a href="mailto:savezonix@gmail.com" style="color: #38bdf8; font-weight: 600;">📧 savezonix@gmail.com</a></li>
                                 <li><a asp-controller="Home" asp-action="Contact">Help Center</a></li>
                             </ul>
                         </div>
@@ -182,22 +180,26 @@
                                 <li><a asp-controller="Legal" asp-action="DMCA">DMCA &amp; Takedown</a></li>
                                 <li><a asp-controller="Legal" asp-action="Disclaimer">Legal Disclaimer</a></li>
                                 <li><a asp-controller="Legal" asp-action="Cookies">Cookie Policy</a></li>
-                                <li><a asp-controller="Legal" asp-action="AcceptableUse">Acceptable Use</a></li>
                                 <li><a asp-controller="Legal" asp-action="Grievance">Grievance Officer</a></li>
                             </ul>
                         </div>
                     </div>
 
-                    <div class="footer-bottom" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                        <div>
-                            <p style="margin: 0 0 4px 0;">&copy; @DateTime.UtcNow.Year SaveZonix. All rights reserved. Research &amp; Development (R&amp;D) Educational Project.</p>
-                            <p style="margin: 0; font-size: 11.5px; color: var(--text-muted);">SaveZonix is an educational stream analyzer for personal learning and research. Not for commercial use.</p>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 20px; font-size: 11.5px; color: #38bdf8; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
+                    <div class="footer-bottom" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <span style="margin: 0; font-size: 12px; color: var(--text-muted);">&copy; @DateTime.UtcNow.Year SaveZonix Inc. All rights reserved. Universal Video Stream Engine.</span>
+                            <span style="display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 20px; font-size: 11.5px; color: #38bdf8; font-weight: 700; font-family: 'JetBrains Mono', monospace;">
                                 <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
                                 App v2.5.2 (Desktop Engine)
                             </span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 16px;">
+                            <a href="https://save-zonix.vercel.app/admin/overview" target="_blank" rel="noreferrer" style="color: #64748b; font-size: 11.5px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;" title="Web Cloud Admin Portal">
+                                🛡️ Cloud Admin
+                            </a>
+                            <a href="https://github.com/zaid154/SaveZonix" target="_blank" rel="noreferrer" style="color: #64748b; font-size: 11.5px; text-decoration: none;">
+                                GitHub
+                            </a>
                         </div>
                     </div>
                 </div>

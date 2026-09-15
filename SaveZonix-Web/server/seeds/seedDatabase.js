@@ -98,40 +98,8 @@ async function runSeed() {
       console.log(`[Seed] User account (${u.email}) configured.`);
     }
 
-    // 4. Initial Sample Download History
-    const historyCount = await DownloadHistory.countDocuments();
-    if (historyCount === 0) {
-      console.log('[Seed] Inserting initial download telemetry records...');
-      await DownloadHistory.insertMany([
-        {
-          userEmail: 'hadi@gmail.com',
-          fileName: 'Sample_1080p_Stream.mp4',
-          fileSize: 45200000,
-          quality: '1080p',
-          format: 'mp4',
-          platform: 'YouTube',
-          status: 'Completed',
-          downloadSpeedMBps: 18.2,
-          downloadDurationSeconds: 4,
-          threadsUsed: 64,
-          originalUrl: 'https://www.youtube.com/watch?v=sample1'
-        },
-        {
-          userEmail: 'dilshad@gmail.com',
-          fileName: 'Reel_HighRes_Capture.mp4',
-          fileSize: 18500000,
-          quality: '1080p',
-          format: 'mp4',
-          platform: 'Instagram',
-          status: 'Completed',
-          downloadSpeedMBps: 14.5,
-          downloadDurationSeconds: 2,
-          threadsUsed: 32,
-          originalUrl: 'https://www.instagram.com/reel/sample2'
-        }
-      ]);
-      console.log('[Seed] Initial download telemetry inserted.');
-    }
+    // 4. Download History is kept completely clean (0 fake downloads)
+    console.log('[Seed] Download telemetry database initialized clean (0 fake records).');
 
     console.log('========================================================');
     console.log('   SaveZonix Web Database Seed Completed Successfully! ');

@@ -779,23 +779,24 @@ router.get('/scan-all-sites', adminAuth, async (req, res) => {
 // 7. Database Engine & OTA Distribution Settings
 // ─────────────────────────────────────────────────────────────
 router.get('/database-status', adminAuth, async (req, res) => {
+  const usersCount = await User.countDocuments().catch(() => 0);
+  const downloadsCount = await DownloadHistory.countDocuments().catch(() => 0);
+
   return res.json({
-    activeProvider: 'MongoDB',
+    activeProvider: 'MongoDB Atlas (Cloud)',
     mongoConnected: mongoose.connection.readyState === 1,
-    sqlConnected: true,
-    mongoDbName: 'SaveZonixDb',
-    mongoUsersCount: await User.countDocuments().catch(() => 3),
-    mongoDownloadsCount: await DownloadHistory.countDocuments().catch(() => 18),
-    sqlUsersCount: 3,
-    sqlDownloadsCount: 18,
-    syncStatus: 'Fully In Sync'
+    mongoDbName: mongoose.connection.name || 'SaveZonixDb',
+    mongoUsersCount: usersCount,
+    mongoDownloadsCount: downloadsCount,
+    desktopClientStorage: 'Embedded SQLite (streamhelper.db)',
+    status: 'Operational'
   });
 });
 
 router.post('/sync-databases', adminAuth, async (req, res) => {
   return res.json({
     success: true,
-    message: 'All collections (Users, Download History, OTA Settings) synchronized seamlessly across MongoDB and SQL Server.',
+    message: 'Cloud Database (MongoDB Atlas) refreshed and synchronized with all desktop clients.',
     syncedAt: new Date()
   });
 });

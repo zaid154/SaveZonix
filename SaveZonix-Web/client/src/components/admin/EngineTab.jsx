@@ -21,8 +21,8 @@ export default function EngineTab({
                 <IconDatabase size={16} color="#38bdf8" />
               </div>
               <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>Database Dual-Stack Engine</h3>
-                <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>MongoDB Atlas &amp; Microsoft SQL Server Synchronization</p>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>Database &amp; Engine Architecture</h3>
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>MongoDB Atlas Cloud Cluster &amp; Embedded SQLite Engine</p>
               </div>
             </div>
 
@@ -31,27 +31,27 @@ export default function EngineTab({
               onClick={onSyncDatabases}
               style={{ padding: '8px 16px', background: '#2563eb', border: 'none', borderRadius: '8px', color: '#ffffff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}
             >
-              Sync MongoDB &amp; SQL Databases
+              Sync &amp; Refresh Fleet State
             </button>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
             <div style={{ background: '#060a12', padding: '14px', borderRadius: '8px', border: '1px solid #1a2333' }}>
-              <div style={{ color: '#64748b', fontSize: '11.5px' }}>Active Provider</div>
-              <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '14px', marginTop: '4px' }}>{dbStatus.activeProvider}</div>
+              <div style={{ color: '#64748b', fontSize: '11.5px' }}>Active Cloud Provider</div>
+              <div style={{ color: '#38bdf8', fontWeight: 700, fontSize: '14px', marginTop: '4px' }}>{dbStatus.activeProvider || 'MongoDB Atlas'}</div>
               <div style={{ color: '#34d399', fontSize: '11px', marginTop: '2px' }}>Online &amp; Responsive</div>
             </div>
 
             <div style={{ background: '#060a12', padding: '14px', borderRadius: '8px', border: '1px solid #1a2333' }}>
-              <div style={{ color: '#64748b', fontSize: '11.5px' }}>MongoDB Records</div>
-              <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '14px', marginTop: '4px' }}>{dbStatus.mongoUsersCount} Users / {dbStatus.mongoDownloadsCount} Downloads</div>
-              <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>Database: {dbStatus.mongoDbName}</div>
+              <div style={{ color: '#64748b', fontSize: '11.5px' }}>Cloud Data Records</div>
+              <div style={{ color: '#f8fafc', fontWeight: 700, fontSize: '14px', marginTop: '4px' }}>{dbStatus.mongoUsersCount ?? 0} Users / {dbStatus.mongoDownloadsCount ?? 0} Downloads</div>
+              <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>Cluster: {dbStatus.mongoDbName || 'SaveZonixDb'}</div>
             </div>
 
             <div style={{ background: '#060a12', padding: '14px', borderRadius: '8px', border: '1px solid #1a2333' }}>
-              <div style={{ color: '#64748b', fontSize: '11.5px' }}>SQL Server Status</div>
-              <div style={{ color: '#34d399', fontWeight: 700, fontSize: '14px', marginTop: '4px' }}>Connected &amp; Mirroring</div>
-              <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>Sync state: {dbStatus.syncStatus}</div>
+              <div style={{ color: '#64748b', fontSize: '11.5px' }}>Desktop Client Storage</div>
+              <div style={{ color: '#34d399', fontWeight: 700, fontSize: '14px', marginTop: '4px' }}>Embedded SQLite (Local)</div>
+              <div style={{ color: '#64748b', fontSize: '11px', marginTop: '2px' }}>Zero SQL Server Overhead</div>
             </div>
           </div>
         </div>
