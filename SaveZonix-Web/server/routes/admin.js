@@ -455,6 +455,7 @@ router.post('/record-download', async (req, res) => {
     const {
       taskId,
       title,
+      thumbnailUrl,
       fileName,
       originalUrl,
       platform,
@@ -474,10 +475,11 @@ router.post('/record-download', async (req, res) => {
     }
 
     const clientIp = ipAddress || req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
-    const email = (userEmail && userEmail.trim()) ? userEmail.trim() : 'savezonix@gmail.com';
+    const email = (userEmail && userEmail.trim() && userEmail.trim() !== 'savezonix@gmail.com') ? userEmail.trim() : (userId ? 'User' : `Guest (${clientIp})`);
 
     const updateData = {
       title: (title || fileName || 'Media Item').trim(),
+      thumbnailUrl: thumbnailUrl || '',
       fileName: (fileName || title || 'download.mp4').trim(),
       originalUrl: originalUrl || '',
       platform: platform || 'Web Stream',

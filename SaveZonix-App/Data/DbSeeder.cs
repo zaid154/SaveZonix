@@ -18,11 +18,15 @@ public static class DbSeeder
 
         try 
         { 
+            if (context.Database.IsSqlite())
+            {
+                try { await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"__EFMigrationsLock\";"); } catch { }
+            }
             await context.Database.MigrateAsync(); 
         } 
         catch 
         { 
-            await context.Database.EnsureCreatedAsync(); 
+            try { await context.Database.EnsureCreatedAsync(); } catch { }
         }
 
         // Guaranteed SQLite schema table initialization

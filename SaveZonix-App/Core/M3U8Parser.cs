@@ -148,7 +148,7 @@ public class M3U8Parser
                     result.IsDirectMediaFile = !isM3u8Url && (detectedMasterUrl.Contains(".mp4") || detectedMasterUrl.Contains(".webm"));
                     result.Qualities.Add(new StreamQuality
                     {
-                        Resolution = isM3u8Url ? "1080p Full HD (HLS Stream)" : "Original Quality (Direct Stream)",
+                        Resolution = isM3u8Url ? "1080p Full HD (HLS Stream)" : "1080p Full HD (Direct Stream)",
                         Url = detectedMasterUrl,
                         IsDirectFile = result.IsDirectMediaFile,
                         DurationSeconds = result.DurationSeconds,
@@ -335,7 +335,7 @@ public class M3U8Parser
         {
             new StreamQuality
             {
-                Resolution = "Original Quality (Direct Stream)",
+                Resolution = "1080p Full HD (Direct Stream)",
                 Url = url,
                 DirectContentLengthBytes = length,
                 DurationSeconds = result.DurationSeconds,
@@ -349,13 +349,30 @@ public class M3U8Parser
 
     internal void ExtractMetadataFromHtml(string html, StreamAnalysisResult result)
     {
-        // 1. Extract Exact Title (Priority: og:title -> twitter:title -> inlineFree/h1 -> JSON video_title -> <title>)
         string? candidateTitle = null;
-
-        var ogTitleMatch = Regex.Match(html, @"<meta\s+(?:property|name)=[""'](?:og:title|twitter:title)[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-        if (ogTitleMatch.Success && !string.IsNullOrWhiteSpace(ogTitleMatch.Groups[1].Value))
+        // 0. Dedicated player API title (XNXX, XVideos: html5player.setVideoTitle('...'))
+        var xnxxTitleMatch = Regex.Match(html, @"html5player\.setVideoTitle\s*\(\s*['""]([^'""]+)['""]\s*\)", RegexOptions.IgnoreCase);
+        if (xnxxTitleMatch.Success && !string.IsNullOrWhiteSpace(xnxxTitleMatch.Groups[1].Value))
         {
-            candidateTitle = ogTitleMatch.Groups[1].Value;
+            candidateTitle = xnxxTitleMatch.Groups[1].Value;
+        }
+
+        if (string.IsNullOrWhiteSpace(candidateTitle))
+        {
+            var xnxxUrlMatch = Regex.Match(html, @"html5player\.setVideoURL\s*\(\s*['""]/[^/""]+/([^'""]+)['""]\s*\)", RegexOptions.IgnoreCase);
+            if (xnxxUrlMatch.Success && !string.IsNullOrWhiteSpace(xnxxUrlMatch.Groups[1].Value))
+            {
+                candidateTitle = xnxxUrlMatch.Groups[1].Value.Trim('_').Replace('_', ' ');
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(candidateTitle))
+        {
+            var ogTitleMatch = Regex.Match(html, @"<meta\s+(?:property|name)=[""'](?:og:title|twitter:title)[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+            if (ogTitleMatch.Success && !string.IsNullOrWhiteSpace(ogTitleMatch.Groups[1].Value))
+            {
+                candidateTitle = ogTitleMatch.Groups[1].Value;
+            }
         }
 
         if (string.IsNullOrWhiteSpace(candidateTitle))
@@ -407,17 +424,25 @@ public class M3U8Parser
         }
 
         // 3. Extract Thumbnail Image
-        var ogImageMatch = Regex.Match(html, @"<meta\s+(?:property|name)=[""'](?:og:image|twitter:image|twitter:image:src)[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-        if (ogImageMatch.Success)
+        var xnxxThumbMatch = Regex.Match(html, @"html5player\.setThumbUrl(?:169)?\s*\(\s*['""]([^'""]+)['""]\s*\)", RegexOptions.IgnoreCase);
+        if (xnxxThumbMatch.Success && !string.IsNullOrWhiteSpace(xnxxThumbMatch.Groups[1].Value))
         {
-            result.ThumbnailUrl = ogImageMatch.Groups[1].Value;
+            result.ThumbnailUrl = xnxxThumbMatch.Groups[1].Value;
         }
         else
         {
-            var linkThumbMatch = Regex.Match(html, @"<link\s+rel=[""']image_src[""']\s+href=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
-            if (linkThumbMatch.Success)
+            var ogImageMatch = Regex.Match(html, @"<meta\s+(?:property|name)=[""'](?:og:image|twitter:image|twitter:image:src)[""']\s+content=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+            if (ogImageMatch.Success)
             {
-                result.ThumbnailUrl = linkThumbMatch.Groups[1].Value;
+                result.ThumbnailUrl = ogImageMatch.Groups[1].Value;
+            }
+            else
+            {
+                var linkThumbMatch = Regex.Match(html, @"<link\s+rel=[""']image_src[""']\s+href=[""']([^""']+)[""']", RegexOptions.IgnoreCase);
+                if (linkThumbMatch.Success)
+                {
+                    result.ThumbnailUrl = linkThumbMatch.Groups[1].Value;
+                }
             }
         }
 
@@ -437,7 +462,7 @@ public class M3U8Parser
         decoded = Regex.Replace(decoded, @"^Watch\s+(?:Free\s+)?(?:Full\s+Video\s+)?", "", RegexOptions.IgnoreCase);
         // Correct regex without character range bug:
         decoded = Regex.Replace(decoded, @"\s*(?:[-–—|/•]|\s-\s)\s*(?:Pornhub(?:\.com|\.org)?|XNXX(?:\.COM)?|XVideos(?:\.com)?|xHamster(?:\.com)?|PixelFlix|YouTube|Instagram|PvrPlay|Twitter|TikTok|SpankBang|OKXXX)\s*$", "", RegexOptions.IgnoreCase);
-        
+        decoded = decoded.Trim(' ', '"', '\'', '“', '”', '‘', '’');
         return string.IsNullOrWhiteSpace(decoded) ? "High-Definition Video" : decoded.Trim();
     }
 
@@ -647,8 +672,41 @@ public class M3U8Parser
     {
         string cleanedHtml = html.Replace("\\/", "/");
         var qualities = new List<StreamQuality>();
+        // 0. Dedicated XNXX & XVideos Player Stream Extractor (Full 1080p/4K HLS Master & High MP4)
+        var xnxxHlsMatch = Regex.Match(cleanedHtml, @"html5player\.setVideoHLS\s*\(\s*['""]([^'""]+\.m3u8[^'""]*)['""]\s*\)", RegexOptions.IgnoreCase);
+        if (xnxxHlsMatch.Success)
+        {
+            string hlsUrl = xnxxHlsMatch.Groups[1].Value.Replace("\\/", "/");
+            return (ResolveUrl(baseUri, hlsUrl), qualities);
+        }
 
-        // 0. Automatic PixelFlix / ReelsDownload API Stream Resolver
+        var xnxxHighMatch = Regex.Match(cleanedHtml, @"html5player\.setVideoUrlHigh\s*\(\s*['""]([^'""]+\.mp4[^'""]*)['""]\s*\)", RegexOptions.IgnoreCase);
+        if (xnxxHighMatch.Success)
+        {
+            string highUrl = xnxxHighMatch.Groups[1].Value.Replace("\\/", "/");
+            qualities.Add(new StreamQuality
+            {
+                Resolution = "1080p Full HD (High Quality)",
+                Url = ResolveUrl(baseUri, highUrl),
+                IsDirectFile = true,
+                Bandwidth = 5000000
+            });
+            var xnxxLowMatch = Regex.Match(cleanedHtml, @"html5player\.setVideoUrlLow\s*\(\s*['""]([^'""]+\.mp4[^'""]*)['""]\s*\)", RegexOptions.IgnoreCase);
+            if (xnxxLowMatch.Success)
+            {
+                string lowUrl = xnxxLowMatch.Groups[1].Value.Replace("\\/", "/");
+                qualities.Add(new StreamQuality
+                {
+                    Resolution = "360p SD (Low Quality)",
+                    Url = ResolveUrl(baseUri, lowUrl),
+                    IsDirectFile = true,
+                    Bandwidth = 800000
+                });
+            }
+            return (qualities[0].Url, qualities);
+        }
+
+        // 0a. Automatic PixelFlix / ReelsDownload API Stream Resolver
         var pfMatch = Regex.Match(baseUri.ToString(), @"pixelflix\.cc/(?:watch|title)/(tv|movie)/(\d+)", RegexOptions.IgnoreCase);
         if (pfMatch.Success)
         {

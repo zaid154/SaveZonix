@@ -12,6 +12,22 @@
         if (saved) currentUser = JSON.parse(saved);
     } catch { }
 
+    // Cross-tab Synchronization: Listen for storage events from other tabs
+    window.addEventListener('storage', (e) => {
+        if (!e.key) return;
+        if (e.key === 'savezonix_cloud_user' || e.key === 'savezonix_cloud_token') {
+            try {
+                const saved = localStorage.getItem('savezonix_cloud_user');
+                currentUser = saved ? JSON.parse(saved) : null;
+            } catch {
+                currentUser = null;
+            }
+            renderUserBadge();
+        } else if (e.key.startsWith('savezonix_guest_count_')) {
+            renderUserBadge();
+        }
+    });
+
     // Initialize on DOM ready
     document.addEventListener('DOMContentLoaded', initCloudSync);
 
@@ -310,7 +326,7 @@
 
             const guestText = document.getElementById('guestBadgeText');
             if (guestText) {
-                guestText.textContent = `👤 Guest (${guestRemaining}/${guestLimit})`;
+                guestText.textContent = `👤 Guest (${guestRemaining} left)`;
             }
 
             const btnAuth = document.getElementById('btnOpenAuthModal');

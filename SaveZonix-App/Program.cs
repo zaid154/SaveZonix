@@ -348,8 +348,11 @@ public class Program
         });
         
         // 1. Database Context (SQLite / SQL Server)
-        var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-            ?? "Data Source=streamhelper.db";
+        string dbPath = Path.Combine(rootDir, "streamhelper.db");
+        var rawConn = builder.Configuration.GetConnectionString("DefaultConnection");
+        var connectionString = (!string.IsNullOrEmpty(rawConn) && !rawConn.Contains("streamhelper.db")) 
+            ? rawConn 
+            : $"Data Source={dbPath}";
 
         builder.Services.AddDbContext<AppDbContext>(options =>
         {
@@ -1396,13 +1399,37 @@ public class Program
             {
                 currentUserId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
                 currentUserEmail = httpContext.User.FindFirstValue(ClaimTypes.Email);
+                if (string.IsNullOrEmpty(currentUserEmail))
+                {
+                    var userManager = httpContext.RequestServices.GetService<UserManager<AppUser>>();
+                    if (userManager != null && !string.IsNullOrEmpty(currentUserId))
+                    {
+                        try
+                        {
+                            var u = await userManager.FindByIdAsync(currentUserId);
+                            if (u != null && !string.IsNullOrEmpty(u.Email))
+                            {
+                                currentUserEmail = u.Email;
+                            }
+                        }
+                        catch { }
+                    }
+                    if (string.IsNullOrEmpty(currentUserEmail))
+                    {
+                        currentUserEmail = httpContext.User.Identity?.Name;
+                    }
+                }
             }
 
-            if (string.IsNullOrEmpty(currentUserEmail) && !string.IsNullOrWhiteSpace(req.UserEmail))
+            if (string.IsNullOrEmpty(currentUserEmail) && !string.IsNullOrWhiteSpace(req.UserEmail) && req.UserEmail != "Guest" && req.UserEmail != "savezonix@gmail.com")
             {
                 currentUserEmail = req.UserEmail.Trim();
                 currentUserId = req.UserId?.Trim();
             }
+
+            string effectiveEmail = !string.IsNullOrEmpty(currentUserEmail)
+                ? currentUserEmail
+                : (isAuthenticated ? (httpContext.User.Identity?.Name ?? "User") : $"Guest ({clientIp})");
 
             var state = new DownloadTaskState
             {
@@ -1910,6 +1937,7 @@ public class Program
                                     {
                                         taskId = taskId,
                                         title = videoTitle,
+                                        thumbnailUrl = req.ThumbnailUrl ?? "",
                                         fileName = Path.GetFileName(outputFilePath),
                                         originalUrl = pageUrl,
                                         platform = platform,
@@ -1919,7 +1947,7 @@ public class Program
                                         peakSpeedMBps = state.PeakSpeedMBps,
                                         format = targetExt.TrimStart('.'),
                                         status = "Completed",
-                                        userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "savezonix@gmail.com",
+                                        userEmail = effectiveEmail,
                                         userId = currentUserId,
                                         ipAddress = clientIp
                                     };
@@ -2001,6 +2029,7 @@ public class Program
                                 {
                                     taskId = taskId,
                                     title = videoTitle,
+                                    thumbnailUrl = req.ThumbnailUrl ?? "",
                                     fileName = Path.GetFileName(outputFilePath),
                                     originalUrl = pageUrl,
                                     platform = platform,
@@ -2010,7 +2039,7 @@ public class Program
                                     peakSpeedMBps = state.PeakSpeedMBps,
                                     format = targetExt.TrimStart('.'),
                                     status = "Failed",
-                                    userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "savezonix@gmail.com",
+                                    userEmail = effectiveEmail,
                                     userId = currentUserId,
                                     ipAddress = clientIp
                                 };
@@ -2101,6 +2130,36 @@ public class Program
                         });
                     }
                     catch { }
+
+                    // ⚡ Sync Failure / Network Error to Cloud Admin
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var cloudClient = new HttpClient { Timeout = TimeSpan.FromSeconds(6) };
+                            var cloudPayload = new
+                            {
+                                taskId = taskId,
+                                title = videoTitle,
+                                thumbnailUrl = req.ThumbnailUrl ?? "",
+                                fileName = !string.IsNullOrEmpty(req.FileName) ? req.FileName : "download.mp4",
+                                originalUrl = pageUrl,
+                                platform = platform,
+                                quality = quality,
+                                fileSize = 0,
+                                downloadSpeedMBps = state.SpeedMBps,
+                                peakSpeedMBps = state.PeakSpeedMBps,
+                                format = (!string.IsNullOrEmpty(req.Format) ? req.Format : "mp4").TrimStart('.'),
+                                status = "Failed",
+                                userEmail = effectiveEmail,
+                                userId = currentUserId,
+                                ipAddress = clientIp
+                            };
+                            var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(cloudPayload), System.Text.Encoding.UTF8, "application/json");
+                            await cloudClient.PostAsync("https://savezonix.onrender.com/api/admin/record-download", content);
+                        }
+                        catch { }
+                    });
 
                     try { if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, true); } catch { }
                 }

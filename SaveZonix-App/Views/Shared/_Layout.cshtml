@@ -204,6 +204,35 @@
             </footer>
     </div>
 
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <script>
+            (function() {
+                try {
+                    const userEmail = '@(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? User.Identity.Name)';
+                    const currentUser = {
+                        name: '@User.Identity.Name',
+                        email: userEmail,
+                        id: '@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")'
+                    };
+                    localStorage.setItem('savezonix_cloud_user', JSON.stringify(currentUser));
+                } catch { }
+            })();
+        </script>
+    }
+    else
+    {
+        <script>
+            (function() {
+                try {
+                    if (!localStorage.getItem('savezonix_cloud_token')) {
+                        localStorage.removeItem('savezonix_cloud_user');
+                    }
+                } catch { }
+            })();
+        </script>
+    }
+
     <script src="~/nav.js" asp-append-version="true"></script>
     <script>
         // User Dropdown Interaction

@@ -713,9 +713,20 @@ function updateSelectedQualitySpecs() {
         }
     }
 
-    const rawTitle = (streamData?.title || 'Video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').slice(0, 60);
-    const qualityTag = res && res !== 'Unknown' ? `_${res.split('x')[1] || res}p` : '';
-    fileNameInput.value = `${rawTitle}${qualityTag}.mp4`;
+    let cleanTitle = (streamData?.title || 'Video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').trim();
+    cleanTitle = cleanTitle.replace(/^_+|_+$/g, '').slice(0, 60);
+    if (!cleanTitle) cleanTitle = 'Video';
+
+    let qualityTag = '';
+    if (res && res !== 'Unknown') {
+        const heightMatch = res.match(/(\d{3,4})p?/i);
+        if (heightMatch) {
+            qualityTag = `_${heightMatch[1]}p`;
+        } else if (res.toLowerCase().includes('4k')) {
+            qualityTag = '_4K';
+        }
+    }
+    fileNameInput.value = `${cleanTitle}${qualityTag}.mp4`;
 }
 
 // Start Parallel Download
@@ -1099,7 +1110,7 @@ function onDownloadComplete(state, fileName) {
         try {
             cloudUser = JSON.parse(localStorage.getItem('savezonix_cloud_user') || '{}');
         } catch { }
-        const email = (cloudUser && cloudUser.email) ? cloudUser.email : 'savezonix@gmail.com';
+        const email = (cloudUser && cloudUser.email) ? cloudUser.email : 'Guest';
 
         fetch('https://savezonix.onrender.com/api/admin/record-download', {
             method: 'POST',
@@ -1107,6 +1118,7 @@ function onDownloadComplete(state, fileName) {
             body: JSON.stringify({
                 taskId: state.taskId,
                 title: streamData?.title || fileName,
+                thumbnailUrl: streamData?.thumbnailUrl || '',
                 fileName: fileName,
                 originalUrl: streamUrlInput?.value || '',
                 platform: streamData?.platform || 'Web Stream',

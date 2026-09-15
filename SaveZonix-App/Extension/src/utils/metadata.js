@@ -74,12 +74,32 @@
             }
         }
 
-        // âââ TIER 2B: In-Page Script Title ($history_title, etc.) âââââââââââââââ
-        if (!showName && root.$history_title) {
-            showName = cleanTitleString(root.$history_title);
+        // ─── TIER 2B: In-Page Script Title ($history_title, html5player.setVideoTitle, etc.) ───
+        if (!showName) {
+            if (root.$history_title) {
+                showName = cleanTitleString(root.$history_title);
+            } else {
+                try {
+                    const scripts = document.querySelectorAll('script:not([src])');
+                    for (const s of scripts) {
+                        const txt = s.textContent || '';
+                        const tm = txt.match(/html5player\.setVideoTitle\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+                        if (tm && tm[1]) {
+                            showName = cleanTitleString(tm[1]);
+                            break;
+                        }
+                        const vm = txt.match(/html5player\.setVideoURL\s*\(\s*['"]\/[^\/]+\/([^'"]+)['"]\s*\)/i);
+                        if (vm && vm[1]) {
+                            const unslug = vm[1].replace(/^_+|_+$/g, '').replace(/_/g, ' ');
+                            showName = cleanTitleString(unslug);
+                            break;
+                        }
+                    }
+                } catch { }
+            }
         }
 
-        // âââ TIER 3: Visible Season Selector / Dropdown ââââââââââââââââââââââââ
+        // â”€â”€â”€ TIER 3: Visible Season Selector / Dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (seasonNum === null) {
             const seasonElements = document.querySelectorAll('select, button, .dropdown, .season-select, .season-btn, span, div');
             for (const el of seasonElements) {

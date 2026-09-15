@@ -10,6 +10,10 @@ const DownloadHistorySchema = new mongoose.Schema({
     type: String,
     default: 'Media Item'
   },
+  thumbnailUrl: {
+    type: String,
+    default: ''
+  },
   fileName: {
     type: String,
     required: true
@@ -53,7 +57,7 @@ const DownloadHistorySchema = new mongoose.Schema({
   },
   userEmail: {
     type: String,
-    default: 'savezonix@gmail.com',
+    default: 'Guest',
     index: true
   },
   ipAddress: {

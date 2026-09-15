@@ -44,7 +44,9 @@ public static class StreamSecurityHelper
         }
         else if (host.Contains("phcdn") || host.Contains("okxxx") || host.Contains("ok.xxx") || full.Contains("ok.xxx") || full.Contains("okxxx"))
         {
+            candidates.Add("https://hi.okxxx1.com/");
             candidates.Add("https://okxxx1.com/");
+            candidates.Add("https://www.okxxx1.com/");
             candidates.Add("https://www.ok.xxx/");
             candidates.Add("https://ok.xxx/");
         }

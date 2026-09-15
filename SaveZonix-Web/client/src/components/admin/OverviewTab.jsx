@@ -109,8 +109,23 @@ export default function OverviewTab({ stats, downloads, onNavigateToDownloads })
             <tbody>
               {(downloads || []).slice(0, 5).map((d) => (
                 <tr key={d._id} style={{ borderBottom: '1px solid #131b2c', color: '#cbd5e1' }}>
-                  <td style={{ padding: '10px 12px', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                    {d.fileName || d.originalUrl || 'Media Stream'}
+                  <td style={{ padding: '10px 12px', maxWidth: '300px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '42px', height: '28px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0, background: '#090d16', border: '1px solid #1a2333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {d.thumbnailUrl ? (
+                          <img
+                            src={d.thumbnailUrl}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'; }}
+                          />
+                        ) : null}
+                        <div style={{ display: d.thumbnailUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#475569', fontSize: '11px' }}>🎬</div>
+                      </div>
+                      <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: '#f8fafc' }} title={d.title || d.fileName}>
+                        {d.title || d.fileName || d.originalUrl || 'Media Stream'}
+                      </div>
+                    </div>
                   </td>
                   <td style={{ padding: '10px 12px' }}>
                     <span style={{ padding: '2px 8px', borderRadius: '4px', background: '#131b2c', color: '#94a3b8', fontSize: '11px', border: '1px solid #1a2333' }}>

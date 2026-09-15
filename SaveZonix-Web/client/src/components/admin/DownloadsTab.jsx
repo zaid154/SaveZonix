@@ -88,12 +88,46 @@ export default function DownloadsTab({
             <tbody>
               {filteredDownloads.map((d) => (
                 <tr key={d._id} style={{ borderBottom: '1px solid #131b2c', color: '#cbd5e1' }}>
-                  <td style={{ padding: '12px 16px', maxWidth: '280px' }}>
-                    <div style={{ fontWeight: 600, color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {d.fileName || 'Direct Stream'}
-                    </div>
-                    <div style={{ fontSize: '11.5px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {d.originalUrl || 'Source URL'}
+                  <td style={{ padding: '12px 16px', maxWidth: '340px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '56px',
+                        height: '38px',
+                        borderRadius: '6px',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        background: '#090d16',
+                        border: '1px solid #1e293b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        {d.thumbnailUrl ? (
+                          <img
+                            src={d.thumbnailUrl}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'; }}
+                          />
+                        ) : null}
+                        <div style={{
+                          display: d.thumbnailUrl ? 'none' : 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '100%',
+                          height: '100%',
+                          color: '#475569',
+                          fontSize: '13px'
+                        }}>🎬</div>
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontWeight: 600, color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={d.title || d.fileName}>
+                          {d.title || d.fileName || 'Direct Stream'}
+                        </div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {d.originalUrl || 'Source URL'}
+                        </div>
+                      </div>
                     </div>
                   </td>
 
