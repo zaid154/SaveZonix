@@ -80,7 +80,14 @@ export default function App() {
 
       <main>
         {isAdminRoute ? (
-          <AdminDashboard user={user} currentPath={currentPath} onNavigate={navigate} onBack={() => navigate('/')} />
+          <AdminDashboard
+            user={user}
+            currentPath={currentPath}
+            onNavigate={navigate}
+            onBack={() => navigate('/')}
+            onOpenAuth={() => setIsAuthOpen(true)}
+            onLogout={handleLogout}
+          />
         ) : isLegalRoute ? (
           <LegalPage type={legalType} onNavigate={navigate} />
         ) : (

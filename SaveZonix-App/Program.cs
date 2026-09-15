@@ -161,17 +161,33 @@ public class Program
         }
     }
 
+    private static string GetFfmpegPath()
+    {
+        string[] candidates = new[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe"),
+            Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe"),
+            Path.Combine(Directory.GetCurrentDirectory(), "SaveZonix-App", "ffmpeg.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "ffmpeg.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ffmpeg.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "SaveZonix", "ffmpeg.exe")
+        };
+
+        foreach (var path in candidates)
+        {
+            try
+            {
+                if (File.Exists(path)) return Path.GetFullPath(path);
+            }
+            catch { }
+        }
+
+        return "ffmpeg";
+    }
+
     private static async Task<bool> MuxVideoAndAudioAsync(string videoPath, string audioPath, string outputPath)
     {
-        string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-        if (!File.Exists(ffmpegPath))
-        {
-            ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
-        }
-        if (!File.Exists(ffmpegPath))
-        {
-            ffmpegPath = "ffmpeg";
-        }
+        string ffmpegPath = GetFfmpegPath();
 
         try
         {
@@ -222,15 +238,7 @@ public class Program
 
     private static async Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k")
     {
-        string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-        if (!File.Exists(ffmpegPath))
-        {
-            ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
-        }
-        if (!File.Exists(ffmpegPath))
-        {
-            ffmpegPath = "ffmpeg";
-        }
+        string ffmpegPath = GetFfmpegPath();
 
         try
         {

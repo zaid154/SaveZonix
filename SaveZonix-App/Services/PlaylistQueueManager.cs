@@ -1078,10 +1078,26 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
     private static string GetFfmpegPath()
     {
-        string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-        if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
-        if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
-        return ffmpegPath;
+        string[] candidates = new[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe"),
+            Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe"),
+            Path.Combine(Directory.GetCurrentDirectory(), "SaveZonix-App", "ffmpeg.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "ffmpeg.exe"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ffmpeg.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "SaveZonix", "ffmpeg.exe")
+        };
+
+        foreach (var path in candidates)
+        {
+            try
+            {
+                if (File.Exists(path)) return Path.GetFullPath(path);
+            }
+            catch { }
+        }
+
+        return "ffmpeg";
     }
 
     private static async Task<bool> MuxVideoAndAudioAsync(string videoPath, string audioPath, string outputPath)

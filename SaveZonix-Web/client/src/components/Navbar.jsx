@@ -49,7 +49,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onLogout, onNaviga
   }
 
   // If on Admin page, show special admin navbar
-  if (currentPath === '/admin') {
+  if (currentPath === '/admin' || currentPath.startsWith('/admin/')) {
     return (
       <header className="site-header">
         <div className="nav-container">
@@ -197,7 +197,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onLogout, onNaviga
                         type="button"
                         onClick={() => {
                           setDropdownOpen(false);
-                          onNavigate('/admin');
+                          onNavigate('/admin/overview');
                         }}
                         style={{
                           width: '100%',

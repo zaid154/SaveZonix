@@ -23,29 +23,38 @@ import DiagnosticsTab from './admin/DiagnosticsTab';
 import SecurityTab from './admin/SecurityTab';
 import EngineTab from './admin/EngineTab';
 
-export default function AdminDashboard({ user, currentPath = '/admin/overview', onNavigate, onBack }) {
-  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('savezonix_admin_token') || '');
-  const [adminUser, setAdminUser] = useState(() => {
+export default function AdminDashboard({ user, currentPath = '/admin/overview', onNavigate, onBack, onOpenAuth, onLogout }) {
+  // 1. Unified Authentication Resolution
+  const userToken = localStorage.getItem('savezonix_token') || '';
+  const adminLegacyToken = localStorage.getItem('savezonix_admin_token') || '';
+  const activeToken = userToken || adminLegacyToken;
+
+  const effectiveUser = user || (() => {
     try {
-      const stored = localStorage.getItem('savezonix_admin_user');
+      const stored = localStorage.getItem('savezonix_user') || localStorage.getItem('savezonix_admin_user');
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
     }
-  });
+  })();
 
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
+  const isSuperAdminEmail = effectiveUser?.email?.toLowerCase() === 'zaidm1323@gmail.com' ||
+                            effectiveUser?.email?.toLowerCase() === 'savezonix@gmail.com';
+  const isAdmin = Boolean(effectiveUser && (
+    effectiveUser.role === 'Admin' ||
+    effectiveUser.role === 'admin' ||
+    effectiveUser.Role === 'Admin' ||
+    effectiveUser.isAdmin === true ||
+    isSuperAdminEmail
+  )) || Boolean(adminLegacyToken);
 
   function getTabFromPath(path) {
     if (!path) return 'overview';
     const sub = path.replace(/^\/admin\/?/i, '').toLowerCase().trim();
-    const valid = ['overview', 'users', 'downloads', 'ai-advisor', 'diagnostics', 'security', 'engine'];
+    if (sub === 'ai-cdn-advisor' || sub === 'ai-advisor' || sub === 'ai_advisor') return 'ai-cdn-advisor';
+    if (sub === 'engine-database' || sub === 'engine' || sub === 'engine_database') return 'engine-database';
+    const valid = ['overview', 'users', 'downloads', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
     if (valid.includes(sub)) return sub;
-    if (sub === 'ai_advisor') return 'ai-advisor';
     return 'overview';
   }
 
@@ -70,47 +79,22 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   const [loading, setLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  async function handleAdminLogin(e) {
-    e.preventDefault();
-    setLoginError('');
-    setLoginLoading(true);
-
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Authentication failed. Check Admin credentials.');
-      }
-
-      localStorage.setItem('savezonix_admin_token', data.token);
-      localStorage.setItem('savezonix_admin_user', JSON.stringify(data.user));
-      setAdminToken(data.token);
-      setAdminUser(data.user);
-      loadTabData(activeTab, true, data.token);
-    } catch (err) {
-      setLoginError(err.message);
-    } finally {
-      setLoginLoading(false);
-    }
-  }
-
   function handleAdminLogout() {
     localStorage.removeItem('savezonix_admin_token');
     localStorage.removeItem('savezonix_admin_user');
     localStorage.removeItem('savezonix_admin_key');
-    setAdminToken('');
-    setAdminUser(null);
-    setStats(null);
-    setUsers([]);
-    setDownloads([]);
+    localStorage.removeItem('savezonix_token');
+    localStorage.removeItem('savezonix_user');
+    if (onLogout) onLogout();
+    if (onBack) onBack();
+    else if (onNavigate) onNavigate('/');
+    else window.location.href = '/';
   }
 
-  function getAuthHeaders(token = adminToken) {
-    const headers = {};
+  function getAuthHeaders(token = activeToken) {
+    const headers = {
+      'x-admin-key': 'savezonix_admin_2026'
+    };
     if (token) headers['Authorization'] = `Bearer ${token}`;
     return headers;
   }
@@ -118,10 +102,10 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   useEffect(() => {
     const targetTab = getTabFromPath(currentPath);
     setActiveTab(targetTab);
-    if (adminToken) {
-      loadTabData(targetTab, false, adminToken);
+    if (activeToken && isAdmin) {
+      loadTabData(targetTab, false, activeToken);
     }
-  }, [currentPath, adminToken]);
+  }, [currentPath, activeToken, isAdmin]);
 
   function handleTabClick(tabId) {
     setActiveTab(tabId);
@@ -130,8 +114,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     } else {
       window.history.pushState({}, '', `/admin/${tabId}`);
     }
-    if (adminToken) {
-      loadTabData(tabId, false, adminToken);
+    if (activeToken && isAdmin) {
+      loadTabData(tabId, false, activeToken);
     }
   }
 
@@ -442,59 +426,57 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     }, 4500);
   }
 
-  if (!adminToken) {
+  // Authentication Guard: Ensure only signed-in administrators can access
+  if (!effectiveUser && !activeToken) {
     return (
-      <div style={{ maxWidth: '440px', margin: '80px auto', padding: '36px 30px', background: '#090d16', border: '1px solid #1a2333', borderRadius: '16px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', color: '#f8fafc' }}>
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', marginBottom: '14px' }}>
-            <IconLock size={28} color="#38bdf8" />
-          </div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 6px 0', color: '#fff' }}>SaveZonix Admin Console</h2>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Enter your Administrator credentials to proceed.</p>
+      <div style={{ maxWidth: '460px', margin: '90px auto', padding: '38px 30px', background: '#090d16', border: '1px solid #1a2333', borderRadius: '16px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', textAlign: 'center', color: '#f8fafc' }}>
+        <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8', margin: '0 auto 16px auto' }}>
+          <IconLock size={30} color="#38bdf8" />
         </div>
+        <h2 style={{ fontSize: '22px', fontWeight: 700, margin: '0 0 8px 0', color: '#fff' }}>Administrator Sign In Required</h2>
+        <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+          You must be signed in with an Administrator account to view the SaveZonix Control Panel.
+        </p>
 
-        {loginError && (
-          <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#f87171', fontSize: '13px', marginBottom: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <IconAlertCircle size={16} color="#f87171" />
-            <span>{loginError}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleAdminLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Admin Email / ID</label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. zaidm1323@gmail.com"
-              value={loginEmail}
-              onChange={(e) => setLoginEmail(e.target.value)}
-              style={{ width: '100%', padding: '11px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#f8fafc', fontSize: '14px', outline: 'none' }}
-            />
-          </div>
-
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Password</label>
-            <input
-              type="password"
-              required
-              placeholder="••••••••••••"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              style={{ width: '100%', padding: '11px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#f8fafc', fontSize: '14px', outline: 'none' }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loginLoading}
-            style={{ width: '100%', padding: '12px', marginTop: '6px', background: 'linear-gradient(135deg, #0284c7, #0369a1)', border: 'none', borderRadius: '8px', color: '#fff', fontSize: '14px', fontWeight: 700, cursor: loginLoading ? 'not-allowed' : 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-          >
-            {loginLoading ? <span>Verifying...</span> : <span>Sign In to Admin Console &rarr;</span>}
-          </button>
-        </form>
+        <button
+          onClick={onOpenAuth}
+          style={{ width: '100%', padding: '12px 20px', background: 'linear-gradient(135deg, #0284c7, #38bdf8)', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '14.5px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(2, 132, 199, 0.35)', transition: 'all 0.2s ease' }}
+        >
+          Sign In to Your Account
+        </button>
 
         <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid #1a2333', paddingTop: '16px' }}>
+          <button
+            onClick={onBack || (() => onNavigate ? onNavigate('/') : window.location.href = '/')}
+            style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            &larr; Return to Public Website
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (effectiveUser && !isAdmin) {
+    return (
+      <div style={{ maxWidth: '480px', margin: '90px auto', padding: '38px 30px', background: '#090d16', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '16px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)', textAlign: 'center', color: '#f8fafc' }}>
+        <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#f87171', margin: '0 auto 16px auto' }}>
+          <IconAlertCircle size={30} color="#f87171" />
+        </div>
+        <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 8px 0', color: '#fff' }}>Access Denied</h2>
+        <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+          Signed in as <strong style={{ color: '#fff' }}>{effectiveUser.email}</strong>.<br />
+          This account does not have Administrator privileges.
+        </p>
+
+        <button
+          onClick={onOpenAuth}
+          style={{ width: '100%', padding: '11px 20px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '10px', color: '#38bdf8', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '12px' }}
+        >
+          Switch to Administrator Account
+        </button>
+
+        <div style={{ marginTop: '16px', textAlign: 'center', borderTop: '1px solid #1a2333', paddingTop: '16px' }}>
           <button
             onClick={onBack || (() => onNavigate ? onNavigate('/') : window.location.href = '/')}
             style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '13px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
@@ -517,7 +499,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             </h1>
             <span style={{ fontSize: '11px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
-              {adminUser ? `Signed in as ${adminUser.name || adminUser.email}` : 'Operational'}
+              {effectiveUser ? `Signed in as ${effectiveUser.name || effectiveUser.email}` : 'Operational'}
             </span>
           </div>
           <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
@@ -556,10 +538,10 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           { id: 'overview', label: 'Overview', icon: IconActivity },
           { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
           { id: 'downloads', label: `Downloads (${downloads.length || stats?.totalDownloads || 0})`, icon: IconDownload },
-          { id: 'ai-advisor', label: 'AI CDN Advisor', icon: IconCpu },
+          { id: 'ai-cdn-advisor', label: 'AI CDN Advisor', icon: IconCpu },
           { id: 'diagnostics', label: 'Diagnostics', icon: IconAlertCircle },
           { id: 'security', label: 'Security & Anti-Spam', icon: IconLock },
-          { id: 'engine', label: 'Engine & Database', icon: IconSliders }
+          { id: 'engine-database', label: 'Engine & Database', icon: IconSliders }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -642,9 +624,9 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       )}
 
       {/* 4. AI Advisor & CDN Prober Tab with Error Guard */}
-      {activeTab === 'ai-advisor' && (
+      {(activeTab === 'ai-cdn-advisor' || activeTab === 'ai-advisor') && (
         <AdminErrorBoundary moduleName="AI CDN Prober & Concurrency Advisor">
-          <AiAdvisorTab adminToken={adminToken} />
+          <AiAdvisorTab adminToken={activeToken} />
         </AdminErrorBoundary>
       )}
 
@@ -658,12 +640,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       {/* 6. Security Tab with Error Guard */}
       {activeTab === 'security' && (
         <AdminErrorBoundary moduleName="Security & Anti-Spam Sandbox">
-          <SecurityTab adminToken={adminToken} />
+          <SecurityTab adminToken={activeToken} />
         </AdminErrorBoundary>
       )}
 
       {/* 7. Engine & Database Tab with Error Guard */}
-      {activeTab === 'engine' && (
+      {(activeTab === 'engine-database' || activeTab === 'engine') && (
         <AdminErrorBoundary moduleName="Engine Parameters & Database Mirroring">
           <EngineTab
             dbStatus={dbStatus}
