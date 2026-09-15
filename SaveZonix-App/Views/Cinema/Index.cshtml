@@ -569,16 +569,16 @@ body.cinema-lights-off .cinema-exit-lights-off {
                 Paste a stream URL below or use the SaveZonix Chrome Extension to open any video directly here.
             </p>
 
-            <div class="cinema-url-form">
-                <input type="text" class="cinema-url-input" id="cinemaUrlInput"
-                       placeholder="Paste .m3u8, .mp4, embed, or video page URL..." autocomplete="off" />
-                <button type="button" class="btn-cinema-load" id="btnCinemaLoad">
+            <form class="cinema-url-form" action="/cinema" method="get" id="cinemaForm">
+                <input type="text" class="cinema-url-input" id="cinemaUrlInput" name="url"
+                       placeholder="Paste YouTube, .m3u8, .mp4, or video URL..." autocomplete="off" required />
+                <button type="submit" class="btn-cinema-load" id="btnCinemaLoad">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                         <polygon points="5 3 19 12 5 21 5 3"></polygon>
                     </svg>
                     Watch Now
                 </button>
-            </div>
+            </form>
 
             <div class="cinema-features-row">
                 <div class="cinema-feature-pill">
@@ -628,7 +628,7 @@ body.cinema-lights-off .cinema-exit-lights-off {
 
             <!-- Player Frame -->
             <div class="cinema-player-frame" id="cinemaPlayerFrame">
-                @if (!string.IsNullOrEmpty(posterUrl))
+                @if (!string.IsNullOrEmpty(posterUrl) && streamType != "youtube")
                 {
                     <div class="cinema-poster-overlay" id="cinemaPosterOverlay" style="background-image: url('@posterUrl')">
                         <div class="play-icon-circle">
@@ -695,7 +695,7 @@ body.cinema-lights-off .cinema-exit-lights-off {
                         </svg>
                         Fullscreen
                     </button>
-                    <a href="/" class="btn-cinema" title="Go back to Home">
+                    <a href="/cinema" class="btn-cinema" title="Go back to Cinema">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M19 12H5M12 19l-7-7 7-7"></path>
                         </svg>
@@ -765,9 +765,11 @@ body.cinema-lights-off .cinema-exit-lights-off {
     // ─── Welcome State: Manual URL Entry ────────────────────────────────
     const urlInput = document.getElementById('cinemaUrlInput');
     const btnLoad = document.getElementById('btnCinemaLoad');
+    const cinemaForm = document.getElementById('cinemaForm');
 
     if (urlInput && btnLoad) {
-        function navigateToCinema() {
+        function navigateToCinema(e) {
+            if (e) e.preventDefault();
             const url = urlInput.value.trim();
             if (!url) return;
             btnLoad.disabled = true;
@@ -775,10 +777,14 @@ body.cinema-lights-off .cinema-exit-lights-off {
             window.location.href = '/cinema?url=' + encodeURIComponent(url) + '&title=' + encodeURIComponent('Stream');
         }
 
-        btnLoad.addEventListener('click', navigateToCinema);
-        urlInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') navigateToCinema();
-        });
+        if (cinemaForm) {
+            cinemaForm.addEventListener('submit', navigateToCinema);
+        } else {
+            btnLoad.addEventListener('click', navigateToCinema);
+            urlInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') navigateToCinema(e);
+            });
+        }
     }
 
     // ─── Theatre Player Logic ───────────────────────────────────────────
@@ -943,7 +949,6 @@ body.cinema-lights-off .cinema-exit-lights-off {
     }
 
     // ─── Download Button & Quality Logic ────────────────────────────────
-    const originalDownloadUrl = '@Html.Raw(originalUrl.Replace("'", "\\'"))';
     const btnDownload = document.getElementById('btnCinemaDownload');
     const qualitySelect = document.getElementById('cinemaQualitySelect');
     const qualityBadge = document.getElementById('qualityBadge');

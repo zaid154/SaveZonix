@@ -60,7 +60,7 @@ async function sendOtpEmail(email, otp, type) {
   `;
 
   const info = await transporter.sendMail({
-    from: `"SaveZonix" <${process.env.SMTP_USER || 'noreply@savezonix.com'}>`,
+    from: `"SaveZonix" <${process.env.SMTP_USER || 'savezonix@gmail.com'}>`,
     to: email,
     subject: subjects[type] || '🔐 SaveZonix — Verification Code',
     html: html

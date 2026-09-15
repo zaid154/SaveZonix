@@ -474,7 +474,7 @@ router.post('/record-download', async (req, res) => {
     }
 
     const clientIp = ipAddress || req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
-    const email = (userEmail && userEmail.trim()) ? userEmail.trim() : 'guest@savezonix.com';
+    const email = (userEmail && userEmail.trim()) ? userEmail.trim() : 'savezonix@gmail.com';
 
     const updateData = {
       title: (title || fileName || 'Media Item').trim(),

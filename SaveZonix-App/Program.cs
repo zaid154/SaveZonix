@@ -1530,12 +1530,53 @@ public class Program
                             string tempAudio = Path.Combine(tempDirectory, "audio.mp4");
 
                             // ⚡ Concurrently launch Audio download alongside Video download
-                            // Audio is small (~2-5 MB), so it reaches 100% and finishes while video is still 15-20% downloaded!
+                            // Audio is small (~2-5 MB), so it reaches 100% and finishes while video is still downloading
+                            long videoBytesDownloaded = 0;
+                            long audioBytesDownloaded = 0;
+                            long confirmedVideoTotal = 0;
+                            long confirmedAudioTotal = 0;
+                            long targetCombinedBytes = req.EstimatedSizeBytes;
+
+                            var audioProgress = new Progress<DownloadProgressReport>(ap =>
+                            {
+                                Interlocked.Exchange(ref audioBytesDownloaded, ap.TotalBytesDownloaded);
+                                if (ap.EstimatedTotalBytes > 0) Interlocked.Exchange(ref confirmedAudioTotal, ap.EstimatedTotalBytes);
+                            });
+
+                            var combinedVideoProgress = new Progress<DownloadProgressReport>(vp =>
+                            {
+                                Interlocked.Exchange(ref videoBytesDownloaded, vp.TotalBytesDownloaded);
+                                if (vp.EstimatedTotalBytes > 0) Interlocked.Exchange(ref confirmedVideoTotal, vp.EstimatedTotalBytes);
+
+                                long curVid = Interlocked.Read(ref videoBytesDownloaded);
+                                long curAud = Interlocked.Read(ref audioBytesDownloaded);
+                                long totVid = Interlocked.Read(ref confirmedVideoTotal);
+                                long totAud = Interlocked.Read(ref confirmedAudioTotal);
+
+                                long totalTarget = (totVid > 0 && totAud > 0) ? (totVid + totAud) : targetCombinedBytes;
+                                if (totalTarget <= 0) totalTarget = totVid > 0 ? totVid : vp.EstimatedTotalBytes;
+
+                                long totalDownloaded = curVid + curAud;
+                                double combinedPct = totalTarget > 0 ? Math.Min(100.0, Math.Round((double)totalDownloaded / totalTarget * 100.0, 1)) : vp.Percentage;
+
+                                state.Percentage = combinedPct;
+                                state.SpeedMBps = vp.SpeedMBps;
+                                state.PeakSpeedMBps = vp.PeakSpeedMBps;
+                                state.DownloadedSegments = vp.DownloadedSegments;
+                                state.TotalSegments = vp.TotalSegments;
+                                state.TotalBytesDownloaded = totalDownloaded;
+                                state.EstimatedTotalBytes = totalTarget;
+                                state.ElapsedSeconds = vp.Elapsed.TotalSeconds;
+                                state.EstimatedSecondsRemaining = vp.EstimatedTimeRemaining.TotalSeconds;
+                                state.ActiveThreads = vp.ActiveThreads;
+                                state.Status = vp.Status;
+                            });
+
                             var audioTask = Task.Run(async () =>
                             {
                                 try
                                 {
-                                    var aChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, audioTempDir, 0, Math.Min(concurrency, 16), null, cts.Token);
+                                    var aChunks = await downloader.DownloadDirectFileAsync(req.AudioUrl, audioTempDir, 0, Math.Min(concurrency, 16), audioProgress, cts.Token);
                                     await SegmentMerger.MergeSegmentsAsync(aChunks, tempAudio, audioTempDir, false);
                                     return File.Exists(tempAudio) && new FileInfo(tempAudio).Length > 0;
                                 }
@@ -1551,7 +1592,7 @@ public class Program
                             {
                                 try
                                 {
-                                    var vChunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, videoTempDir, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+                                    var vChunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, videoTempDir, req.EstimatedSizeBytes, concurrency, combinedVideoProgress, cts.Token);
                                     await SegmentMerger.MergeSegmentsAsync(vChunks, tempVideo, videoTempDir, false);
                                     return File.Exists(tempVideo) && new FileInfo(tempVideo).Length > 0;
                                 }
@@ -1878,7 +1919,7 @@ public class Program
                                         peakSpeedMBps = state.PeakSpeedMBps,
                                         format = targetExt.TrimStart('.'),
                                         status = "Completed",
-                                        userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "guest@savezonix.com",
+                                        userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "savezonix@gmail.com",
                                         userId = currentUserId,
                                         ipAddress = clientIp
                                     };
@@ -1969,7 +2010,7 @@ public class Program
                                     peakSpeedMBps = state.PeakSpeedMBps,
                                     format = targetExt.TrimStart('.'),
                                     status = "Failed",
-                                    userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "guest@savezonix.com",
+                                    userEmail = !string.IsNullOrEmpty(currentUserEmail) ? currentUserEmail : "savezonix@gmail.com",
                                     userId = currentUserId,
                                     ipAddress = clientIp
                                 };

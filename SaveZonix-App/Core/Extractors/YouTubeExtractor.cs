@@ -69,6 +69,10 @@ public class YouTubeExtractor : IVideoExtractor
                 foreach (var stream in allStreams)
                 {
                     bool isMuxed = stream is YoutubeExplode.Videos.Streams.MuxedStreamInfo;
+                    long videoBytes = stream.Size.Bytes;
+                    long audioBytes = isMuxed ? 0 : (bestAudio?.Size.Bytes ?? 0);
+                    long totalBytes = videoBytes + audioBytes;
+
                     result.Qualities.Add(new StreamQuality
                     {
                         Resolution = $"{stream.VideoQuality.Label}",
@@ -76,7 +80,8 @@ public class YouTubeExtractor : IVideoExtractor
                         AudioUrl = isMuxed ? string.Empty : audioUrl,
                         IsDirectFile = true,
                         DurationSeconds = result.DurationSeconds,
-                        Bandwidth = stream.Bitrate.BitsPerSecond + (isMuxed ? 0 : (bestAudio?.Bitrate.BitsPerSecond ?? 0))
+                        Bandwidth = stream.Bitrate.BitsPerSecond + (isMuxed ? 0 : (bestAudio?.Bitrate.BitsPerSecond ?? 0)),
+                        DirectContentLengthBytes = totalBytes
                     });
                 }
 
@@ -89,7 +94,8 @@ public class YouTubeExtractor : IVideoExtractor
                         AudioUrl = string.Empty,
                         IsDirectFile = true,
                         DurationSeconds = result.DurationSeconds,
-                        Bandwidth = bestAudio.Bitrate.BitsPerSecond
+                        Bandwidth = bestAudio.Bitrate.BitsPerSecond,
+                        DirectContentLengthBytes = bestAudio.Size.Bytes
                     });
                 }
 

@@ -25,10 +25,17 @@ public class HomeController : Controller
         return View();
     }
 
-    public IActionResult Download()
+    public async Task<IActionResult> Download([FromServices] StreamHelper.Services.IAdminSettingsService adminSettings)
     {
         ViewData["Title"] = "Download Hub — Extension & Server";
         ViewData["ActiveNav"] = "Download";
+
+        var settings = await adminSettings.GetAllSettingsAsync();
+        var downloadUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases");
+        var latestVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.2");
+
+        ViewData["AppDownloadUrl"] = downloadUrl;
+        ViewData["LatestAppVersion"] = latestVersion;
         return View();
     }
 

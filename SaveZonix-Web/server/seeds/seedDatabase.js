@@ -72,8 +72,8 @@ async function runSeed() {
     // 3. Standard Users
     console.log('[Seed] Seeding Standard Users...');
     const standardUsers = [
-      { email: 'hadi@savezonix.com', name: 'Hadi', pwd: 'Hadi@SaveZonix#2026!' },
-      { email: 'dilshad@savezonix.com', name: 'Dilshad', pwd: 'Dilshad@SaveZonix#2026!' }
+      { email: 'hadi@gmail.com', name: 'Hadi', pwd: 'Hadi@SaveZonix#2026!' },
+      { email: 'dilshad@gmail.com', name: 'Dilshad', pwd: 'Dilshad@SaveZonix#2026!' }
     ];
 
     for (const u of standardUsers) {
@@ -104,7 +104,7 @@ async function runSeed() {
       console.log('[Seed] Inserting initial download telemetry records...');
       await DownloadHistory.insertMany([
         {
-          userEmail: 'hadi@savezonix.com',
+          userEmail: 'hadi@gmail.com',
           fileName: 'Sample_1080p_Stream.mp4',
           fileSize: 45200000,
           quality: '1080p',
@@ -117,7 +117,7 @@ async function runSeed() {
           originalUrl: 'https://www.youtube.com/watch?v=sample1'
         },
         {
-          userEmail: 'dilshad@savezonix.com',
+          userEmail: 'dilshad@gmail.com',
           fileName: 'Reel_HighRes_Capture.mp4',
           fileSize: 18500000,
           quality: '1080p',

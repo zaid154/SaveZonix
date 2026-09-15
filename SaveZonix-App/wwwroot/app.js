@@ -1099,7 +1099,7 @@ function onDownloadComplete(state, fileName) {
         try {
             cloudUser = JSON.parse(localStorage.getItem('savezonix_cloud_user') || '{}');
         } catch { }
-        const email = (cloudUser && cloudUser.email) ? cloudUser.email : 'guest@savezonix.com';
+        const email = (cloudUser && cloudUser.email) ? cloudUser.email : 'savezonix@gmail.com';
 
         fetch('https://savezonix.onrender.com/api/admin/record-download', {
             method: 'POST',
@@ -1160,13 +1160,13 @@ function formatETA(secs, isMerging, isCompleted, state = null) {
     if (isMerging) return 'Finalizing...';
 
     let totalSeconds = secs;
-    if (totalSeconds === undefined || totalSeconds === null || totalSeconds <= 0 || isNaN(totalSeconds) || totalSeconds === Infinity) {
-        if (state && state.speedMBps > 0.05 && state.estimatedTotalBytes > state.totalBytesDownloaded) {
-            const remBytes = state.estimatedTotalBytes - state.totalBytesDownloaded;
-            totalSeconds = Math.round(remBytes / (state.speedMBps * 1024.0 * 1024.0));
-        } else {
-            return '00:45';
-        }
+    const currentAvgSpeed = (typeof speedCount !== 'undefined' && speedCount > 2 && speedSum > 0) ? (speedSum / speedCount) : (state?.speedMBps || 0);
+
+    if (state && currentAvgSpeed > 0.05 && state.estimatedTotalBytes > state.totalBytesDownloaded) {
+        const remBytes = state.estimatedTotalBytes - state.totalBytesDownloaded;
+        totalSeconds = Math.round(remBytes / (currentAvgSpeed * 1024.0 * 1024.0));
+    } else if (totalSeconds === undefined || totalSeconds === null || totalSeconds <= 0 || isNaN(totalSeconds) || totalSeconds === Infinity) {
+        return 'Calculating...';
     }
 
     totalSeconds = Math.round(totalSeconds);

@@ -24,10 +24,12 @@ public class StreamQuality
         {
             if (EstimatedSizeBytes <= 0) return string.Empty;
             double mb = EstimatedSizeBytes / (1024.0 * 1024.0);
-            if (mb < 1.0) return string.Empty;
+            if (mb < 0.1) return string.Empty;
+            bool isExact = DirectContentLengthBytes > 0;
+            string prefix = isExact ? "" : "~";
             return mb >= 1024 
-                ? $"~{(mb / 1024.0):F2} GB" 
-                : $"~{mb:F0} MB";
+                ? $"{prefix}{(mb / 1024.0):F2} GB" 
+                : $"{prefix}{mb:F1} MB";
         }
     }
 

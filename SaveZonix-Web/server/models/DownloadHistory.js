@@ -53,7 +53,7 @@ const DownloadHistorySchema = new mongoose.Schema({
   },
   userEmail: {
     type: String,
-    default: 'guest@savezonix.com',
+    default: 'savezonix@gmail.com',
     index: true
   },
   ipAddress: {

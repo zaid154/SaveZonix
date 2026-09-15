@@ -267,8 +267,8 @@ public static class DbSeeder
         // 2. Seed Hadi & Dilshad (Exactly 2 Standard Users)
         var usersToSeed = new[]
         {
-            new { Email = "hadi@savezonix.com", Name = "Hadi", Password = "Hadi@SaveZonix#2026!" },
-            new { Email = "dilshad@savezonix.com", Name = "Dilshad", Password = "Dilshad@SaveZonix#2026!" }
+            new { Email = "hadi@gmail.com", Name = "Hadi", Password = "Hadi@SaveZonix#2026!" },
+            new { Email = "dilshad@gmail.com", Name = "Dilshad", Password = "Dilshad@SaveZonix#2026!" }
         };
 
         foreach (var d in usersToSeed)
@@ -308,7 +308,7 @@ public static class DbSeeder
         }
 
         // Remove any unauthorized / old dummy users from database
-        var allowedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { adminEmail, "hadi@savezonix.com", "dilshad@savezonix.com" };
+        var allowedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { adminEmail, "hadi@gmail.com", "dilshad@gmail.com" };
         var allDbUsers = await userManager.Users.ToListAsync();
         foreach (var u in allDbUsers)
         {
@@ -327,8 +327,8 @@ public static class DbSeeder
 
         // 4. Seed Validated Download Histories linked to Zaid, Hadi, Dilshad
         var adminDbUser = await userManager.FindByEmailAsync(adminEmail);
-        var hadiDbUser = await userManager.FindByEmailAsync("hadi@savezonix.com");
-        var dilshadDbUser = await userManager.FindByEmailAsync("dilshad@savezonix.com");
+        var hadiDbUser = await userManager.FindByEmailAsync("hadi@gmail.com");
+        var dilshadDbUser = await userManager.FindByEmailAsync("dilshad@gmail.com");
 
         // Clean out any old dummy downloads with invalid users or non-YouTube dummy URLs
         var staleDownloads = await context.DownloadHistories

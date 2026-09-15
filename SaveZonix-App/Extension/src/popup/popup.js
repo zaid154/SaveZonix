@@ -111,14 +111,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     function estimateQualitySize(label, durSeconds) {
         const sec = (durSeconds && durSeconds > 0) ? durSeconds : 210; // default ~3.5 min
         const l = (label || '').toLowerCase();
-        let bytesPerSec = 650000; // 1080p ~5.2 Mbps
-        if (l.includes('2160') || l.includes('4k')) bytesPerSec = 2500000; // ~20 Mbps
-        else if (l.includes('1440') || l.includes('2k')) bytesPerSec = 1300000; // ~10 Mbps
-        else if (l.includes('1080')) bytesPerSec = 650000;
-        else if (l.includes('720')) bytesPerSec = 320000;
-        else if (l.includes('480')) bytesPerSec = 160000;
-        else if (l.includes('360')) bytesPerSec = 90000;
-        else if (l.includes('mp3') || l.includes('audio')) bytesPerSec = 40000;
+        let bytesPerSec = 185000; // 1080p ~1.5 Mbps average (video + audio)
+        if (l.includes('2160') || l.includes('4k')) bytesPerSec = 1100000; // ~9 Mbps
+        else if (l.includes('1440') || l.includes('2k')) bytesPerSec = 550000; // ~4.4 Mbps
+        else if (l.includes('1080')) bytesPerSec = 185000; // ~1.5 Mbps
+        else if (l.includes('720')) bytesPerSec = 105000; // ~840 Kbps
+        else if (l.includes('480')) bytesPerSec = 55000; // ~440 Kbps
+        else if (l.includes('360')) bytesPerSec = 35000; // ~280 Kbps
+        else if (l.includes('mp3') || l.includes('audio')) bytesPerSec = 16000; // 128 kbps audio ~16 KB/s
 
         return formatBytes(bytesPerSec * sec);
     }
@@ -794,7 +794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const serverMp3 = estimateQualitySize('mp3', data.durationSeconds || durSeconds);
                             backendOptions.push({
                                 value: 'mp3',
-                                label: `ðµ MP3 Audio (320 kbps) • ~${serverMp3}`,
+                                label: `🎵 MP3 Audio (320 kbps) • ~${serverMp3}`,
                                 tag: 'MP3 320k',
                                 size: `~${serverMp3}`
                             });
