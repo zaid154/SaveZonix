@@ -557,7 +557,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     try
                     {
                         string pageUrl = $"https://www.youtube.com/watch?v={item.VideoId}";
-                        string groupStrategy = $"Playlist: {job.PlaylistCode} • {job.PlaylistTitle}";
+                        string groupStrategy = $"Playlist: {job.PlaylistCode} • {job.PlaylistTitle} • Total: {job.TotalVideos}";
                         await historyService.CreateOrUpdateDownloadAsync(
                             item.TaskId, job.UserId, job.UserEmail, job.UserName ?? "Guest",
                             pageUrl, item.Title, outFileName, item.ThumbnailUrl,

@@ -171,6 +171,20 @@
         // Render or Update each job card
         jobs.forEach((job, index) => {
             renderSingleJobCard(job, index);
+
+            // Also synchronize matching history table rows below
+            try {
+                const rows = document.querySelectorAll('.history-pl-group-row');
+                rows.forEach(row => {
+                    const titleEl = row.querySelector('.pl-main-title');
+                    if (titleEl && (titleEl.textContent.includes(job.playlistTitle) || titleEl.textContent.includes(job.playlistCode))) {
+                        const countEl = row.querySelector('.file-name-sub .file-text');
+                        if (countEl) {
+                            countEl.textContent = `${job.completedCount} of ${job.totalVideos} completed`;
+                        }
+                    }
+                });
+            } catch { }
         });
     }
 

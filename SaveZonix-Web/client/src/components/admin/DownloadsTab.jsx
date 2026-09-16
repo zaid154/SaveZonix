@@ -1,14 +1,30 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { IconSearch, IconTrash, IconRefresh } from './AdminIcons';
 
+// Helper: Extract YouTube Thumbnail from URL
+function getYouTubeThumbnail(url, fallback = '') {
+  if (!url || typeof url !== 'string') return fallback;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
+  if (match && match[1]) {
+    return `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`;
+  }
+  return fallback;
+}
+
 // Helper: Extract Series / Playlist Metadata
 function extractSeriesInfo(title, strategy) {
+  let totalExplicit = null;
+  if (strategy && typeof strategy === 'string') {
+    const totalM = strategy.match(/Total:\s*(\d+)/i);
+    if (totalM) totalExplicit = parseInt(totalM[1], 10);
+  }
+
   if (strategy && typeof strategy === 'string' && strategy.startsWith('Playlist:')) {
     const clean = strategy.replace(/^Playlist:\s*/i, '');
     const parts = clean.split('•').map(s => s.trim());
     const code = parts[0] || 'PL-01';
     const plTitle = parts[1] || parts[0] || 'YouTube Playlist';
-    return { isPlaylist: true, code, title: plTitle };
+    return { isPlaylist: true, code, title: plTitle, totalExpected: totalExplicit };
   }
 
   const rawTitle = title || '';
@@ -16,11 +32,11 @@ function extractSeriesInfo(title, strategy) {
   if (match && match[1] && match[1].trim().length > 2) {
     const cleanName = match[1].trim().replace(/^[-–|:_]+|[-–|:_]+$/g, '').trim();
     if (cleanName.length > 2) {
-      return { isPlaylist: true, code: 'PL-SERIES', title: cleanName };
+      return { isPlaylist: true, code: 'PL-SERIES', title: cleanName, totalExpected: totalExplicit };
     }
   }
 
-  return { isPlaylist: false, code: '', title: '' };
+  return { isPlaylist: false, code: '', title: '', totalExpected: null };
 }
 
 // Helper: Extract Numerical Episode / Part Number
@@ -156,11 +172,33 @@ export default function DownloadsTab({
           return new Date(a.createdAt) - new Date(b.createdAt);
         });
 
-        grp.totalVideos = grp.items.length;
+        // Resolve thumbnail from items or YouTube fallback
+        if (!grp.thumbnailUrl) {
+          const itemWithThumb = grp.items.find(i => i.thumbnailUrl);
+          if (itemWithThumb && itemWithThumb.thumbnailUrl) {
+            grp.thumbnailUrl = itemWithThumb.thumbnailUrl;
+          } else if (grp.items[0]?.originalUrl) {
+            grp.thumbnailUrl = getYouTubeThumbnail(grp.items[0].originalUrl);
+          }
+        }
+
+        // Determine true total videos in playlist
+        let maxIndexFound = 0;
+        grp.items.forEach(it => {
+          const num = extractIndexNumber(it.title, it.fileName);
+          if (num !== 999999 && num > maxIndexFound) maxIndexFound = num;
+          if (!grp.totalExpected) {
+            const totalMatch = (it.downloadStrategy || '').match(/Total:\s*(\d+)/i);
+            if (totalMatch) grp.totalExpected = parseInt(totalMatch[1], 10);
+          }
+        });
+
+        const inferredTotal = grp.totalExpected || (maxIndexFound >= 35 ? Math.max(100, maxIndexFound) : maxIndexFound);
+        grp.totalVideos = Math.max(inferredTotal || 0, grp.items.length);
         grp.completedCount = grp.items.filter(i => i.status === 'Completed').length;
         grp.downloadingCount = grp.items.filter(i => i.status === 'Downloading').length;
         grp.failedCount = grp.items.filter(i => i.status === 'Failed' || i.status === 'Cancelled').length;
-        grp.totalBytes = grp.items.reduce((acc, i) => acc + (i.fileSize || 0), 0);
+        grp.totalBytes = grp.items.reduce((acc, i) => acc + (i.fileSize || i.downloadedBytes || 0), 0);
 
         // Aggregate speed
         const activeSpeeds = grp.items
@@ -179,7 +217,7 @@ export default function DownloadsTab({
           grp.status = 'Completed';
         }
 
-        grp.percent = Math.round((grp.completedCount / grp.totalVideos) * 100) || 0;
+        grp.percent = grp.totalVideos > 0 ? Math.min(100, Math.round((grp.completedCount / grp.totalVideos) * 100)) : 0;
         processedGroups.push(grp);
       }
     });
@@ -398,28 +436,66 @@ export default function DownloadsTab({
                         }}
                       >
                         {/* Title & Playlist Banner */}
-                        <td style={{ padding: '14px 16px', maxWidth: '380px' }}>
+                        <td style={{ padding: '14px 16px', maxWidth: '440px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            {/* Playlist Folder Badge Icon */}
+                            {/* Playlist Cover Image with corner badge */}
                             <div
                               onClick={() => toggleGroupCollapse(entry.groupId)}
                               style={{
-                                width: '56px',
-                                height: '42px',
+                                width: '58px',
+                                height: '40px',
                                 borderRadius: '8px',
+                                overflow: 'hidden',
                                 flexShrink: 0,
-                                background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)',
+                                position: 'relative',
+                                background: '#090d16',
                                 border: '1px solid rgba(56, 189, 248, 0.4)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: '#ffffff',
-                                fontSize: '20px',
                                 cursor: 'pointer',
-                                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
+                                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)'
                               }}
                             >
-                              📁
+                              {entry.thumbnailUrl ? (
+                                <img
+                                  src={entry.thumbnailUrl}
+                                  alt={entry.title}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : null}
+                              <div
+                                style={{
+                                  display: entry.thumbnailUrl ? 'none' : 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '100%',
+                                  height: '100%',
+                                  background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)',
+                                  color: '#fff',
+                                  fontSize: '18px'
+                                }}
+                              >
+                                📁
+                              </div>
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: '2px',
+                                  right: '2px',
+                                  background: 'rgba(0, 0, 0, 0.85)',
+                                  color: '#38bdf8',
+                                  fontSize: '9px',
+                                  fontWeight: 700,
+                                  padding: '1px 4px',
+                                  borderRadius: '3px',
+                                  border: '1px solid rgba(56, 189, 248, 0.3)',
+                                  lineHeight: '1.1'
+                                }}
+                              >
+                                📁 {entry.totalVideos}
+                              </div>
                             </div>
 
                             <div style={{ minWidth: 0, flex: 1 }}>
@@ -433,7 +509,10 @@ export default function DownloadsTab({
                                     fontSize: '11px',
                                     fontWeight: 700,
                                     letterSpacing: '0.4px',
-                                    border: '1px solid rgba(14, 165, 233, 0.35)'
+                                    border: '1px solid rgba(14, 165, 233, 0.35)',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                    display: 'inline-block'
                                   }}
                                 >
                                   {entry.playlistCode}
@@ -518,8 +597,13 @@ export default function DownloadsTab({
                         </td>
 
                         {/* Total File Size */}
-                        <td style={{ padding: '14px 16px', color: '#94a3b8', fontWeight: 600 }}>
-                          {formatSize(entry.totalBytes)}
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: '13px' }}>
+                            {formatSize(entry.totalBytes)}
+                          </div>
+                          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap' }}>
+                            {entry.completedCount} of {entry.totalVideos} Done {entry.percent < 100 && entry.completedCount > 0 ? `• ~${((entry.totalBytes / entry.completedCount * entry.totalVideos) / (1024 * 1024 * 1024)).toFixed(1)} GB Est.` : ''}
+                          </div>
                         </td>
 
                         {/* Speed */}
@@ -535,16 +619,30 @@ export default function DownloadsTab({
                         <td style={{ padding: '14px 16px' }}>
                           <span
                             style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
                               padding: '4px 10px',
                               borderRadius: '6px',
                               fontSize: '11.5px',
                               fontWeight: 600,
                               background: isDownloading ? 'rgba(14, 165, 233, 0.15)' : (entry.status === 'Completed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'),
                               color: isDownloading ? '#38bdf8' : (entry.status === 'Completed' ? '#34d399' : '#f87171'),
-                              border: `1px solid ${isDownloading ? 'rgba(14, 165, 233, 0.35)' : (entry.status === 'Completed' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)')}`
+                              border: `1px solid ${isDownloading ? 'rgba(14, 165, 233, 0.35)' : (entry.status === 'Completed' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)')}`,
+                              whiteSpace: 'nowrap'
                             }}
                           >
-                            {entry.status}
+                            {isDownloading && (
+                              <span style={{
+                                width: '6px',
+                                height: '6px',
+                                borderRadius: '50%',
+                                background: '#38bdf8',
+                                boxShadow: '0 0 8px #38bdf8',
+                                display: 'inline-block'
+                              }} />
+                            )}
+                            {isDownloading ? `Downloading (${entry.percent}%)` : entry.status}
                           </span>
                         </td>
 
@@ -558,19 +656,23 @@ export default function DownloadsTab({
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '5px',
-                                padding: '6px 12px',
-                                background: isExpanded ? '#1e293b' : '#131f37',
-                                border: `1px solid ${isExpanded ? '#334155' : '#2563eb'}`,
-                                borderRadius: '6px',
-                                color: isExpanded ? '#cbd5e1' : '#38bdf8',
-                                fontSize: '11.5px',
-                                fontWeight: 600,
+                                gap: '6px',
+                                padding: '6px 14px',
+                                background: isExpanded
+                                  ? 'rgba(56, 189, 248, 0.18)'
+                                  : 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(2, 132, 199, 0.3) 100%)',
+                                border: `1px solid ${isExpanded ? '#38bdf8' : 'rgba(56, 189, 248, 0.4)'}`,
+                                borderRadius: '20px',
+                                color: isExpanded ? '#38bdf8' : '#7dd3fc',
+                                fontSize: '12px',
+                                fontWeight: 700,
                                 cursor: 'pointer',
-                                transition: 'all 0.15s'
+                                boxShadow: isExpanded ? '0 0 12px rgba(56, 189, 248, 0.3)' : 'none',
+                                transition: 'all 0.2s ease',
+                                whiteSpace: 'nowrap'
                               }}
                             >
-                              <span>{isExpanded ? '▲ Collapse' : `▼ ${entry.totalVideos} Videos`}</span>
+                              <span>{isExpanded ? '▲ Hide Videos' : `▼ View ${entry.totalVideos} Videos`}</span>
                             </button>
 
                             {/* Delete Entire Playlist */}
@@ -637,12 +739,57 @@ export default function DownloadsTab({
                                           <td style={{ padding: '8px 12px', color: '#64748b', fontWeight: 700 }}>
                                             {epLabel}
                                           </td>
-                                          <td style={{ padding: '8px 12px', maxWidth: '320px' }}>
-                                            <div style={{ color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub.title || sub.fileName}>
-                                              {sub.title || sub.fileName}
-                                            </div>
-                                            <div style={{ color: '#475569', fontSize: '10.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                              {sub.originalUrl}
+                                          <td style={{ padding: '8px 12px', maxWidth: '380px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                              {/* Episode Thumbnail */}
+                                              <div
+                                                style={{
+                                                  width: '46px',
+                                                  height: '30px',
+                                                  borderRadius: '4px',
+                                                  overflow: 'hidden',
+                                                  flexShrink: 0,
+                                                  background: '#070a10',
+                                                  border: '1px solid #1e293b',
+                                                  display: 'flex',
+                                                  alignItems: 'center',
+                                                  justifyContent: 'center'
+                                                }}
+                                              >
+                                                {sub.thumbnailUrl || getYouTubeThumbnail(sub.originalUrl) ? (
+                                                  <img
+                                                    src={sub.thumbnailUrl || getYouTubeThumbnail(sub.originalUrl)}
+                                                    alt=""
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                    onError={(e) => {
+                                                      e.currentTarget.style.display = 'none';
+                                                      if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                                                    }}
+                                                  />
+                                                ) : null}
+                                                <div
+                                                  style={{
+                                                    display: (sub.thumbnailUrl || getYouTubeThumbnail(sub.originalUrl)) ? 'none' : 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    width: '100%',
+                                                    height: '100%',
+                                                    fontSize: '11px',
+                                                    color: '#475569'
+                                                  }}
+                                                >
+                                                  🎬
+                                                </div>
+                                              </div>
+
+                                              <div style={{ minWidth: 0, flex: 1 }}>
+                                                <div style={{ color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub.title || sub.fileName}>
+                                                  {sub.title || sub.fileName}
+                                                </div>
+                                                <div style={{ color: '#475569', fontSize: '10.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                  {sub.originalUrl}
+                                                </div>
+                                              </div>
                                             </div>
                                           </td>
                                           <td style={{ padding: '8px 12px' }}>
