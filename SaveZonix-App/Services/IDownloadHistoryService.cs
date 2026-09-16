@@ -585,7 +585,12 @@ public class DownloadHistoryService : IDownloadHistoryService
                 string taskId = doc.Contains("taskId") && !doc["taskId"].IsBsonNull ? doc["taskId"].AsString :
                                (doc.Contains("_id") ? doc["_id"].ToString() ?? "" : "");
 
-                if (string.IsNullOrEmpty(taskId) || activeTaskIds == null || !activeTaskIds.Contains(taskId))
+                DateTime threshold = DateTime.UtcNow.AddMinutes(-10);
+                DateTime updatedAt = doc.Contains("updatedAt") && doc["updatedAt"].IsBsonDateTime
+                    ? doc["updatedAt"].ToUniversalTime()
+                    : (doc.Contains("createdAt") && doc["createdAt"].IsBsonDateTime ? doc["createdAt"].ToUniversalTime() : DateTime.MinValue);
+
+                if ((string.IsNullOrEmpty(taskId) || activeTaskIds == null || !activeTaskIds.Contains(taskId)) && (updatedAt < threshold || updatedAt == DateTime.MinValue))
                 {
                     var update = Builders<BsonDocument>.Update
                         .Set("status", "Cancelled")

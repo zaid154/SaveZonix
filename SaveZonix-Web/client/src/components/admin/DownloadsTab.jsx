@@ -211,10 +211,14 @@ export default function DownloadsTab({
         // Status
         if (grp.downloadingCount > 0) {
           grp.status = 'Downloading';
+        } else if (grp.completedCount >= grp.totalVideos && grp.totalVideos > 0) {
+          grp.status = 'Completed';
         } else if (grp.failedCount === grp.totalVideos) {
           grp.status = 'Failed';
+        } else if (grp.completedCount > 0) {
+          grp.status = grp.failedCount > 0 ? 'Interrupted' : 'Incomplete';
         } else {
-          grp.status = 'Completed';
+          grp.status = 'Queued';
         }
 
         grp.percent = grp.totalVideos > 0 ? Math.min(100, Math.round((grp.completedCount / grp.totalVideos) * 100)) : 0;
@@ -628,9 +632,27 @@ export default function DownloadsTab({
                               borderRadius: '6px',
                               fontSize: '11px',
                               fontWeight: 600,
-                              background: isDownloading ? 'rgba(14, 165, 233, 0.15)' : (entry.status === 'Completed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'),
-                              color: isDownloading ? '#38bdf8' : (entry.status === 'Completed' ? '#34d399' : '#f87171'),
-                              border: `1px solid ${isDownloading ? 'rgba(14, 165, 233, 0.35)' : (entry.status === 'Completed' ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)')}`,
+                              background: isDownloading 
+                                ? 'rgba(14, 165, 233, 0.15)' 
+                                : (entry.status === 'Completed' 
+                                  ? 'rgba(16, 185, 129, 0.15)' 
+                                  : (entry.status === 'Interrupted' || entry.status === 'Incomplete' 
+                                    ? 'rgba(245, 158, 11, 0.15)' 
+                                    : 'rgba(239, 68, 68, 0.15)')),
+                              color: isDownloading 
+                                ? '#38bdf8' 
+                                : (entry.status === 'Completed' 
+                                  ? '#34d399' 
+                                  : (entry.status === 'Interrupted' || entry.status === 'Incomplete' 
+                                    ? '#fbbf24' 
+                                    : '#f87171')),
+                              border: `1px solid ${isDownloading 
+                                ? 'rgba(14, 165, 233, 0.35)' 
+                                : (entry.status === 'Completed' 
+                                  ? 'rgba(16, 185, 129, 0.35)' 
+                                  : (entry.status === 'Interrupted' || entry.status === 'Incomplete' 
+                                    ? 'rgba(245, 158, 11, 0.35)' 
+                                    : 'rgba(239, 68, 68, 0.35)'))}`,
                               whiteSpace: 'nowrap'
                             }}
                           >
@@ -644,7 +666,11 @@ export default function DownloadsTab({
                                 display: 'inline-block'
                               }} />
                             )}
-                            {isDownloading ? `Downloading (${entry.percent}%)` : entry.status}
+                            {isDownloading 
+                              ? `Downloading (${entry.percent}%)` 
+                              : (entry.status === 'Interrupted' || entry.status === 'Incomplete' 
+                                ? `Interrupted (${entry.percent}%)` 
+                                : entry.status)}
                           </span>
                         </td>
 
