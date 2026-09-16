@@ -102,9 +102,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   useEffect(() => {
     const targetTab = getTabFromPath(currentPath);
     setActiveTab(targetTab);
-    if (activeToken && isAdmin) {
-      loadTabData(targetTab, false, activeToken);
-    }
+    loadTabData(targetTab, false, activeToken);
   }, [currentPath, activeToken, isAdmin]);
 
   function handleTabClick(tabId) {
@@ -114,20 +112,18 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     } else {
       window.history.pushState({}, '', `/admin/${tabId}`);
     }
-    if (activeToken && isAdmin) {
-      loadTabData(tabId, false, activeToken);
-    }
+    loadTabData(tabId, false, activeToken);
   }
 
   // High-Speed Lazy Loader: Loads only what is needed for the requested tab and caches in React state
-  async function loadTabData(tab = activeTab, force = false, token = adminToken) {
-    if (!token) return;
+  async function loadTabData(tab = activeTab, force = false, token = activeToken) {
+    const resolvedToken = token || activeToken;
     if (!force && loadedTabs.has(tab)) {
       return; // 0ms instant transition from cache
     }
 
     setLoading(true);
-    const headers = getAuthHeaders(token);
+    const headers = getAuthHeaders(resolvedToken);
 
     try {
       const calls = [];
@@ -197,7 +193,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       }
 
       // 5. Engine tab: needs dbStatus + settings
-      if (tab === 'engine') {
+      if (tab === 'engine' || tab === 'engine-database') {
         if (!dbStatus || force) {
           calls.push(
             fetch('/api/admin/database-status', { headers })
@@ -223,11 +219,6 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleTabClick(tabId) {
-    setActiveTab(tabId);
-    loadTabData(tabId);
   }
 
   // User Actions
@@ -509,7 +500,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
 
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
-            onClick={() => loadTabData(activeTab, true)}
+            onClick={() => loadTabData(activeTab, true, activeToken)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#cbd5e1', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
           >
             <IconRefresh size={13} color="#94a3b8" spinning={loading} />

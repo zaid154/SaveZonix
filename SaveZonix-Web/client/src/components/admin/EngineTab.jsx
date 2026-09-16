@@ -8,7 +8,13 @@ export default function EngineTab({
   onSyncDatabases,
   onSaveSettings
 }) {
-  if (!settings) return null;
+  if (!settings) {
+    return (
+      <div style={{ padding: '32px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', textAlign: 'center', color: '#64748b' }}>
+        Loading engine telemetry and database mirrors...
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>

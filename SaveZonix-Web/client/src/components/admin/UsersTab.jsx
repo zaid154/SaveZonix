@@ -24,10 +24,12 @@ export default function UsersTab({
   }
 
   const filteredUsers = (users || []).filter((u) => {
-    const matchSearch =
-      (u.name && u.name.toLowerCase().includes(searchUser.toLowerCase())) ||
-      (u.email && u.email.toLowerCase().includes(searchUser.toLowerCase()));
-    if (!matchSearch) return false;
+    if (searchUser.trim()) {
+      const q = searchUser.toLowerCase().trim();
+      const nameMatch = (u.name || u.FullName || '').toLowerCase().includes(q);
+      const emailMatch = (u.email || u.Email || '').toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch) return false;
+    }
     if (statusFilterUser === 'Active') return u.isActive !== false;
     if (statusFilterUser === 'Inactive') return u.isActive === false;
     if (statusFilterUser === 'VIP') return !!u.isVip;

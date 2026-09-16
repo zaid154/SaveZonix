@@ -16,6 +16,7 @@ export default function SecurityTab({ adminToken }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-admin-key': 'savezonix_admin_2026',
           ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {})
         },
         body: JSON.stringify({ email: testEmailInput.trim() })

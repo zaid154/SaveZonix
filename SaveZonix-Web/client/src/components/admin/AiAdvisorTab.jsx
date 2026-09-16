@@ -9,7 +9,10 @@ export default function AiAdvisorTab({ adminToken }) {
   const [scanningSites, setScanningSites] = useState(false);
 
   function getHeaders() {
-    return adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {};
+    return {
+      'x-admin-key': 'savezonix_admin_2026',
+      ...(adminToken ? { 'Authorization': `Bearer ${adminToken}` } : {})
+    };
   }
 
   async function handleProbeCdn(urlToProbe = probeUrl) {
