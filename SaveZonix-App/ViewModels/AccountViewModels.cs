@@ -63,6 +63,7 @@ public class HistoryItemEntry
     public int CompletedCount { get; set; }
     public int FailedCount { get; set; }
     public int TotalVideos { get; set; }
+    public bool IsActive { get; set; }
     public string FormattedTotalSize
     {
         get

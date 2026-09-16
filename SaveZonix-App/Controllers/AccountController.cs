@@ -481,9 +481,27 @@ public class AccountController : Controller
         int pageSize = 15;
         List<StreamHelper.Data.DownloadHistory> rawItems = new();
 
+        var activeJobs = _queueManager.GetActiveJobs();
         try
         {
-            await _downloadHistoryService.ReconcileOrphanedDownloadsAsync(SaveZonix.Program.GetActiveTaskIds());
+            var activeTaskIds = SaveZonix.Program.GetActiveTaskIds();
+            if (activeJobs != null)
+            {
+                foreach (var job in activeJobs)
+                {
+                    if (job.Items != null)
+                    {
+                        foreach (var it in job.Items)
+                        {
+                            if (!string.IsNullOrEmpty(it.TaskId))
+                            {
+                                activeTaskIds.Add(it.TaskId);
+                            }
+                        }
+                    }
+                }
+            }
+            await _downloadHistoryService.ReconcileOrphanedDownloadsAsync(activeTaskIds);
         }
         catch { }
 
@@ -498,7 +516,6 @@ public class AccountController : Controller
             rawItems = res.Items;
         }
 
-        var activeJobs = _queueManager.GetActiveJobs();
         var allGrouped = GroupDownloads(rawItems, activeJobs);
         int totalGroups = allGrouped.Count;
         var pagedGroups = allGrouped.Skip((page - 1) * pageSize).Take(pageSize).ToList();
@@ -657,6 +674,26 @@ public class AccountController : Controller
                 {
                     var validThumb = group.SubItems.FirstOrDefault(s => !string.IsNullOrEmpty(s.ThumbnailUrl))?.ThumbnailUrl;
                     if (!string.IsNullOrEmpty(validThumb)) group.ThumbnailUrl = validThumb;
+                }
+
+                // Sync live active memory job state
+                var matchingJob = activeJobs?.FirstOrDefault(j =>
+                    (!string.IsNullOrEmpty(j.JobId) && string.Equals(j.JobId, group.JobId, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(j.PlaylistCode) && string.Equals(j.PlaylistCode, group.PlaylistCode, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(j.PlaylistTitle) && string.Equals(j.PlaylistTitle, group.Title, StringComparison.OrdinalIgnoreCase)));
+
+                if (matchingJob != null)
+                {
+                    bool isJobActive = matchingJob.Status == "Running" || matchingJob.Status == "Downloading" || matchingJob.Status == "Queued" ||
+                                       matchingJob.ActiveCount > 0 || matchingJob.QueuedCount > 0;
+
+                    if (isJobActive)
+                    {
+                        group.IsActive = true;
+                        group.TotalVideos = Math.Max(group.TotalVideos, matchingJob.TotalVideos);
+                        group.CompletedCount = matchingJob.CompletedCount;
+                        group.FailedCount = matchingJob.FailedCount;
+                    }
                 }
 
                 var latestDate = group.SubItems.Max(s => s.CreatedAt);

@@ -201,7 +201,7 @@
                         {
                             if (entry.IsPlaylistGroup)
                             {
-                                var hasFailures = entry.FailedCount > 0;
+                                var hasFailures = entry.FailedCount > 0 && !entry.IsActive;
                                 var firstSub = entry.SubItems.FirstOrDefault();
                                 var groupQuality = firstSub != null ? CleanQuality(firstSub.Quality) : "1080p";
                                 var groupFormat = firstSub?.Format ?? "MP4";
@@ -255,7 +255,11 @@
                                                 {
                                                     <span style="color: #38bdf8; font-size: 11px; font-weight: 600;" title="Total combined active downloading duration across all videos">• ⏱ Active Time: @batchDurationStr</span>
                                                 }
-                                                @if (hasFailures)
+                                                @if (entry.IsActive)
+                                                {
+                                                    <span style="color: #38bdf8; font-weight: 700; font-size: 11px;">• In Progress</span>
+                                                }
+                                                else if (hasFailures)
                                                 {
                                                     <span style="color: #f43f5e; font-weight: 700; font-size: 11px;">• @entry.FailedCount failed</span>
                                                 }
@@ -281,7 +285,14 @@
                                     </td>
                                     <td>
                                         <div class="status-cell">
-                                            @if (hasFailures)
+                                            @if (entry.IsActive)
+                                            {
+                                                <span class="status-badge-modern status-active" style="background: rgba(14,165,233,0.12); border: 1px solid rgba(14,165,233,0.3); color: #38bdf8; display: inline-flex; align-items: center; gap: 6px;">
+                                                    <span class="status-indicator-dot dot-blue" style="background: #38bdf8; box-shadow: 0 0 8px #38bdf8;"></span>
+                                                    <span>Downloading</span>
+                                                </span>
+                                            }
+                                            else if (hasFailures)
                                             {
                                                 <span class="status-badge-modern status-err" title="@entry.FailedCount video(s) failed in this playlist">
                                                     <span class="status-indicator-dot dot-red"></span>
