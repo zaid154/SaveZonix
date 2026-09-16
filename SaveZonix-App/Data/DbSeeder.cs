@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using MongoDB.Bson;
+using MongoDB.Driver;
+using SaveZonix.Models;
+using SaveZonix.Services;
+using StreamHelper.Services;
 
 namespace StreamHelper.Data;
 
@@ -12,354 +16,164 @@ public static class DbSeeder
     public static async Task SeedAsync(IServiceProvider serviceProvider, IConfiguration config, bool forceReset = false)
     {
         using var scope = serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var mongoDb = scope.ServiceProvider.GetService<IMongoDatabase>();
+        var settingsService = scope.ServiceProvider.GetService<IAdminSettingsService>();
+        var analyticsService = scope.ServiceProvider.GetService<IDownloadAnalyticsService>();
 
-        try 
-        { 
-            if (context.Database.IsSqlite())
-            {
-                try { await context.Database.ExecuteSqlRawAsync("DROP TABLE IF EXISTS \"__EFMigrationsLock\";"); } catch { }
-            }
-            await context.Database.MigrateAsync(); 
-        } 
-        catch 
-        { 
-            try { await context.Database.EnsureCreatedAsync(); } catch { }
+        if (mongoDb == null)
+        {
+            Console.WriteLine("[Database Seeder] MongoDB is not configured or unavailable. Skipping cloud seed.");
+            return;
         }
 
-        // Guaranteed SQLite schema table initialization
-        string[] tableCreationStatements = {
-            @"CREATE TABLE IF NOT EXISTS ""AspNetRoles"" (
-                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_AspNetRoles"" PRIMARY KEY,
-                ""Name"" TEXT NULL,
-                ""NormalizedName"" TEXT NULL,
-                ""ConcurrencyStamp"" TEXT NULL
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AspNetUsers"" (
-                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_AspNetUsers"" PRIMARY KEY,
-                ""FullName"" TEXT NOT NULL,
-                ""CreatedAt"" TEXT NOT NULL,
-                ""LastLoginAt"" TEXT NULL,
-                ""IsActive"" INTEGER NOT NULL DEFAULT 1,
-                ""ProfileImageUrl"" TEXT NULL,
-                ""TotalDownloads"" INTEGER NOT NULL DEFAULT 0,
-                ""TotalBytesDownloaded"" INTEGER NOT NULL DEFAULT 0,
-                ""UserName"" TEXT NULL,
-                ""NormalizedUserName"" TEXT NULL,
-                ""Email"" TEXT NULL,
-                ""NormalizedEmail"" TEXT NULL,
-                ""EmailConfirmed"" INTEGER NOT NULL DEFAULT 1,
-                ""PasswordHash"" TEXT NULL,
-                ""SecurityStamp"" TEXT NULL,
-                ""ConcurrencyStamp"" TEXT NULL,
-                ""PhoneNumber"" TEXT NULL,
-                ""PhoneNumberConfirmed"" INTEGER NOT NULL DEFAULT 0,
-                ""TwoFactorEnabled"" INTEGER NOT NULL DEFAULT 0,
-                ""LockoutEnd"" TEXT NULL,
-                ""LockoutEnabled"" INTEGER NOT NULL DEFAULT 1,
-                ""AccessFailedCount"" INTEGER NOT NULL DEFAULT 0
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AspNetRoleClaims"" (
-                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_AspNetRoleClaims"" PRIMARY KEY AUTOINCREMENT,
-                ""RoleId"" TEXT NOT NULL,
-                ""ClaimType"" TEXT NULL,
-                ""ClaimValue"" TEXT NULL,
-                CONSTRAINT ""FK_AspNetRoleClaims_AspNetRoles_RoleId"" FOREIGN KEY (""RoleId"") REFERENCES ""AspNetRoles"" (""Id"") ON DELETE CASCADE
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AspNetUserClaims"" (
-                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_AspNetUserClaims"" PRIMARY KEY AUTOINCREMENT,
-                ""UserId"" TEXT NOT NULL,
-                ""ClaimType"" TEXT NULL,
-                ""ClaimValue"" TEXT NULL,
-                CONSTRAINT ""FK_AspNetUserClaims_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AspNetUserLogins"" (
-                ""LoginProvider"" TEXT NOT NULL,
-                ""ProviderKey"" TEXT NOT NULL,
-                ""ProviderDisplayName"" TEXT NULL,
-                ""UserId"" TEXT NOT NULL,
-                CONSTRAINT ""PK_AspNetUserLogins"" PRIMARY KEY (""LoginProvider"", ""ProviderKey""),
-                CONSTRAINT ""FK_AspNetUserLogins_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AspNetUserRoles"" (
-                ""UserId"" TEXT NOT NULL,
-                ""RoleId"" TEXT NOT NULL,
-                CONSTRAINT ""PK_AspNetUserRoles"" PRIMARY KEY (""UserId"", ""RoleId""),
-                CONSTRAINT ""FK_AspNetUserRoles_AspNetRoles_RoleId"" FOREIGN KEY (""RoleId"") REFERENCES ""AspNetRoles"" (""Id"") ON DELETE CASCADE,
-                CONSTRAINT ""FK_AspNetUserRoles_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AspNetUserTokens"" (
-                ""UserId"" TEXT NOT NULL,
-                ""LoginProvider"" TEXT NOT NULL,
-                ""Name"" TEXT NOT NULL,
-                ""Value"" TEXT NULL,
-                CONSTRAINT ""PK_AspNetUserTokens"" PRIMARY KEY (""UserId"", ""LoginProvider"", ""Name""),
-                CONSTRAINT ""FK_AspNetUserTokens_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE CASCADE
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""AdminSettings"" (
-                ""Key"" TEXT NOT NULL CONSTRAINT ""PK_AdminSettings"" PRIMARY KEY,
-                ""Value"" TEXT NOT NULL,
-                ""Description"" TEXT NULL,
-                ""Category"" TEXT NOT NULL,
-                ""UpdatedAt"" TEXT NOT NULL
-            );",
-            @"CREATE TABLE IF NOT EXISTS ""DownloadHistories"" (
-                ""Id"" TEXT NOT NULL CONSTRAINT ""PK_DownloadHistories"" PRIMARY KEY,
-                ""UserId"" TEXT NULL,
-                ""UserEmail"" TEXT NULL,
-                ""UserName"" TEXT NULL,
-                ""OriginalUrl"" TEXT NOT NULL,
-                ""Title"" TEXT NOT NULL,
-                ""FileName"" TEXT NOT NULL,
-                ""ThumbnailUrl"" TEXT NULL,
-                ""Platform"" TEXT NOT NULL,
-                ""MediaType"" TEXT NOT NULL,
-                ""Format"" TEXT NOT NULL,
-                ""Quality"" TEXT NOT NULL,
-                ""Codec"" TEXT NULL,
-                ""DurationSeconds"" INTEGER NOT NULL DEFAULT 0,
-                ""FileSize"" INTEGER NOT NULL DEFAULT 0,
-                ""Status"" INTEGER NOT NULL DEFAULT 0,
-                ""StartTime"" TEXT NOT NULL,
-                ""CompletionTime"" TEXT NULL,
-                ""DownloadDurationSeconds"" REAL NOT NULL DEFAULT 0,
-                ""DownloadedBytes"" INTEGER NOT NULL DEFAULT 0,
-                ""AverageSpeedMBps"" REAL NOT NULL DEFAULT 0,
-                ""PeakSpeedMBps"" REAL NOT NULL DEFAULT 0,
-                ""ThreadsUsed"" INTEGER NOT NULL DEFAULT 64,
-                ""DownloadStrategy"" TEXT NOT NULL DEFAULT 'HLS Multi-Thread',
-                ""RetryCount"" INTEGER NOT NULL DEFAULT 0,
-                ""ErrorReason"" TEXT NULL,
-                ""ValidationStatus"" TEXT DEFAULT 'Passed',
-                ""ValidationDetails"" TEXT NULL,
-                ""ProbedDurationSeconds"" REAL DEFAULT 0,
-                ""AudioVideoDetails"" TEXT NULL,
-                ""AppVersion"" TEXT DEFAULT 'SaveZonix v2.5.0',
-                ""SystemVersion"" TEXT DEFAULT '.NET 10.0 Windows',
-                ""CreatedAt"" TEXT NOT NULL,
-                ""UpdatedAt"" TEXT NOT NULL,
-                CONSTRAINT ""FK_DownloadHistories_AspNetUsers_UserId"" FOREIGN KEY (""UserId"") REFERENCES ""AspNetUsers"" (""Id"") ON DELETE SET NULL
-            );"
-        };
-
-        foreach (var sql in tableCreationStatements)
+        try
         {
-            try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
-        }
+            var usersColl = mongoDb.GetCollection<BsonDocument>("users");
+            var historyColl = mongoDb.GetCollection<BsonDocument>("downloadhistories");
+            var adminSettingsColl = mongoDb.GetCollection<AdminSetting>("adminsettings");
 
-        // Ensure newly added columns exist in SQLite schema without requiring manual SQL migration
-        string[] newCols = {
-            "ALTER TABLE AspNetUsers ADD COLUMN ProfileImageUrl TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN FileSize INTEGER NOT NULL DEFAULT 0;",
-            "ALTER TABLE DownloadHistories ADD COLUMN StartTime TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN CompletionTime TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN DownloadDurationSeconds REAL NOT NULL DEFAULT 0;",
-            "ALTER TABLE DownloadHistories ADD COLUMN PeakSpeedMBps REAL NOT NULL DEFAULT 0;",
-            "ALTER TABLE DownloadHistories ADD COLUMN DownloadStrategy TEXT NOT NULL DEFAULT 'HLS Multi-Thread';",
-            "ALTER TABLE DownloadHistories ADD COLUMN RetryCount INTEGER NOT NULL DEFAULT 0;",
-            "ALTER TABLE DownloadHistories ADD COLUMN ValidationStatus TEXT DEFAULT 'Passed';",
-            "ALTER TABLE DownloadHistories ADD COLUMN ValidationDetails TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN ProbedDurationSeconds REAL DEFAULT 0;",
-            "ALTER TABLE DownloadHistories ADD COLUMN AudioVideoDetails TEXT;",
-            "ALTER TABLE DownloadHistories ADD COLUMN AppVersion TEXT DEFAULT 'SaveZonix v2.5.0';",
-            "ALTER TABLE DownloadHistories ADD COLUMN SystemVersion TEXT DEFAULT '.NET 10.0 Windows';",
-            "ALTER TABLE DownloadHistories ADD COLUMN UpdatedAt TEXT;"
-        };
-
-        foreach (var sql in newCols)
-        {
-            try { await context.Database.ExecuteSqlRawAsync(sql); } catch { }
-        }
-
-        var analyticsService = scope.ServiceProvider.GetService<SaveZonix.Services.IDownloadAnalyticsService>();
-
-        if (forceReset)
-        {
-            Console.WriteLine("[Database Seeder] 🔄 Force Reset active: Wiping existing download records & settings for clean re-seed...");
+            // 1. Ensure Essential Indexes on MongoDB Collections
             try
             {
-                context.DownloadHistories.RemoveRange(context.DownloadHistories);
-                context.AdminSettings.RemoveRange(context.AdminSettings);
-                await context.SaveChangesAsync();
-                if (analyticsService != null)
-                {
-                    await analyticsService.ClearLogsAsync();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Database Seeder Reset Notice] {ex.Message}");
-            }
-        }
+                var userIndexKeys = Builders<BsonDocument>.IndexKeys.Ascending("email");
+                await usersColl.Indexes.CreateOneAsync(new CreateIndexModel<BsonDocument>(userIndexKeys, new CreateIndexOptions { Background = true }));
 
-        string[] roles = { "Admin", "User" };
-        foreach (var role in roles)
-        {
-            if (!await roleManager.RoleExistsAsync(role))
-            {
-                await roleManager.CreateAsync(new IdentityRole(role));
+                var taskIdIndexKeys = Builders<BsonDocument>.IndexKeys.Ascending("taskId");
+                await historyColl.Indexes.CreateOneAsync(new CreateIndexModel<BsonDocument>(taskIdIndexKeys, new CreateIndexOptions { Background = true }));
+
+                var createdAtIndexKeys = Builders<BsonDocument>.IndexKeys.Descending("createdAt");
+                await historyColl.Indexes.CreateOneAsync(new CreateIndexModel<BsonDocument>(createdAtIndexKeys, new CreateIndexOptions { Background = true }));
             }
-        }
+            catch { }
 
-        // Remove old dummy users if present
-        var oldEmails = new[] { "admin@streamhelper.com", "sarah@streamhelper.com", "alex@streamhelper.com" };
-        foreach (var old in oldEmails)
-        {
-            var oldUser = await userManager.FindByEmailAsync(old);
-            if (oldUser != null)
+            // 2. Default System Settings
+            var defaultSettings = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                await userManager.DeleteAsync(oldUser);
-                if (analyticsService != null) await analyticsService.DeleteUserAsync(old);
-            }
-        }
-
-        // 1. Seed Super Admin (zaidm1323@gmail.com)
-        string adminEmail = "zaidm1323@gmail.com";
-        string adminPassword = "Zaid@SaveZonix#2026!";
-        string adminName = "Zaid Khan";
-
-        var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
-        if (existingAdmin == null)
-        {
-            var adminUser = new AppUser
-            {
-                UserName = adminEmail,
-                Email = adminEmail,
-                FullName = adminName,
-                EmailConfirmed = true,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow.AddDays(-7)
+                { "RegistrationEnabled", "true" },
+                { "EmailVerificationRequired", "false" },
+                { "GoogleLoginEnabled", "true" },
+                { "DefaultThreads", "64" },
+                { "MaxThreads", "256" },
+                { "MaintenanceMode", "false" },
+                { "DatabaseProvider", "MongoDB" },
+                { "MaxConcurrentDownloadsPerUser", "5" }
             };
 
-            var result = await userManager.CreateAsync(adminUser, adminPassword);
-            if (result.Succeeded)
+            if (settingsService != null)
             {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-                Console.WriteLine($"[Database Seed] Seeded Super Admin Account: {adminEmail}");
-            }
-        }
-        else
-        {
-            existingAdmin.EmailConfirmed = true;
-            existingAdmin.IsActive = true;
-            existingAdmin.FullName = adminName;
-            var token = await userManager.GeneratePasswordResetTokenAsync(existingAdmin);
-            await userManager.ResetPasswordAsync(existingAdmin, token, adminPassword);
-            await userManager.UpdateAsync(existingAdmin);
-
-            if (!await userManager.IsInRoleAsync(existingAdmin, "Admin"))
-            {
-                await userManager.AddToRoleAsync(existingAdmin, "Admin");
-            }
-        }
-
-        if (analyticsService != null)
-        {
-            await analyticsService.CreateOrUpdateUserAsync(new SaveZonix.Models.SaveZonixUser
-            {
-                Email = adminEmail,
-                FullName = adminName,
-                Role = "Admin",
-                AuthProvider = "Local",
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow.AddDays(-7)
-            });
-        }
-
-        // 2. Seed Hadi & Dilshad (Exactly 2 Standard Users)
-        var usersToSeed = new[]
-        {
-            new { Email = "hadi@gmail.com", Name = "Hadi", Password = "Hadi@SaveZonix#2026!" },
-            new { Email = "dilshad@gmail.com", Name = "Dilshad", Password = "Dilshad@SaveZonix#2026!" }
-        };
-
-        foreach (var d in usersToSeed)
-        {
-            var existing = await userManager.FindByEmailAsync(d.Email);
-            if (existing == null)
-            {
-                var user = new AppUser
+                foreach (var kvp in defaultSettings)
                 {
-                    UserName = d.Email,
-                    Email = d.Email,
-                    FullName = d.Name,
-                    EmailConfirmed = true,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow.AddDays(-3)
-                };
-                var createRes = await userManager.CreateAsync(user, d.Password);
-                if (createRes.Succeeded)
-                {
-                    await userManager.AddToRoleAsync(user, "User");
-                    Console.WriteLine($"[Database Seed] Seeded User Account: {d.Email}");
+                    string current = await settingsService.GetSettingAsync(kvp.Key);
+                    if (string.IsNullOrEmpty(current))
+                    {
+                        await settingsService.UpdateSettingAsync(kvp.Key, kvp.Value);
+                    }
                 }
             }
 
-            if (analyticsService != null)
+            // 3. Seed Super Admin (zaidm1323@gmail.com)
+            string adminEmail = "zaidm1323@gmail.com";
+            string adminPassword = "Zaid@SaveZonix#2026!";
+            string adminName = "Zaid Khan";
+            string adminHash = BCrypt.Net.BCrypt.HashPassword(adminPassword);
+
+            var adminFilter = Builders<BsonDocument>.Filter.Or(
+                Builders<BsonDocument>.Filter.Eq("email", adminEmail),
+                Builders<BsonDocument>.Filter.Eq("Email", adminEmail)
+            );
+
+            var existingAdmin = await usersColl.Find(adminFilter).FirstOrDefaultAsync();
+            if (existingAdmin == null)
             {
-                await analyticsService.CreateOrUpdateUserAsync(new SaveZonix.Models.SaveZonixUser
+                var adminDoc = new BsonDocument
                 {
-                    Email = d.Email,
-                    FullName = d.Name,
-                    Role = "User",
-                    AuthProvider = "Local",
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow.AddDays(-3)
-                });
+                    { "name", adminName },
+                    { "FullName", adminName },
+                    { "email", adminEmail },
+                    { "Email", adminEmail },
+                    { "password", adminHash },
+                    { "PasswordHash", adminHash },
+                    { "role", "Admin" },
+                    { "Role", "Admin" },
+                    { "isVip", true },
+                    { "isActive", true },
+                    { "IsActive", true },
+                    { "emailConfirmed", true },
+                    { "createdAt", DateTime.UtcNow.AddDays(-7) },
+                    { "updatedAt", DateTime.UtcNow }
+                };
+                await usersColl.InsertOneAsync(adminDoc);
+                Console.WriteLine($"[Database Seeder] Seeded Master Super Admin: {adminEmail}");
             }
-        }
-
-        // Remove any unauthorized / old dummy users from database
-        var allowedEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { adminEmail, "hadi@gmail.com", "dilshad@gmail.com" };
-        var allDbUsers = await userManager.Users.ToListAsync();
-        foreach (var u in allDbUsers)
-        {
-            if (!string.IsNullOrEmpty(u.Email) && !allowedEmails.Contains(u.Email))
+            else
             {
-                await userManager.DeleteAsync(u);
-                if (analyticsService != null) await analyticsService.DeleteUserAsync(u.Email);
+                var update = Builders<BsonDocument>.Update
+                    .Set("password", adminHash)
+                    .Set("PasswordHash", adminHash)
+                    .Set("role", "Admin")
+                    .Set("Role", "Admin")
+                    .Set("isVip", true)
+                    .Set("isActive", true)
+                    .Set("IsActive", true)
+                    .Set("FullName", adminName)
+                    .Set("name", adminName)
+                    .Set("updatedAt", DateTime.UtcNow);
+
+                await usersColl.UpdateOneAsync(adminFilter, update);
             }
-        }
 
-        // 3. Initialize MongoDB collections
-        if (analyticsService != null)
-        {
-            await analyticsService.SeedInitialCollectionsAsync();
-        }
+            // 4. Seed Standard Users (Hadi & Dilshad)
+            var usersToSeed = new[]
+            {
+                new { Email = "hadi@gmail.com", Name = "Hadi", Password = "Hadi@SaveZonix#2026!", IsVip = true },
+                new { Email = "dilshad@gmail.com", Name = "Dilshad", Password = "Dilshad@SaveZonix#2026!", IsVip = false }
+            };
 
-        // Clean out any old/stale dummy downloads so history starts completely fresh
-        var staleDownloads = await context.DownloadHistories.ToListAsync();
-        if (staleDownloads.Count > 0 && forceReset)
-        {
-            context.DownloadHistories.RemoveRange(staleDownloads);
-            await context.SaveChangesAsync();
+            foreach (var u in usersToSeed)
+            {
+                var uFilter = Builders<BsonDocument>.Filter.Or(
+                    Builders<BsonDocument>.Filter.Eq("email", u.Email),
+                    Builders<BsonDocument>.Filter.Eq("Email", u.Email)
+                );
+
+                var existing = await usersColl.Find(uFilter).FirstOrDefaultAsync();
+                string hash = BCrypt.Net.BCrypt.HashPassword(u.Password);
+
+                if (existing == null)
+                {
+                    var uDoc = new BsonDocument
+                    {
+                        { "name", u.Name },
+                        { "FullName", u.Name },
+                        { "email", u.Email },
+                        { "Email", u.Email },
+                        { "password", hash },
+                        { "PasswordHash", hash },
+                        { "role", "User" },
+                        { "Role", "User" },
+                        { "isVip", u.IsVip },
+                        { "isActive", true },
+                        { "IsActive", true },
+                        { "emailConfirmed", true },
+                        { "createdAt", DateTime.UtcNow.AddDays(-3) },
+                        { "updatedAt", DateTime.UtcNow }
+                    };
+                    await usersColl.InsertOneAsync(uDoc);
+                    Console.WriteLine($"[Database Seeder] Seeded User Account: {u.Email}");
+                }
+            }
+
+            // 5. Initialize MongoDbAnalyticsService collections if active
             if (analyticsService != null)
             {
-                await analyticsService.ClearLogsAsync();
+                await analyticsService.SeedInitialCollectionsAsync();
             }
+
+            Console.WriteLine("[Database Seeder] MongoDB Cloud Data Seeder executed successfully.");
         }
-
-        var defaultSettings = new[]
+        catch (Exception ex)
         {
-            new AdminSetting { Key = "RegistrationEnabled", Value = "true", Description = "Allow new user registrations", Category = "Security" },
-            new AdminSetting { Key = "EmailVerificationRequired", Value = "false", Description = "Require email confirmation before login", Category = "Security" },
-            new AdminSetting { Key = "GoogleLoginEnabled", Value = "true", Description = "Enable Continue with Google OAuth", Category = "Authentication" },
-            new AdminSetting { Key = "DefaultThreads", Value = "64", Description = "Default worker threads for downloads", Category = "Downloader" },
-            new AdminSetting { Key = "MaxThreads", Value = "256", Description = "Maximum allowed parallel worker threads", Category = "Downloader" },
-            new AdminSetting { Key = "MaintenanceMode", Value = "false", Description = "Put the website in maintenance mode", Category = "System" },
-            new AdminSetting { Key = "MaxConcurrentDownloadsPerUser", Value = "5", Description = "Maximum active downloads per user", Category = "Downloader" }
-        };
-
-        foreach (var setting in defaultSettings)
-        {
-            if (!await context.AdminSettings.AnyAsync(s => s.Key == setting.Key))
-            {
-                context.AdminSettings.Add(setting);
-            }
+            Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
         }
-
-        await context.SaveChangesAsync();
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace StreamHelper.Data;
 
@@ -24,8 +23,6 @@ public class DownloadHistory
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
     public string? UserId { get; set; }
-    [ForeignKey(nameof(UserId))]
-    public virtual AppUser? User { get; set; }
 
     [MaxLength(256)]
     public string? UserEmail { get; set; }
@@ -113,12 +110,10 @@ public class DownloadHistory
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    [NotMapped]
     public string FormattedDuration => DurationSeconds > 0
         ? string.Format("{0:D2}:{1:D2}", DurationSeconds / 60, DurationSeconds % 60)
         : "--:--";
 
-    [NotMapped]
     public string FormattedFileSize
     {
         get

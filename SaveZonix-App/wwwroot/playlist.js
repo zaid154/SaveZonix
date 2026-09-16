@@ -1555,8 +1555,69 @@
         }
     }
 
+    function showVipUpgradeModal(message) {
+        let modal = document.getElementById('playlistVipModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'playlistVipModal';
+            modal.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; z-index:999999; padding:20px;';
+            modal.innerHTML = `
+                <div style="background:linear-gradient(135deg, #111827 0%, #0f172a 100%); border:1px solid rgba(234,179,8,0.3); border-radius:16px; padding:32px; max-width:480px; width:100%; text-align:center; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7); position:relative;">
+                    <div style="font-size:44px; margin-bottom:12px;">👑</div>
+                    <h3 style="color:#facc15; font-size:22px; font-weight:800; margin-bottom:8px;">VIP PRO Feature</h3>
+                    <p id="playlistVipModalDesc" style="color:#94a3b8; font-size:14px; line-height:1.6; margin-bottom:24px;">
+                        ${message || 'Batch Playlist Studio is an exclusive VIP PRO feature. Please upgrade to unlock unlimited 4K batch playlist downloads.'}
+                    </p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" style="display:inline-block; padding:12px 24px; background:linear-gradient(135deg, #eab308 0%, #ca8a04 100%); color:#000; font-weight:700; border-radius:10px; text-decoration:none; font-size:14px; transition:transform 0.2s;">
+                            Upgrade to VIP PRO
+                        </a>
+                        <button type="button" id="btnClosePlaylistVipModal" style="padding:10px; background:transparent; border:1px solid rgba(255,255,255,0.15); color:#94a3b8; border-radius:10px; cursor:pointer; font-size:13px;">
+                            Maybe Later
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.querySelector('#btnClosePlaylistVipModal').addEventListener('click', () => {
+                modal.style.display = 'none';
+            });
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.style.display = 'none';
+            });
+        } else {
+            const desc = modal.querySelector('#playlistVipModalDesc');
+            if (desc && message) desc.textContent = message;
+            modal.style.display = 'flex';
+        }
+    }
+
     async function startBatchJob(videoList) {
-        hideAlert();
+        // Option A: Strict VIP PRO Enforcement for Batch Playlist Studio
+        if (videoList.length > 1) {
+            let isUserVip = false;
+            try {
+                const saved = localStorage.getItem('savezonix_cloud_user');
+                if (saved) {
+                    const u = JSON.parse(saved);
+                    if (u.isVip || u.role === 'Admin' || u.Role === 'Admin') {
+                        isUserVip = true;
+                    }
+                }
+            } catch { }
+
+            if (!isUserVip && window.getFleetEngineSettings) {
+                try {
+                    const fleet = window.getFleetEngineSettings();
+                    if (fleet && fleet.isVip) isUserVip = true;
+                } catch { }
+            }
+
+            if (!isUserVip) {
+                showVipUpgradeModal('Batch Playlist Studio is an exclusive VIP PRO feature. Please upgrade to unlock unlimited 4K batch playlist downloads.');
+                return;
+            }
+        }
 
         const quality = qualitySelect.value;
         const format = formatSelect.value;
@@ -1590,8 +1651,13 @@
             });
 
             const data = await resp.json();
+            if (resp.status === 403 || data.isVipRequired) {
+                showVipUpgradeModal(data.message || 'Batch Playlist Studio is an exclusive VIP PRO feature. Please upgrade to unlock unlimited 4K batch playlist downloads.');
+                return;
+            }
+
             if (!resp.ok || !data.success) {
-                showAlert('Batch Start Failed', data.message || 'Could not queue playlist download.');
+                alert(data.message || 'Could not queue playlist download.');
                 return;
             }
 

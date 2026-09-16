@@ -1,43 +1,134 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
+using MongoDB.Driver;
+using SaveZonix.Models;
+using SaveZonix.Services;
 using StreamHelper.Data;
 using StreamHelper.Services;
-using SaveZonix.Services;
 using StreamHelper.ViewModels;
 
 namespace StreamHelper.Controllers;
 
 public class AccountController : Controller
 {
-    private readonly UserManager<AppUser> _userManager;
-    private readonly SignInManager<AppUser> _signInManager;
+    private readonly IMongoCollection<BsonDocument>? _usersCollection;
     private readonly IEmailService _emailService;
     private readonly IDownloadHistoryService _downloadHistoryService;
     private readonly IAdminSettingsService _adminSettingsService;
-    private readonly SaveZonix.Services.IDownloadAnalyticsService _analyticsService;
-    private readonly SaveZonix.Services.IPlaylistQueueManager _queueManager;
+    private readonly IDownloadAnalyticsService _analyticsService;
+    private readonly IPlaylistQueueManager _queueManager;
 
     public AccountController(
-        UserManager<AppUser> userManager,
-        SignInManager<AppUser> signInManager,
+        IMongoDatabase? mongoDb,
         IEmailService emailService,
         IDownloadHistoryService downloadHistoryService,
         IAdminSettingsService adminSettingsService,
-        SaveZonix.Services.IDownloadAnalyticsService analyticsService,
-        SaveZonix.Services.IPlaylistQueueManager queueManager)
+        IDownloadAnalyticsService analyticsService,
+        IPlaylistQueueManager queueManager)
     {
-        _userManager = userManager;
-        _signInManager = signInManager;
+        _usersCollection = mongoDb?.GetCollection<BsonDocument>("users");
         _emailService = emailService;
         _downloadHistoryService = downloadHistoryService;
         _adminSettingsService = adminSettingsService;
         _analyticsService = analyticsService;
         _queueManager = queueManager;
+    }
+
+    private static bool VerifyUserPassword(string password, string storedHash)
+    {
+        if (string.IsNullOrEmpty(storedHash)) return false;
+
+        if (storedHash.StartsWith("$2a$") || storedHash.StartsWith("$2b$") || storedHash.StartsWith("$2y$"))
+        {
+            try
+            {
+                return BCrypt.Net.BCrypt.Verify(password, storedHash);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Fallback SHA-256
+        try
+        {
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "SaveZonix_Salt_2026"));
+            var hash = Convert.ToBase64String(bytes);
+            if (hash == storedHash) return true;
+        }
+        catch { }
+
+        return password == storedHash;
+    }
+
+    private async Task<BsonDocument?> FindUserByEmailAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email) || _usersCollection == null) return null;
+        var normalized = email.Trim().ToLowerInvariant();
+        var filter = Builders<BsonDocument>.Filter.Or(
+            Builders<BsonDocument>.Filter.Eq("email", normalized),
+            Builders<BsonDocument>.Filter.Eq("Email", normalized)
+        );
+        return await _usersCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
+    private async Task<BsonDocument?> FindUserByIdAsync(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || _usersCollection == null) return null;
+        var fb = Builders<BsonDocument>.Filter;
+        FilterDefinition<BsonDocument> filter;
+        if (ObjectId.TryParse(id, out var oid))
+        {
+            filter = fb.Or(fb.Eq("_id", oid), fb.Eq("_id", id), fb.Eq("id", id), fb.Eq("Id", id));
+        }
+        else
+        {
+            filter = fb.Or(fb.Eq("_id", id), fb.Eq("id", id), fb.Eq("Id", id));
+        }
+        return await _usersCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
+    private async Task SignInUserAsync(BsonDocument userDoc, bool isPersistent)
+    {
+        string id = userDoc.Contains("_id") ? userDoc["_id"].ToString() ?? Guid.NewGuid().ToString("N") : Guid.NewGuid().ToString("N");
+        string fullName = userDoc.Contains("FullName") && !userDoc["FullName"].IsBsonNull ? userDoc["FullName"].AsString :
+                         (userDoc.Contains("name") && !userDoc["name"].IsBsonNull ? userDoc["name"].AsString : "User");
+        string email = userDoc.Contains("email") && !userDoc["email"].IsBsonNull ? userDoc["email"].AsString :
+                      (userDoc.Contains("Email") && !userDoc["Email"].IsBsonNull ? userDoc["Email"].AsString : "");
+        string role = userDoc.Contains("role") && !userDoc["role"].IsBsonNull ? userDoc["role"].AsString :
+                     (userDoc.Contains("Role") && !userDoc["Role"].IsBsonNull ? userDoc["Role"].AsString : "User");
+        bool isVip = userDoc.Contains("isVip") && !userDoc["isVip"].IsBsonNull ? userDoc["isVip"].ToBoolean() : false;
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, id),
+            new(ClaimTypes.Name, fullName),
+            new(ClaimTypes.Email, email),
+            new(ClaimTypes.Role, role),
+            new("isVip", isVip ? "true" : "false")
+        };
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
+        var authProps = new AuthenticationProperties
+        {
+            IsPersistent = isPersistent,
+            ExpiresUtc = isPersistent ? DateTimeOffset.UtcNow.AddDays(30) : null
+        };
+
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
     }
 
     [HttpGet]
@@ -60,46 +151,56 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var user = await _userManager.FindByEmailAsync(model.Email);
+        var user = await FindUserByEmailAsync(model.Email);
         if (user == null)
         {
             ModelState.AddModelError(string.Empty, "Invalid email or password.");
             return View(model);
         }
 
-        if (!user.IsActive)
+        bool isActive = user.Contains("isActive") && !user["isActive"].IsBsonNull ? user["isActive"].ToBoolean() :
+                       (user.Contains("IsActive") && !user["IsActive"].IsBsonNull ? user["IsActive"].ToBoolean() : true);
+        if (!isActive)
         {
             ModelState.AddModelError(string.Empty, "Your account has been deactivated. Please contact support.");
             return View(model);
         }
 
         bool emailReq = await _adminSettingsService.GetSettingBoolAsync("EmailVerificationRequired", false);
-        if (emailReq && !user.EmailConfirmed)
+        bool emailConfirmed = user.Contains("emailConfirmed") && !user["emailConfirmed"].IsBsonNull ? user["emailConfirmed"].ToBoolean() : true;
+        if (emailReq && !emailConfirmed)
         {
             ModelState.AddModelError(string.Empty, "Please verify your email address before logging in. Check your inbox for the verification link.");
             return View(model);
         }
 
-        var result = await _signInManager.PasswordSignInAsync(user.UserName ?? model.Email, model.Password, model.RememberMe, lockoutOnFailure: true);
-        if (result.Succeeded)
-        {
-            user.LastLoginAt = DateTime.UtcNow;
-            await _userManager.UpdateAsync(user);
+        string storedHash = user.Contains("password") && !user["password"].IsBsonNull ? user["password"].AsString :
+                           (user.Contains("PasswordHash") && !user["PasswordHash"].IsBsonNull ? user["PasswordHash"].AsString : "");
 
-            if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
-            {
-                return Redirect(model.ReturnUrl);
-            }
-            return RedirectToAction("Index", "Home");
-        }
-        if (result.IsLockedOut)
+        if (!VerifyUserPassword(model.Password, storedHash))
         {
-            ModelState.AddModelError(string.Empty, "Account locked due to multiple failed login attempts. Please try again later.");
+            ModelState.AddModelError(string.Empty, "Invalid email or password.");
             return View(model);
         }
 
-        ModelState.AddModelError(string.Empty, "Invalid email or password.");
-        return View(model);
+        // Update last login in MongoDB
+        if (_usersCollection != null)
+        {
+            try
+            {
+                var update = Builders<BsonDocument>.Update.Set("lastLoginAt", DateTime.UtcNow);
+                await _usersCollection.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", user["_id"]), update);
+            }
+            catch { }
+        }
+
+        await SignInUserAsync(user, model.RememberMe);
+
+        if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
+        {
+            return Redirect(model.ReturnUrl);
+        }
+        return RedirectToAction("Index", "Home");
     }
 
     [HttpGet]
@@ -136,64 +237,68 @@ public class AccountController : Controller
             return View(model);
         }
 
-        var existingUser = await _userManager.FindByEmailAsync(model.Email);
+        var existingUser = await FindUserByEmailAsync(model.Email);
         if (existingUser != null)
         {
             ModelState.AddModelError("Email", "An account with this email address already exists.");
             return View(model);
         }
 
-        var user = new AppUser
+        string passwordHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
+        string normalizedEmail = model.Email.Trim().ToLowerInvariant();
+        string name = model.FullName.Trim();
+
+        var newUserDoc = new BsonDocument
         {
-            UserName = model.Email,
-            Email = model.Email,
-            FullName = model.FullName.Trim(),
-            CreatedAt = DateTime.UtcNow,
-            IsActive = true
+            { "name", name },
+            { "FullName", name },
+            { "email", normalizedEmail },
+            { "Email", normalizedEmail },
+            { "password", passwordHash },
+            { "PasswordHash", passwordHash },
+            { "role", "User" },
+            { "Role", "User" },
+            { "isVip", false },
+            { "isActive", true },
+            { "IsActive", true },
+            { "emailConfirmed", true },
+            { "createdAt", DateTime.UtcNow },
+            { "updatedAt", DateTime.UtcNow }
         };
 
-        var result = await _userManager.CreateAsync(user, model.Password);
-        if (result.Succeeded)
+        if (_usersCollection != null)
         {
-            await _userManager.AddToRoleAsync(user, "User");
+            await _usersCollection.InsertOneAsync(newUserDoc);
+        }
 
-            await _analyticsService.CreateOrUpdateUserAsync(new SaveZonix.Models.SaveZonixUser
-            {
-                Email = user.Email,
-                FullName = user.FullName,
-                Role = "User",
-                AuthProvider = "Local",
-                IsActive = true,
-                CreatedAt = user.CreatedAt
-            });
+        await _analyticsService.CreateOrUpdateUserAsync(new SaveZonixUser
+        {
+            Email = normalizedEmail,
+            FullName = name,
+            Role = "User",
+            AuthProvider = "Local",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        });
 
-            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            var confirmationLink = Url.Action("VerifyEmail", "Account", new { userId = user.Id, code = token }, Request.Scheme);
-
+        bool emailReq = await _adminSettingsService.GetSettingBoolAsync("EmailVerificationRequired", false);
+        if (emailReq)
+        {
+            string confirmationLink = Url.Action("VerifyEmail", "Account", new { email = normalizedEmail }, Request.Scheme) ?? "";
             if (!string.IsNullOrEmpty(confirmationLink))
             {
-                await _emailService.SendEmailConfirmationAsync(user.Email, confirmationLink);
+                await _emailService.SendEmailConfirmationAsync(normalizedEmail, confirmationLink);
             }
-
-            bool emailReq = await _adminSettingsService.GetSettingBoolAsync("EmailVerificationRequired", false);
-            if (emailReq)
-            {
-                return RedirectToAction("VerifyEmailSent", new { email = user.Email });
-            }
-
-            await _signInManager.SignInAsync(user, isPersistent: true);
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
-            {
-                return Redirect(returnUrl);
-            }
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("VerifyEmailSent", new { email = normalizedEmail });
         }
 
-        foreach (var error in result.Errors)
+        await SignInUserAsync(newUserDoc, isPersistent: true);
+
+        if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
         {
-            ModelState.AddModelError(string.Empty, error.Description);
+            return Redirect(returnUrl);
         }
-        return View(model);
+        return RedirectToAction("Index", "Home");
     }
 
     [HttpGet]
@@ -206,33 +311,33 @@ public class AccountController : Controller
 
     [HttpGet]
     [AllowAnonymous]
-    public async Task<IActionResult> VerifyEmail(string userId, string code)
+    public async Task<IActionResult> VerifyEmail(string email)
     {
-        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(code))
+        if (string.IsNullOrEmpty(email))
         {
             return View(new VerifyEmailViewModel { IsSuccess = false, Message = "Invalid email confirmation link." });
         }
 
-        var user = await _userManager.FindByIdAsync(userId);
+        var user = await FindUserByEmailAsync(email);
         if (user == null)
         {
             return View(new VerifyEmailViewModel { IsSuccess = false, Message = "User account not found." });
         }
 
-        var result = await _userManager.ConfirmEmailAsync(user, code);
-        if (result.Succeeded)
+        if (_usersCollection != null)
         {
-            return View(new VerifyEmailViewModel { IsSuccess = true, Message = "Your email has been confirmed successfully! You can now access all features." });
+            var update = Builders<BsonDocument>.Update.Set("emailConfirmed", true);
+            await _usersCollection.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", user["_id"]), update);
         }
 
-        return View(new VerifyEmailViewModel { IsSuccess = false, Message = "Error confirming your email. The token may have expired." });
+        return View(new VerifyEmailViewModel { IsSuccess = true, Message = "Your email has been confirmed successfully! You can now access all features." });
     }
 
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
-        await _signInManager.SignOutAsync();
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return RedirectToAction("Index", "Home");
     }
 
@@ -250,14 +355,14 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var user = await _userManager.FindByEmailAsync(model.Email);
-        if (user != null && user.IsActive)
+        var user = await FindUserByEmailAsync(model.Email);
+        if (user != null)
         {
-            var code = await _userManager.GeneratePasswordResetTokenAsync(user);
-            var callbackUrl = Url.Action("ResetPassword", "Account", new { code, email = user.Email }, Request.Scheme);
-            if (!string.IsNullOrEmpty(callbackUrl) && !string.IsNullOrEmpty(user.Email))
+            string token = Guid.NewGuid().ToString("N");
+            var callbackUrl = Url.Action("ResetPassword", "Account", new { code = token, email = model.Email }, Request.Scheme);
+            if (!string.IsNullOrEmpty(callbackUrl))
             {
-                await _emailService.SendPasswordResetAsync(user.Email, callbackUrl);
+                await _emailService.SendPasswordResetAsync(model.Email, callbackUrl);
             }
         }
 
@@ -283,24 +388,24 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var user = await _userManager.FindByEmailAsync(model.Email);
+        var user = await FindUserByEmailAsync(model.Email);
         if (user == null)
         {
             return RedirectToAction("Login");
         }
 
-        var result = await _userManager.ResetPasswordAsync(user, model.Code, model.Password);
-        if (result.Succeeded)
+        string newHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
+        if (_usersCollection != null)
         {
-            ViewBag.SuccessMessage = "Your password has been successfully reset! You may now sign in.";
-            return View("ResetPasswordConfirmation");
+            var update = Builders<BsonDocument>.Update
+                .Set("password", newHash)
+                .Set("PasswordHash", newHash)
+                .Set("updatedAt", DateTime.UtcNow);
+            await _usersCollection.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", user["_id"]), update);
         }
 
-        foreach (var error in result.Errors)
-        {
-            ModelState.AddModelError(string.Empty, error.Description);
-        }
-        return View(model);
+        ViewBag.SuccessMessage = "Your password has been successfully reset! You may now sign in.";
+        return View("ResetPasswordConfirmation");
     }
 
     [HttpPost]
@@ -309,8 +414,8 @@ public class AccountController : Controller
     public IActionResult ExternalLogin(string provider, string? returnUrl = null)
     {
         var redirectUrl = Url.Action("ExternalLoginCallback", "Account", new { returnUrl });
-        var properties = _signInManager.ConfigureExternalAuthenticationProperties(provider, redirectUrl);
-        return new ChallengeResult(provider, properties);
+        var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
+        return Challenge(properties, provider);
     }
 
     [HttpGet]
@@ -323,42 +428,18 @@ public class AccountController : Controller
             return RedirectToAction("Login", new { returnUrl });
         }
 
-        var info = await _signInManager.GetExternalLoginInfoAsync();
-        if (info == null)
-        {
-            TempData["ErrorMessage"] = "Could not authenticate with Google. If running locally, make sure 'http://localhost:5000/signin-google' is listed in Google Cloud Console Authorized Redirect URIs.";
-            return RedirectToAction("Login", new { returnUrl });
-        }
-
-        var signInResult = await _signInManager.ExternalLoginSignInAsync(info.LoginProvider, info.ProviderKey, isPersistent: true, bypassTwoFactor: true);
-        if (signInResult.Succeeded)
-        {
-            var existingUser = await _userManager.FindByLoginAsync(info.LoginProvider, info.ProviderKey);
-            if (existingUser != null)
-            {
-                existingUser.LastLoginAt = DateTime.UtcNow;
-                await _userManager.UpdateAsync(existingUser);
-            }
-
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
-            return RedirectToAction("Index", "Home");
-        }
-
-        var email = info.Principal.FindFirstValue(ClaimTypes.Email);
-        var name = info.Principal.FindFirstValue(ClaimTypes.Name) ?? email?.Split('@')[0] ?? "Stream Helper User";
+        var authResult = await HttpContext.AuthenticateAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        var email = authResult.Principal?.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue(ClaimTypes.Email);
+        var name = authResult.Principal?.FindFirstValue(ClaimTypes.Name) ?? User.FindFirstValue(ClaimTypes.Name) ?? email?.Split('@')[0] ?? "User";
 
         if (!string.IsNullOrEmpty(email))
         {
-            var user = await _userManager.FindByEmailAsync(email);
+            var user = await FindUserByEmailAsync(email);
             if (user != null)
             {
-                var addLoginResult = await _userManager.AddLoginAsync(user, info);
-                if (addLoginResult.Succeeded)
-                {
-                    await _signInManager.SignInAsync(user, isPersistent: true);
-                    if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
-                    return RedirectToAction("Index", "Home");
-                }
+                await SignInUserAsync(user, isPersistent: true);
+                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+                return RedirectToAction("Index", "Home");
             }
             else
             {
@@ -369,26 +450,31 @@ public class AccountController : Controller
                     return View("Login");
                 }
 
-                var newUser = new AppUser
+                var newUser = new BsonDocument
                 {
-                    UserName = email,
-                    Email = email,
-                    FullName = name,
-                    EmailConfirmed = true,
-                    CreatedAt = DateTime.UtcNow,
-                    LastLoginAt = DateTime.UtcNow,
-                    IsActive = true
+                    { "name", name },
+                    { "FullName", name },
+                    { "email", email.ToLowerInvariant() },
+                    { "Email", email.ToLowerInvariant() },
+                    { "role", "User" },
+                    { "Role", "User" },
+                    { "isVip", false },
+                    { "isActive", true },
+                    { "IsActive", true },
+                    { "emailConfirmed", true },
+                    { "authProvider", "Google" },
+                    { "createdAt", DateTime.UtcNow },
+                    { "updatedAt", DateTime.UtcNow }
                 };
 
-                var createResult = await _userManager.CreateAsync(newUser);
-                if (createResult.Succeeded)
+                if (_usersCollection != null)
                 {
-                    await _userManager.AddToRoleAsync(newUser, "User");
-                    await _userManager.AddLoginAsync(newUser, info);
-                    await _signInManager.SignInAsync(newUser, isPersistent: true);
-                    if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
-                    return RedirectToAction("Index", "Home");
+                    await _usersCollection.InsertOneAsync(newUser);
                 }
+
+                await SignInUserAsync(newUser, isPersistent: true);
+                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return Redirect(returnUrl);
+                return RedirectToAction("Index", "Home");
             }
         }
 
@@ -400,21 +486,29 @@ public class AccountController : Controller
     [Authorize]
     public async Task<IActionResult> Profile()
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return NotFound();
+        string? email = User.FindFirstValue(ClaimTypes.Email);
+        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        var (downloads, totalCount) = await _downloadHistoryService.GetUserDownloadsAsync(user.Id, 1, 1000, null, null, null);
+        BsonDocument? user = null;
+        if (!string.IsNullOrEmpty(email)) user = await FindUserByEmailAsync(email);
+        if (user == null && !string.IsNullOrEmpty(userId)) user = await FindUserByIdAsync(userId);
+
+        string effectiveId = userId ?? (user?.Contains("_id") == true ? user["_id"].ToString() ?? "" : "");
+        string effectiveName = user != null && user.Contains("FullName") && !user["FullName"].IsBsonNull ? user["FullName"].AsString :
+                              (User.Identity?.Name ?? "User");
+        string effectiveEmail = email ?? (user != null && user.Contains("email") && !user["email"].IsBsonNull ? user["email"].AsString : "");
+
+        var (downloads, totalCount) = await _downloadHistoryService.GetUserDownloadsAsync(effectiveId, 1, 1000, null, null, null);
         var completedCount = downloads.Count(d => d.Status == DownloadStatus.Completed);
         var totalBytes = downloads.Where(d => d.Status == DownloadStatus.Completed).Sum(d => d.DownloadedBytes);
 
         var model = new ProfileViewModel
         {
-            Id = user.Id,
-            FullName = user.FullName,
-            Email = user.Email ?? "",
-            EmailConfirmed = user.EmailConfirmed,
-            CreatedAt = user.CreatedAt,
-            LastLoginAt = user.LastLoginAt,
+            Id = effectiveId,
+            FullName = effectiveName,
+            Email = effectiveEmail,
+            EmailConfirmed = true,
+            CreatedAt = user != null && user.Contains("createdAt") && !user["createdAt"].IsBsonNull ? user["createdAt"].ToUniversalTime() : DateTime.UtcNow,
             TotalDownloads = totalCount,
             CompletedDownloads = completedCount,
             TotalDownloadedBytes = totalBytes
@@ -428,13 +522,29 @@ public class AccountController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateProfile(string fullName)
     {
-        var user = await _userManager.GetUserAsync(User);
-        if (user == null) return NotFound();
-
-        if (!string.IsNullOrWhiteSpace(fullName))
+        string? email = User.FindFirstValue(ClaimTypes.Email);
+        if (!string.IsNullOrWhiteSpace(fullName) && !string.IsNullOrEmpty(email) && _usersCollection != null)
         {
-            user.FullName = fullName.Trim();
-            await _userManager.UpdateAsync(user);
+            string cleanName = fullName.Trim();
+            var update = Builders<BsonDocument>.Update
+                .Set("name", cleanName)
+                .Set("FullName", cleanName)
+                .Set("updatedAt", DateTime.UtcNow);
+
+            await _usersCollection.UpdateOneAsync(
+                Builders<BsonDocument>.Filter.Or(
+                    Builders<BsonDocument>.Filter.Eq("email", email.ToLowerInvariant()),
+                    Builders<BsonDocument>.Filter.Eq("Email", email.ToLowerInvariant())
+                ),
+                update
+            );
+
+            var user = await FindUserByEmailAsync(email);
+            if (user != null)
+            {
+                await SignInUserAsync(user, isPersistent: true);
+            }
+
             TempData["SuccessMessage"] = "Profile updated successfully!";
         }
 
@@ -455,29 +565,40 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View("Settings", model);
 
-        var user = await _userManager.GetUserAsync(User);
+        string? email = User.FindFirstValue(ClaimTypes.Email);
+        var user = !string.IsNullOrEmpty(email) ? await FindUserByEmailAsync(email) : null;
         if (user == null) return NotFound();
 
-        var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
-        if (result.Succeeded)
+        string storedHash = user.Contains("password") && !user["password"].IsBsonNull ? user["password"].AsString :
+                           (user.Contains("PasswordHash") && !user["PasswordHash"].IsBsonNull ? user["PasswordHash"].AsString : "");
+
+        if (!VerifyUserPassword(model.CurrentPassword, storedHash))
         {
-            await _signInManager.RefreshSignInAsync(user);
-            TempData["SuccessMessage"] = "Password changed successfully!";
-            return RedirectToAction("Settings");
+            ModelState.AddModelError("CurrentPassword", "Incorrect current password.");
+            return View("Settings", model);
         }
 
-        foreach (var error in result.Errors)
+        string newHash = BCrypt.Net.BCrypt.HashPassword(model.NewPassword);
+        if (_usersCollection != null)
         {
-            ModelState.AddModelError(string.Empty, error.Description);
+            var update = Builders<BsonDocument>.Update
+                .Set("password", newHash)
+                .Set("PasswordHash", newHash)
+                .Set("updatedAt", DateTime.UtcNow);
+            await _usersCollection.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", user["_id"]), update);
         }
-        return View("Settings", model);
+
+        TempData["SuccessMessage"] = "Password changed successfully!";
+        return RedirectToAction("Settings");
     }
 
     [HttpGet]
     [AllowAnonymous]
     public async Task<IActionResult> Downloads(string? search, string? status, string? platform, int page = 1)
     {
-        var user = await _userManager.GetUserAsync(User);
+        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        string? userEmail = User.FindFirstValue(ClaimTypes.Email);
+
         int pageSize = 15;
         List<StreamHelper.Data.DownloadHistory> rawItems = new();
 
@@ -505,9 +626,9 @@ public class AccountController : Controller
         }
         catch { }
 
-        if (user != null)
+        if (!string.IsNullOrEmpty(userId))
         {
-            var res = await _downloadHistoryService.GetUserDownloadsAsync(user.Id, 1, 500, search, status, platform);
+            var res = await _downloadHistoryService.GetUserDownloadsAsync(userId, 1, 500, search, status, platform);
             rawItems = res.Items;
         }
         else
@@ -565,7 +686,7 @@ public class AccountController : Controller
                 }
                 else if (!string.IsNullOrEmpty(seriesName))
                 {
-                    string cleanSlug = System.Text.RegularExpressions.Regex.Replace(seriesName, @"[^a-zA-Z0-9_]", "_").Trim('_');
+                    string cleanSlug = Regex.Replace(seriesName, @"[^a-zA-Z0-9_]", "_").Trim('_');
                     groupKey = $"PL_SERIES_{cleanSlug}";
                     playlistCode = "PL-SERIES";
                     playlistTitle = seriesName;
@@ -632,9 +753,6 @@ public class AccountController : Controller
             }
         }
 
-        // Process playlist buckets:
-        // If a bucket has only 1 video, unpack it into a regular single-video row
-        // so it shows the actual video title and thumbnail instead of a confusing "Collection 1 Videos" accordion!
         int plIndex = 1;
         foreach (var group in playlistBuckets.Values)
         {
@@ -664,7 +782,6 @@ public class AccountController : Controller
                     plIndex++;
                 }
 
-                // Sort sub-items in natural ascending order (#01, #02, #03... or Episode 1, 2, 3...)
                 group.SubItems = group.SubItems
                     .OrderBy(s => ExtractIndexNumber(s))
                     .ThenBy(s => s.CreatedAt)
@@ -676,7 +793,6 @@ public class AccountController : Controller
                     if (!string.IsNullOrEmpty(validThumb)) group.ThumbnailUrl = validThumb;
                 }
 
-                // Sync live active memory job state
                 var matchingJob = activeJobs?.FirstOrDefault(j =>
                     (!string.IsNullOrEmpty(j.JobId) && string.Equals(j.JobId, group.JobId, StringComparison.OrdinalIgnoreCase)) ||
                     (!string.IsNullOrEmpty(j.PlaylistCode) && string.Equals(j.PlaylistCode, group.PlaylistCode, StringComparison.OrdinalIgnoreCase)) ||
@@ -708,7 +824,6 @@ public class AccountController : Controller
 
     private static int ExtractIndexNumber(StreamHelper.Data.DownloadHistory item)
     {
-        // 1. Check ValidationDetails or AudioVideoDetails for "#01", "#02"
         string check = (item.ValidationDetails ?? "") + " " + (item.AudioVideoDetails ?? "");
         int hashIdx = check.IndexOf('#');
         if (hashIdx >= 0 && hashIdx + 3 <= check.Length)
@@ -717,23 +832,21 @@ public class AccountController : Controller
             if (int.TryParse(numPart, out int parsed)) return parsed;
         }
 
-        // 2. Check title for "Episode XX" or "Ep XX" or "Part XX"
         if (!string.IsNullOrEmpty(item.Title))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(
+            var match = Regex.Match(
                 item.Title, 
                 @"(?:Episode|Ep\.?|Part|Pt\.?)\s*(\d+)", 
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                RegexOptions.IgnoreCase);
             if (match.Success && int.TryParse(match.Groups[1].Value, out int epNum))
             {
                 return epNum;
             }
         }
 
-        // 3. Check filename prefix "01 - ", "02 - "
         if (!string.IsNullOrEmpty(item.FileName))
         {
-            var match = System.Text.RegularExpressions.Regex.Match(item.FileName, @"^(\d{1,4})\s*[-_.]\s*");
+            var match = Regex.Match(item.FileName, @"^(\d{1,4})\s*[-_.]\s*");
             if (match.Success && int.TryParse(match.Groups[1].Value, out int fnNum))
             {
                 return fnNum;
@@ -746,19 +859,17 @@ public class AccountController : Controller
     private static string ExtractSeriesName(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
-        
-        // 1. Regex check for Episode/Ep/Part/Pt/Volume/Vol with number
-        var match = System.Text.RegularExpressions.Regex.Match(
+
+        var match = Regex.Match(
             title, 
             @"^(.*?)(?:\s*[-–|:]\s*)?(?:Episode|Ep\.?|Part|Pt\.?|Vol\.?|Season\s*\d+\s*Episode)\s*\d+", 
-            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            
+            RegexOptions.IgnoreCase);
+
         if (match.Success && match.Groups[1].Value.Trim().Length > 2)
         {
             return match.Groups[1].Value.Trim(' ', '-', '|', ':', '_');
         }
 
-        // 2. Simple substring checks
         int epIdx = title.IndexOf("Episode", StringComparison.OrdinalIgnoreCase);
         if (epIdx > 2) return title.Substring(0, epIdx).Trim(' ', '-', '|', ':', '_');
 
@@ -775,8 +886,7 @@ public class AccountController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> CancelDownload(string id)
     {
-        var user = await _userManager.GetUserAsync(User);
-        string? currentUserId = user?.Id;
+        string? currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         var download = await _downloadHistoryService.GetDownloadByIdAsync(id);
         if (download != null && (currentUserId == null || download.UserId == currentUserId || string.IsNullOrEmpty(download.UserId)))
@@ -793,8 +903,7 @@ public class AccountController : Controller
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteDownload(string id)
     {
-        var user = await _userManager.GetUserAsync(User);
-        string? currentUserId = user?.Id;
+        string? currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         bool success = await _downloadHistoryService.DeleteDownloadAsync(id, currentUserId);
         if (success)

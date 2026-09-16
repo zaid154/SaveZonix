@@ -6,9 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.Google;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 using SaveZonix.Models;
 using SaveZonix.Services;
 using StreamHelper.Data;
@@ -355,35 +353,31 @@ public class Program
             WebRootPath = wwwrootDir
         });
         
-        // 1. Database Context (SQLite / SQL Server)
-        string dbPath = Path.Combine(rootDir, "streamhelper.db");
-        var rawConn = builder.Configuration.GetConnectionString("DefaultConnection");
-        var connectionString = (!string.IsNullOrEmpty(rawConn) && !rawConn.Contains("streamhelper.db")) 
-            ? rawConn 
-            : $"Data Source={dbPath}";
+        // 1. MongoDB Atlas Driver (Singleton Client & Database)
+        string mongoConnStr = builder.Configuration["MongoDb:ConnectionString"]
+            ?? builder.Configuration.GetConnectionString("MongoDb")
+            ?? "mongodb+srv://mohdzaid620268_db_user:1liyz6EzQSI8HeU8@cluster0.u2wwzoi.mongodb.net/SaveZonixDb?retryWrites=true&w=majority";
+        string mongoDbName = builder.Configuration["MongoDb:DatabaseName"] ?? "SaveZonixDb";
 
-        builder.Services.AddDbContext<AppDbContext>(options =>
-        {
-            options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
-            options.UseSqlite(connectionString);
-        });
+        var mongoSettings = MongoDB.Driver.MongoClientSettings.FromConnectionString(mongoConnStr);
+        mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
+        mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(5);
 
-        // 2. ASP.NET Core Identity
-        builder.Services.AddIdentity<AppUser, IdentityRole>(options =>
+        var mongoClient = new MongoDB.Driver.MongoClient(mongoSettings);
+        var mongoDb = mongoClient.GetDatabase(mongoDbName);
+
+        builder.Services.AddSingleton<MongoDB.Driver.IMongoClient>(mongoClient);
+        builder.Services.AddSingleton<MongoDB.Driver.IMongoDatabase>(mongoDb);
+
+        // 2. Cookie Authentication & OAuth
+        var authBuilder = builder.Services.AddAuthentication(options =>
         {
-            options.Password.RequireDigit = false;
-            options.Password.RequireLowercase = false;
-            options.Password.RequireUppercase = false;
-            options.Password.RequireNonAlphanumeric = false;
-            options.Password.RequiredLength = 6;
-            options.User.RequireUniqueEmail = true;
-            options.SignIn.RequireConfirmedAccount = false;
+            options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
         })
-        .AddEntityFrameworkStores<AppDbContext>()
-        .AddDefaultTokenProviders();
-
-        // 3. Cookie Authentication & OAuth
-        builder.Services.ConfigureApplicationCookie(options =>
+        .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
         {
             options.Cookie.HttpOnly = true;
             options.Cookie.Name = "SaveZonix.Auth";
@@ -399,12 +393,11 @@ public class Program
 
         if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret) && !googleClientId.Contains("YOUR_"))
         {
-            builder.Services.AddAuthentication()
-                .AddGoogle(googleOptions =>
-                {
-                    googleOptions.ClientId = googleClientId;
-                    googleOptions.ClientSecret = googleClientSecret;
-                });
+            authBuilder.AddGoogle(googleOptions =>
+            {
+                googleOptions.ClientId = googleClientId;
+                googleOptions.ClientSecret = googleClientSecret;
+            });
         }
 
         // 4. Redis Distributed Cache & High-Performance Acceleration
@@ -428,15 +421,7 @@ public class Program
         builder.Services.AddScoped<StreamHelper.Services.IAdminSettingsService, StreamHelper.Services.AdminSettingsService>();
         builder.Services.AddHostedService<SaveZonix.Services.CloudSettingsSyncWorker>();
 
-        var dbProvider = builder.Configuration["DatabaseProvider"] ?? "MongoDB";
-        if (dbProvider.Equals("MongoDB", StringComparison.OrdinalIgnoreCase))
-        {
-            builder.Services.AddSingleton<IDownloadAnalyticsService, MongoDbAnalyticsService>();
-        }
-        else
-        {
-            builder.Services.AddSingleton<IDownloadAnalyticsService, SqlDownloadAnalyticsService>();
-        }
+        builder.Services.AddSingleton<IDownloadAnalyticsService, MongoDbAnalyticsService>();
 
         builder.Services.AddSingleton<SaveZonix.Services.IYouTubePlaylistService, SaveZonix.Services.YouTubePlaylistService>();
         builder.Services.AddSingleton<SaveZonix.Services.IPlaylistQueueManager, SaveZonix.Services.PlaylistQueueManager>();
@@ -1372,27 +1357,7 @@ public class Program
             if (isAuthenticated)
             {
                 currentUserId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-                currentUserEmail = httpContext.User.FindFirstValue(ClaimTypes.Email);
-                if (string.IsNullOrEmpty(currentUserEmail))
-                {
-                    var userManager = httpContext.RequestServices.GetService<UserManager<AppUser>>();
-                    if (userManager != null && !string.IsNullOrEmpty(currentUserId))
-                    {
-                        try
-                        {
-                            var u = await userManager.FindByIdAsync(currentUserId);
-                            if (u != null && !string.IsNullOrEmpty(u.Email))
-                            {
-                                currentUserEmail = u.Email;
-                            }
-                        }
-                        catch { }
-                    }
-                    if (string.IsNullOrEmpty(currentUserEmail))
-                    {
-                        currentUserEmail = httpContext.User.Identity?.Name;
-                    }
-                }
+                currentUserEmail = httpContext.User.FindFirstValue(ClaimTypes.Email) ?? httpContext.User.Identity?.Name;
             }
 
             if (string.IsNullOrEmpty(currentUserEmail) && !string.IsNullOrWhiteSpace(req.UserEmail) && req.UserEmail != "Guest" && req.UserEmail != "savezonix@gmail.com")
@@ -2459,7 +2424,7 @@ public class Program
             });
         });
 
-        app.MapPost("/api/auth/verify-registration-otp", async (VerifyOtpRequest req, IDownloadAnalyticsService analytics, IEmailVerificationService verificationService, IEmailService emailService, UserManager<AppUser> userManager, SignInManager<AppUser> signInManager, HttpContext ctx) =>
+        app.MapPost("/api/auth/verify-registration-otp", async (VerifyOtpRequest req, IDownloadAnalyticsService analytics, IEmailVerificationService verificationService, IEmailService emailService, HttpContext ctx) =>
         {
             if (string.IsNullOrWhiteSpace(req.Email) || string.IsNullOrWhiteSpace(req.Otp))
             {
@@ -2476,36 +2441,12 @@ public class Program
             {
                 FullName = pendingData.FullName,
                 Email = pendingData.Email,
-                PasswordHash = HashPassword(pendingData.Password),
-                Role = pendingData.Email.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) ? "Admin" : "User",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(pendingData.Password),
+                Role = pendingData.Email.Equals("trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase) || pendingData.Email.Equals("zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) ? "Admin" : "User",
                 AuthProvider = "Local"
             };
 
             await analytics.CreateOrUpdateUserAsync(user);
-
-            // Also register and sign in with ASP.NET Core Identity
-            var appUser = await userManager.FindByEmailAsync(user.Email);
-            if (appUser == null)
-            {
-                appUser = new AppUser
-                {
-                    UserName = user.Email,
-                    Email = user.Email,
-                    FullName = user.FullName,
-                    EmailConfirmed = true,
-                    CreatedAt = DateTime.UtcNow,
-                    IsActive = true
-                };
-                var createResult = await userManager.CreateAsync(appUser, pendingData.Password);
-                if (createResult.Succeeded)
-                {
-                    await userManager.AddToRoleAsync(appUser, user.Role);
-                }
-            }
-            if (appUser != null)
-            {
-                await signInManager.SignInAsync(appUser, isPersistent: true);
-            }
 
             // Sign in cookie
             var claims = new List<Claim>
@@ -2513,7 +2454,8 @@ public class Program
                 new(ClaimTypes.NameIdentifier, user.Id ?? Guid.NewGuid().ToString("N")),
                 new(ClaimTypes.Name, user.FullName),
                 new(ClaimTypes.Email, user.Email),
-                new(ClaimTypes.Role, user.Role)
+                new(ClaimTypes.Role, user.Role),
+                new("isVip", "false")
             };
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));

@@ -1,8 +1,9 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
 using SaveZonix.Services;
 using StreamHelper.Data;
 
@@ -20,14 +21,15 @@ public interface IAdminSettingsService
 
 public class AdminSettingsService : IAdminSettingsService
 {
-    private readonly AppDbContext _context;
+    private readonly IMongoCollection<AdminSetting>? _collection;
     private readonly IRedisCacheService? _redis;
     private const string CacheKeyAll = "savezonix:settings:all";
     private const string CachePrefix = "savezonix:settings:";
+    private static readonly ConcurrentDictionary<string, string> _memoryCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public AdminSettingsService(AppDbContext context, IRedisCacheService? redis = null)
+    public AdminSettingsService(IMongoDatabase? mongoDb = null, IRedisCacheService? redis = null)
     {
-        _context = context;
+        _collection = mongoDb?.GetCollection<AdminSetting>("adminsettings");
         _redis = redis;
     }
 
@@ -35,11 +37,26 @@ public class AdminSettingsService : IAdminSettingsService
     {
         try
         {
-            var all = await GetAllSettingsAsync();
-            if (all.TryGetValue(key, out var val)) return val;
+            if (_memoryCache.TryGetValue(key, out var memVal)) return memVal;
 
-            var setting = await _context.AdminSettings.FirstOrDefaultAsync(s => s.Key == key);
-            return setting?.Value ?? defaultValue;
+            var all = await GetAllSettingsAsync();
+            if (all.TryGetValue(key, out var val))
+            {
+                _memoryCache[key] = val;
+                return val;
+            }
+
+            if (_collection != null)
+            {
+                var setting = await _collection.Find(s => s.Key == key).FirstOrDefaultAsync();
+                if (setting != null)
+                {
+                    _memoryCache[key] = setting.Value;
+                    return setting.Value;
+                }
+            }
+
+            return defaultValue;
         }
         catch
         {
@@ -85,7 +102,28 @@ public class AdminSettingsService : IAdminSettingsService
 
         try
         {
-            var dict = await _context.AdminSettings.ToDictionaryAsync(s => s.Key, s => s.Value);
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "RegistrationEnabled", "true" },
+                { "EmailVerificationRequired", "false" },
+                { "GoogleLoginEnabled", "true" },
+                { "DefaultThreads", "64" },
+                { "MaxThreads", "256" },
+                { "MaintenanceMode", "false" },
+                { "DatabaseProvider", "MongoDB" },
+                { "MaxConcurrentDownloadsPerUser", "5" }
+            };
+
+            if (_collection != null)
+            {
+                var list = await _collection.Find(_ => true).ToListAsync();
+                foreach (var item in list)
+                {
+                    dict[item.Key] = item.Value;
+                    _memoryCache[item.Key] = item.Value;
+                }
+            }
+
             if (_redis != null && dict.Count > 0)
             {
                 await _redis.SetAsync(CacheKeyAll, dict, TimeSpan.FromHours(2));
@@ -94,40 +132,38 @@ public class AdminSettingsService : IAdminSettingsService
         }
         catch
         {
-            return new Dictionary<string, string>
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 { "RegistrationEnabled", "true" },
                 { "EmailVerificationRequired", "false" },
                 { "GoogleLoginEnabled", "true" },
                 { "DefaultThreads", "64" },
                 { "MaxThreads", "256" },
-                { "MaintenanceMode", "false" }
+                { "MaintenanceMode", "false" },
+                { "DatabaseProvider", "MongoDB" },
+                { "MaxConcurrentDownloadsPerUser", "5" }
             };
         }
     }
 
     public async Task UpdateSettingAsync(string key, string value, string? description = null, string? category = null)
     {
-        var setting = await _context.AdminSettings.FirstOrDefaultAsync(s => s.Key == key);
-        if (setting != null)
+        _memoryCache[key] = value;
+
+        if (_collection != null)
         {
-            setting.Value = value;
-            if (description != null) setting.Description = description;
-            if (category != null) setting.Category = category;
-            setting.UpdatedAt = DateTime.UtcNow;
-        }
-        else
-        {
-            _context.AdminSettings.Add(new AdminSetting
+            var setting = new AdminSetting
             {
                 Key = key,
                 Value = value,
                 Description = description,
                 Category = category ?? "General",
                 UpdatedAt = DateTime.UtcNow
-            });
+            };
+
+            var options = new ReplaceOptions { IsUpsert = true };
+            await _collection.ReplaceOneAsync(s => s.Key == key, setting, options);
         }
-        await _context.SaveChangesAsync();
 
         if (_redis != null)
         {
@@ -139,23 +175,8 @@ public class AdminSettingsService : IAdminSettingsService
     {
         foreach (var kvp in settings)
         {
-            var setting = await _context.AdminSettings.FirstOrDefaultAsync(s => s.Key == kvp.Key);
-            if (setting != null)
-            {
-                setting.Value = kvp.Value;
-                setting.UpdatedAt = DateTime.UtcNow;
-            }
-            else
-            {
-                _context.AdminSettings.Add(new AdminSetting
-                {
-                    Key = kvp.Key,
-                    Value = kvp.Value,
-                    UpdatedAt = DateTime.UtcNow
-                });
-            }
+            await UpdateSettingAsync(kvp.Key, kvp.Value);
         }
-        await _context.SaveChangesAsync();
 
         if (_redis != null)
         {

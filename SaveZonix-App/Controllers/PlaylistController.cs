@@ -1,9 +1,14 @@
+using System;
 using System.Diagnostics;
-using Microsoft.AspNetCore.Identity;
+using System.IO;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
+using MongoDB.Driver;
 using SaveZonix.Models;
 using SaveZonix.Services;
-using StreamHelper.Data;
 
 namespace Zonix.Controllers;
 
@@ -11,13 +16,13 @@ public class PlaylistController : Controller
 {
     private readonly IYouTubePlaylistService _playlistService;
     private readonly IPlaylistQueueManager _queueManager;
-    private readonly UserManager<AppUser> _userManager;
+    private readonly IMongoCollection<BsonDocument>? _usersCollection;
 
-    public PlaylistController(IYouTubePlaylistService playlistService, IPlaylistQueueManager queueManager, UserManager<AppUser> userManager)
+    public PlaylistController(IYouTubePlaylistService playlistService, IPlaylistQueueManager queueManager, IMongoDatabase? mongoDb = null)
     {
         _playlistService = playlistService;
         _queueManager = queueManager;
-        _userManager = userManager;
+        _usersCollection = mongoDb?.GetCollection<BsonDocument>("users");
     }
 
     [HttpGet("/playlist")]
@@ -90,6 +95,7 @@ public class PlaylistController : Controller
     }
 
     [HttpPost("/api/playlist/download-batch")]
+    [HttpPost("/api/playlist/start-batch")]
     public async Task<IActionResult> DownloadBatch([FromBody] PlaylistBatchDownloadRequest req)
     {
         if (req?.VideoIds == null || req.VideoIds.Count == 0)
@@ -97,13 +103,57 @@ public class PlaylistController : Controller
             return BadRequest(new { success = false, message = "Please select at least one video to download." });
         }
 
-        var user = await _userManager.GetUserAsync(User);
-        string? userId = user?.Id;
-        string? userEmail = user?.Email;
-        string? userName = user?.UserName ?? (user != null ? user.Email?.Split('@')[0] : "Guest");
+        string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        string? userEmail = User.FindFirstValue(ClaimTypes.Email);
+        string? userName = User.Identity?.Name ?? (userEmail != null ? userEmail.Split('@')[0] : "Guest");
+        string? role = User.FindFirstValue(ClaimTypes.Role);
+
+        // Strict VIP PRO enforcement for Batch Playlist Studio (Option A)
+        bool isVip = false;
+        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            isVip = true;
+        }
+        else if (User.FindFirst("isVip")?.Value == "true")
+        {
+            isVip = true;
+        }
+        else if (!string.IsNullOrEmpty(userEmail) && _usersCollection != null)
+        {
+            try
+            {
+                var filter = Builders<BsonDocument>.Filter.Or(
+                    Builders<BsonDocument>.Filter.Eq("email", userEmail.ToLowerInvariant()),
+                    Builders<BsonDocument>.Filter.Eq("Email", userEmail.ToLowerInvariant())
+                );
+                var userDoc = await _usersCollection.Find(filter).FirstOrDefaultAsync();
+                if (userDoc != null)
+                {
+                    if (userDoc.Contains("isVip") && !userDoc["isVip"].IsBsonNull && userDoc["isVip"].ToBoolean())
+                    {
+                        isVip = true;
+                    }
+                    else if (userDoc.Contains("role") && string.Equals(userDoc["role"].AsString, "Admin", StringComparison.OrdinalIgnoreCase))
+                    {
+                        isVip = true;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (!isVip)
+        {
+            return StatusCode(403, new
+            {
+                success = false,
+                isVipRequired = true,
+                message = "Batch Playlist Studio is an exclusive VIP PRO feature. Please upgrade to unlock unlimited 4K batch playlist downloads.",
+                upgradeUrl = "https://save-zonix.vercel.app/#pricing"
+            });
+        }
 
         // Use CancellationToken.None — background downloads must survive browser page refresh/navigation.
-        // Each job has its own CancellationTokenSource for explicit user-initiated cancellation.
         var job = await _queueManager.StartBatchDownloadAsync(req, userId, userEmail, userName, CancellationToken.None);
         return Ok(new
         {
