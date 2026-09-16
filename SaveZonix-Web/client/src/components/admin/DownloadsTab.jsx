@@ -402,17 +402,17 @@ export default function DownloadsTab({
 
       {/* Main Table Container */}
       <div style={{ background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+        <div className="downloads-table-scroll">
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left' }}>
             <thead>
-              <tr style={{ background: '#060a12', borderBottom: '1px solid #1a2333', color: '#64748b', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                <th style={{ padding: '12px 16px' }}>Media Asset / Title</th>
-                <th style={{ padding: '12px 16px' }}>Platform</th>
-                <th style={{ padding: '12px 16px' }}>User Email</th>
-                <th style={{ padding: '12px 16px' }}>File Size</th>
-                <th style={{ padding: '12px 16px' }}>Speed</th>
-                <th style={{ padding: '12px 16px' }}>Status</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+              <tr style={{ background: '#060a12', borderBottom: '1px solid #1a2333', color: '#64748b', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <th style={{ padding: '12px 10px', width: '32%', minWidth: '200px' }}>Media Asset / Title</th>
+                <th style={{ padding: '12px 6px', width: '8%', minWidth: '65px' }}>Platform</th>
+                <th style={{ padding: '12px 8px', width: '16%', minWidth: '130px' }}>User Email</th>
+                <th style={{ padding: '12px 8px', width: '13%', minWidth: '100px' }}>File Size</th>
+                <th style={{ padding: '12px 6px', width: '8%', minWidth: '65px' }}>Speed</th>
+                <th style={{ padding: '12px 8px', width: '12%', minWidth: '100px' }}>Status</th>
+                <th style={{ padding: '12px 10px', textAlign: 'right', width: '11%', minWidth: '95px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -436,14 +436,14 @@ export default function DownloadsTab({
                         }}
                       >
                         {/* Title & Playlist Banner */}
-                        <td style={{ padding: '14px 16px', maxWidth: '440px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <td style={{ padding: '12px 10px', maxWidth: '340px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {/* Playlist Cover Image with corner badge */}
                             <div
                               onClick={() => toggleGroupCollapse(entry.groupId)}
                               style={{
-                                width: '58px',
-                                height: '40px',
+                                width: '50px',
+                                height: '35px',
                                 borderRadius: '8px',
                                 overflow: 'hidden',
                                 flexShrink: 0,
@@ -571,20 +571,22 @@ export default function DownloadsTab({
                         </td>
 
                         {/* Platform */}
-                        <td style={{ padding: '14px 16px' }}>
-                          <span style={{ padding: '3px 8px', borderRadius: '4px', background: '#131b2c', color: '#38bdf8', fontSize: '11px', border: '1px solid #1e293b', fontWeight: 600 }}>
+                        <td style={{ padding: '12px 6px' }}>
+                          <span style={{ padding: '2px 6px', borderRadius: '4px', background: '#131b2c', color: '#38bdf8', fontSize: '10.5px', border: '1px solid #1e293b', fontWeight: 600 }}>
                             {entry.platform}
                           </span>
                         </td>
 
                         {/* User Email */}
-                        <td style={{ padding: '14px 16px', color: '#94a3b8' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span>{entry.userEmail}</span>
+                        <td style={{ padding: '12px 8px', color: '#94a3b8' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <span style={{ maxWidth: '125px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', fontSize: '12px' }} title={entry.userEmail}>
+                              {entry.userEmail}
+                            </span>
                             <span style={{
-                              padding: '1px 6px',
+                              padding: '1px 5px',
                               borderRadius: '4px',
-                              fontSize: '10px',
+                              fontSize: '9.5px',
                               fontWeight: 600,
                               textTransform: 'uppercase',
                               background: entry.downloadType === 'admin' ? 'rgba(56, 189, 248, 0.15)' : (entry.downloadType === 'user' ? 'rgba(16, 185, 129, 0.15)' : '#131b2c'),
@@ -597,34 +599,34 @@ export default function DownloadsTab({
                         </td>
 
                         {/* Total File Size */}
-                        <td style={{ padding: '14px 16px' }}>
-                          <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: '13px' }}>
+                        <td style={{ padding: '12px 8px' }}>
+                          <div style={{ color: '#f8fafc', fontWeight: 600, fontSize: '12.5px' }}>
                             {formatSize(entry.totalBytes)}
                           </div>
-                          <div style={{ fontSize: '10.5px', color: '#64748b', marginTop: '2px', whiteSpace: 'nowrap' }}>
-                            {entry.completedCount} of {entry.totalVideos} Done {entry.percent < 100 && entry.completedCount > 0 ? `• ~${((entry.totalBytes / entry.completedCount * entry.totalVideos) / (1024 * 1024 * 1024)).toFixed(1)} GB Est.` : ''}
+                          <div style={{ fontSize: '10px', color: '#64748b', marginTop: '1px', whiteSpace: 'nowrap' }}>
+                            {entry.completedCount}/{entry.totalVideos} Done {entry.percent < 100 && entry.completedCount > 0 ? `• ~${((entry.totalBytes / entry.completedCount * entry.totalVideos) / (1024 * 1024 * 1024)).toFixed(1)} GB` : ''}
                           </div>
                         </td>
 
                         {/* Speed */}
-                        <td style={{ padding: '14px 16px', color: '#34d399', fontWeight: 600 }}>
+                        <td style={{ padding: '12px 6px', color: '#34d399', fontWeight: 600, fontSize: '12px' }}>
                           {entry.aggregateSpeed > 0 ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
                               <span>⚡</span> {formatSpeed(entry.aggregateSpeed)}
                             </span>
                           ) : '0.0 MB/s'}
                         </td>
 
                         {/* Status */}
-                        <td style={{ padding: '14px 16px' }}>
+                        <td style={{ padding: '12px 8px' }}>
                           <span
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: '6px',
-                              padding: '4px 10px',
+                              gap: '5px',
+                              padding: '3px 8px',
                               borderRadius: '6px',
-                              fontSize: '11.5px',
+                              fontSize: '11px',
                               fontWeight: 600,
                               background: isDownloading ? 'rgba(14, 165, 233, 0.15)' : (entry.status === 'Completed' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)'),
                               color: isDownloading ? '#38bdf8' : (entry.status === 'Completed' ? '#34d399' : '#f87171'),
@@ -634,11 +636,11 @@ export default function DownloadsTab({
                           >
                             {isDownloading && (
                               <span style={{
-                                width: '6px',
-                                height: '6px',
+                                width: '5px',
+                                height: '5px',
                                 borderRadius: '50%',
                                 background: '#38bdf8',
-                                boxShadow: '0 0 8px #38bdf8',
+                                boxShadow: '0 0 6px #38bdf8',
                                 display: 'inline-block'
                               }} />
                             )}
@@ -647,8 +649,8 @@ export default function DownloadsTab({
                         </td>
 
                         {/* Actions */}
-                        <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
+                        <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
                             {/* Expand / Collapse Button */}
                             <button
                               type="button"
@@ -656,23 +658,23 @@ export default function DownloadsTab({
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 14px',
+                                gap: '5px',
+                                padding: '5px 10px',
                                 background: isExpanded
                                   ? 'rgba(56, 189, 248, 0.18)'
                                   : 'linear-gradient(135deg, rgba(14, 165, 233, 0.2) 0%, rgba(2, 132, 199, 0.3) 100%)',
                                 border: `1px solid ${isExpanded ? '#38bdf8' : 'rgba(56, 189, 248, 0.4)'}`,
                                 borderRadius: '20px',
                                 color: isExpanded ? '#38bdf8' : '#7dd3fc',
-                                fontSize: '12px',
+                                fontSize: '11px',
                                 fontWeight: 700,
                                 cursor: 'pointer',
-                                boxShadow: isExpanded ? '0 0 12px rgba(56, 189, 248, 0.3)' : 'none',
+                                boxShadow: isExpanded ? '0 0 10px rgba(56, 189, 248, 0.25)' : 'none',
                                 transition: 'all 0.2s ease',
                                 whiteSpace: 'nowrap'
                               }}
                             >
-                              <span>{isExpanded ? '▲ Hide Videos' : `▼ View ${entry.totalVideos} Videos`}</span>
+                              <span>{isExpanded ? '▲ Hide' : `▼ ${entry.totalVideos} Videos`}</span>
                             </button>
 
                             {/* Delete Entire Playlist */}
@@ -891,19 +893,21 @@ export default function DownloadsTab({
                       </div>
                     </td>
 
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ padding: '2px 8px', borderRadius: '4px', background: '#131b2c', color: '#38bdf8', fontSize: '11px', border: '1px solid #1e293b' }}>
+                    <td style={{ padding: '12px 6px' }}>
+                      <span style={{ padding: '2px 6px', borderRadius: '4px', background: '#131b2c', color: '#38bdf8', fontSize: '10.5px', border: '1px solid #1e293b' }}>
                         {entry.platform || 'Direct'}
                       </span>
                     </td>
 
-                    <td style={{ padding: '12px 16px', color: '#94a3b8' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>{entry.userEmail || 'Guest'}</span>
+                    <td style={{ padding: '12px 8px', color: '#94a3b8' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ maxWidth: '125px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block', fontSize: '12px' }} title={entry.userEmail}>
+                          {entry.userEmail || 'Guest'}
+                        </span>
                         <span style={{
-                          padding: '1px 6px',
+                          padding: '1px 5px',
                           borderRadius: '4px',
-                          fontSize: '10px',
+                          fontSize: '9.5px',
                           fontWeight: 600,
                           textTransform: 'uppercase',
                           background: entry.downloadType === 'admin' ? 'rgba(56, 189, 248, 0.15)' : (entry.downloadType === 'user' ? 'rgba(16, 185, 129, 0.15)' : '#131b2c'),
@@ -915,17 +919,17 @@ export default function DownloadsTab({
                       </div>
                     </td>
 
-                    <td style={{ padding: '12px 16px', color: '#94a3b8' }}>
+                    <td style={{ padding: '12px 8px', color: '#94a3b8', fontSize: '12.5px' }}>
                       {formatSize(entry.fileSize)}
                     </td>
 
-                    <td style={{ padding: '12px 16px', color: '#34d399' }}>
+                    <td style={{ padding: '12px 6px', color: '#34d399', fontSize: '12px' }}>
                       {entry.downloadSpeedMBps ? `${entry.downloadSpeedMBps.toFixed(1)} MB/s` : '18.4 MB/s'}
                     </td>
 
-                    <td style={{ padding: '12px 16px' }}>
+                    <td style={{ padding: '12px 8px' }}>
                       <span style={{
-                        padding: '3px 8px',
+                        padding: '3px 7px',
                         borderRadius: '6px',
                         fontSize: '11px',
                         fontWeight: 600,
@@ -937,23 +941,23 @@ export default function DownloadsTab({
                       </span>
                     </td>
 
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '6px' }}>
+                    <td style={{ padding: '12px 10px', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '5px' }}>
                         {entry.originalUrl && (
                           <a
                             href={entry.originalUrl}
                             target="_blank"
                             rel="noreferrer"
-                            style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#38bdf8', fontSize: '11.5px', textDecoration: 'none' }}
+                            style={{ padding: '4px 7px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '4px', color: '#38bdf8', fontSize: '11px', textDecoration: 'none' }}
                           >
                             Source
                           </a>
                         )}
                         <button
                           onClick={() => onDeleteDownloadRecord(entry._id)}
-                          style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '6px', color: '#f87171', fontSize: '11.5px', cursor: 'pointer' }}
+                          style={{ padding: '4px 7px', background: '#131b2c', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '4px', color: '#f87171', fontSize: '11px', cursor: 'pointer' }}
                         >
-                          <IconTrash size={12} color="#f87171" />
+                          <IconTrash size={11} color="#f87171" />
                         </button>
                       </div>
                     </td>

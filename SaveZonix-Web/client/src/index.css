@@ -755,3 +755,31 @@ body {
     padding: 24px 20px;
   }
 }
+
+/* Admin Downloads Table Responsive Styles */
+.downloads-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 1024px) {
+  .downloads-table-scroll {
+    overflow-x: hidden !important;
+  }
+}
+
+/* Custom sleek scrollbar for mobile / smaller screens */
+.downloads-table-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.downloads-table-scroll::-webkit-scrollbar-track {
+  background: #080c14;
+}
+.downloads-table-scroll::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+.downloads-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #38bdf8;
+}
+
