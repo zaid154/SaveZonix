@@ -1,0 +1,22 @@
+{
+  "name": "savezonix-web",
+  "version": "1.0.0",
+  "description": "SaveZonix Central Web & API Portal",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "seed": "npm run seed --workspace=server",
+    "server": "npm run start --workspace=server",
+    "server:dev": "npm run dev --workspace=server",
+    "client": "npm run dev --workspace=client",
+    "client:build": "npm run build --workspace=client",
+    "start": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run server\" \"npm run client\"",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run server:dev\" \"npm run client\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

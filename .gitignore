@@ -13,6 +13,8 @@ SaveZonix-App/installer/*.exe
 SaveZonix-App/*.zip
 
 # ─── Node.js / MERN (SaveZonix-Web) ───
+node_modules/
+SaveZonix-Web/node_modules/
 SaveZonix-Web/client/node_modules/
 SaveZonix-Web/client/dist/
 SaveZonix-Web/server/node_modules/
