@@ -45,7 +45,7 @@ function Save-ResizedPng {
     Write-Host " -> Saved: $DestPath ($Width x $Height)" -ForegroundColor Green
 }
 
-# Helper function to generate modern multi-resolution Windows .ico
+# Helper function to generate true Windows multi-resolution .ico (DIB + Vista PNG 256)
 function Save-MultiResIco {
     param(
         [System.Drawing.Bitmap]$SourceBmp,
@@ -55,7 +55,7 @@ function Save-MultiResIco {
     $destDir = Split-Path $DestIcoPath
     if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
     
-    $pngStreams = @()
+    $entries = @()
     foreach ($sz in $Sizes) {
         $resized = New-Object System.Drawing.Bitmap($sz, $sz, [System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
         $g = [System.Drawing.Graphics]::FromImage($resized)
@@ -65,45 +65,92 @@ function Save-MultiResIco {
         $g.Clear([System.Drawing.Color]::Transparent)
         $g.DrawImage($SourceBmp, 0, 0, $sz, $sz)
         $g.Dispose()
-        
-        $ms = New-Object System.IO.MemoryStream
-        $resized.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+
+        if ($sz -ge 256) {
+            # 256x256 uses standard PNG compression (Vista+)
+            $ms = New-Object System.IO.MemoryStream
+            $resized.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)
+            $pngBytes = $ms.ToArray()
+            $ms.Dispose()
+            $entries += @{
+                Width = 0; Height = 0; BitCount = 32; Data = $pngBytes
+            }
+        } else {
+            # <= 128x128 MUST be standard Windows DIB (BITMAPINFOHEADER + BGRA + AND mask)
+            # for Windows Shell, Explorer desktop shortcuts, and GDI compatibility
+            $ms = New-Object System.IO.MemoryStream
+            $bw = New-Object System.IO.BinaryWriter($ms)
+            
+            # BITMAPINFOHEADER (40 bytes)
+            $bw.Write([uint32]40) # biSize
+            $bw.Write([int32]$sz)  # biWidth
+            $bw.Write([int32]($sz * 2)) # biHeight (double height for image + AND mask in ICO)
+            $bw.Write([uint16]1)  # biPlanes
+            $bw.Write([uint16]32) # biBitCount (32-bit ARGB)
+            $bw.Write([uint32]0)  # biCompression (BI_RGB)
+            $bw.Write([uint32]($sz * $sz * 4)) # biSizeImage
+            $bw.Write([int32]0)   # biXPelsPerMeter
+            $bw.Write([int32]0)   # biYPelsPerMeter
+            $bw.Write([uint32]0)  # biClrUsed
+            $bw.Write([uint32]0)  # biClrImportant
+
+            # Pixel data (Bottom-Up, BGRA)
+            for ($y = $sz - 1; $y -ge 0; $y--) {
+                for ($x = 0; $x -lt $sz; $x++) {
+                    $pixel = $resized.GetPixel($x, $y)
+                    $bw.Write([byte]$pixel.B)
+                    $bw.Write([byte]$pixel.G)
+                    $bw.Write([byte]$pixel.R)
+                    $bw.Write([byte]$pixel.A)
+                }
+            }
+
+            # AND mask (1bpp, row padded to 32-bit / 4 bytes boundary)
+            $andRowBytes = [int][Math]::Ceiling($sz / 32.0) * 4
+            $andMask = New-Object byte[] ($andRowBytes * $sz)
+            $bw.Write($andMask)
+
+            $bw.Flush()
+            $dibBytes = $ms.ToArray()
+            $bw.Close()
+            $ms.Dispose()
+
+            $entries += @{
+                Width = [byte]$sz; Height = [byte]$sz; BitCount = 32; Data = $dibBytes
+            }
+        }
         $resized.Dispose()
-        $pngStreams += @{ Size = $sz; Bytes = $ms.ToArray() }
-        $ms.Dispose()
     }
-    
+
     $fs = [System.IO.File]::Create($DestIcoPath)
     $bw = New-Object System.IO.BinaryWriter($fs)
     
     # ICONDIR
     $bw.Write([uint16]0) # Reserved
     $bw.Write([uint16]1) # Type 1 = Icon
-    $bw.Write([uint16]$pngStreams.Count) # Count
-    
-    $offset = 6 + (16 * $pngStreams.Count)
-    foreach ($entry in $pngStreams) {
-        $wByte = if ($entry.Size -ge 256) { [byte]0 } else { [byte]$entry.Size }
-        $hByte = if ($entry.Size -ge 256) { [byte]0 } else { [byte]$entry.Size }
-        $bw.Write($wByte) # Width
-        $bw.Write($hByte) # Height
+    $bw.Write([uint16]$entries.Count)
+
+    $offset = 6 + (16 * $entries.Count)
+    foreach ($e in $entries) {
+        $bw.Write([byte]$e.Width)
+        $bw.Write([byte]$e.Height)
         $bw.Write([byte]0) # ColorCount
         $bw.Write([byte]0) # Reserved
         $bw.Write([uint16]1) # Planes
-        $bw.Write([uint16]32) # BitCount
-        $bw.Write([uint32]$entry.Bytes.Length) # BytesInRes
-        $bw.Write([uint32]$offset) # ImageOffset
-        $offset += $entry.Bytes.Length
+        $bw.Write([uint16]$e.BitCount)
+        $bw.Write([uint32]$e.Data.Length)
+        $bw.Write([uint32]$offset)
+        $offset += $e.Data.Length
     }
-    
-    foreach ($entry in $pngStreams) {
-        $bw.Write($entry.Bytes)
+
+    foreach ($e in $entries) {
+        $bw.Write($e.Data)
     }
-    
+
     $bw.Flush()
     $bw.Close()
     $fs.Close()
-    Write-Host " -> Generated Windows Multi-Resolution Icon: $DestIcoPath" -ForegroundColor Magenta
+    Write-Host " -> Generated Windows Standard Multi-Resolution Icon: $DestIcoPath" -ForegroundColor Magenta
 }
 
 Write-Host "`n[1/5] Updating Desktop App Assets..." -ForegroundColor Yellow
