@@ -119,7 +119,7 @@
                 el.style.cssText = 'background: linear-gradient(90deg, #0284c7, #7c3aed); color: #fff; padding: 8px 16px; text-align: center; font-size: 13px; font-weight: 700; z-index: 999;';
                 document.body.prepend(el);
             }
-            el.innerHTML = `📢 ${cloudConfig.announcementMessage}`;
+            el.innerHTML = ` ${cloudConfig.announcementMessage}`;
             el.style.display = 'block';
         }
 
@@ -145,7 +145,7 @@
         if (isSilentUpdateRunning) return;
         isSilentUpdateRunning = true;
 
-        showSilentToast(`⚡ Preparing SaveZonix v${version} update...`, 0);
+        showSilentToast(` Preparing SaveZonix v${version} update...`, 0);
 
         fetch('/api/system/silent-update', {
             method: 'POST',
@@ -181,7 +181,7 @@
 
                 if (state.isComplete) {
                     clearInterval(updatePollInterval);
-                    showSilentToast(`🚀 Installing v${version}... Launching new engine!`, 100);
+                    showSilentToast(` Installing v${version}... Launching new engine!`, 100);
                     setTimeout(() => removeSilentToast(), 6000);
                     return;
                 }
@@ -189,7 +189,7 @@
                 if (state.isActive) {
                     const pct = state.percent || 0;
                     const mbText = state.totalMB > 0 ? ` (${state.downloadedMB} MB / ${state.totalMB} MB)` : '';
-                    showSilentToast(`⚡ Downloading v${version}: ${pct}%${mbText}`, pct);
+                    showSilentToast(` Downloading v${version}: ${pct}%${mbText}`, pct);
                 }
             } catch { }
         }, 1000);
@@ -209,7 +209,7 @@
                 <span>${msg}</span>
             </div>
             <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-top: 4px;">
-                <div style="width: ${barWidth}%; height: 100%; background: #38bdf8; transition: width 0.3s ease;"></div>
+                
             </div>
         `;
     }
@@ -245,9 +245,9 @@
             else document.body.prepend(el);
         }
         el.innerHTML = `
-            <span>🚀 New SaveZonix v${cloudConfig.latestAppVersion} available!</span>
+            <span>New SaveZonix v${cloudConfig.latestAppVersion} available!</span>
             <a href="${cloudConfig.appDownloadUrl}" target="_blank" style="padding: 3px 10px; background: #f59e0b; color: #000; border-radius: 6px; font-weight: 700; text-decoration: none; font-size: 12px;">Download Update</a>
-            <button id="btnDismissUpdate" style="background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; margin-left: 8px;">✕</button>
+            <button id="btnDismissUpdate" style="background: transparent; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; margin-left: 8px;"></button>
         `;
         document.getElementById('btnDismissUpdate')?.addEventListener('click', () => {
             el.style.display = 'none';
@@ -263,13 +263,12 @@
             modal.style.cssText = 'position: fixed; inset: 0; background: rgba(3, 7, 18, 0.95); z-index: 999999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(12px); padding: 20px;';
             modal.innerHTML = `
                 <div style="max-width: 460px; width: 100%; background: #0f172a; border: 2px solid #ef4444; border-radius: 16px; padding: 32px 24px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.8);">
-                    <div style="font-size: 48px; margin-bottom: 12px;">🚨</div>
+                    
                     <h2 style="color: #f8fafc; font-size: 22px; font-weight: 800; margin: 0 0 8px 0;">Update Required</h2>
-                    <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.5; margin: 0 0 20px 0;">
-                        Your current version (v${CURRENT_VERSION}) is deprecated. To continue downloading high-speed streams, please install the latest update (v${cloudConfig?.latestAppVersion || '2.5.0'}).
+                    <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.5; margin: 0 0 20px 0;">Your current version (v${CURRENT_VERSION}) is deprecated. To continue downloading high-speed streams, please install the latest update (v${cloudConfig?.latestAppVersion || '2.5.0'}).
                     </p>
                     <a href="${cloudConfig?.appDownloadUrl || 'https://github.com/zaid154/SaveZonix/releases/latest'}" target="_blank" style="display: block; padding: 14px 24px; background: #ef4444; color: #fff; font-weight: 800; font-size: 15px; border-radius: 8px; text-decoration: none;">
-                        ⬇️ Download Latest Installer (.exe)
+                        ⬇ Download Latest Installer (.exe)
                     </a>
                 </div>
             `;
@@ -296,19 +295,15 @@
 
         modal.innerHTML = `
             <div style="max-width: 520px; width: 100%; background: linear-gradient(180deg, #0f172a 0%, #080d19 100%); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 20px; padding: 36px 28px; text-align: center; box-shadow: 0 30px 70px rgba(0,0,0,0.85); position: relative; overflow: hidden;">
-                <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #f59e0b, #ef4444, #3b82f6, #f59e0b); background-size: 200% 100%;"></div>
                 
-                <div style="width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);">
-                    🛠️
-                </div>
+                
+                
 
                 <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 20px; color: #fbbf24; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;">
-                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
-                    Scheduled Fleet Maintenance
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>Scheduled Fleet Maintenance
                 </div>
 
-                <h2 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 0 0 10px 0; letter-spacing: -0.3px;">
-                    Engines Under Optimization
+                <h2 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 0 0 10px 0; letter-spacing: -0.3px;">Engines Under Optimization
                 </h2>
 
                 <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.6; margin: 0 0 24px 0;">
@@ -329,8 +324,7 @@
                 </div>
 
                 <div style="display: flex; gap: 10px; justify-content: center;">
-                    <button id="btnCheckMaintStatus" style="padding: 10px 22px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-                        🔄 Recheck Status
+                    <button id="btnCheckMaintStatus" style="padding: 10px 22px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">Recheck Status
                     </button>
                 </div>
             </div>
@@ -345,7 +339,7 @@
             if (!cloudConfig?.maintenanceMode) {
                 removeMaintenanceModal();
             } else if (btn) {
-                btn.innerText = '🔄 Recheck Status';
+                btn.innerText = 'Recheck Status';
             }
         });
 
@@ -451,12 +445,10 @@
                             ${isVip ? 'Unlimited 4K Downloads' : `${Math.max(0, dailyLimit - used)} free downloads left today`}
                         </div>
                         ${!isVip ? `
-                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" style="display: block; width: 100%; padding: 6px; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 6px; box-sizing: border-box;">
-                            Upgrade to VIP Pro
+                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" style="display: block; width: 100%; padding: 6px; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 6px; box-sizing: border-box;">Upgrade to VIP Pro
                         </a>
                         ` : ''}
-                        <button id="btnCloudLogout" style="width: 100%; padding: 6px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-                            Sign Out
+                        <button id="btnCloudLogout" style="width: 100%; padding: 6px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Sign Out
                         </button>
                     </div>
                 </div>
@@ -521,7 +513,7 @@
         if (is4K && cloudConfig?.lock4KForVip === true) {
             if (!currentUser || currentUser.isVip !== true) {
                 openAuthModal('signIn');
-                showAuthMessage('🔒 4K Ultra-HD is reserved for VIP members. Please sign in or select 1080p.', 'error');
+                showAuthMessage(' 4K Ultra-HD is reserved for VIP members. Please sign in or select 1080p.', 'error');
                 return { allowed: false, reason: '4K VIP Restricted' };
             }
         }
@@ -588,20 +580,16 @@
         modal.style.cssText = 'display: none; position: fixed; inset: 0; background: rgba(3, 7, 18, 0.88); z-index: 99999; align-items: center; justify-content: center; backdrop-filter: blur(10px); padding: 20px; box-sizing: border-box;';
         modal.innerHTML = `
             <div style="max-width: 440px; width: 100%; background: #0a0f1d; border: 1px solid #1e293b; border-radius: 18px; padding: 30px 26px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.85); position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box;">
-                <button id="btnCloudAuthClose" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 14px; cursor: pointer; transition: all 0.2s ease;">✕</button>
+                <button id="btnCloudAuthClose" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 14px; cursor: pointer; transition: all 0.2s ease;"></button>
 
                 <!-- Status Message -->
-                <div id="cloudAuthMessage" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; line-height: 1.4;"></div>
+                
 
                 <!-- VIEW 0: GUEST LIMIT REACHED -->
                 <div id="viewLimitReached" style="display: none; text-align: center;">
-                    <div style="width: 58px; height: 58px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 26px; margin: 0 auto 14px auto;">
-                        ⚠️
-                    </div>
+                    
                     <h2 style="color: #f8fafc; font-size: 21px; font-weight: 800; margin: 0 0 6px 0;">Guest Limit Reached</h2>
-                    <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px 0;">
-                        You have completed your free guest downloads today.<br>
-                        Sign in with your account or register to unlock more downloads!
+                    <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.5; margin: 0 0 18px 0;">You have completed your free guest downloads today.<br>Sign in with your account or register to unlock more downloads!
                     </p>
 
                     <div style="background: #030712; border: 1px solid #1e293b; border-radius: 12px; padding: 14px; margin-bottom: 20px; display: flex; justify-content: space-around; align-items: center;">
@@ -609,7 +597,7 @@
                             <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">Today's Guest Usage</div>
                             <div id="lblLimitCount" style="font-size: 18px; font-weight: 800; color: #f59e0b; margin-top: 3px;">5 / 5 Used</div>
                         </div>
-                        <div style="width: 1px; height: 36px; background: #1e293b;"></div>
+                        
                         <div>
                             <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px;">With Free Account</div>
                             <div style="font-size: 18px; font-weight: 800; color: #38bdf8; margin-top: 3px;">Unlimited / 10+</div>
@@ -619,15 +607,14 @@
                     <!-- Direct Links to Dedicated Pages -->
                     <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px;">
                         <a href="/Account/Register" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 12px 18px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 14px rgba(2,132,199,0.35);">
-                            <span>✨ Create Free Account (Full Page)</span>
+                            <span>Create Free Account (Full Page)</span>
                         </a>
                         <a href="/Account/Login" style="display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; box-sizing: border-box; padding: 12px 18px; background: #161f30; color: #e2e8f0; border: 1px solid #334155; border-radius: 10px; font-weight: 700; font-size: 14px; text-decoration: none;">
-                            <span>🔑 Sign In with ID / Password</span>
+                            <span>Sign In with ID / Password</span>
                         </a>
                     </div>
 
-                    <div style="padding-top: 14px; border-top: 1px solid #1e293b; font-size: 12.5px; color: #64748b;">
-                        Quick In-App Access:
+                    <div style="padding-top: 14px; border-top: 1px solid #1e293b; font-size: 12.5px; color: #64748b;">Quick In-App Access:
                         <a href="#" id="linkQuickSignIn" style="color: #38bdf8; font-weight: 700; text-decoration: none; margin-left: 5px;">Sign In Here</a>
                         <span style="margin: 0 5px;">•</span>
                         <a href="#" id="linkQuickRegister" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Register Here</a>
@@ -637,8 +624,7 @@
                 <!-- VIEW 1: SIGN IN -->
                 <div id="viewSignIn" style="display: none;">
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Sign In to SaveZonix</h2>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
-                        Access your profile, sync downloads, and enjoy VIP speeds.
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">Access your profile, sync downloads, and enjoy VIP speeds.
                     </p>
                     
                     <form id="formSignIn" style="display: flex; flex-direction: column; gap: 14px;">
@@ -653,11 +639,10 @@
                             </div>
                             <input type="password" id="inputSignInPassword" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="••••••••" required />
                         </div>
-                        <button type="submit" id="btnSubmitSignIn" style="box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Sign In 🚀</button>
+                        <button type="submit" id="btnSubmitSignIn" style="box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Sign In</button>
                     </form>
 
-                    <div style="text-align: center; margin-top: 18px; font-size: 12.5px; color: #94a3b8;">
-                        Don't have an account? <a href="#" id="linkGoToRegister" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Create Free Account</a>
+                    <div style="text-align: center; margin-top: 18px; font-size: 12.5px; color: #94a3b8;">Don't have an account? <a href="#" id="linkGoToRegister" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Create Free Account</a>
                         <div style="margin-top: 8px;">
                             <a href="/Account/Login" style="color: #64748b; font-size: 11.5px; text-decoration: none;">Prefer full screen sign-in page? Click here →</a>
                         </div>
@@ -667,8 +652,7 @@
                 <!-- VIEW 2: REGISTER -->
                 <div id="viewRegister" style="display: none;">
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Create Free Account</h2>
-                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">
-                        Sign up with your details to get started.
+                    <p style="color: #94a3b8; font-size: 13px; margin: 0 0 16px 0;">Sign up with your details to get started.
                     </p>
 
                     <form id="formRegister" style="display: flex; flex-direction: column; gap: 14px;">
@@ -684,11 +668,10 @@
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Choose Password</label>
                             <input type="password" id="inputRegisterPassword" minlength="6" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="At least 6 characters" required />
                         </div>
-                        <button type="submit" id="btnSubmitRegister" style="box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Create Free Account ✨</button>
+                        <button type="submit" id="btnSubmitRegister" style="box-sizing: border-box; width: 100%; margin-top: 6px; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Create Free Account</button>
                     </form>
 
-                    <div style="text-align: center; margin-top: 18px; font-size: 12.5px; color: #94a3b8;">
-                        Already registered? <a href="#" id="linkGoToSignIn" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Sign In</a>
+                    <div style="text-align: center; margin-top: 18px; font-size: 12.5px; color: #94a3b8;">Already registered? <a href="#" id="linkGoToSignIn" style="color: #38bdf8; font-weight: 700; text-decoration: none;">Sign In</a>
                         <div style="margin-top: 8px;">
                             <a href="/Account/Register" style="color: #64748b; font-size: 11.5px; text-decoration: none;">Prefer full screen register page? Click here →</a>
                         </div>
@@ -697,16 +680,14 @@
 
                 <!-- VIEW 3: OTP VERIFICATION -->
                 <div id="viewOtp" style="display: none; text-align: center;">
-                    <div style="font-size: 36px; margin-bottom: 8px;">🔐</div>
+                    
                     <h2 style="color: #f8fafc; font-size: 20px; font-weight: 800; margin: 0 0 6px 0;">Enter 6-Digit Code</h2>
                     <p id="txtOtpNotice" style="color: #94a3b8; font-size: 13px; margin: 0 0 20px 0;">We sent a verification code to your email.</p>
 
                     <form id="formOtp" style="display: flex; flex-direction: column; gap: 18px;">
                         <input type="text" id="inputOtpCode" maxlength="6" pattern="[0-9]{6}" style="box-sizing: border-box; width: 220px; margin: 0 auto; text-align: center; font-size: 28px; font-weight: 900; letter-spacing: 8px; padding: 12px; background: #030712; border: 2px solid #38bdf8; border-radius: 12px; color: #38bdf8; font-family: monospace;" placeholder="------" required />
                         
-                        <button type="submit" id="btnSubmitOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">
-                            Verify &amp; Activate Account ✅
-                        </button>
+                        <button type="submit" id="btnSubmitOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Verify &amp; Activate Account</button>
                     </form>
 
                     <div style="margin-top: 16px;">
@@ -724,7 +705,7 @@
                             <label style="display: block; font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px;">Registered Email</label>
                             <input type="email" id="inputForgotEmail" style="box-sizing: border-box; width: 100%; display: block; padding: 11px 14px; background: #030712; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 13.5px;" placeholder="rahul.sharma@gmail.com" required />
                         </div>
-                        <button type="submit" id="btnSendResetOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Send Reset Code ✉️</button>
+                        <button type="submit" id="btnSendResetOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Send Reset Code </button>
                     </form>
 
                     <form id="formForgotStep2" style="display: none; flex-direction: column; gap: 14px; margin-top: 14px;">
@@ -786,7 +767,7 @@
                 showAuthMessage(err.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Sign In 🚀';
+                btn.textContent = 'Sign In';
             }
         });
 
@@ -818,7 +799,7 @@
                 showAuthMessage(err.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Send Verification Code ✉️';
+                btn.textContent = 'Send Verification Code';
             }
         });
 
@@ -852,12 +833,12 @@
                 currentUser = data.user;
                 renderUserBadge();
                 closeAuthModal();
-                alert('🎉 Welcome to SaveZonix! Your account has been verified.');
+                alert('Welcome to SaveZonix! Your account has been verified.');
             } catch (err) {
                 showAuthMessage(err.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Verify & Activate Account ✅';
+                btn.textContent = 'Verify & Activate Account';
             }
         });
 
@@ -886,7 +867,7 @@
                 showAuthMessage(err.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Send Reset Code ✉️';
+                btn.textContent = 'Send Reset Code';
             }
         });
 
@@ -914,7 +895,7 @@
                 localStorage.setItem('savezonix_cloud_user', JSON.stringify(data.user));
                 currentUser = data.user;
                 renderUserBadge();
-                showAuthMessage('✅ Password updated successfully! You are now logged in.', 'success');
+                showAuthMessage('Password updated successfully! You are now logged in.', 'success');
                 setTimeout(closeAuthModal, 1200);
             } catch (err) {
                 showAuthMessage(err.message, 'error');

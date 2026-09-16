@@ -2,12 +2,12 @@ import React from 'react';
 
 const FEATURES = [
   {
-    icon: '⚡',
+    icon: '',
     title: '64-Thread Acceleration',
     desc: 'Splits direct MP4 and adaptive HLS streams into 64 concurrent micro-ranges for maximum ISP speed saturation.'
   },
   {
-    icon: '🎬',
+    icon: '',
     title: 'CleanStream Cinema',
     desc: 'Stream web videos in an ad-free cinema player with CORS bypass proxy, subtitles, and picture-in-picture.'
   },
@@ -27,7 +27,7 @@ const FEATURES = [
     desc: 'Download entire YouTube playlists with 1 click. Smart queue manager runs smoothly in the background.'
   },
   {
-    icon: '🛡️',
+    icon: '',
     title: 'Anti-Corruption Validator',
     desc: 'Deep binary inspection validates moov, moof, and mdat container atoms so your files never fail to play.'
   }

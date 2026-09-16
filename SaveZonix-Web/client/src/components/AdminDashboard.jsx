@@ -460,8 +460,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
         body: JSON.stringify(settings)
       });
       if (res.ok) {
-        setSaveMessage('✅ Engine parameters saved and synchronized across fleet!');
-        showAdminToast('✅ Engine configuration saved to MongoDB & live across all apps!');
+        setSaveMessage('Engine parameters saved and synchronized across fleet!');
+        showAdminToast('Engine configuration saved to MongoDB & live across all apps!');
         setTimeout(() => setSaveMessage(''), 5000);
       } else {
         const data = await res.json().catch(() => ({}));
@@ -498,15 +498,13 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           <IconLock size={30} color="#38bdf8" />
         </div>
         <h2 style={{ fontSize: '22px', fontWeight: 700, margin: '0 0 8px 0', color: '#fff' }}>Administrator Sign In Required</h2>
-        <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 24px 0', lineHeight: 1.5 }}>
-          You must be signed in with an Administrator account to view the SaveZonix Control Panel.
+        <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 24px 0', lineHeight: 1.5 }}>You must be signed in with an Administrator account to view the SaveZonix Control Panel.
         </p>
 
         <button
           onClick={onOpenAuth}
           style={{ width: '100%', padding: '12px 20px', background: 'linear-gradient(135deg, #0284c7, #38bdf8)', border: 'none', borderRadius: '10px', color: '#fff', fontSize: '14.5px', fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 16px rgba(2, 132, 199, 0.35)', transition: 'all 0.2s ease' }}
-        >
-          Sign In to Your Account
+        >Sign In to Your Account
         </button>
 
         <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid #1a2333', paddingTop: '16px' }}>
@@ -528,16 +526,13 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           <IconAlertCircle size={30} color="#f87171" />
         </div>
         <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 8px 0', color: '#fff' }}>Access Denied</h2>
-        <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: 1.5 }}>
-          Signed in as <strong style={{ color: '#fff' }}>{effectiveUser.email}</strong>.<br />
-          This account does not have Administrator privileges.
+        <p style={{ fontSize: '13.5px', color: '#94a3b8', margin: '0 0 20px 0', lineHeight: 1.5 }}>Signed in as <strong style={{ color: '#fff' }}>{effectiveUser.email}</strong>.<br />This account does not have Administrator privileges.
         </p>
 
         <button
           onClick={onOpenAuth}
           style={{ width: '100%', padding: '11px 20px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '10px', color: '#38bdf8', fontSize: '14px', fontWeight: 600, cursor: 'pointer', marginBottom: '12px' }}
-        >
-          Switch to Administrator Account
+        >Switch to Administrator Account
         </button>
 
         <div style={{ marginTop: '16px', textAlign: 'center', borderTop: '1px solid #1a2333', paddingTop: '16px' }}>
@@ -558,16 +553,14 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.02em', margin: 0 }}>
-              SaveZonix Fleet Console
+            <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#f8fafc', letterSpacing: '-0.02em', margin: 0 }}>SaveZonix Fleet Console
             </h1>
             <span style={{ fontSize: '11px', background: 'rgba(16, 185, 129, 0.1)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.25)', padding: '2px 8px', borderRadius: '6px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
               {effectiveUser ? `Signed in as ${effectiveUser.name || effectiveUser.email}` : 'Operational'}
             </span>
           </div>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>
-            R&amp;D platform telemetry, user fleets, stream diagnostics, and real-time AI CDN concurrency advisor.
+          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0 0' }}>R&amp;D platform telemetry, user fleets, stream diagnostics, and real-time AI CDN concurrency advisor.
           </p>
         </div>
 
@@ -576,22 +569,19 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             onClick={() => loadTabData(activeTab, true, activeToken)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#cbd5e1', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
           >
-            <IconRefresh size={13} color="#94a3b8" spinning={loading} />
-            Refresh
+            <IconRefresh size={13} color="#94a3b8" spinning={loading} />Refresh
           </button>
           <button
             onClick={onBack || (() => onNavigate ? onNavigate('/') : window.location.href = '/')}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#cbd5e1', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}
           >
-            <IconExternal size={13} color="#94a3b8" />
-            Website
+            <IconExternal size={13} color="#94a3b8" />Website
           </button>
           <button
             onClick={handleAdminLogout}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '8px', color: '#f87171', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}
           >
-            <IconLogOut size={13} color="#f87171" />
-            Sign Out
+            <IconLogOut size={13} color="#f87171" />Sign Out
           </button>
         </div>
       </div>
@@ -661,14 +651,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
               borderRightColor: '#10b981',
               animation: 'spin 0.75s linear infinite'
             }} />
-            <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#f8fafc', letterSpacing: '0.2px' }}>
-              ⚡ Synchronizing SaveZonix Cloud Fleet Telemetry...
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#f8fafc', letterSpacing: '0.2px' }}>Synchronizing SaveZonix Cloud Fleet Telemetry...
             </span>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>
-              Cloud API Active
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>Cloud API Active
             </span>
             <span style={{
               display: 'inline-block',

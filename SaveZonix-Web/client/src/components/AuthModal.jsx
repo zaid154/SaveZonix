@@ -138,13 +138,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
         {error && (
           <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', color: '#f87171', borderRadius: '8px', fontSize: '13px', marginBottom: '14px' }}>
-            ⚠️ {error}
+             {error}
           </div>
         )}
 
         {message && (
           <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.15)', border: '1px solid #10b981', color: '#34d399', borderRadius: '8px', fontSize: '13px', marginBottom: '14px' }}>
-            ✉️ {message}
+             {message}
           </div>
         )}
 
@@ -169,8 +169,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <label>Password</label>
-                  <span onClick={() => { setView('forgot'); setError(''); setMessage(''); }} style={{ color: '#38bdf8', fontSize: '12px', cursor: 'pointer' }}>
-                    Forgot password?
+                  <span onClick={() => { setView('forgot'); setError(''); setMessage(''); }} style={{ color: '#38bdf8', fontSize: '12px', cursor: 'pointer' }}>Forgot password?
                   </span>
                 </div>
                 <input
@@ -183,14 +182,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </div>
 
               <button type="submit" className="btn-modal-submit" disabled={loading}>
-                {loading ? 'Signing in...' : 'Sign In 🚀'}
+                {loading ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
 
-            <p className="modal-toggle-text">
-              Don't have an account yet?{' '}
-              <span onClick={() => { setView('register'); setError(''); setMessage(''); }}>
-                Create Free Account
+            <p className="modal-toggle-text">Don't have an account yet?{' '}
+              <span onClick={() => { setView('register'); setError(''); setMessage(''); }}>Create Free Account
               </span>
             </p>
           </div>
@@ -238,14 +235,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </div>
 
               <button type="submit" className="btn-modal-submit" disabled={loading}>
-                {loading ? 'Sending verification code...' : 'Send Verification OTP ✉️'}
+                {loading ? 'Sending verification code...' : 'Send Verification OTP '}
               </button>
             </form>
 
-            <p className="modal-toggle-text">
-              Already have an account?{' '}
-              <span onClick={() => { setView('login'); setError(''); setMessage(''); }}>
-                Sign In
+            <p className="modal-toggle-text">Already have an account?{' '}
+              <span onClick={() => { setView('login'); setError(''); setMessage(''); }}>Sign In
               </span>
             </p>
           </div>
@@ -280,14 +275,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               />
 
               <button type="submit" className="btn-modal-submit" style={{ background: '#10b981' }} disabled={loading}>
-                {loading ? 'Verifying...' : 'Verify & Activate Account ✅'}
+                {loading ? 'Verifying...' : 'Verify & Activate Account '}
               </button>
             </form>
 
-            <p className="modal-toggle-text" style={{ marginTop: '14px' }}>
-              Wrong email?{' '}
-              <span onClick={() => { setView('register'); setError(''); setMessage(''); }}>
-                Change Email
+            <p className="modal-toggle-text" style={{ marginTop: '14px' }}>Wrong email?{' '}
+              <span onClick={() => { setView('register'); setError(''); setMessage(''); }}>Change Email
               </span>
             </p>
           </div>
@@ -310,8 +303,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     placeholder="rahul.sharma@gmail.com"
                     required
                   />
-                  <button type="submit" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '12px', whiteSpace: 'nowrap' }} disabled={loading}>
-                    Send OTP
+                  <button type="submit" className="btn btn-secondary" style={{ padding: '8px 14px', fontSize: '12px', whiteSpace: 'nowrap' }} disabled={loading}>Send OTP
                   </button>
                 </div>
               </div>
@@ -347,10 +339,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </button>
             </form>
 
-            <p className="modal-toggle-text">
-              Remember your password?{' '}
-              <span onClick={() => { setView('login'); setError(''); setMessage(''); }}>
-                Back to Sign In
+            <p className="modal-toggle-text">Remember your password?{' '}
+              <span onClick={() => { setView('login'); setError(''); setMessage(''); }}>Back to Sign In
               </span>
             </p>
           </div>

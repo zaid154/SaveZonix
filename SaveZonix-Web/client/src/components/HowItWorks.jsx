@@ -6,19 +6,19 @@ export default function HowItWorks() {
       num: '01',
       title: 'Copy Media URL',
       desc: 'Grab the link from YouTube, Instagram Reels, TikTok, Vimeo, or any live HLS stream from your browser.',
-      icon: '🔗'
+      icon: ''
     },
     {
       num: '02',
       title: 'Smart Deep Analysis',
       desc: 'SaveZonix auto-detects all available resolutions (360p to 4K Ultra-HD), bitrates, audio tracks, and segment playlists.',
-      icon: '⚡'
+      icon: ''
     },
     {
       num: '03',
       title: '64x Turbo Download',
       desc: 'Download using up to 64 parallel network chunk connections. Enjoy zero buffering, instant merging, and cinema playback.',
-      icon: '🚀'
+      icon: ''
     }
   ];
 

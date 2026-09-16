@@ -13,8 +13,7 @@ export default function EngineTab({
 
   if (!settings) {
     return (
-      <div style={{ padding: '32px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', textAlign: 'center', color: '#64748b' }}>
-        Loading engine telemetry and database mirrors...
+      <div style={{ padding: '32px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', textAlign: 'center', color: '#64748b' }}>Loading engine telemetry and database mirrors...
       </div>
     );
   }
@@ -73,8 +72,7 @@ export default function EngineTab({
               type="button"
               onClick={onSyncDatabases}
               style={{ padding: '8px 16px', background: '#2563eb', border: 'none', borderRadius: '8px', color: '#ffffff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Sync &amp; Refresh Fleet State
+            >Sync &amp; Refresh Fleet State
             </button>
           </div>
 
@@ -127,8 +125,7 @@ export default function EngineTab({
                 <IconAlertCircle size={18} color={settings.maintenanceMode ? '#f87171' : '#94a3b8'} />
               </div>
               <div>
-                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Emergency Maintenance &amp; Routine Upgrade Mode
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>Emergency Maintenance &amp; Routine Upgrade Mode
                   <span style={{
                     fontSize: '11px',
                     padding: '2px 8px',
@@ -141,8 +138,7 @@ export default function EngineTab({
                     {settings.maintenanceMode ? 'ACTIVE (CLIENTS LOCKED)' : 'NORMAL OPERATIONAL'}
                   </span>
                 </h3>
-                <p style={{ color: '#64748b', fontSize: '12px', margin: '3px 0 0 0' }}>
-                  Locks client download engines and displays a live countdown timer and update notice to all users.
+                <p style={{ color: '#64748b', fontSize: '12px', margin: '3px 0 0 0' }}>Locks client download engines and displays a live countdown timer and update notice to all users.
                 </p>
               </div>
             </div>
@@ -169,8 +165,7 @@ export default function EngineTab({
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginTop: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
-                Estimated Duration (Minutes)
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Estimated Duration (Minutes)
               </label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
@@ -205,8 +200,7 @@ export default function EngineTab({
             </div>
 
             <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
-                Custom Announcement &amp; Maintenance Notice (Shown to Users)
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Custom Announcement &amp; Maintenance Notice (Shown to Users)
               </label>
               <input
                 type="text"
@@ -226,11 +220,9 @@ export default function EngineTab({
               <IconSliders size={16} color="#38bdf8" />
             </div>
             <div>
-              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>
-                Bandwidth Speed Throttler &amp; User Rate Limiter
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>Bandwidth Speed Throttler &amp; User Rate Limiter
               </h3>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>
-                Regulate network download speeds per user tier. Motivate upgrades by allocating full gigabit speeds to VIP members.
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>Regulate network download speeds per user tier. Motivate upgrades by allocating full gigabit speeds to VIP members.
               </p>
             </div>
           </div>
@@ -241,11 +233,10 @@ export default function EngineTab({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8' }}>Free Tier Max Download Speed</span>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: settings.freeMaxSpeedMBps ? '#38bdf8' : '#34d399' }}>
-                  {settings.freeMaxSpeedMBps ? `${settings.freeMaxSpeedMBps} MB/s` : '⚡ Uncapped (Full Speed)'}
+                  {settings.freeMaxSpeedMBps ? `${settings.freeMaxSpeedMBps} MB/s` : 'Uncapped (Full Speed)'}
                 </span>
               </div>
-              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 12px 0' }}>
-                Limits connection throughput for standard free guest &amp; registered accounts. Set 0 for uncapped.
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 12px 0' }}>Limits connection throughput for standard free guest &amp; registered accounts. Set 0 for uncapped.
               </p>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
                 {[5, 10, 15, 25, 0].map((spd) => (
@@ -281,13 +272,12 @@ export default function EngineTab({
             {/* VIP Pro Tier Speed Mode */}
             <div style={{ padding: '16px', background: '#060a12', border: '1px solid #1a2333', borderRadius: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#fbbf24' }}>👑 VIP Pro Tier Speed Mode</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#fbbf24' }}>VIP Pro Tier Speed Mode</span>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: !settings.vipMaxSpeedMBps ? '#34d399' : '#fbbf24' }}>
-                  {!settings.vipMaxSpeedMBps ? '⚡ Uncapped Gigabit (Max Speed)' : `${settings.vipMaxSpeedMBps} MB/s`}
+                  {!settings.vipMaxSpeedMBps ? 'Uncapped Gigabit (Max Speed)' : `${settings.vipMaxSpeedMBps} MB/s`}
                 </span>
               </div>
-              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 12px 0' }}>
-                By default, VIP Pass holders bypass all ISP &amp; CDN throttles with 64-thread native line speed.
+              <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 12px 0' }}>By default, VIP Pass holders bypass all ISP &amp; CDN throttles with 64-thread native line speed.
               </p>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                 <button
@@ -304,8 +294,7 @@ export default function EngineTab({
                     fontWeight: 700,
                     cursor: 'pointer'
                   }}
-                >
-                  ⚡ Gigabit Uncapped (Full)
+                >Gigabit Uncapped (Full)
                 </button>
                 <button
                   type="button"
@@ -321,8 +310,7 @@ export default function EngineTab({
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
-                >
-                  Custom Cap (MB/s)
+                >Custom Cap (MB/s)
                 </button>
               </div>
               {settings.vipMaxSpeedMBps > 0 && (
@@ -341,11 +329,9 @@ export default function EngineTab({
 
         {/* 3. Multi-Thread Concurrency & Platform Presets */}
         <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
-          <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', marginBottom: '4px' }}>
-            Multi-Thread Concurrency &amp; Platform-Specific Presets
+          <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', marginBottom: '4px' }}>Multi-Thread Concurrency &amp; Platform-Specific Presets
           </h3>
-          <p style={{ color: '#64748b', fontSize: '12.5px', marginBottom: '20px' }}>
-            Configure network socket pooling and rate-limit guardrails per media platform.
+          <p style={{ color: '#64748b', fontSize: '12.5px', marginBottom: '20px' }}>Configure network socket pooling and rate-limit guardrails per media platform.
           </p>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '20px' }}>
@@ -388,8 +374,7 @@ export default function EngineTab({
 
           {/* Platform Specific Sliders */}
           <div style={{ background: '#060a12', padding: '16px', borderRadius: '10px', border: '1px solid #1a2333' }}>
-            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#f8fafc', display: 'block', marginBottom: '12px' }}>
-              🎯 Platform Concurrency Presets (Anti-Ban Calibration)
+            <span style={{ fontSize: '12.5px', fontWeight: 700, color: '#f8fafc', display: 'block', marginBottom: '12px' }}>Platform Concurrency Presets (Anti-Ban Calibration)
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
               <div>
@@ -513,11 +498,9 @@ export default function EngineTab({
         <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>
-                Desktop Application Over-The-Air (OTA) Distribution
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: '#f8fafc', margin: 0 }}>Desktop Application Over-The-Air (OTA) Distribution
               </h3>
-              <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>
-                Manage live release binaries, version gates, and auto-update links.
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '2px 0 0 0' }}>Manage live release binaries, version gates, and auto-update links.
               </p>
             </div>
 
@@ -545,7 +528,7 @@ export default function EngineTab({
                   opacity: syncingGithub ? 0.6 : 1
                 }}
               >
-                {syncingGithub ? 'Syncing...' : '🔄 Sync with GitHub Releases'}
+                {syncingGithub ? 'Syncing...' : 'Sync with GitHub Releases'}
               </button>
             </div>
           </div>
@@ -595,13 +578,12 @@ export default function EngineTab({
           <div style={{ marginTop: '16px', padding: '12px 16px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>⚡ Zero-Click Silent Auto-Update</span>
+                <span>Zero-Click Silent Auto-Update</span>
                 <span style={{ fontSize: '10px', padding: '2px 8px', background: settings.silentAutoUpdate !== false ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: settings.silentAutoUpdate !== false ? '#10b981' : '#f87171', borderRadius: '12px', fontWeight: 800 }}>
                   {settings.silentAutoUpdate !== false ? 'ACTIVE' : 'DISABLED'}
                 </span>
               </div>
-              <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>
-                When active, client desktop apps silently download &amp; apply updates in the background without user wizard prompt.
+              <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '3px' }}>When active, client desktop apps silently download &amp; apply updates in the background without user wizard prompt.
               </div>
             </div>
             <label style={{ position: 'relative', display: 'inline-block', width: '44px', height: '24px', cursor: 'pointer' }}>
@@ -643,8 +625,7 @@ export default function EngineTab({
             boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)'
           }}
         >
-          <IconCheck size={16} color="#ffffff" />
-          Save &amp; Apply Fleet Engine Parameters
+          <IconCheck size={16} color="#ffffff" />Save &amp; Apply Fleet Engine Parameters
         </button>
       </form>
     </div>
