@@ -1,4 +1,4 @@
-﻿# ==============================================================================
+# ==============================================================================
 # SaveZonix - Single Source of Truth Brand Asset Sync Engine
 # Master File: branding\logo.png
 # ==============================================================================
@@ -106,31 +106,43 @@ function Save-MultiResIco {
     Write-Host " -> Generated Windows Multi-Resolution Icon: $DestIcoPath" -ForegroundColor Magenta
 }
 
-Write-Host "`n[1/4] Updating Desktop App Assets..." -ForegroundColor Yellow
+Write-Host "`n[1/5] Updating Desktop App Assets..." -ForegroundColor Yellow
 Save-ResizedPng -SourceBmp $masterBmp -Width 512 -Height 512 -DestPath "$rootDir\SaveZonix-App\wwwroot\assets\logo.png"
 Save-MultiResIco -SourceBmp $masterBmp -DestIcoPath "$rootDir\SaveZonix-App\wwwroot\app.ico"
+Save-MultiResIco -SourceBmp $masterBmp -DestIcoPath "$rootDir\SaveZonix-App\wwwroot\favicon.ico"
 
-Write-Host "`n[2/4] Updating Web Portal Assets..." -ForegroundColor Yellow
+# Clean stale pre-compressed .gz / .br files so web server never serves old cached icons
+$staleIcons = Get-ChildItem -Path "$rootDir\SaveZonix-App" -Recurse -Include "favicon.ico.gz","favicon.ico.br","app.ico.gz","app.ico.br" -ErrorAction SilentlyContinue
+foreach ($stale in $staleIcons) {
+    Remove-Item $stale.FullName -Force -ErrorAction SilentlyContinue
+    Write-Host " -> Cleaned stale compressed file: $($stale.FullName.Replace($rootDir, ''))" -ForegroundColor DarkGray
+}
+
+Write-Host "`n[2/5] Updating Web Portal Assets..." -ForegroundColor Yellow
 Save-ResizedPng -SourceBmp $masterBmp -Width 512 -Height 512 -DestPath "$rootDir\SaveZonix-Web\client\public\logo.png"
 Save-MultiResIco -SourceBmp $masterBmp -DestIcoPath "$rootDir\SaveZonix-Web\client\public\favicon.ico"
 if (Test-Path "$rootDir\SaveZonix-Web\client\dist") {
     Save-ResizedPng -SourceBmp $masterBmp -Width 512 -Height 512 -DestPath "$rootDir\SaveZonix-Web\client\dist\logo.png"
+    Copy-Item "$rootDir\SaveZonix-Web\client\public\favicon.ico" "$rootDir\SaveZonix-Web\client\dist\favicon.ico" -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "`n[3/4] Updating Chrome Extension Assets..." -ForegroundColor Yellow
+Write-Host "`n[3/5] Updating Chrome Extension Assets..." -ForegroundColor Yellow
 Save-ResizedPng -SourceBmp $masterBmp -Width 512 -Height 512 -DestPath "$rootDir\SaveZonix-App\Extension\assets\logo.png"
 Save-ResizedPng -SourceBmp $masterBmp -Width 16 -Height 16 -DestPath "$rootDir\SaveZonix-App\Extension\icons\icon16.png"
 Save-ResizedPng -SourceBmp $masterBmp -Width 48 -Height 48 -DestPath "$rootDir\SaveZonix-App\Extension\icons\icon48.png"
 Save-ResizedPng -SourceBmp $masterBmp -Width 128 -Height 128 -DestPath "$rootDir\SaveZonix-App\Extension\icons\icon128.png"
 
-Write-Host "`n[4/4] Updating Pre-compiled Output Caches..." -ForegroundColor Yellow
+Write-Host "`n[4/5] Updating Pre-compiled Output Caches & Installed App..." -ForegroundColor Yellow
 $extraTargets = @(
     "$rootDir\SaveZonix-App\bin\Release\net10.0\win-x64\publish\wwwroot\assets\logo.png",
-    "$rootDir\SaveZonix-App\bin\Release\net10.0\win-x64\publish\wwwroot\app.ico"
+    "$rootDir\SaveZonix-App\bin\Release\net10.0\win-x64\publish\wwwroot\app.ico",
+    "$rootDir\SaveZonix-App\bin\Release\net10.0\win-x64\publish\wwwroot\favicon.ico"
 )
 foreach ($target in $extraTargets) {
     if (Test-Path (Split-Path $target)) {
-        if ($target.EndsWith(".ico")) {
+        if ($target.EndsWith("favicon.ico")) {
+            Copy-Item "$rootDir\SaveZonix-App\wwwroot\favicon.ico" $target -Force
+        } elseif ($target.EndsWith("app.ico")) {
             Copy-Item "$rootDir\SaveZonix-App\wwwroot\app.ico" $target -Force
         } else {
             Copy-Item "$rootDir\SaveZonix-App\wwwroot\assets\logo.png" $target -Force
@@ -139,8 +151,43 @@ foreach ($target in $extraTargets) {
     }
 }
 
+# If user has the installed application on their system, sync it directly too
+$installedWwwroot = "$env:LOCALAPPDATA\Programs\SaveZonix\wwwroot"
+if (Test-Path $installedWwwroot) {
+    Copy-Item "$rootDir\SaveZonix-App\wwwroot\app.ico" "$installedWwwroot\app.ico" -Force
+    Copy-Item "$rootDir\SaveZonix-App\wwwroot\favicon.ico" "$installedWwwroot\favicon.ico" -Force
+    if (Test-Path "$installedWwwroot\assets") {
+        Copy-Item "$rootDir\SaveZonix-App\wwwroot\assets\logo.png" "$installedWwwroot\assets\logo.png" -Force
+    }
+    Remove-Item "$installedWwwroot\favicon.ico.gz" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$installedWwwroot\favicon.ico.br" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$installedWwwroot\app.ico.gz" -Force -ErrorAction SilentlyContinue
+    Remove-Item "$installedWwwroot\app.ico.br" -Force -ErrorAction SilentlyContinue
+    Write-Host " -> Synchronized directly into installed app at: $installedWwwroot" -ForegroundColor Green
+}
+
+Write-Host "`n[5/5] Updating Desktop Shortcut & Refreshing Windows Icon Cache..." -ForegroundColor Yellow
+try {
+    $desktop = [Environment]::GetFolderPath("Desktop")
+    $wsh = New-Object -ComObject WScript.Shell
+    $shortcuts = Get-ChildItem -Path $desktop -Filter "*SaveZonix*.lnk" -ErrorAction SilentlyContinue
+    foreach ($sc in $shortcuts) {
+        $link = $wsh.CreateShortcut($sc.FullName)
+        if (Test-Path "$installedWwwroot\app.ico") {
+            $link.IconLocation = "$installedWwwroot\app.ico,0"
+            $link.Save()
+            Write-Host " -> Updated Desktop Shortcut Icon: $($sc.Name)" -ForegroundColor Green
+        }
+    }
+    # Tell Windows to repaint icons
+    Start-Process "ie4uinit.exe" -ArgumentList "-show" -NoNewWindow -Wait
+    Write-Host " -> Windows Icon Cache notification dispatched." -ForegroundColor Green
+} catch {
+    Write-Host " -> Notice: Shortcut update skipped ($($_.Message))" -ForegroundColor DarkGray
+}
+
 $masterBmp.Dispose()
 
 Write-Host "`n==========================================================" -ForegroundColor Cyan
-Write-Host "  SUCCESS! Brand Assets Synchronized Across All 10 Targets!" -ForegroundColor Cyan
+Write-Host "  SUCCESS! Brand Assets Synchronized Across All Targets!" -ForegroundColor Cyan
 Write-Host "==========================================================`n" -ForegroundColor Cyan

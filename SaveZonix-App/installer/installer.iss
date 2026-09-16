@@ -32,6 +32,10 @@ RestartApplications=no
 
 [InstallDelete]
 Type: files; Name: "{app}\Zonix.exe"
+Type: files; Name: "{app}\wwwroot\favicon.ico.gz"
+Type: files; Name: "{app}\wwwroot\favicon.ico.br"
+Type: files; Name: "{app}\wwwroot\app.ico.gz"
+Type: files; Name: "{app}\wwwroot\app.ico.br"
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -54,9 +58,9 @@ Source: "..\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ign
 Source: "..\Extension\*"; DestDir: "{app}\Extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\wwwroot\app.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\wwwroot\app.ico"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

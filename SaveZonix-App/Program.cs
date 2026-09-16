@@ -498,9 +498,18 @@ public class Program
         {
             OnPrepareResponse = ctx =>
             {
-                // Cache static assets (CSS, JS, images, fonts) aggressively for 1 year
-                const int durationInSeconds = 60 * 60 * 24 * 365;
-                ctx.Context.Response.Headers.CacheControl = $"public,max-age={durationInSeconds},immutable";
+                var fileName = ctx.File.Name.ToLowerInvariant();
+                if (fileName == "favicon.ico" || fileName == "app.ico")
+                {
+                    // Allow fast updates for favicons so browsers don't hold onto stale icons
+                    ctx.Context.Response.Headers.CacheControl = "no-cache, must-revalidate";
+                }
+                else
+                {
+                    // Cache static assets (CSS, JS, images, fonts) aggressively for 1 year
+                    const int durationInSeconds = 60 * 60 * 24 * 365;
+                    ctx.Context.Response.Headers.CacheControl = $"public,max-age={durationInSeconds},immutable";
+                }
             }
         });
 
