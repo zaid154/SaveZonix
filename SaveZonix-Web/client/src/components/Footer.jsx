@@ -39,7 +39,19 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
             </ul>
           </div>
 
-          {/* Column 3: Legal & Trust */}
+          {/* Column 3: Resources & Docs */}
+          <div>
+            <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: '#f8fafc', marginBottom: '16px' }}>
+              Resources &amp; Docs
+            </h4>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px', color: '#94a3b8' }}>
+              <li><a href="#how-it-works" style={{ color: '#94a3b8', textDecoration: 'none' }}>How It Works Guide</a></li>
+              <li><a href="#faq" style={{ color: '#94a3b8', textDecoration: 'none' }}>Frequently Asked Questions</a></li>
+              <li><a href="mailto:savezonix@gmail.com" style={{ color: '#38bdf8', fontWeight: '600', textDecoration: 'none' }}>📧 savezonix@gmail.com</a></li>
+            </ul>
+          </div>
+
+          {/* Column 4: Legal & Trust */}
           <div>
             <h4 style={{ fontSize: '13px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.8px', color: '#f8fafc', marginBottom: '16px' }}>
               Legal &amp; Trust
