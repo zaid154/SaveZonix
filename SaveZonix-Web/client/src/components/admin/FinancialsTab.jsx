@@ -18,6 +18,7 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
   // Razorpay keys edit state
   const [rzpKeyId, setRzpKeyId] = useState(settings?.razorpayKeyId || '');
   const [rzpKeySecret, setRzpKeySecret] = useState(settings?.razorpayKeySecret || '');
+  const [showSecret, setShowSecret] = useState(false);
   const [savingKeys, setSavingKeys] = useState(false);
 
   useEffect(() => {
@@ -107,14 +108,48 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
 
   async function handleSaveKeys(e) {
     e.preventDefault();
-    setSavingKeys(true);
     setFeedback('');
+
+    const cleanId = rzpKeyId.trim();
+    const cleanSecret = rzpKeySecret.trim();
+
+    // If clearing both to fallback to environment
+    if (!cleanId && !cleanSecret) {
+      if (!window.confirm('Clearing both fields will revert to server environment variables. Continue?')) {
+        return;
+      }
+    } else {
+      // Strict Key ID validation
+      if (!cleanId.startsWith('rzp_test_') && !cleanId.startsWith('rzp_live_')) {
+        alert('Validation Error: Key ID must start with "rzp_test_" or "rzp_live_". You cannot enter an email or arbitrary string.');
+        return;
+      }
+      if (cleanId.includes('@') || cleanId.length < 15) {
+        alert('Validation Error: Invalid Key ID format.');
+        return;
+      }
+
+      // Strict Key Secret validation
+      if (!cleanSecret || cleanSecret.length < 14) {
+        alert('Validation Error: Key Secret is required and must be at least 14 characters.');
+        return;
+      }
+
+      // Explicit Confirmation
+      const mode = cleanId.startsWith('rzp_live_') ? 'LIVE PRODUCTION' : 'TEST SANDBOX';
+      const ok = window.confirm(
+        `Confirm updating Razorpay credentials?\n\nGateway Mode: ${mode}\nKey ID: ${cleanId}\n\nAll client checkout requests will process through this gateway.`
+      );
+      if (!ok) return;
+    }
+
+    setSavingKeys(true);
     try {
       const token = localStorage.getItem('savezonix_token') || localStorage.getItem('savezonix_admin_token') || '';
       const updated = {
         ...settings,
-        razorpayKeyId: rzpKeyId.trim(),
-        razorpayKeySecret: rzpKeySecret.trim()
+        razorpayKeyId: cleanId,
+        razorpayKeySecret: cleanSecret
       };
       const res = await fetch('/api/admin/settings', {
         method: 'POST',
@@ -127,7 +162,10 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
       });
       if (res.ok) {
         setSettings(updated);
-        setFeedback('Razorpay configuration updated successfully.');
+        setFeedback('Razorpay configuration validated and updated successfully.');
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setFeedback('Error: ' + (d.error || 'Server validation failed'));
       }
     } catch (err) {
       setFeedback('Failed to save keys: ' + err.message);
@@ -226,37 +264,77 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
       {/* Gateway Configuration & License Generator Split */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
         {/* Razorpay Gateway Credentials */}
-        <form onSubmit={handleSaveKeys} style={{ padding: '18px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '10px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
-            Razorpay Gateway Configuration
-          </h3>
+        <form onSubmit={handleSaveKeys} autoComplete="off" style={{ padding: '18px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+              Razorpay Gateway Configuration
+            </h3>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 600,
+                padding: '2px 8px',
+                borderRadius: '4px',
+                background: (settings?.razorpayKeyId || '').startsWith('rzp_live_')
+                  ? 'rgba(16, 185, 129, 0.15)'
+                  : (settings?.razorpayKeyId || '').startsWith('rzp_test_')
+                  ? 'rgba(56, 189, 248, 0.15)'
+                  : 'rgba(100, 116, 139, 0.15)',
+                color: (settings?.razorpayKeyId || '').startsWith('rzp_live_')
+                  ? '#34d399'
+                  : (settings?.razorpayKeyId || '').startsWith('rzp_test_')
+                  ? '#38bdf8'
+                  : '#94a3b8',
+                border: `1px solid ${(settings?.razorpayKeyId || '').startsWith('rzp_live_') ? 'rgba(16, 185, 129, 0.3)' : (settings?.razorpayKeyId || '').startsWith('rzp_test_') ? 'rgba(56, 189, 248, 0.3)' : '#334155'}`
+              }}
+            >
+              {(settings?.razorpayKeyId || '').startsWith('rzp_live_')
+                ? 'Mode: Live Production'
+                : (settings?.razorpayKeyId || '').startsWith('rzp_test_')
+                ? 'Mode: Sandbox Test'
+                : 'Mode: Environment Default'}
+            </span>
+          </div>
           <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 14px 0' }}>
-            Set or update active credentials directly. Leave blank to fallback to environment variables.
+            Enter your official Razorpay Key ID and Secret. Must start with rzp_test_ or rzp_live_.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
-                Key ID
+                Razorpay Key ID
               </label>
               <input
                 type="text"
+                name="razorpay_key_identifier_field"
+                autoComplete="off"
                 value={rzpKeyId}
                 onChange={(e) => setRzpKeyId(e.target.value)}
-                placeholder="rzp_test_... or rzp_live_..."
+                placeholder="e.g. rzp_test_T3SdtTPSdbsaUg"
                 style={{ width: '100%', padding: '8px 10px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '6px', color: '#f8fafc', fontSize: '12.5px' }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '11.5px', fontWeight: 600, color: '#94a3b8', marginBottom: '4px' }}>
-                Key Secret
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#94a3b8' }}>
+                  Razorpay Key Secret
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowSecret(!showSecret)}
+                  style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', padding: 0 }}
+                >
+                  {showSecret ? 'Hide Secret' : 'Show Secret'}
+                </button>
+              </div>
               <input
-                type="password"
+                type={showSecret ? 'text' : 'password'}
+                name="razorpay_secret_token_field"
+                autoComplete="off"
                 value={rzpKeySecret}
                 onChange={(e) => setRzpKeySecret(e.target.value)}
-                placeholder="Key Secret"
+                placeholder="e.g. vUvYJ7aPC4v2igWG2Hx5elDL"
                 style={{ width: '100%', padding: '8px 10px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '6px', color: '#f8fafc', fontSize: '12.5px' }}
               />
             </div>

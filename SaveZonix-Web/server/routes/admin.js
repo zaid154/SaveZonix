@@ -890,7 +890,24 @@ router.post('/settings', adminAuth, async (req, res) => {
       'platformThreadCaps'
     ];
 
+    // Server-side validation for Razorpay Key ID
+    if (req.body.razorpayKeyId !== undefined) {
+      const kid = String(req.body.razorpayKeyId || '').trim();
+      if (kid && !kid.startsWith('rzp_test_') && !kid.startsWith('rzp_live_')) {
+        return res.status(400).json({ error: 'Razorpay Key ID must start with rzp_test_ or rzp_live_' });
+      }
+      if (kid && (kid.includes('@') || kid.length < 15)) {
+        return res.status(400).json({ error: 'Invalid Razorpay Key ID format. Emails are not allowed.' });
+      }
+      config.razorpayKeyId = kid;
+    }
+
+    if (req.body.razorpayKeySecret !== undefined) {
+      config.razorpayKeySecret = String(req.body.razorpayKeySecret || '').trim();
+    }
+
     fields.forEach((f) => {
+      if (f === 'razorpayKeyId' || f === 'razorpayKeySecret') return;
       if (req.body[f] !== undefined) {
         config[f] = req.body[f];
       }
