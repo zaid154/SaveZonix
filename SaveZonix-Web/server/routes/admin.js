@@ -225,39 +225,51 @@ router.get('/stats', adminAuth, async (req, res) => {
       });
     }
 
-    const totalUsers = await User.countDocuments();
-    const activeUsers = await User.countDocuments({ isActive: { $ne: false } });
-    const verifiedUsers = await User.countDocuments({ emailConfirmed: true });
-    const vipUsers = await User.countDocuments({ isVip: true });
-    const totalDownloads = await DownloadHistory.countDocuments();
-    const completedDownloads = await DownloadHistory.countDocuments({ status: 'Completed' });
-    const failedDownloads = await DownloadHistory.countDocuments({ status: { $in: ['Failed', 'Corrupted'] } });
-
     const today = new Date().toISOString().split('T')[0];
-    const todayDownloads = await DownloadHistory.countDocuments({
-      createdAt: { $gte: new Date(today) }
-    });
-    const newUsersToday = await User.countDocuments({
-      createdAt: { $gte: new Date(today) }
-    });
+    const todayDate = new Date(today);
 
-    // Bandwidth calculation
-    const bandwidthAgg = await DownloadHistory.aggregate([
-      { $group: { _id: null, totalBytes: { $sum: '$fileSize' }, avgSpeed: { $avg: '$downloadSpeedMBps' } } }
+    const [
+      totalUsers,
+      activeUsers,
+      verifiedUsers,
+      vipUsers,
+      totalDownloads,
+      completedDownloads,
+      failedDownloads,
+      todayDownloads,
+      newUsersToday,
+      bandwidthAgg,
+      platformAgg,
+      rawConfig
+    ] = await Promise.all([
+      User.countDocuments(),
+      User.countDocuments({ isActive: { $ne: false } }),
+      User.countDocuments({ emailConfirmed: true }),
+      User.countDocuments({ isVip: true }),
+      DownloadHistory.countDocuments(),
+      DownloadHistory.countDocuments({ status: 'Completed' }),
+      DownloadHistory.countDocuments({ status: { $in: ['Failed', 'Corrupted'] } }),
+      DownloadHistory.countDocuments({ createdAt: { $gte: todayDate } }),
+      User.countDocuments({ createdAt: { $gte: todayDate } }),
+      DownloadHistory.aggregate([
+        { $group: { _id: null, totalBytes: { $sum: '$fileSize' }, avgSpeed: { $avg: '$downloadSpeedMBps' } } }
+      ]),
+      DownloadHistory.aggregate([
+        { $group: { _id: '$platform', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 6 }
+      ]),
+      AppConfig.findOne().lean()
     ]);
+
+    const config = rawConfig || {};
     const totalBytes = bandwidthAgg[0]?.totalBytes || 0;
     const avgSpeed = (bandwidthAgg[0]?.avgSpeed || 14.5).toFixed(1);
     const bandwidthMB = (totalBytes / (1024 * 1024)).toFixed(2);
     const bandwidthGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
 
-    // Platform breakdown
-    const platformAgg = await DownloadHistory.aggregate([
-      { $group: { _id: '$platform', count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 6 }
-    ]);
     const platforms = {};
-    if (platformAgg.length > 0) {
+    if (platformAgg && platformAgg.length > 0) {
       platformAgg.forEach((p) => {
         platforms[p._id || 'Web Stream'] = p.count;
       });
@@ -265,8 +277,6 @@ router.get('/stats', adminAuth, async (req, res) => {
       platforms['YouTube'] = 1;
       platforms['Web Stream'] = 1;
     }
-
-    const config = (await AppConfig.findOne()) || {};
 
     return res.json({
       totalUsers,

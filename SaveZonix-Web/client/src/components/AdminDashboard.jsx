@@ -61,12 +61,42 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   // 7 Core Modules from .NET Admin Panel
   const [activeTab, setActiveTab] = useState(() => getTabFromPath(currentPath));
 
-  const [stats, setStats] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [downloads, setDownloads] = useState([]);
-  const [diagnostics, setDiagnostics] = useState(null);
-  const [dbStatus, setDbStatus] = useState(null);
-  const [settings, setSettings] = useState(null);
+  const [stats, setStats] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_stats');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
+  const [users, setUsers] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_users');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [downloads, setDownloads] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_downloads');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [diagnostics, setDiagnostics] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_diagnostics');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
+  const [dbStatus, setDbStatus] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_dbStatus');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
+  const [settings, setSettings] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_settings');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
 
   // Loaded Tabs Cache for 0ms Instant Switching
   const [loadedTabs, setLoadedTabs] = useState(() => new Set());
@@ -134,7 +164,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/stats', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (d) setStats(d); })
+              .then(d => {
+                if (d) {
+                  setStats(d);
+                  try { sessionStorage.setItem('sz_cache_stats', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -142,7 +177,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/downloads', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (Array.isArray(d)) setDownloads(d); })
+              .then(d => {
+                if (Array.isArray(d)) {
+                  setDownloads(d);
+                  try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -154,7 +194,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/users', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (Array.isArray(d)) setUsers(d); })
+              .then(d => {
+                if (Array.isArray(d)) {
+                  setUsers(d);
+                  try { sessionStorage.setItem('sz_cache_users', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -162,7 +207,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/settings', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (d) setSettings(d); })
+              .then(d => {
+                if (d) {
+                  setSettings(d);
+                  try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -174,7 +224,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/downloads', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (Array.isArray(d)) setDownloads(d); })
+              .then(d => {
+                if (Array.isArray(d)) {
+                  setDownloads(d);
+                  try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -186,7 +241,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/diagnostics', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (d) setDiagnostics(d); })
+              .then(d => {
+                if (d) {
+                  setDiagnostics(d);
+                  try { sessionStorage.setItem('sz_cache_diagnostics', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -198,7 +258,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/database-status', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (d) setDbStatus(d); })
+              .then(d => {
+                if (d) {
+                  setDbStatus(d);
+                  try { sessionStorage.setItem('sz_cache_dbStatus', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -206,7 +271,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           calls.push(
             fetch('/api/admin/settings', { headers })
               .then(r => r.ok ? r.json() : null)
-              .then(d => { if (d) setSettings(d); })
+              .then(d => {
+                if (d) {
+                  setSettings(d);
+                  try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
+                }
+              })
               .catch(() => null)
           );
         }
@@ -562,10 +632,50 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
         })}
       </div>
 
-      {/* Tab Data Fast Loading Indicator */}
+      {/* High-Tech Cyber Fleet Sync Loader */}
       {loading && (
-        <div style={{ height: '3px', width: '100%', background: '#0d131f', borderRadius: '3px', overflow: 'hidden', marginBottom: '20px' }}>
-          <div style={{ height: '100%', width: '45%', background: 'linear-gradient(90deg, #0284c7, #38bdf8, #10b981)', borderRadius: '3px' }} />
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '14px',
+          padding: '10px 18px',
+          background: 'linear-gradient(90deg, rgba(2, 132, 199, 0.12), rgba(16, 185, 129, 0.12))',
+          border: '1px solid rgba(56, 189, 248, 0.28)',
+          borderRadius: '10px',
+          marginBottom: '20px',
+          boxShadow: '0 4px 20px rgba(56, 189, 248, 0.08)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Spinning Cyber Orb */}
+            <div style={{
+              width: '16px',
+              height: '16px',
+              borderRadius: '50%',
+              border: '2px solid rgba(56, 189, 248, 0.25)',
+              borderTopColor: '#38bdf8',
+              borderRightColor: '#10b981',
+              animation: 'spin 0.75s linear infinite'
+            }} />
+            <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#f8fafc', letterSpacing: '0.2px' }}>
+              ⚡ Synchronizing SaveZonix Cloud Fleet Telemetry...
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '11px', color: '#94a3b8', fontFamily: 'monospace' }}>
+              Cloud API Active
+            </span>
+            <span style={{
+              display: 'inline-block',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              background: '#34d399',
+              boxShadow: '0 0 8px #34d399',
+              animation: 'pulse 1.2s infinite'
+            }} />
+          </div>
         </div>
       )}
 

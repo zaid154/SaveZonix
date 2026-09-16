@@ -2,7 +2,47 @@ import React from 'react';
 import { IconCrown } from './AdminIcons';
 
 export default function OverviewTab({ stats, downloads, onNavigateToDownloads }) {
-  if (!stats) return null;
+  if (!stats) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        {/* Skeleton Top Metrics Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
+              <div style={{ width: '90px', height: '12px', background: '#131b2c', borderRadius: '4px', marginBottom: '12px', opacity: 0.6 }} />
+              <div style={{ width: '60px', height: '28px', background: '#1a2333', borderRadius: '6px', marginBottom: '8px' }} />
+              <div style={{ width: '120px', height: '12px', background: '#131b2c', borderRadius: '4px', opacity: 0.4 }} />
+            </div>
+          ))}
+        </div>
+
+        {/* Skeleton Platform Distribution */}
+        <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
+          <div style={{ width: '180px', height: '16px', background: '#1a2333', borderRadius: '4px', marginBottom: '8px' }} />
+          <div style={{ width: '260px', height: '12px', background: '#131b2c', borderRadius: '4px', marginBottom: '20px', opacity: 0.5 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '80px', height: '12px', background: '#1a2333', borderRadius: '4px' }} />
+                <div style={{ flex: 1, height: '8px', background: '#131b2c', borderRadius: '4px' }} />
+                <div style={{ width: '30px', height: '12px', background: '#1a2333', borderRadius: '4px' }} />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Skeleton Recent Activity */}
+        <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
+          <div style={{ width: '160px', height: '16px', background: '#1a2333', borderRadius: '4px', marginBottom: '20px' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ height: '40px', background: '#060a12', border: '1px solid #131b2c', borderRadius: '8px' }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
