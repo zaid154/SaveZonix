@@ -1,20 +1,25 @@
-﻿@model StreamHelper.ViewModels.ChangePasswordViewModel
+@model StreamHelper.ViewModels.ChangePasswordViewModel
 @{
-    ViewData["Title"] = "Account Settings — SaveZonix";
+    ViewData["Title"] = "Security & Preferences — SaveZonix";
+    ViewData["ActiveNav"] = "Settings";
 }
 
-<div class="account-page">
+<div class="account-dashboard-shell">
     <div class="container">
-        <div class="account-header">
-            <div>
-                <h1 class="page-title">Account Settings</h1>
-                <p class="page-subtitle">Update your password, security preferences, and account configuration</p>
-            </div>
-            <div class="account-actions">
-                <a asp-action="Profile" class="btn btn-secondary">
-                    <span>👤 Back to Profile</span>
-                </a>
-            </div>
+        <!-- Unified Account Sub-Navigation Bar -->
+        <div class="account-nav-bar">
+            <a asp-action="Profile" class="account-nav-pill">
+                <span>👤</span>
+                <span>Profile &amp; Identity</span>
+            </a>
+            <a asp-action="Settings" class="account-nav-pill active">
+                <span>⚙️</span>
+                <span>Security &amp; Preferences</span>
+            </a>
+            <a asp-action="Downloads" class="account-nav-pill">
+                <span>⚡</span>
+                <span>Download History</span>
+            </a>
         </div>
 
         @if (TempData["SuccessMessage"] != null)
@@ -25,47 +30,410 @@
             </div>
         }
 
-        @if (!ViewData.ModelState.IsValid && ViewData.ModelState[string.Empty]?.Errors.Count > 0)
+        @if (!ViewData.ModelState.IsValid)
         {
             <div class="alert error" style="margin-bottom: 24px;">
                 <span class="alert-icon">⚠️</span>
-                <span>@ViewData.ModelState[string.Empty]?.Errors[0].ErrorMessage</span>
+                <div>
+                    @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+                    {
+                        <div>@error.ErrorMessage</div>
+                    }
+                </div>
             </div>
         }
 
-        <div class="glass-card" style="max-width: 640px; margin-bottom: 32px;">
-            <h2 class="card-title" style="margin-bottom: 20px;">Change Password</h2>
-            <form asp-action="ChangePassword" method="post">
-                @Html.AntiForgeryToken()
-                <div class="form-group">
-                    <label asp-for="CurrentPassword">Current Password</label>
-                    <input asp-for="CurrentPassword" type="password" class="form-control" placeholder="••••••••" required />
-                    <span asp-validation-for="CurrentPassword" class="text-danger"></span>
+        <!-- 2-Column Content Grid -->
+        <div class="account-grid-2col">
+            <!-- Left Column: Security & Preferences -->
+            <div>
+                <!-- Password Management Card -->
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <div>
+                            <h2 class="account-card-title">
+                                <span>🔒</span> Password &amp; Authentication
+                            </h2>
+                            <div class="account-card-subtitle">Ensure your cloud account is secured with a strong passphrase</div>
+                        </div>
+                    </div>
+
+                    <form asp-action="ChangePassword" method="post" id="changePasswordForm">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Current Password -->
+                        <div class="form-floating-dark">
+                            <label asp-for="CurrentPassword">
+                                <span>Current Password</span>
+                                <span class="input-hint">Required to verify identity</span>
+                            </label>
+                            <div class="input-icon-wrap">
+                                <span class="input-icon-prefix">🔑</span>
+                                <input asp-for="CurrentPassword" type="password" id="currentPasswordInput" class="form-control-dark" placeholder="••••••••" required autocomplete="current-password" />
+                                <button type="button" class="password-toggle-btn" onclick="togglePass('currentPasswordInput', this)" title="Show/hide password" aria-label="Toggle password visibility">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                </button>
+                            </div>
+                            <span asp-validation-for="CurrentPassword" class="text-danger" style="font-size: 12px;"></span>
+                        </div>
+
+                        <!-- New Password -->
+                        <div class="form-floating-dark">
+                            <label asp-for="NewPassword">
+                                <span>New Password</span>
+                                <span class="input-hint">Minimum 6 characters</span>
+                            </label>
+                            <div class="input-icon-wrap">
+                                <span class="input-icon-prefix">🛡️</span>
+                                <input asp-for="NewPassword" type="password" id="newPasswordInput" class="form-control-dark" placeholder="Enter new password" required autocomplete="new-password" />
+                                <button type="button" class="password-toggle-btn" onclick="togglePass('newPasswordInput', this)" title="Show/hide password" aria-label="Toggle password visibility">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                </button>
+                            </div>
+                            <span asp-validation-for="NewPassword" class="text-danger" style="font-size: 12px;"></span>
+                        </div>
+
+                        <!-- Live Password Strength Meter -->
+                        <div class="strength-meter-wrap" id="strengthWrap" style="display: none;">
+                            <div class="strength-meter-bar">
+                                <div id="strengthFill" class="strength-meter-fill"></div>
+                            </div>
+                            <div class="strength-meta">
+                                <span id="strengthText">Strength: Too short</span>
+                                <span id="strengthHint">Use uppercase, digits &amp; symbols</span>
+                            </div>
+                        </div>
+
+                        <!-- Confirm New Password -->
+                        <div class="form-floating-dark">
+                            <label asp-for="ConfirmNewPassword">
+                                <span>Confirm New Password</span>
+                                <span id="matchIndicator" style="font-size: 11.5px; display: none;"></span>
+                            </label>
+                            <div class="input-icon-wrap">
+                                <span class="input-icon-prefix">✓</span>
+                                <input asp-for="ConfirmNewPassword" type="password" id="confirmPasswordInput" class="form-control-dark" placeholder="Re-type new password" required autocomplete="new-password" />
+                                <button type="button" class="password-toggle-btn" onclick="togglePass('confirmPasswordInput', this)" title="Show/hide password" aria-label="Toggle password visibility">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                </button>
+                            </div>
+                            <span asp-validation-for="ConfirmNewPassword" class="text-danger" style="font-size: 12px;"></span>
+                        </div>
+
+                        <div style="margin-top: 24px;">
+                            <button type="submit" class="btn btn-primary" id="btnUpdatePassword">
+                                <span>🛡️ Update Password</span>
+                            </button>
+                        </div>
+                    </form>
                 </div>
 
-                <div class="form-group">
-                    <label asp-for="NewPassword">New Password</label>
-                    <input asp-for="NewPassword" type="password" class="form-control" placeholder="At least 6 characters" required />
-                    <span asp-validation-for="NewPassword" class="text-danger"></span>
+                <!-- Download Engine & Performance Preferences -->
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <div>
+                            <h2 class="account-card-title">
+                                <span>⚡</span> Download Engine Preferences
+                            </h2>
+                            <div class="account-card-subtitle">Configure client performance, multi-threading and playback behaviors</div>
+                        </div>
+                    </div>
+
+                    <div class="settings-item-row">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">Parallel Chunk Concurrency</div>
+                            <div class="settings-item-desc">Maximum concurrent HTTP stream segments per video download</div>
+                        </div>
+                        <div>
+                            <select id="prefParallelThreads" class="settings-select" onchange="saveEnginePref('parallelThreads', this.value)">
+                                <option value="8">8 Threads (Default)</option>
+                                <option value="16">16 Threads (High Speed)</option>
+                                <option value="32">32 Threads (Ultra)</option>
+                                <option value="64">64 Threads (Extreme / VIP)</option>
+                                <option value="128">128 Threads (VIP Maximum)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-item-row">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">Default Media Quality</div>
+                            <div class="settings-item-desc">Preferred resolution when analyzing streams</div>
+                        </div>
+                        <div>
+                            <select id="prefDefaultQuality" class="settings-select" onchange="saveEnginePref('defaultQuality', this.value)">
+                                <option value="highest">Best Available (Auto)</option>
+                                <option value="1080p">1080p Full HD</option>
+                                <option value="720p">720p HD</option>
+                                <option value="audio">Audio Only (MP3/M4A)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="settings-item-row">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">Completion Sound Alerts</div>
+                            <div class="settings-item-desc">Play a subtle chime when playlist or media downloads finish</div>
+                        </div>
+                        <div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="prefSoundAlert" onchange="saveEnginePref('soundAlert', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="settings-item-row">
+                        <div class="settings-item-info">
+                            <div class="settings-item-title">Auto-Reveal File Location</div>
+                            <div class="settings-item-desc">Open download folder automatically upon completion</div>
+                        </div>
+                        <div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="prefAutoOpen" onchange="saveEnginePref('autoOpen', this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Connected Device & Danger Zone -->
+            <div>
+                <!-- Connected Session & Device Security Card -->
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <div>
+                            <h2 class="account-card-title">
+                                <span>💻</span> Connected Device &amp; Session
+                            </h2>
+                            <div class="account-card-subtitle">Active authorization status on this browser</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            <span style="color: var(--text-muted);">Current Client</span>
+                            <span style="color: #f1f5f9; font-weight: 600;" id="clientDeviceLabel">Web Desktop</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            <span style="color: var(--text-muted);">Connection Security</span>
+                            <span style="color: #34d399; font-weight: 600;">🔒 HTTPS / TLS 1.3</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            <span style="color: var(--text-muted);">Authentication Token</span>
+                            <span style="color: #38bdf8; font-weight: 600;">Secure HttpOnly Cookie</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: var(--text-muted);">Two-Factor Auth</span>
+                            <span style="color: #94a3b8; font-size: 11.5px; background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 6px;">Coming Soon</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label asp-for="ConfirmNewPassword">Confirm New Password</label>
-                    <input asp-for="ConfirmNewPassword" type="password" class="form-control" placeholder="Repeat new password" required />
-                    <span asp-validation-for="ConfirmNewPassword" class="text-danger"></span>
+                <!-- Danger Zone Card -->
+                <div class="account-card account-card-danger">
+                    <div class="account-card-header">
+                        <div>
+                            <h2 class="account-card-title">
+                                <span>⚠️</span> Danger Zone
+                            </h2>
+                            <div class="account-card-subtitle">Irreversible actions and session termination</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column; gap: 16px;">
+                        <div>
+                            <div style="font-size: 13.5px; font-weight: 600; color: #f8fafc; margin-bottom: 4px;">Purge Local Cache</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;">
+                                Clears locally cached stream tokens, preferences, and temporary download artifacts stored in this browser.
+                            </div>
+                            <button type="button" class="btn-danger-outline" onclick="purgeLocalCache()">
+                                <span>🗑️ Purge Local Cache</span>
+                            </button>
+                        </div>
+
+                        <div style="padding-top: 14px; border-top: 1px solid rgba(244, 63, 94, 0.15);">
+                            <div style="font-size: 13.5px; font-weight: 600; color: #f8fafc; margin-bottom: 4px;">Sign Out Account</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.4;">
+                                Securely terminates your current authenticated session on this computer.
+                            </div>
+                            <form asp-controller="Account" asp-action="Logout" method="post" style="margin: 0;">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn-danger-outline">
+                                    <span>🚪 Sign Out of SaveZonix</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-
-                <button type="submit" class="btn btn-primary">
-                    <span>Update Password</span>
-                </button>
-            </form>
-        </div>
-
-        <div class="glass-card" style="max-width: 640px; border-color: rgba(244, 63, 94, 0.3);">
-            <h2 class="card-title" style="color: var(--rose); margin-bottom: 12px;">Data &amp; Privacy</h2>
-            <p style="color: var(--text-muted); font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
-                You have full control over your personal download history. You can purge individual download records or clear your entire download history at any time from your <a asp-action="Downloads" class="auth-link">Downloads page</a>.
-            </p>
+            </div>
         </div>
     </div>
 </div>
+
+<!-- Floating Notification Toast -->
+<div id="accountToast" class="account-toast">
+    <span id="toastIcon">💾</span>
+    <span id="toastMessage">Settings updated</span>
+</div>
+
+@section Scripts {
+    <script>
+        // Password Visibility Toggle
+        function togglePass(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            btn.innerHTML = isPassword
+                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>'
+                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+        }
+
+        // Live Password Strength Meter
+        const newPassInput = document.getElementById('newPasswordInput');
+        const confirmPassInput = document.getElementById('confirmPasswordInput');
+        const strengthWrap = document.getElementById('strengthWrap');
+        const strengthFill = document.getElementById('strengthFill');
+        const strengthText = document.getElementById('strengthText');
+        const matchIndicator = document.getElementById('matchIndicator');
+
+        if (newPassInput) {
+            newPassInput.addEventListener('input', function () {
+                const val = this.value;
+                if (!val) {
+                    strengthWrap.style.display = 'none';
+                    return;
+                }
+                strengthWrap.style.display = 'block';
+
+                let score = 0;
+                if (val.length >= 6) score++;
+                if (val.length >= 10) score++;
+                if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score++;
+                if (/\d/.test(val)) score++;
+                if (/[^A-Za-z0-9]/.test(val)) score++;
+
+                strengthFill.className = 'strength-meter-fill';
+                if (score <= 1) {
+                    strengthFill.classList.add('weak');
+                    strengthText.textContent = 'Strength: Weak';
+                    strengthText.style.color = '#f43f5e';
+                } else if (score <= 2) {
+                    strengthFill.classList.add('fair');
+                    strengthText.textContent = 'Strength: Fair';
+                    strengthText.style.color = '#f59e0b';
+                } else if (score <= 4) {
+                    strengthFill.classList.add('good');
+                    strengthText.textContent = 'Strength: Good';
+                    strengthText.style.color = '#38bdf8';
+                } else {
+                    strengthFill.classList.add('strong');
+                    strengthText.textContent = 'Strength: Excellent';
+                    strengthText.style.color = '#10b981';
+                }
+
+                checkMatch();
+            });
+        }
+
+        if (confirmPassInput) {
+            confirmPassInput.addEventListener('input', checkMatch);
+        }
+
+        function checkMatch() {
+            if (!confirmPassInput || !newPassInput) return;
+            const p1 = newPassInput.value;
+            const p2 = confirmPassInput.value;
+            if (!p2) {
+                matchIndicator.style.display = 'none';
+                return;
+            }
+            matchIndicator.style.display = 'inline';
+            if (p1 === p2) {
+                matchIndicator.textContent = '✓ Passwords Match';
+                matchIndicator.style.color = '#34d399';
+            } else {
+                matchIndicator.textContent = '✗ Do not match';
+                matchIndicator.style.color = '#f43f5e';
+            }
+        }
+
+        // Client Device Detection
+        try {
+            const ua = navigator.userAgent;
+            let os = 'Desktop';
+            if (ua.indexOf('Win') !== -1) os = 'Windows PC';
+            else if (ua.indexOf('Mac') !== -1) os = 'macOS';
+            else if (ua.indexOf('Linux') !== -1) os = 'Linux';
+            else if (ua.indexOf('Android') !== -1) os = 'Android';
+            else if (ua.indexOf('iPhone') !== -1 || ua.indexOf('iPad') !== -1) os = 'iOS';
+
+            let browser = 'Browser';
+            if (ua.indexOf('Edg') !== -1) browser = 'Edge';
+            else if (ua.indexOf('Chrome') !== -1) browser = 'Chrome';
+            else if (ua.indexOf('Firefox') !== -1) browser = 'Firefox';
+            else if (ua.indexOf('Safari') !== -1) browser = 'Safari';
+
+            const label = document.getElementById('clientDeviceLabel');
+            if (label) label.textContent = `${os} • ${browser}`;
+        } catch (e) { }
+
+        // Local Storage Engine Preferences
+        function loadEnginePrefs() {
+            try {
+                const prefs = JSON.parse(localStorage.getItem('savezonix_engine_prefs') || '{}');
+                if (prefs.parallelThreads) {
+                    const sel = document.getElementById('prefParallelThreads');
+                    if (sel) sel.value = prefs.parallelThreads;
+                }
+                if (prefs.defaultQuality) {
+                    const sel = document.getElementById('prefDefaultQuality');
+                    if (sel) sel.value = prefs.defaultQuality;
+                }
+                if (typeof prefs.soundAlert !== 'undefined') {
+                    const chk = document.getElementById('prefSoundAlert');
+                    if (chk) chk.checked = !!prefs.soundAlert;
+                }
+                if (typeof prefs.autoOpen !== 'undefined') {
+                    const chk = document.getElementById('prefAutoOpen');
+                    if (chk) chk.checked = !!prefs.autoOpen;
+                }
+            } catch (e) { }
+        }
+
+        function saveEnginePref(key, value) {
+            try {
+                const prefs = JSON.parse(localStorage.getItem('savezonix_engine_prefs') || '{}');
+                prefs[key] = value;
+                localStorage.setItem('savezonix_engine_prefs', JSON.stringify(prefs));
+                showAccountToast('⚡ Preference updated');
+            } catch (e) { }
+        }
+
+        function showAccountToast(msg) {
+            const toast = document.getElementById('accountToast');
+            const msgSpan = document.getElementById('toastMessage');
+            if (!toast || !msgSpan) return;
+            msgSpan.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2500);
+        }
+
+        function purgeLocalCache() {
+            if (confirm('Are you sure you want to purge local stream caches and reset preferences?')) {
+                localStorage.removeItem('savezonix_engine_prefs');
+                localStorage.removeItem('savezonix_active_downloads');
+                showAccountToast('🗑️ Local cache cleared successfully');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadEnginePrefs);
+    </script>
+}

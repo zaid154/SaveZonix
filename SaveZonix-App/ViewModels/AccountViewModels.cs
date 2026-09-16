@@ -17,6 +17,11 @@ public class ProfileViewModel
     public int CompletedDownloads { get; set; }
     public long TotalDownloadedBytes { get; set; }
 
+    public string Role { get; set; } = "User";
+    public bool IsVip { get; set; }
+    public string? VipPlan { get; set; }
+    public DateTime? VipExpiresAt { get; set; }
+
     public string FormattedTotalSize
     {
         get

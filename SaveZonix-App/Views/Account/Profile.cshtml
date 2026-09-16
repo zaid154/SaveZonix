@@ -1,23 +1,33 @@
-﻿@model StreamHelper.ViewModels.ProfileViewModel
+@model StreamHelper.ViewModels.ProfileViewModel
 @{
-    ViewData["Title"] = "User Profile — SaveZonix";
+    ViewData["Title"] = "My Profile & Identity — SaveZonix";
+    ViewData["ActiveNav"] = "Profile";
+
+    var initialLetter = !string.IsNullOrWhiteSpace(Model.FullName)
+        ? Model.FullName.Trim().Substring(0, 1).ToUpper()
+        : (!string.IsNullOrWhiteSpace(Model.Email) ? Model.Email.Substring(0, 1).ToUpper() : "U");
+
+    var isAdmin = string.Equals(Model.Role, "Admin", StringComparison.OrdinalIgnoreCase);
+    var isVip = Model.IsVip || isAdmin;
+    var membershipLabel = isAdmin ? "Super Admin" : (isVip ? "VIP PRO Member" : "Standard Explorer");
 }
 
-<div class="account-page">
+<div class="account-dashboard-shell">
     <div class="container">
-        <div class="account-header">
-            <div>
-                <h1 class="page-title">My Account</h1>
-                <p class="page-subtitle">Manage your profile information and view personal download statistics</p>
-            </div>
-            <div class="account-actions">
-                <a asp-action="Downloads" class="btn btn-secondary">
-                    <span>⚡ Download History</span>
-                </a>
-                <a asp-action="Settings" class="btn btn-secondary">
-                    <span>⚙️ Security &amp; Settings</span>
-                </a>
-            </div>
+        <!-- Unified Account Sub-Navigation Bar -->
+        <div class="account-nav-bar">
+            <a asp-action="Profile" class="account-nav-pill active">
+                <span>👤</span>
+                <span>Profile &amp; Identity</span>
+            </a>
+            <a asp-action="Settings" class="account-nav-pill">
+                <span>⚙️</span>
+                <span>Security &amp; Preferences</span>
+            </a>
+            <a asp-action="Downloads" class="account-nav-pill">
+                <span>⚡</span>
+                <span>Download History</span>
+            </a>
         </div>
 
         @if (TempData["SuccessMessage"] != null)
@@ -28,55 +38,248 @@
             </div>
         }
 
-        <!-- Stats Overview Cards -->
-        <div class="stats-grid" style="margin-bottom: 32px;">
-            <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8;">📥</div>
-                <div class="stat-value">@Model.TotalDownloads</div>
-                <div class="stat-label">Total Downloads Initiated</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">✅</div>
-                <div class="stat-value">@Model.CompletedDownloads</div>
-                <div class="stat-label">Completed High-Res Files</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6;">💾</div>
-                <div class="stat-value">@Model.FormattedTotalSize</div>
-                <div class="stat-label">Total Data Processed</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">🛡️</div>
-                <div class="stat-value">@(Model.EmailConfirmed ? "Verified" : "Unverified")</div>
-                <div class="stat-label">Account Security Status</div>
+        <!-- Hero Identity Card -->
+        <div class="account-hero-card">
+            <div class="account-hero-inner">
+                <div class="account-identity-group">
+                    <div class="account-avatar-monogram" title="@Model.FullName">
+                        @initialLetter
+                    </div>
+                    <div class="account-identity-info">
+                        <div class="account-identity-name-row">
+                            <h1 class="account-user-name">@Model.FullName</h1>
+                            @if (isAdmin)
+                            {
+                                <span class="account-tier-badge tier-badge-admin">
+                                    <span>🛡️</span> Super Admin
+                                </span>
+                            }
+                            else if (isVip)
+                            {
+                                <span class="account-tier-badge tier-badge-vip">
+                                    <span>👑</span> VIP PRO
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="account-tier-badge tier-badge-standard">
+                                    <span>✨</span> Free Explorer
+                                </span>
+                            }
+                        </div>
+                        <div class="account-identity-meta-row">
+                            <span class="account-meta-item">
+                                <span>📧</span> @Model.Email
+                            </span>
+                            @if (Model.EmailConfirmed)
+                            {
+                                <span class="account-verified-pill">
+                                    <span>🛡️</span> Verified Account
+                                </span>
+                            }
+                            <span class="account-meta-item">
+                                <span>📅</span> Member since @Model.CreatedAt.ToString("MMM yyyy")
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="account-hero-actions">
+                    @if (!isVip)
+                    {
+                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" class="btn btn-primary" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-color: #f59e0b;">
+                            <span>👑 Upgrade to VIP PRO</span>
+                        </a>
+                    }
+                    <a asp-action="Downloads" class="btn btn-secondary">
+                        <span>⚡ Download History</span>
+                    </a>
+                </div>
             </div>
         </div>
 
-        <!-- Profile Form Card -->
-        <div class="glass-card" style="max-width: 640px;">
-            <h2 class="card-title" style="margin-bottom: 20px;">Profile Information</h2>
-            <form asp-action="UpdateProfile" method="post">
-                @Html.AntiForgeryToken()
-                <div class="form-group">
-                    <label for="fullName">Full Name</label>
-                    <input type="text" id="fullName" name="fullName" value="@Model.FullName" class="form-control" required />
+        <!-- Telemetry Stats Grid (4 Glass Cards) -->
+        <div class="account-stats-row">
+            <div class="account-stat-card stat-accent-cyan">
+                <div class="stat-icon-wrap icon-cyan">📥</div>
+                <div class="stat-body">
+                    <div class="stat-number">@Model.TotalDownloads</div>
+                    <div class="stat-title">Total Downloads</div>
+                    <div class="stat-subtext">All-time jobs processed</div>
+                </div>
+            </div>
+
+            <div class="account-stat-card stat-accent-emerald">
+                <div class="stat-icon-wrap icon-emerald">✅</div>
+                <div class="stat-body">
+                    <div class="stat-number">@Model.CompletedDownloads</div>
+                    <div class="stat-title">Completed Media</div>
+                    <div class="stat-subtext">High-res streams saved</div>
+                </div>
+            </div>
+
+            <div class="account-stat-card stat-accent-purple">
+                <div class="stat-icon-wrap icon-purple">💾</div>
+                <div class="stat-body">
+                    <div class="stat-number">@Model.FormattedTotalSize</div>
+                    <div class="stat-title">Bandwidth Streamed</div>
+                    <div class="stat-subtext">Multi-threaded transfer</div>
+                </div>
+            </div>
+
+            <div class="account-stat-card stat-accent-amber">
+                <div class="stat-icon-wrap icon-amber">👑</div>
+                <div class="stat-body">
+                    <div class="stat-number">@(isVip ? "VIP PRO" : "Standard")</div>
+                    <div class="stat-title">Active Membership</div>
+                    <div class="stat-subtext">@(isVip ? "256 Parallel Threads Active" : "Up to 32 Parallel Threads")</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2-Column Content Grid -->
+        <div class="account-grid-2col">
+            <!-- Left Column: Edit Profile Form -->
+            <div class="account-card">
+                <div class="account-card-header">
+                    <div>
+                        <h2 class="account-card-title">
+                            <span>👤</span> Profile Information
+                        </h2>
+                        <div class="account-card-subtitle">Manage your public identity and profile credentials</div>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Email Address</label>
-                    <input type="email" value="@Model.Email" class="form-control" disabled style="opacity: 0.7; cursor: not-allowed;" />
-                    <span style="font-size: 12px; color: var(--text-muted); display: block; margin-top: 4px;">Email cannot be changed directly for security purposes.</span>
+                <form asp-action="UpdateProfile" method="post">
+                    @Html.AntiForgeryToken()
+
+                    <div class="form-floating-dark">
+                        <label for="fullName">
+                            <span>Full Display Name</span>
+                            <span class="input-hint">Publicly displayed in SaveZonix</span>
+                        </label>
+                        <div class="input-icon-wrap">
+                            <span class="input-icon-prefix">👤</span>
+                            <input type="text" id="fullName" name="fullName" value="@Model.FullName" class="form-control-dark" placeholder="Your full name" required />
+                        </div>
+                    </div>
+
+                    <div class="form-floating-dark">
+                        <label>
+                            <span>Email Address</span>
+                            <span class="input-hint">Primary cloud identifier</span>
+                        </label>
+                        <div class="input-icon-wrap">
+                            <span class="input-icon-prefix">🔒</span>
+                            <input type="email" value="@Model.Email" class="form-control-dark" disabled />
+                        </div>
+                        <span style="font-size: 11.5px; color: var(--text-muted); margin-top: 2px;">
+                            Email cannot be changed directly for security and database synchronization purposes.
+                        </span>
+                    </div>
+
+                    <div class="form-floating-dark">
+                        <label>
+                            <span>Membership Tier &amp; Access Level</span>
+                        </label>
+                        <div class="input-icon-wrap">
+                            <span class="input-icon-prefix">👑</span>
+                            <input type="text" value="@membershipLabel" class="form-control-dark" disabled />
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 28px; display: flex; gap: 12px;">
+                        <button type="submit" class="btn btn-primary">
+                            <span>💾 Save Profile Changes</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Right Column: Quick Studio Launchpad & System Telemetry -->
+            <div>
+                <!-- Studio Quick Access Card -->
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <div>
+                            <h2 class="account-card-title">
+                                <span>🚀</span> Studio Launchpad
+                            </h2>
+                            <div class="account-card-subtitle">Fast shortcuts to SaveZonix workspaces</div>
+                        </div>
+                    </div>
+
+                    <div class="studio-quick-cards">
+                        <a href="/playlist" class="studio-quick-item">
+                            <div class="studio-quick-left">
+                                <div class="studio-quick-icon">📁</div>
+                                <div>
+                                    <div class="studio-quick-name">Playlist Studio</div>
+                                    <div class="studio-quick-meta">Batch download YouTube albums &amp; playlists</div>
+                                </div>
+                            </div>
+                            <div class="studio-quick-arrow">➔</div>
+                        </a>
+
+                        <a href="/cinema" class="studio-quick-item">
+                            <div class="studio-quick-left">
+                                <div class="studio-quick-icon">🎬</div>
+                                <div>
+                                    <div class="studio-quick-name">Cinema Studio</div>
+                                    <div class="studio-quick-meta">Instant high-res media streaming &amp; playback</div>
+                                </div>
+                            </div>
+                            <div class="studio-quick-arrow">➔</div>
+                        </a>
+
+                        <a asp-action="Downloads" class="studio-quick-item">
+                            <div class="studio-quick-left">
+                                <div class="studio-quick-icon">⚡</div>
+                                <div>
+                                    <div class="studio-quick-name">Download Manager</div>
+                                    <div class="studio-quick-meta">Live downloads, speeds &amp; history records</div>
+                                </div>
+                            </div>
+                            <div class="studio-quick-arrow">➔</div>
+                        </a>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label>Member Since</label>
-                    <input type="text" value="@Model.CreatedAt.ToString("MMMM dd, yyyy")" class="form-control" disabled style="opacity: 0.7; cursor: not-allowed;" />
-                </div>
+                <!-- Account Security Overview Card -->
+                <div class="account-card">
+                    <div class="account-card-header">
+                        <div>
+                            <h2 class="account-card-title">
+                                <span>🛡️</span> Security &amp; Device
+                            </h2>
+                            <div class="account-card-subtitle">Account security and current session</div>
+                        </div>
+                    </div>
 
-                <button type="submit" class="btn btn-primary">
-                    <span>Save Profile Changes</span>
-                </button>
-            </form>
+                    <div style="display: flex; flex-direction: column; gap: 14px; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            <span style="color: var(--text-muted);">Password Protection</span>
+                            <span style="color: #34d399; font-weight: 600;">Active &amp; Encrypted</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            <span style="color: var(--text-muted);">Session Status</span>
+                            <span style="color: #38bdf8; font-weight: 600;">● Active (Current Browser)</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06);">
+                            <span style="color: var(--text-muted);">Last Sign In</span>
+                            <span style="color: #f1f5f9; font-weight: 500;">
+                                @(Model.LastLoginAt.HasValue ? Model.LastLoginAt.Value.ToString("MMM dd, yyyy") : "Today")
+                            </span>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 18px;">
+                        <a asp-action="Settings" class="btn btn-secondary" style="width: 100%; justify-content: center;">
+                            <span>⚙️ Manage Security &amp; Password</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>

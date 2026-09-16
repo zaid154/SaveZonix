@@ -527,16 +527,75 @@ public class AccountController : Controller
         var completedCount = downloads.Count(d => d.Status == DownloadStatus.Completed);
         var totalBytes = downloads.Where(d => d.Status == DownloadStatus.Completed).Sum(d => d.DownloadedBytes);
 
+        // Role & VIP determination
+        string role = user != null && user.Contains("role") && !user["role"].IsBsonNull ? user["role"].AsString :
+                     (user != null && user.Contains("Role") && !user["Role"].IsBsonNull ? user["Role"].AsString : "User");
+        bool isAdmin = string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(effectiveEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(effectiveEmail, "trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase);
+        if (isAdmin) role = "Admin";
+
+        bool isVip = isAdmin;
+        DateTime? vipExpiresAt = null;
+        string? vipPlan = null;
+
+        if (user != null)
+        {
+            if (user.Contains("vipPlan") && !user["vipPlan"].IsBsonNull) vipPlan = user["vipPlan"].AsString;
+            else if (user.Contains("VipPlan") && !user["VipPlan"].IsBsonNull) vipPlan = user["VipPlan"].AsString;
+
+            if (user.Contains("vipExpiresAt") && !user["vipExpiresAt"].IsBsonNull)
+            {
+                try { vipExpiresAt = user["vipExpiresAt"].ToUniversalTime(); } catch { }
+            }
+            else if (user.Contains("VipExpiresAt") && !user["VipExpiresAt"].IsBsonNull)
+            {
+                try { vipExpiresAt = user["VipExpiresAt"].ToUniversalTime(); } catch { }
+            }
+
+            if (!isVip)
+            {
+                bool hasVipFlag = (user.Contains("isVip") && !user["isVip"].IsBsonNull && user.GetValue("isVip").ToBoolean()) ||
+                                  (user.Contains("IsVip") && !user["IsVip"].IsBsonNull && user.GetValue("IsVip").ToBoolean());
+                if (hasVipFlag)
+                {
+                    isVip = vipExpiresAt == null || vipExpiresAt >= DateTime.UtcNow;
+                }
+            }
+        }
+
+        if (!isVip && User.Claims.Any(c => c.Type == "isVip" && c.Value == "true"))
+        {
+            isVip = true;
+        }
+
+        DateTime? lastLoginAt = null;
+        if (user != null && user.Contains("lastLoginAt") && !user["lastLoginAt"].IsBsonNull)
+        {
+            try { lastLoginAt = user["lastLoginAt"].ToUniversalTime(); } catch { }
+        }
+
+        bool emailConfirmed = true;
+        if (user != null && user.Contains("emailConfirmed") && !user["emailConfirmed"].IsBsonNull)
+        {
+            try { emailConfirmed = user["emailConfirmed"].ToBoolean(); } catch { }
+        }
+
         var model = new ProfileViewModel
         {
             Id = effectiveId,
             FullName = effectiveName,
             Email = effectiveEmail,
-            EmailConfirmed = true,
+            EmailConfirmed = emailConfirmed,
             CreatedAt = user != null && user.Contains("createdAt") && !user["createdAt"].IsBsonNull ? user["createdAt"].ToUniversalTime() : DateTime.UtcNow,
+            LastLoginAt = lastLoginAt,
             TotalDownloads = totalCount,
             CompletedDownloads = completedCount,
-            TotalDownloadedBytes = totalBytes
+            TotalDownloadedBytes = totalBytes,
+            Role = role,
+            IsVip = isVip,
+            VipPlan = vipPlan,
+            VipExpiresAt = vipExpiresAt
         };
 
         return View(model);
