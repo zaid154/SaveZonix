@@ -16,6 +16,7 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
   const [generatedKey, setGeneratedKey] = useState('');
 
   // Razorpay keys edit state
+  const [isEditingKeys, setIsEditingKeys] = useState(false);
   const [rzpKeyId, setRzpKeyId] = useState(settings?.razorpayKeyId || '');
   const [rzpKeySecret, setRzpKeySecret] = useState(settings?.razorpayKeySecret || '');
   const [showSecret, setShowSecret] = useState(false);
@@ -31,6 +32,19 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
       setRzpKeySecret(settings.razorpayKeySecret || '');
     }
   }, [settings]);
+
+  function handleStartEditing() {
+    setIsEditingKeys(true);
+    setRzpKeyId(settings?.razorpayKeyId || '');
+    setRzpKeySecret(settings?.razorpayKeySecret || '');
+  }
+
+  function handleCancelEdit() {
+    setIsEditingKeys(false);
+    setShowSecret(false);
+    setRzpKeyId(settings?.razorpayKeyId || '');
+    setRzpKeySecret(settings?.razorpayKeySecret || '');
+  }
 
   async function fetchFinancialData() {
     setLoading(true);
@@ -107,7 +121,7 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
   }
 
   async function handleSaveKeys(e) {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     setFeedback('');
 
     const cleanId = rzpKeyId.trim();
@@ -125,7 +139,7 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
         return;
       }
       if (cleanId.includes('@') || cleanId.length < 15) {
-        alert('Validation Error: Invalid Key ID format.');
+        alert('Validation Error: Invalid Key ID format. Email addresses are strictly rejected.');
         return;
       }
 
@@ -162,7 +176,9 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
       });
       if (res.ok) {
         setSettings(updated);
-        setFeedback('Razorpay configuration validated and updated successfully.');
+        setIsEditingKeys(false);
+        setShowSecret(false);
+        setFeedback('Razorpay credentials validated, saved, and locked successfully.');
       } else {
         const d = await res.json().catch(() => ({}));
         setFeedback('Error: ' + (d.error || 'Server validation failed'));
@@ -263,8 +279,8 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
 
       {/* Gateway Configuration & License Generator Split */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
-        {/* Razorpay Gateway Credentials */}
-        <form onSubmit={handleSaveKeys} autoComplete="off" style={{ padding: '18px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '10px' }}>
+        {/* Razorpay Gateway Credentials Container */}
+        <div style={{ padding: '18px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '10px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
               Razorpay Gateway Configuration
@@ -296,7 +312,7 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
             </span>
           </div>
           <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 14px 0' }}>
-            Enter your official Razorpay Key ID and Secret. Must start with rzp_test_ or rzp_live_.
+            Credentials are locked by default to prevent accidental edits and browser auto-fill. Click unlock to update.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -306,12 +322,23 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
               </label>
               <input
                 type="text"
-                name="razorpay_key_identifier_field"
+                readOnly={!isEditingKeys}
+                disabled={!isEditingKeys}
                 autoComplete="off"
-                value={rzpKeyId}
+                value={isEditingKeys ? rzpKeyId : (settings?.razorpayKeyId || '')}
                 onChange={(e) => setRzpKeyId(e.target.value)}
-                placeholder="e.g. rzp_test_T3SdtTPSdbsaUg"
-                style={{ width: '100%', padding: '8px 10px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '6px', color: '#f8fafc', fontSize: '12.5px' }}
+                placeholder={isEditingKeys ? 'e.g. rzp_test_T3SdtTPSdbsaUg' : '(Not Configured - Using Default .env)'}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: isEditingKeys ? '#060a12' : '#0a0f1a',
+                  border: `1px solid ${isEditingKeys ? '#2563eb' : '#1e293b'}`,
+                  borderRadius: '6px',
+                  color: isEditingKeys ? '#f8fafc' : '#94a3b8',
+                  fontSize: '12.5px',
+                  cursor: isEditingKeys ? 'text' : 'not-allowed',
+                  opacity: isEditingKeys ? 1 : 0.8
+                }}
               />
             </div>
 
@@ -320,44 +347,96 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
                 <label style={{ fontSize: '11.5px', fontWeight: 600, color: '#94a3b8' }}>
                   Razorpay Key Secret
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowSecret(!showSecret)}
-                  style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', padding: 0 }}
-                >
-                  {showSecret ? 'Hide Secret' : 'Show Secret'}
-                </button>
+                {isEditingKeys && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSecret(!showSecret)}
+                    style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '11px', cursor: 'pointer', padding: 0 }}
+                  >
+                    {showSecret ? 'Hide Secret' : 'Show Secret'}
+                  </button>
+                )}
               </div>
               <input
                 type={showSecret ? 'text' : 'password'}
-                name="razorpay_secret_token_field"
+                readOnly={!isEditingKeys}
+                disabled={!isEditingKeys}
                 autoComplete="off"
-                value={rzpKeySecret}
+                value={isEditingKeys ? rzpKeySecret : (settings?.razorpayKeySecret ? '••••••••••••••••' : '')}
                 onChange={(e) => setRzpKeySecret(e.target.value)}
-                placeholder="e.g. vUvYJ7aPC4v2igWG2Hx5elDL"
-                style={{ width: '100%', padding: '8px 10px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '6px', color: '#f8fafc', fontSize: '12.5px' }}
+                placeholder={isEditingKeys ? 'e.g. vUvYJ7aPC4v2igWG2Hx5elDL' : '(Not Configured - Using Default .env)'}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  background: isEditingKeys ? '#060a12' : '#0a0f1a',
+                  border: `1px solid ${isEditingKeys ? '#2563eb' : '#1e293b'}`,
+                  borderRadius: '6px',
+                  color: isEditingKeys ? '#f8fafc' : '#94a3b8',
+                  fontSize: '12.5px',
+                  cursor: isEditingKeys ? 'text' : 'not-allowed',
+                  opacity: isEditingKeys ? 1 : 0.8
+                }}
               />
             </div>
 
-            <button
-              type="submit"
-              disabled={savingKeys}
-              style={{
-                alignSelf: 'flex-start',
-                padding: '8px 16px',
-                background: '#2563eb',
-                border: 'none',
-                borderRadius: '6px',
-                color: '#ffffff',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              {savingKeys ? 'Saving...' : 'Update Razorpay Keys'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+              {!isEditingKeys ? (
+                <button
+                  type="button"
+                  onClick={handleStartEditing}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#1e293b',
+                    border: '1px solid #334155',
+                    borderRadius: '6px',
+                    color: '#f8fafc',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Unlock to Change Keys
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleSaveKeys}
+                    disabled={savingKeys}
+                    style={{
+                      padding: '8px 18px',
+                      background: '#2563eb',
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {savingKeys ? 'Saving...' : 'Save & Update Keys'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={savingKeys}
+                    style={{
+                      padding: '8px 14px',
+                      background: 'transparent',
+                      border: '1px solid #334155',
+                      borderRadius: '6px',
+                      color: '#94a3b8',
+                      fontSize: '12px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-        </form>
+        </div>
 
         {/* Offline License Key Generator */}
         <div style={{ padding: '18px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '10px' }}>
