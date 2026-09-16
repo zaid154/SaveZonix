@@ -36,14 +36,39 @@ function verifyAspNetIdentityPassword(hashedPassword, providedPassword) {
   }
 }
 
-// Helper for safe user lookup across MongoDB ObjectId or C# string ID
-const findUserSafe = async (id) => {
-  if (!id) return null;
-  if (mongoose.Types.ObjectId.isValid(id)) {
-    const doc = await User.findById(id);
+// Helper for safe user lookup across MongoDB ObjectId, C# string ID, or Email
+const findUserSafe = async (id, fallbackEmail) => {
+  if (!id && !fallbackEmail) return null;
+  if (id && mongoose.Types.ObjectId.isValid(id)) {
+    try {
+      const doc = await User.findById(id);
+      if (doc) return doc;
+    } catch {}
+  }
+  if (id) {
+    const idClean = id.toString().trim();
+    const doc = await User.findOne({
+      $or: [
+        { _id: idClean },
+        { Id: idClean },
+        { id: idClean },
+        { email: idClean.toLowerCase() },
+        { Email: idClean.toLowerCase() }
+      ]
+    });
     if (doc) return doc;
   }
-  return await User.findOne({ $or: [{ _id: id }, { Id: id }, { id }] });
+  if (fallbackEmail) {
+    const emailClean = fallbackEmail.toString().trim().toLowerCase();
+    const doc = await User.findOne({
+      $or: [
+        { email: emailClean },
+        { Email: emailClean }
+      ]
+    });
+    if (doc) return doc;
+  }
+  return null;
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -343,17 +368,31 @@ router.get('/users', adminAuth, async (req, res) => {
     else if (status === 'Verified') query.emailConfirmed = true;
 
     const rawUsers = await User.find(query).select('-password -PasswordHash').sort({ createdAt: -1 }).limit(100).lean();
+    const now = new Date();
     const users = rawUsers.map((u) => {
       const idStr = u._id ? u._id.toString() : (u.Id || u.id || '');
       const rawName = u.name || u.FullName || u.fullName || u.userName || u.UserName;
-      const rawEmail = u.email || u.Email;
+      const rawEmail = u.email || u.Email || '';
+      const roleStr = u.role || u.Role || 'User';
+      const isSuperAdmin = roleStr === 'Admin' || rawEmail.toLowerCase() === 'zaidm1323@gmail.com';
+
+      // Check VIP status and expiration
+      let isVipUser = !!(u.isVip || u.IsVip);
+      if (isSuperAdmin) {
+        isVipUser = true;
+      } else if (isVipUser && u.vipExpiresAt && new Date(u.vipExpiresAt) < now) {
+        isVipUser = false; // Expired VIP drops to Free Tier
+      }
+
       return {
         ...u,
         _id: idStr,
         name: rawName || (rawEmail ? rawEmail.split('@')[0] : 'SaveZonix User'),
         email: rawEmail || 'No email registered',
-        role: u.role || u.Role || 'User',
-        isVip: !!u.isVip,
+        role: isSuperAdmin ? 'Admin' : roleStr,
+        isVip: isVipUser,
+        vipPlan: isSuperAdmin ? 'lifetime' : (u.vipPlan || (isVipUser ? (u.vipExpiresAt ? 'active' : 'lifetime') : 'free')),
+        vipExpiresAt: isSuperAdmin ? null : (u.vipExpiresAt || null),
         isActive: u.isActive !== undefined ? u.isActive : (u.IsActive !== undefined ? u.IsActive : true),
         emailConfirmed: !!u.emailConfirmed,
         dailyDownloads: u.dailyDownloads || 0,
@@ -407,18 +446,52 @@ router.get('/users/:id/details', adminAuth, async (req, res) => {
 
 router.post('/users/:id/vip', adminAuth, async (req, res) => {
   try {
-    const user = await findUserSafe(req.params.id);
+    const { action, plan, email, userEmail } = req.body || {};
+    const targetEmail = email || userEmail;
+    const user = await findUserSafe(req.params.id, targetEmail);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    user.isVip = !user.isVip;
-    if (user.isVip) {
-      user.vipExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    // Determine target VIP state
+    let targetVip = !user.isVip;
+    if (action === 'grant') targetVip = true;
+    else if (action === 'revoke' || plan === 'revoke' || plan === 'free') targetVip = false;
+    else if (plan === 'monthly' || plan === 'annual' || plan === 'lifetime') targetVip = true;
+
+    user.isVip = targetVip;
+    user.IsVip = targetVip;
+
+    if (targetVip) {
+      const selectedPlan = plan || 'monthly';
+      user.vipPlan = selectedPlan;
+      user.VipPlan = selectedPlan;
+      if (selectedPlan === 'lifetime') {
+        user.vipExpiresAt = null; // null represents lifetime / never expires
+        user.VipExpiresAt = null;
+      } else if (selectedPlan === 'annual') {
+        const exp = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+        user.vipExpiresAt = exp;
+        user.VipExpiresAt = exp;
+      } else {
+        const exp = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        user.vipExpiresAt = exp;
+        user.VipExpiresAt = exp;
+      }
     } else {
+      user.vipPlan = 'free';
+      user.VipPlan = 'free';
       user.vipExpiresAt = null;
+      user.VipExpiresAt = null;
     }
+
     await user.save();
 
-    return res.json({ success: true, isVip: user.isVip, user });
+    return res.json({
+      success: true,
+      isVip: user.isVip,
+      vipPlan: user.vipPlan,
+      vipExpiresAt: user.vipExpiresAt,
+      user
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -426,7 +499,8 @@ router.post('/users/:id/vip', adminAuth, async (req, res) => {
 
 router.post('/users/:id/active', adminAuth, async (req, res) => {
   try {
-    const user = await findUserSafe(req.params.id);
+    const { email, userEmail } = req.body || {};
+    const user = await findUserSafe(req.params.id, email || userEmail);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
     user.isActive = !user.isActive;
@@ -443,10 +517,11 @@ router.post('/users/:id/active', adminAuth, async (req, res) => {
 
 router.delete('/users/:id', adminAuth, async (req, res) => {
   try {
-    const user = await findUserSafe(req.params.id);
+    const { email, userEmail } = req.body || {};
+    const user = await findUserSafe(req.params.id, email || userEmail);
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    if (user.role === 'Admin' || user.email === 'zaidm1323@gmail.com') {
+    if (user.role === 'Admin' || user.Role === 'Admin' || user.email === 'zaidm1323@gmail.com') {
       return res.status(403).json({ error: 'Protected Master Administrator accounts cannot be deleted.' });
     }
 
@@ -457,7 +532,6 @@ router.delete('/users/:id', adminAuth, async (req, res) => {
   }
 });
 
-// ─────────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────
 // Telemetry Record Download (Public - called by Desktop App & Web Client)
 // ─────────────────────────────────────────────────────────────
@@ -486,7 +560,13 @@ router.post('/record-download', async (req, res) => {
     }
 
     const clientIp = ipAddress || req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
-    const email = (userEmail && userEmail.trim() && userEmail.trim() !== 'savezonix@gmail.com') ? userEmail.trim() : (userId ? 'User' : `Guest (${clientIp})`);
+    const email = (userEmail && userEmail.trim() && userEmail.trim() !== 'savezonix@gmail.com')
+      ? userEmail.trim()
+      : (userId ? 'User' : `Guest (${clientIp})`);
+
+    const isGuest = !userId || email.startsWith('Guest');
+    const isAdminUser = email.toLowerCase() === 'zaidm1323@gmail.com';
+    const downloadType = isAdminUser ? 'admin' : (isGuest ? 'guest' : 'user');
 
     const updateData = {
       title: (title || fileName || 'Media Item').trim(),
@@ -500,12 +580,15 @@ router.post('/record-download', async (req, res) => {
       peakSpeedMBps: Math.max(0, Number(peakSpeedMBps) || 0),
       format: (format || 'mp4').toLowerCase().replace(/^\./, ''),
       status: status || 'Completed',
+      downloadType,
       userEmail: email,
       ipAddress: clientIp,
       createdAt: new Date()
     };
 
-    if (userId) updateData.userId = userId;
+    if (userId && typeof userId === 'string' && userId.trim()) {
+      updateData.userId = userId.trim();
+    }
 
     let doc = null;
     if (taskId) {

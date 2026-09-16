@@ -82,6 +82,16 @@ public class SaveZonixUser
     public string? ProfilePicture { get; set; }
     public int TotalDownloadsCount { get; set; } = 0;
     public bool IsActive { get; set; } = true;
+
+    [BsonElement("isVip")]
+    public bool IsVip { get; set; } = false;
+
+    [BsonElement("vipPlan")]
+    public string VipPlan { get; set; } = "free";
+
+    [BsonElement("vipExpiresAt")]
+    public DateTime? VipExpiresAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

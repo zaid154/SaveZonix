@@ -1596,20 +1596,42 @@
         // Option A: Strict VIP PRO Enforcement for Batch Playlist Studio
         if (videoList.length > 1) {
             let isUserVip = false;
-            try {
-                const saved = localStorage.getItem('savezonix_cloud_user');
-                if (saved) {
-                    const u = JSON.parse(saved);
-                    if (u.isVip || u.role === 'Admin' || u.Role === 'Admin') {
-                        isUserVip = true;
-                    }
-                }
-            } catch { }
 
+            // 1. Session check from ASP.NET _Layout
+            if (window.__SAVEZONIX_SESSION__ && (window.__SAVEZONIX_SESSION__.isAdmin || window.__SAVEZONIX_SESSION__.isVip)) {
+                isUserVip = true;
+            }
+
+            // 2. Storage check (cloud user, local user, admin user)
+            if (!isUserVip) {
+                const storageKeys = ['savezonix_cloud_user', 'savezonix_user', 'savezonix_admin_user'];
+                for (const k of storageKeys) {
+                    try {
+                        const saved = localStorage.getItem(k);
+                        if (saved) {
+                            const u = JSON.parse(saved);
+                            if (u.isVip || u.role === 'Admin' || u.Role === 'Admin' || (u.email && u.email.toLowerCase() === 'zaidm1323@gmail.com') || u.isAdmin) {
+                                isUserVip = true;
+                                break;
+                            }
+                        }
+                    } catch { }
+                }
+            }
+
+            // 3. Admin Key check
+            if (!isUserVip) {
+                try {
+                    const k = localStorage.getItem('savezonix_admin_key');
+                    if (k === 'savezonix_admin_2026') isUserVip = true;
+                } catch { }
+            }
+
+            // 4. Fleet engine settings
             if (!isUserVip && window.getFleetEngineSettings) {
                 try {
                     const fleet = window.getFleetEngineSettings();
-                    if (fleet && fleet.isVip) isUserVip = true;
+                    if (fleet && (fleet.isVip || fleet.role === 'Admin' || fleet.isAdmin)) isUserVip = true;
                 } catch { }
             }
 
@@ -1635,9 +1657,15 @@
         const idList = videoList.map(v => v.videoId);
 
         try {
+            const batchHeaders = { 'Content-Type': 'application/json' };
+            const adminKey = localStorage.getItem('savezonix_admin_key');
+            if (adminKey) batchHeaders['x-admin-key'] = adminKey;
+            const token = localStorage.getItem('savezonix_token') || localStorage.getItem('savezonix_cloud_token');
+            if (token) batchHeaders['Authorization'] = `Bearer ${token}`;
+
             const resp = await fetch('/api/playlist/download-batch', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: batchHeaders,
                 body: JSON.stringify({
                     playlistUrl: playlistUrlInput.value.trim(),
                     playlistTitle: playlistTitle,

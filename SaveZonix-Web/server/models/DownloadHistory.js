@@ -16,7 +16,13 @@ const DownloadHistorySchema = new mongoose.Schema({
   },
   fileName: {
     type: String,
-    required: true
+    default: 'download.mp4'
+  },
+  downloadType: {
+    type: String,
+    enum: ['guest', 'user', 'admin'],
+    default: 'guest',
+    index: true
   },
   originalUrl: {
     type: String,

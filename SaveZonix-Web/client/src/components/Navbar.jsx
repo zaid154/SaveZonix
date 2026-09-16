@@ -273,7 +273,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
             </button>
           )}
 
-          {!user?.isVip && (
+          {(!user?.isVip && !isAdmin) ? (
             <button
               type="button"
               onClick={onOpenVip}
@@ -293,6 +293,23 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
             >
               Upgrade VIP
             </button>
+          ) : (
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '6px 12px',
+                background: 'rgba(251, 191, 36, 0.12)',
+                border: '1px solid rgba(251, 191, 36, 0.35)',
+                borderRadius: '8px',
+                color: '#fbbf24',
+                fontSize: '12px',
+                fontWeight: 700
+              }}
+            >
+              👑 {isAdmin ? 'Admin VIP' : 'VIP Pro'}
+            </div>
           )}
 
           <a href={downloadUrl} className="btn-nav-download">

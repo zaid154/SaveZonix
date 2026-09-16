@@ -11,11 +11,14 @@ export default function DownloadsTab({
   const [platformFilterDownload, setPlatformFilterDownload] = useState('');
 
   const filteredDownloads = (downloads || []).filter((d) => {
-    const matchSearch =
-      (d.fileName && d.fileName.toLowerCase().includes(searchDownload.toLowerCase())) ||
-      (d.originalUrl && d.originalUrl.toLowerCase().includes(searchDownload.toLowerCase())) ||
-      (d.userEmail && d.userEmail.toLowerCase().includes(searchDownload.toLowerCase()));
-    if (!matchSearch) return false;
+    const q = searchDownload.toLowerCase().trim();
+    if (q) {
+      const matchTitle = d.title && d.title.toLowerCase().includes(q);
+      const matchFile = d.fileName && d.fileName.toLowerCase().includes(q);
+      const matchUrl = d.originalUrl && d.originalUrl.toLowerCase().includes(q);
+      const matchEmail = d.userEmail && d.userEmail.toLowerCase().includes(q);
+      if (!matchTitle && !matchFile && !matchUrl && !matchEmail) return false;
+    }
     if (statusFilterDownload && d.status !== statusFilterDownload) return false;
     if (platformFilterDownload && (!d.platform || !d.platform.toLowerCase().includes(platformFilterDownload.toLowerCase()))) return false;
     return true;
@@ -137,7 +140,23 @@ export default function DownloadsTab({
                     </span>
                   </td>
 
-                  <td style={{ padding: '12px 16px', color: '#94a3b8' }}>{d.userEmail || 'Guest'}</td>
+                  <td style={{ padding: '12px 16px', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>{d.userEmail || 'Guest'}</span>
+                      <span style={{
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        background: d.downloadType === 'admin' ? 'rgba(56, 189, 248, 0.15)' : (d.downloadType === 'user' ? 'rgba(16, 185, 129, 0.15)' : '#131b2c'),
+                        color: d.downloadType === 'admin' ? '#38bdf8' : (d.downloadType === 'user' ? '#34d399' : '#64748b'),
+                        border: `1px solid ${d.downloadType === 'admin' ? 'rgba(56, 189, 248, 0.3)' : (d.downloadType === 'user' ? 'rgba(16, 185, 129, 0.3)' : '#1e293b')}`
+                      }}>
+                        {d.downloadType || (d.userEmail && !d.userEmail.startsWith('Guest') ? 'user' : 'guest')}
+                      </span>
+                    </div>
+                  </td>
 
                   <td style={{ padding: '12px 16px', color: '#94a3b8' }}>
                     {d.fileSize ? `${(d.fileSize / (1024 * 1024)).toFixed(1)} MB` : 'N/A'}

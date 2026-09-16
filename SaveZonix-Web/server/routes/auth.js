@@ -140,6 +140,16 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Invalid email or password.' });
     }
 
+    // Check Admin role and VIP expiration
+    const isAdmin = user.role === 'Admin' || user.Role === 'Admin' || (user.email && user.email.toLowerCase() === 'zaidm1323@gmail.com');
+    if (!isAdmin && user.isVip && user.vipExpiresAt && new Date(user.vipExpiresAt) < new Date()) {
+      user.isVip = false;
+      user.IsVip = false;
+      user.vipPlan = 'free';
+      await user.save();
+    }
+    const isVipActive = isAdmin || !!(user.isVip || user.IsVip);
+
     // Reset daily count if day changed
     const today = new Date().toISOString().split('T')[0];
     if (user.lastDownloadDate !== today) {
@@ -149,7 +159,7 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { userId: user._id, email: user.email, isVip: user.isVip },
+      { userId: user._id, email: user.email, isVip: isVipActive, role: isAdmin ? 'Admin' : (user.role || 'User') },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -162,8 +172,10 @@ router.post('/login', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        isVip: user.isVip,
-        role: user.role,
+        isVip: isVipActive,
+        vipPlan: isAdmin ? 'lifetime' : (user.vipPlan || (isVipActive ? 'active' : 'free')),
+        vipExpiresAt: isAdmin ? null : user.vipExpiresAt,
+        role: isAdmin ? 'Admin' : (user.role || 'User'),
         dailyDownloads: user.dailyDownloads
       }
     });
@@ -268,17 +280,28 @@ router.post('/verify-reset-otp', async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.get('/me', authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
+    const user = await User.findById(req.user.userId).select('-password -PasswordHash');
     if (!user) return res.status(404).json({ error: 'User not found.' });
+
+    const isAdmin = user.role === 'Admin' || user.Role === 'Admin' || (user.email && user.email.toLowerCase() === 'zaidm1323@gmail.com');
+    if (!isAdmin && user.isVip && user.vipExpiresAt && new Date(user.vipExpiresAt) < new Date()) {
+      user.isVip = false;
+      user.IsVip = false;
+      user.vipPlan = 'free';
+      await user.save();
+    }
+    const isVipActive = isAdmin || !!(user.isVip || user.IsVip);
 
     return res.json({
       id: user._id,
-      name: user.name,
+      name: user.name || user.FullName,
       email: user.email,
-      isVip: user.isVip,
-      role: user.role,
-      dailyDownloads: user.dailyDownloads,
-      isActive: user.isActive
+      isVip: isVipActive,
+      vipPlan: isAdmin ? 'lifetime' : (user.vipPlan || (isVipActive ? 'active' : 'free')),
+      vipExpiresAt: isAdmin ? null : user.vipExpiresAt,
+      role: isAdmin ? 'Admin' : (user.role || 'User'),
+      dailyDownloads: user.dailyDownloads || 0,
+      isActive: user.isActive !== false
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });

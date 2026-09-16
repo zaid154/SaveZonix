@@ -173,12 +173,15 @@ router.post('/verify', async (req, res) => {
     } else if (plan === 'annual') {
       expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
     } else if (plan === 'lifetime') {
-      expiresAt = new Date(now.getTime() + 100 * 365 * 24 * 60 * 60 * 1000);
+      expiresAt = null; // Lifetime never expires
     }
 
     user.isVip = true;
+    user.IsVip = true;
     user.vipPlan = plan;
+    user.VipPlan = plan;
     user.vipExpiresAt = expiresAt;
+    user.VipExpiresAt = expiresAt;
     user.vipPurchasedAt = now;
     await user.save();
 
@@ -303,8 +306,11 @@ router.post('/redeem-license', optionalAuth, async (req, res) => {
     }
 
     user.isVip = true;
+    user.IsVip = true;
     user.vipPlan = plan;
-    user.vipExpiresAt = new Date(Date.now() + durationMs);
+    user.VipPlan = plan;
+    user.vipExpiresAt = plan === 'lifetime' ? null : new Date(Date.now() + durationMs);
+    user.VipExpiresAt = user.vipExpiresAt;
     await user.save();
 
     await Payment.create({

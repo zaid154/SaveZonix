@@ -126,6 +126,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
 
   function getAuthHeaders(token = activeToken) {
     const headers = {
+      'Content-Type': 'application/json',
       'x-admin-key': 'savezonix_admin_2026'
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -135,7 +136,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   useEffect(() => {
     const targetTab = getTabFromPath(currentPath);
     setActiveTab(targetTab);
-    loadTabData(targetTab, false, activeToken);
+    loadTabData(targetTab, true, activeToken);
   }, [currentPath, activeToken, isAdmin]);
 
   function handleTabClick(tabId) {
@@ -145,16 +146,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     } else {
       window.history.pushState({}, '', `/admin/${tabId}`);
     }
-    loadTabData(tabId, false, activeToken);
+    loadTabData(tabId, true, activeToken);
   }
 
-  // High-Speed Lazy Loader: Loads only what is needed for the requested tab and caches in React state
-  async function loadTabData(tab = activeTab, force = false, token = activeToken) {
+  // High-Speed SWR Loader: Loads live data from MongoDB and keeps React state + session cache up to date
+  async function loadTabData(tab = activeTab, force = true, token = activeToken) {
     const resolvedToken = token || activeToken;
-    if (!force && loadedTabs.has(tab)) {
-      return; // 0ms instant transition from cache
-    }
-
     setLoading(true);
     const headers = getAuthHeaders(resolvedToken);
 
@@ -163,126 +160,125 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
 
       // 1. Overview tab: needs stats + downloads
       if (tab === 'overview') {
-        if (!stats || force) {
-          calls.push(
-            fetch('/api/admin/stats', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (d) {
-                  setStats(d);
-                  try { sessionStorage.setItem('sz_cache_stats', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
-        if (downloads.length === 0 || force) {
-          calls.push(
-            fetch('/api/admin/downloads', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (Array.isArray(d)) {
-                  setDownloads(d);
-                  try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
+        calls.push(
+          fetch('/api/admin/stats', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setStats(d);
+                try { sessionStorage.setItem('sz_cache_stats', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+        calls.push(
+          fetch('/api/admin/downloads', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (Array.isArray(d)) {
+                setDownloads(d);
+                try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
       }
 
-      // 2. Users / Security tabs: needs users list + settings
+      // 2. Users / Security tabs: needs fresh users list + settings
       if (tab === 'users' || tab === 'security') {
-        if (users.length === 0 || force) {
-          calls.push(
-            fetch('/api/admin/users', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (Array.isArray(d)) {
-                  setUsers(d);
-                  try { sessionStorage.setItem('sz_cache_users', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
-        if (!settings || force) {
-          calls.push(
-            fetch('/api/admin/settings', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (d) {
-                  setSettings(d);
-                  try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
+        calls.push(
+          fetch('/api/admin/users', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (Array.isArray(d)) {
+                setUsers(d);
+                try { sessionStorage.setItem('sz_cache_users', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+        calls.push(
+          fetch('/api/admin/settings', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setSettings(d);
+                try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
       }
 
-      // 3. Downloads tab: needs downloads list
+      // 3. Downloads tab: needs fresh downloads list
       if (tab === 'downloads') {
-        if (downloads.length === 0 || force) {
-          calls.push(
-            fetch('/api/admin/downloads', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (Array.isArray(d)) {
-                  setDownloads(d);
-                  try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
+        calls.push(
+          fetch('/api/admin/downloads', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (Array.isArray(d)) {
+                setDownloads(d);
+                try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
       }
 
       // 4. Diagnostics tab: needs diagnostics + dbStatus
       if (tab === 'diagnostics') {
-        if (!diagnostics || force) {
-          calls.push(
-            fetch('/api/admin/diagnostics', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (d) {
-                  setDiagnostics(d);
-                  try { sessionStorage.setItem('sz_cache_diagnostics', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
+        calls.push(
+          fetch('/api/admin/diagnostics', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setDiagnostics(d);
+                try { sessionStorage.setItem('sz_cache_diagnostics', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
       }
 
       // 5. Engine tab: needs dbStatus + settings
       if (tab === 'engine' || tab === 'engine-database') {
-        if (!dbStatus || force) {
-          calls.push(
-            fetch('/api/admin/database-status', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (d) {
-                  setDbStatus(d);
-                  try { sessionStorage.setItem('sz_cache_dbStatus', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
-        if (!settings || force) {
-          calls.push(
-            fetch('/api/admin/settings', { headers })
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (d) {
-                  setSettings(d);
-                  try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
-                }
-              })
-              .catch(() => null)
-          );
-        }
+        calls.push(
+          fetch('/api/admin/database-status', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setDbStatus(d);
+                try { sessionStorage.setItem('sz_cache_dbStatus', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+        calls.push(
+          fetch('/api/admin/settings', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setSettings(d);
+                try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+      }
+
+      // 6. Financials tab: needs settings + stats
+      if (tab === 'financials') {
+        calls.push(
+          fetch('/api/admin/settings', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setSettings(d);
+                try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
       }
 
       await Promise.all(calls);
@@ -295,19 +291,34 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   }
 
   // User Actions
-  async function handleToggleVip(userId) {
-    if (!userId) return;
-    setActionLoadingId(`vip-${userId}`);
+  async function handleToggleVip(userId, userEmail, desiredPlan) {
+    if (!userId && !userEmail) return;
+    const targetId = userId || 'by-email';
+    setActionLoadingId(`vip-${userId || userEmail}`);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/vip`, {
+      const res = await fetch(`/api/admin/users/${targetId}/vip`, {
         method: 'POST',
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          email: userEmail,
+          plan: desiredPlan === 'revoke' ? 'free' : (desiredPlan || 'monthly'),
+          action: desiredPlan === 'revoke' ? 'revoke' : 'grant'
+        })
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setUsers(users.map((u) => (u._id === userId ? { ...u, isVip: data.isVip } : u)));
-        setSaveMessage('User VIP membership updated.');
+        setUsers(prev => {
+          const updated = prev.map(u =>
+            (u._id === userId || (userEmail && u.email?.toLowerCase() === userEmail.toLowerCase()))
+              ? { ...u, isVip: data.isVip, vipPlan: data.vipPlan, vipExpiresAt: data.vipExpiresAt }
+              : u
+          );
+          try { sessionStorage.setItem('sz_cache_users', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+        setSaveMessage(`User VIP ${data.isVip ? 'granted (' + (data.vipPlan || 'active') + ')' : 'revoked'}.`);
         setTimeout(() => setSaveMessage(''), 3000);
+        loadTabData('users', true);
       } else {
         alert('Action failed: ' + (data.error || 'Server error.'));
       }
@@ -318,19 +329,30 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     }
   }
 
-  async function handleToggleActive(userId) {
-    if (!userId) return;
-    setActionLoadingId(`active-${userId}`);
+  async function handleToggleActive(userId, userEmail) {
+    if (!userId && !userEmail) return;
+    const targetId = userId || 'by-email';
+    setActionLoadingId(`active-${userId || userEmail}`);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/active`, {
+      const res = await fetch(`/api/admin/users/${targetId}/active`, {
         method: 'POST',
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ email: userEmail })
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setUsers(users.map((u) => (u._id === userId ? { ...u, isActive: data.isActive } : u)));
+        setUsers(prev => {
+          const updated = prev.map(u =>
+            (u._id === userId || (userEmail && u.email?.toLowerCase() === userEmail.toLowerCase()))
+              ? { ...u, isActive: data.isActive }
+              : u
+          );
+          try { sessionStorage.setItem('sz_cache_users', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
         setSaveMessage('User status updated.');
         setTimeout(() => setSaveMessage(''), 3000);
+        loadTabData('users', true);
       } else {
         alert('Action failed: ' + (data.error || 'Server error.'));
       }
@@ -341,10 +363,10 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     }
   }
 
-  async function handleInspectUser(userId) {
-    if (!userId) return;
+  async function handleInspectUser(userId, userEmail) {
+    if (!userId && !userEmail) return;
     try {
-      const res = await fetch(`/api/admin/users/${userId}/details`, {
+      const res = await fetch(`/api/admin/users/${userId || userEmail}/details`, {
         headers: getAuthHeaders()
       });
       if (res.ok) {
@@ -358,18 +380,24 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   }
 
   async function handleDeleteUser(userId, userEmail) {
-    if (!window.confirm(`Are you sure you want to permanently delete account '${userEmail}'?`)) return;
-    setActionLoadingId(`del-${userId}`);
+    if (!window.confirm(`Are you sure you want to permanently delete account '${userEmail || userId}'?`)) return;
+    setActionLoadingId(`del-${userId || userEmail}`);
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await fetch(`/api/admin/users/${userId || 'by-email'}`, {
         method: 'DELETE',
-        headers: getAuthHeaders()
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ email: userEmail })
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setUsers(users.filter((u) => u._id !== userId));
+        setUsers(prev => {
+          const updated = prev.filter(u => u._id !== userId && (!userEmail || u.email?.toLowerCase() !== userEmail.toLowerCase()));
+          try { sessionStorage.setItem('sz_cache_users', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
         setSaveMessage('Account removed from database.');
         setTimeout(() => setSaveMessage(''), 3000);
+        loadTabData('users', true);
       } else {
         alert(data.error || 'Failed to delete user.');
       }

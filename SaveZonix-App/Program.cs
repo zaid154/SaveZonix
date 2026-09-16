@@ -2538,18 +2538,24 @@ public class Program
                 return Results.BadRequest(new { success = false, message = "Invalid email or password." });
             }
 
+            bool isAdmin = string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(user.Email, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(user.Email, "trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase);
+            bool isVip = isAdmin || user.IsVip;
+
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id ?? Guid.NewGuid().ToString("N")),
                 new(ClaimTypes.Name, user.FullName),
                 new(ClaimTypes.Email, user.Email),
-                new(ClaimTypes.Role, user.Role)
+                new(ClaimTypes.Role, isAdmin ? "Admin" : user.Role),
+                new("isVip", isVip ? "true" : "false")
             };
             var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
             await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity),
                 new AuthenticationProperties { IsPersistent = req.RememberMe });
 
-            return Results.Ok(new { success = true, user = new { user.Id, user.FullName, user.Email, user.Role } });
+            return Results.Ok(new { success = true, user = new { user.Id, user.FullName, user.Email, Role = isAdmin ? "Admin" : user.Role, IsVip = isVip } });
         });
 
         app.MapPost("/api/auth/logout", async (HttpContext ctx) =>

@@ -19,6 +19,27 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/style.css" asp-append-version="true">
     @await RenderSectionAsync("Styles", required: false)
+    @{
+        var isAuth = User.Identity?.IsAuthenticated == true;
+        var roleVal = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "";
+        var emailVal = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "";
+        var nameVal = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? User.Identity?.Name ?? "";
+        var isVipClaim = User.FindFirst("isVip")?.Value == "true";
+        var isSuperAdmin = User.IsInRole("Admin") ||
+                           string.Equals(roleVal, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                           string.Equals(emailVal, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase);
+        var isVipActive = isSuperAdmin || isVipClaim;
+    }
+    <script>
+        window.__SAVEZONIX_SESSION__ = {
+            isAuthenticated: @(isAuth ? "true" : "false"),
+            userName: "@Html.Raw(nameVal.Replace("\"", "\\\""))",
+            userEmail: "@Html.Raw(emailVal.Replace("\"", "\\\""))",
+            role: "@Html.Raw(roleVal.Replace("\"", "\\\""))",
+            isAdmin: @(isSuperAdmin ? "true" : "false"),
+            isVip: @(isVipActive ? "true" : "false")
+        };
+    </script>
 </head>
 <body>
     <div class="site-wrapper">

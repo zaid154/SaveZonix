@@ -134,7 +134,7 @@ export default function UsersTab({
                       {u.isVip ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 9px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 600, background: 'rgba(251, 191, 36, 0.12)', color: '#fbbf24', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
                           <IconCrown size={12} color="#fbbf24" />
-                          VIP Pass
+                          {u.vipPlan === 'lifetime' ? 'VIP Lifetime' : (u.vipPlan === 'annual' ? 'VIP Annual' : 'VIP Pass')}
                         </span>
                       ) : (
                         <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', color: '#64748b', background: '#060a12', border: '1px solid #1a2333' }}>
@@ -167,32 +167,73 @@ export default function UsersTab({
                     <td style={{ padding: '14px 16px', textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
                         <button
-                          onClick={() => onInspectUser(u._id)}
+                          onClick={() => onInspectUser(u._id, u.email)}
                           style={{ padding: '5px 10px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#38bdf8', fontSize: '11.5px', fontWeight: 600, cursor: 'pointer' }}
                         >
                           History
                         </button>
 
-                        <button
-                          onClick={() => onToggleVip(u._id)}
-                          disabled={isUpdatingVip}
-                          style={{
-                            padding: '5px 10px',
-                            background: u.isVip ? '#131b2c' : '#2563eb',
-                            border: `1px solid ${u.isVip ? '#334155' : '#2563eb'}`,
-                            borderRadius: '6px',
-                            color: u.isVip ? '#fbbf24' : '#ffffff',
-                            fontSize: '11.5px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            opacity: isUpdatingVip ? 0.6 : 1
-                          }}
-                        >
-                          {isUpdatingVip ? 'Updating...' : u.isVip ? 'Revoke VIP' : 'Grant VIP'}
-                        </button>
+                        {u.isVip ? (
+                          <button
+                            onClick={() => onToggleVip(u._id, u.email, null)}
+                            disabled={isUpdatingVip}
+                            style={{
+                              padding: '5px 10px',
+                              background: '#131b2c',
+                              border: '1px solid #334155',
+                              borderRadius: '6px',
+                              color: '#fbbf24',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              opacity: isUpdatingVip ? 0.6 : 1
+                            }}
+                          >
+                            {isUpdatingVip ? 'Updating...' : 'Revoke VIP'}
+                          </button>
+                        ) : (
+                          <div style={{ display: 'inline-flex', gap: '4px' }}>
+                            <button
+                              onClick={() => onToggleVip(u._id, u.email, 'monthly')}
+                              disabled={isUpdatingVip}
+                              title="Grant 30-Day VIP Pass"
+                              style={{
+                                padding: '5px 8px',
+                                background: '#2563eb',
+                                border: '1px solid #2563eb',
+                                borderRadius: '6px',
+                                color: '#ffffff',
+                                fontSize: '11.5px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                opacity: isUpdatingVip ? 0.6 : 1
+                              }}
+                            >
+                              {isUpdatingVip ? '...' : 'Grant VIP'}
+                            </button>
+                            <button
+                              onClick={() => onToggleVip(u._id, u.email, 'lifetime')}
+                              disabled={isUpdatingVip}
+                              title="Grant Lifetime / Founder VIP Pass (Never Expires)"
+                              style={{
+                                padding: '5px 8px',
+                                background: 'rgba(245, 158, 11, 0.15)',
+                                border: '1px solid rgba(245, 158, 11, 0.4)',
+                                borderRadius: '6px',
+                                color: '#fbbf24',
+                                fontSize: '11px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                opacity: isUpdatingVip ? 0.6 : 1
+                              }}
+                            >
+                              ∞ Lifetime
+                            </button>
+                          </div>
+                        )}
 
                         <button
-                          onClick={() => onToggleActive(u._id)}
+                          onClick={() => onToggleActive(u._id, u.email)}
                           disabled={isUpdatingActive}
                           style={{
                             padding: '5px 10px',

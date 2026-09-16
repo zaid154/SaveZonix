@@ -108,9 +108,14 @@ public class PlaylistController : Controller
         string? userName = User.Identity?.Name ?? (userEmail != null ? userEmail.Split('@')[0] : "Guest");
         string? role = User.FindFirstValue(ClaimTypes.Role);
 
-        // Strict VIP PRO enforcement for Batch Playlist Studio (Option A)
+        // Strict VIP PRO enforcement for Batch Playlist Studio
         bool isVip = false;
-        if (string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase))
+
+        // 1. Direct Admin Bypass (Master Admin Email or Role or Admin Key Header)
+        if (User.IsInRole("Admin") ||
+            string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) ||
+            Request.Headers["x-admin-key"] == "savezonix_admin_2026")
         {
             isVip = true;
         }
@@ -129,13 +134,29 @@ public class PlaylistController : Controller
                 var userDoc = await _usersCollection.Find(filter).FirstOrDefaultAsync();
                 if (userDoc != null)
                 {
-                    if (userDoc.Contains("isVip") && !userDoc["isVip"].IsBsonNull && userDoc["isVip"].ToBoolean())
+                    string docRole = userDoc.Contains("role") ? userDoc["role"].AsString :
+                                    (userDoc.Contains("Role") ? userDoc["Role"].AsString : "User");
+                    if (string.Equals(docRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase))
                     {
                         isVip = true;
                     }
-                    else if (userDoc.Contains("role") && string.Equals(userDoc["role"].AsString, "Admin", StringComparison.OrdinalIgnoreCase))
+                    else if (userDoc.Contains("isVip") && !userDoc["isVip"].IsBsonNull && userDoc["isVip"].ToBoolean())
                     {
-                        isVip = true;
+                        // Check if VIP expired
+                        if (userDoc.Contains("vipExpiresAt") && !userDoc["vipExpiresAt"].IsBsonNull)
+                        {
+                            var expiry = userDoc["vipExpiresAt"].ToUniversalTime();
+                            if (expiry >= DateTime.UtcNow)
+                            {
+                                isVip = true;
+                            }
+                        }
+                        else
+                        {
+                            // Null expiry = Lifetime VIP
+                            isVip = true;
+                        }
                     }
                 }
             }

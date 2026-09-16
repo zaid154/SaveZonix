@@ -109,7 +109,32 @@ public class AccountController : Controller
                       (userDoc.Contains("Email") && !userDoc["Email"].IsBsonNull ? userDoc["Email"].AsString : "");
         string role = userDoc.Contains("role") && !userDoc["role"].IsBsonNull ? userDoc["role"].AsString :
                      (userDoc.Contains("Role") && !userDoc["Role"].IsBsonNull ? userDoc["Role"].AsString : "User");
-        bool isVip = userDoc.Contains("isVip") && !userDoc["isVip"].IsBsonNull ? userDoc["isVip"].ToBoolean() : false;
+        bool isAdmin = string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(email, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) ||
+                       string.Equals(email, "trendykart.app@gmail.com", StringComparison.OrdinalIgnoreCase);
+        if (isAdmin) role = "Admin";
+
+        bool isVip = isAdmin;
+        if (!isVip)
+        {
+            bool hasVipFlag = (userDoc.Contains("isVip") && !userDoc["isVip"].IsBsonNull && userDoc["isVip"].ToBoolean()) ||
+                              (userDoc.Contains("IsVip") && !userDoc["IsVip"].IsBsonNull && userDoc["IsVip"].ToBoolean());
+            if (hasVipFlag)
+            {
+                if (userDoc.Contains("vipExpiresAt") && !userDoc["vipExpiresAt"].IsBsonNull)
+                {
+                    isVip = userDoc["vipExpiresAt"].ToUniversalTime() >= DateTime.UtcNow;
+                }
+                else if (userDoc.Contains("VipExpiresAt") && !userDoc["VipExpiresAt"].IsBsonNull)
+                {
+                    isVip = userDoc["VipExpiresAt"].ToUniversalTime() >= DateTime.UtcNow;
+                }
+                else
+                {
+                    isVip = true; // Lifetime VIP
+                }
+            }
+        }
 
         var claims = new List<Claim>
         {

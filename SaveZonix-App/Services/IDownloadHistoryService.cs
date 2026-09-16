@@ -312,6 +312,12 @@ public class DownloadHistoryService : IDownloadHistoryService
         {
             try
             {
+                string dType = "guest";
+                if (string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase)) dType = "admin";
+                else if (!string.IsNullOrEmpty(userId) || (!string.IsNullOrEmpty(userEmail) && !userEmail.StartsWith("Guest", StringComparison.OrdinalIgnoreCase))) dType = "user";
+
+                BsonValue bsonUserId = string.IsNullOrEmpty(userId) ? BsonNull.Value : (BsonValue)userId;
+
                 var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
                 var update = Builders<BsonDocument>.Update
                     .Set("taskId", taskId)
@@ -324,7 +330,8 @@ public class DownloadHistoryService : IDownloadHistoryService
                     .Set("fileSize", estimatedBytes)
                     .Set("format", format)
                     .Set("status", "Downloading")
-                    .Set("userId", userId ?? (object)BsonNull.Value)
+                    .Set("downloadType", dType)
+                    .Set("userId", bsonUserId)
                     .Set("userEmail", userEmail ?? "Guest")
                     .Set("userName", userName ?? "Guest")
                     .Set("ipAddress", "127.0.0.1")
