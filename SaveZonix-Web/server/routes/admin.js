@@ -590,6 +590,10 @@ router.post('/record-download', async (req, res) => {
       updateData.userId = userId.trim();
     }
 
+    if (req.body.downloadStrategy) updateData.downloadStrategy = req.body.downloadStrategy;
+    if (req.body.playlistCode) updateData.playlistCode = req.body.playlistCode;
+    if (req.body.playlistTitle) updateData.playlistTitle = req.body.playlistTitle;
+
     let doc = null;
     if (taskId) {
       doc = await DownloadHistory.findOneAndUpdate(
@@ -621,14 +625,16 @@ router.get('/downloads', adminAuth, async (req, res) => {
         { fileName: { $regex: search, $options: 'i' } },
         { originalUrl: { $regex: search, $options: 'i' } },
         { title: { $regex: search, $options: 'i' } },
-        { userEmail: { $regex: search, $options: 'i' } }
+        { userEmail: { $regex: search, $options: 'i' } },
+        { downloadStrategy: { $regex: search, $options: 'i' } }
       ];
     }
     if (status) query.status = status;
     if (platform) query.platform = { $regex: platform, $options: 'i' };
     if (userEmail) query.userEmail = { $regex: userEmail, $options: 'i' };
 
-    const downloads = await DownloadHistory.find(query).sort({ createdAt: -1 }).limit(100).lean();
+    const maxLimit = Math.min(parseInt(req.query.limit) || 1000, 2500);
+    const downloads = await DownloadHistory.find(query).sort({ createdAt: -1 }).limit(maxLimit).lean();
     return res.json(downloads);
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -651,6 +657,19 @@ router.delete('/downloads/:id', adminAuth, async (req, res) => {
   try {
     await DownloadHistory.findByIdAndDelete(req.params.id);
     return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/downloads/bulk-delete', adminAuth, async (req, res) => {
+  try {
+    const { ids } = req.body || {};
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No download record IDs provided for deletion.' });
+    }
+    const result = await DownloadHistory.deleteMany({ _id: { $in: ids } });
+    return res.json({ success: true, deletedCount: result.deletedCount });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

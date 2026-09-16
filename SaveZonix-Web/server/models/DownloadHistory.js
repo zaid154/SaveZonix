@@ -57,6 +57,18 @@ const DownloadHistorySchema = new mongoose.Schema({
     enum: ['Completed', 'Failed', 'Downloading', 'Corrupted', 'Cancelled'],
     default: 'Completed'
   },
+  downloadStrategy: {
+    type: String,
+    default: null
+  },
+  playlistCode: {
+    type: String,
+    default: null
+  },
+  playlistTitle: {
+    type: String,
+    default: null
+  },
   userId: {
     type: mongoose.Schema.Types.Mixed,
     default: null

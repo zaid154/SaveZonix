@@ -435,7 +435,29 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
         headers: getAuthHeaders()
       });
       if (res.ok) {
-        setDownloads(downloads.filter((d) => d._id !== id));
+        setDownloads(prev => prev.filter((d) => d._id !== id));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function handleDeletePlaylist(ids, playlistTitle) {
+    if (!ids || ids.length === 0) return;
+    if (!window.confirm(`Permanently remove all ${ids.length} records for "${playlistTitle || 'this playlist'}"?`)) return;
+    try {
+      const res = await fetch('/api/admin/downloads/bulk-delete', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ids })
+      });
+      if (res.ok) {
+        setDownloads(prev => prev.filter((d) => !ids.includes(d._id)));
+        setSaveMessage(`Removed ${ids.length} records for playlist.`);
+        setTimeout(() => setSaveMessage(''), 3000);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Failed to remove playlist records.');
       }
     } catch (err) {
       alert('Error: ' + err.message);
@@ -751,6 +773,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             downloads={downloads}
             onCleanStaleDownloads={handleCleanStaleDownloads}
             onDeleteDownloadRecord={handleDeleteDownloadRecord}
+            onDeletePlaylist={handleDeletePlaylist}
+            onRefresh={() => loadTabData('downloads', true)}
           />
         </AdminErrorBoundary>
       )}
