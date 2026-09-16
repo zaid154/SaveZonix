@@ -35,7 +35,17 @@ router.get('/', async (req, res) => {
       vipMonthlyPriceINR: config.vipMonthlyPriceINR,
       appDownloadUrl: config.appDownloadUrl,
       silentAutoUpdate: config.silentAutoUpdate !== false,
-      announcementMessage: config.announcementMessage
+      announcementMessage: config.announcementMessage,
+      maintenanceMode: !!config.maintenanceMode,
+      maintenanceDurationMinutes: config.maintenanceDurationMinutes || 15,
+      maintenanceEndsAt: config.maintenanceEndsAt || null,
+      maintenanceMessage: config.maintenanceMessage || 'Server routine upgrade in progress. All stream engines will resume shortly.',
+      freeMaxSpeedMBps: config.freeMaxSpeedMBps ?? 15,
+      vipMaxSpeedMBps: config.vipMaxSpeedMBps ?? 0,
+      defaultThreads: config.defaultThreads || 64,
+      strictCdnMaxThreads: config.strictCdnMaxThreads || 32,
+      openCdnMaxThreads: config.openCdnMaxThreads || 128,
+      platformThreadCaps: config.platformThreadCaps || { youtube: 64, instagram: 24, tiktok: 24, directCdn: 128 }
     });
   } catch (err) {
     // Graceful offline fallback

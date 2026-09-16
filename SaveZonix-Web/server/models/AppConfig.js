@@ -82,6 +82,38 @@ const AppConfigSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  maintenanceDurationMinutes: {
+    type: Number,
+    default: 15
+  },
+  maintenanceEndsAt: {
+    type: Date
+  },
+  maintenanceMessage: {
+    type: String,
+    default: 'Server routine upgrade in progress. All stream engines will resume shortly.'
+  },
+
+  // Bandwidth Speed Throttler (MB/s) - 0 indicates Uncapped Gigabit
+  freeMaxSpeedMBps: {
+    type: Number,
+    default: 15
+  },
+  vipMaxSpeedMBps: {
+    type: Number,
+    default: 0
+  },
+
+  // Platform-Specific Thread Concurrency Presets
+  platformThreadCaps: {
+    type: Object,
+    default: {
+      youtube: 64,
+      instagram: 24,
+      tiktok: 24,
+      directCdn: 128
+    }
+  },
 
   updatedAt: {
     type: Date,

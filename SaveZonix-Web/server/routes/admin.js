@@ -830,7 +830,12 @@ router.get('/settings', adminAuth, async (req, res) => {
         openCdnMaxThreads: 128,
         allowGuestDownloads: true,
         guestDailyDownloadLimit: 10,
-        maintenanceMode: false
+        maintenanceMode: false,
+        maintenanceDurationMinutes: 15,
+        maintenanceMessage: 'Server routine upgrade in progress. All stream engines will resume shortly.',
+        freeMaxSpeedMBps: 15,
+        vipMaxSpeedMBps: 0,
+        platformThreadCaps: { youtube: 64, instagram: 24, tiktok: 24, directCdn: 128 }
       });
     }
 
@@ -868,7 +873,12 @@ router.post('/settings', adminAuth, async (req, res) => {
       'openCdnMaxThreads',
       'allowGuestDownloads',
       'guestDailyDownloadLimit',
-      'maintenanceMode'
+      'maintenanceMode',
+      'maintenanceDurationMinutes',
+      'maintenanceMessage',
+      'freeMaxSpeedMBps',
+      'vipMaxSpeedMBps',
+      'platformThreadCaps'
     ];
 
     fields.forEach((f) => {
@@ -877,10 +887,43 @@ router.post('/settings', adminAuth, async (req, res) => {
       }
     });
 
+    if (config.maintenanceMode) {
+      const duration = Number(config.maintenanceDurationMinutes || 15);
+      config.maintenanceEndsAt = new Date(Date.now() + duration * 60 * 1000);
+    } else {
+      config.maintenanceEndsAt = null;
+    }
+
     config.updatedAt = new Date();
     await config.save();
 
     return res.json({ success: true, message: 'Configuration parameters saved successfully!', config });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// 1-Click Sync with Latest GitHub Release
+router.post('/sync-github-release', adminAuth, async (req, res) => {
+  try {
+    const ghRes = await fetch('https://api.github.com/repos/zaid154/SaveZonix/releases/latest', {
+      headers: { 'User-Agent': 'SaveZonix-Cloud-Console' }
+    });
+    if (!ghRes.ok) {
+      return res.status(502).json({ error: `GitHub API error: ${ghRes.status} ${ghRes.statusText}` });
+    }
+    const release = await ghRes.json();
+    const tag = (release.tag_name || '').replace(/^v/i, '');
+    const exeAsset = release.assets?.find(a => a.name && a.name.endsWith('.exe'));
+    const downloadUrl = exeAsset?.browser_download_url ||
+      `https://github.com/zaid154/SaveZonix/releases/download/${release.tag_name}/SaveZonix-Setup-${release.tag_name}.exe`;
+
+    return res.json({
+      success: true,
+      tag: tag || release.tag_name || '2.5.2',
+      appDownloadUrl: downloadUrl,
+      updateChangelog: release.body || `SaveZonix Release ${release.tag_name}`
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

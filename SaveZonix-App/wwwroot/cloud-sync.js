@@ -44,6 +44,13 @@
         await fetchCloudConfig();
         renderBanners();
         renderUserBadge();
+
+        // Periodically refresh cloud configuration (every 20s) to react to maintenance mode or OTA updates
+        setInterval(async () => {
+            await fetchCloudConfig();
+            renderBanners();
+            renderUserBadge();
+        }, 20000);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -78,7 +85,14 @@
             allowGuestDownloads: true,
             guestDailyDownloadLimit: 5,
             appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/latest',
-            announcementMessage: ''
+            announcementMessage: '',
+            maintenanceMode: false,
+            maintenanceDurationMinutes: 15,
+            maintenanceEndsAt: null,
+            maintenanceMessage: 'Server routine upgrade in progress. All stream engines will resume shortly.',
+            freeMaxSpeedMBps: 15,
+            vipMaxSpeedMBps: 0,
+            platformThreadCaps: { youtube: 64, instagram: 24, tiktok: 24, directCdn: 128 }
         };
     }
 
@@ -87,6 +101,14 @@
     // ─────────────────────────────────────────────────────────────
     function renderBanners() {
         if (!cloudConfig) return;
+
+        // Smart Fleet Maintenance Mode Check
+        if (cloudConfig.maintenanceMode === true) {
+            showMaintenanceModal();
+            return;
+        } else {
+            removeMaintenanceModal();
+        }
 
         // Announcement Banner
         if (cloudConfig.announcementMessage && cloudConfig.announcementMessage.trim().length > 0) {
@@ -257,6 +279,134 @@
     }
 
     // ─────────────────────────────────────────────────────────────
+    // Smart Fleet Maintenance Modal & Live Countdown
+    // ─────────────────────────────────────────────────────────────
+    let maintenanceCountdownTimer = null;
+
+    function showMaintenanceModal() {
+        let modal = document.getElementById('cloudMaintenanceModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'cloudMaintenanceModal';
+            modal.style.cssText = 'position: fixed; inset: 0; background: rgba(3, 7, 18, 0.96); z-index: 9999999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(16px); padding: 24px; font-family: inherit;';
+            document.body.appendChild(modal);
+        }
+
+        const msg = cloudConfig?.maintenanceMessage || 'Fleet engines are undergoing scheduled performance tuning & core infrastructure updates. Service will resume momentarily.';
+
+        modal.innerHTML = `
+            <div style="max-width: 520px; width: 100%; background: linear-gradient(180deg, #0f172a 0%, #080d19 100%); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 20px; padding: 36px 28px; text-align: center; box-shadow: 0 30px 70px rgba(0,0,0,0.85); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #f59e0b, #ef4444, #3b82f6, #f59e0b); background-size: 200% 100%;"></div>
+                
+                <div style="width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); display: flex; align-items: center; justify-content: center; font-size: 30px; box-shadow: 0 0 25px rgba(245, 158, 11, 0.25);">
+                    🛠️
+                </div>
+
+                <div style="display: inline-flex; align-items: center; gap: 8px; padding: 4px 14px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 20px; color: #fbbf24; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;">
+                    <span style="width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; display: inline-block;"></span>
+                    Scheduled Fleet Maintenance
+                </div>
+
+                <h2 style="color: #ffffff; font-size: 22px; font-weight: 800; margin: 0 0 10px 0; letter-spacing: -0.3px;">
+                    Engines Under Optimization
+                </h2>
+
+                <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.6; margin: 0 0 24px 0;">
+                    ${msg}
+                </p>
+
+                <!-- Countdown Timer Display -->
+                <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid #1e293b; border-radius: 14px; padding: 18px 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; gap: 24px;">
+                    <div>
+                        <div id="maintTimerMinutes" style="font-size: 32px; font-weight: 800; color: #f8fafc; font-family: monospace;">--</div>
+                        <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">Minutes</div>
+                    </div>
+                    <div style="font-size: 26px; font-weight: 800; color: #f59e0b; margin-top: -14px;">:</div>
+                    <div>
+                        <div id="maintTimerSeconds" style="font-size: 32px; font-weight: 800; color: #f8fafc; font-family: monospace;">--</div>
+                        <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">Seconds</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <button id="btnCheckMaintStatus" style="padding: 10px 22px; background: #1e293b; border: 1px solid #334155; color: #e2e8f0; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                        🔄 Recheck Status
+                    </button>
+                </div>
+            </div>
+        `;
+
+        modal.style.display = 'flex';
+
+        document.getElementById('btnCheckMaintStatus')?.addEventListener('click', async () => {
+            const btn = document.getElementById('btnCheckMaintStatus');
+            if (btn) btn.innerText = 'Checking...';
+            await fetchCloudConfig();
+            if (!cloudConfig?.maintenanceMode) {
+                removeMaintenanceModal();
+            } else if (btn) {
+                btn.innerText = '🔄 Recheck Status';
+            }
+        });
+
+        startMaintenanceCountdown();
+    }
+
+    function startMaintenanceCountdown() {
+        if (maintenanceCountdownTimer) clearInterval(maintenanceCountdownTimer);
+
+        const updateClock = () => {
+            if (!cloudConfig?.maintenanceEndsAt) {
+                const minEl = document.getElementById('maintTimerMinutes');
+                const secEl = document.getElementById('maintTimerSeconds');
+                if (minEl) minEl.innerText = '--';
+                if (secEl) secEl.innerText = '--';
+                return;
+            }
+
+            const endsAt = new Date(cloudConfig.maintenanceEndsAt).getTime();
+            const now = Date.now();
+            const diffMs = endsAt - now;
+
+            if (diffMs <= 0) {
+                const minEl = document.getElementById('maintTimerMinutes');
+                const secEl = document.getElementById('maintTimerSeconds');
+                if (minEl) minEl.innerText = '00';
+                if (secEl) secEl.innerText = '00';
+
+                // Periodically re-check config when time expires
+                fetchCloudConfig().then(() => {
+                    if (!cloudConfig?.maintenanceMode) {
+                        removeMaintenanceModal();
+                    }
+                });
+                return;
+            }
+
+            const totalSeconds = Math.floor(diffMs / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+
+            const minEl = document.getElementById('maintTimerMinutes');
+            const secEl = document.getElementById('maintTimerSeconds');
+            if (minEl) minEl.innerText = String(minutes).padStart(2, '0');
+            if (secEl) secEl.innerText = String(seconds).padStart(2, '0');
+        };
+
+        updateClock();
+        maintenanceCountdownTimer = setInterval(updateClock, 1000);
+    }
+
+    function removeMaintenanceModal() {
+        if (maintenanceCountdownTimer) {
+            clearInterval(maintenanceCountdownTimer);
+            maintenanceCountdownTimer = null;
+        }
+        const modal = document.getElementById('cloudMaintenanceModal');
+        if (modal) modal.remove();
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // 3. User Badge & Navigation Integration
     // ─────────────────────────────────────────────────────────────
     function renderUserBadge() {
@@ -348,6 +498,12 @@
     // 4. Download Gatekeeper (Guest & Free Quotas, 4K VIP Lock)
     // ─────────────────────────────────────────────────────────────
     window.checkDownloadPermission = function (selectedResolution) {
+        // Check Maintenance Mode First!
+        if (cloudConfig?.maintenanceMode === true) {
+            showMaintenanceModal();
+            return { allowed: false, reason: cloudConfig?.maintenanceMessage || 'Fleet engines are undergoing scheduled maintenance. Please check back shortly.' };
+        }
+
         // Check Force Update first
         if (cloudConfig?.forceUpdate === true || compareVersions(CURRENT_VERSION, cloudConfig?.minAllowedVersion) < 0) {
             showForceUpdateModal();
@@ -823,4 +979,11 @@
     }
 
     window.openCloudAuth = openAuthModal;
+    window.getCloudConfig = () => cloudConfig;
+    window.getFleetEngineSettings = () => ({
+        freeMaxSpeedMBps: cloudConfig?.freeMaxSpeedMBps ?? 15,
+        vipMaxSpeedMBps: cloudConfig?.vipMaxSpeedMBps ?? 0,
+        platformThreadCaps: cloudConfig?.platformThreadCaps || { youtube: 64, instagram: 24, tiktok: 24, directCdn: 128 },
+        isVip: !!(currentUser && currentUser.isVip)
+    });
 })();
