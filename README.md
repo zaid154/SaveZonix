@@ -8,6 +8,7 @@
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20x64-0078D6?logo=windows&logoColor=white)](#)
 [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet&logoColor=white)](#)
+[![SQLite](https://img.shields.io/badge/Local%20DB-SQLite-003B57?logo=sqlite&logoColor=white)](#)
 [![React](https://img.shields.io/badge/React-18%2B%20%7C%20Vite-61DAFB?logo=react&logoColor=black)](#)
 [![Node.js](https://img.shields.io/badge/Node.js-Express-339933?logo=node.js&logoColor=white)](#)
 [![Database](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)](#)
@@ -24,7 +25,7 @@
 | Component | Service | URL |
 | :--- | :--- | :--- |
 | **Official Web Portal** | Vercel | [https://save-zonix.vercel.app](https://save-zonix.vercel.app) |
-| **Super Admin Control Center** | Vercel | [https://save-zonix.vercel.app/admin](https://save-zonix.vercel.app/admin) |
+| **Super Admin Control Center** | Vercel | [https://save-zonix.vercel.app/admin/overview](https://save-zonix.vercel.app/admin/overview) |
 | **Cloud API & Telemetry Engine** | Render | [https://savezonix.onrender.com](https://savezonix.onrender.com) |
 | **Desktop App Installer** | Windows x64 | Built via `build-installer.bat` (v2.5.2) |
 
@@ -36,7 +37,7 @@
 2. [Repository Structure](#-repository-structure)
 3. [Key Features & Modules](#-key-features--modules)
    - [Desktop App (.NET 10 Win-x64)](#1-desktop-engine--app-savezonix-app)
-   - [Super Admin Dashboard](#2-super-admin-control-center-savezonix-webclient)
+   - [Super Admin Control Center (Web Cloud)](#2-super-admin-control-center-savezonix-webclient)
    - [Cloud Telemetry & API Server](#3-cloud-telemetry--backend-savezonix-webserver)
    - [Chrome Extension (MV3)](#4-chrome-extension-mv3)
    - [Production Inno Setup Installer](#5-production-installer-pipeline)
@@ -56,7 +57,7 @@
 
 ## 🌟 Overview & Core Architecture
 
-**SaveZonix** is a full-stack media acquisition and entertainment ecosystem designed for demanding users and enterprises. It integrates a high-speed desktop download engine, an HLS live stream capture system, an integrated 4K media player, a browser extension for instant video sniffing, and a centralized web-based control center with real-time analytics.
+**SaveZonix** is a high-performance media acquisition and entertainment ecosystem designed for creators and archival research. It integrates a high-speed desktop download engine, an HLS live stream capture system, an integrated 4K Cinema Studio player, a browser extension for instant video sniffing, and a centralized web-based control center with real-time analytics.
 
 ```mermaid
 graph TD
@@ -65,18 +66,19 @@ graph TD
     Ext -->|One-Click Send| DesktopApp[SaveZonix Desktop .NET 10]
     
     subgraph "Desktop Engine (Local Machine)"
+        DesktopApp --> LocalDB[(Embedded SQLite streamhelper.db)]
         DesktopApp --> Engine[64-Thread Parallel Downloader]
         DesktopApp --> YTEngine[YouTube Explode + Converter]
-        DesktopApp --> FFmpeg[Bundled FFmpeg x64 / HLS Capture]
+        DesktopApp --> FFmpeg[Bundled FFmpeg x64 / HLS Muxing]
         DesktopApp --> Cinema[4K Cinema Player Studio]
-        DesktopApp --> Sync[Cloud Sync Client]
+        DesktopApp --> Sync[Cloud Telemetry Reporter]
     end
 
     subgraph "Cloud Infrastructure (Render & Vercel)"
         WebPortal <--> CloudAPI[Express API Backend]
         Sync -->|POST /api/admin/record-download| CloudAPI
-        CloudAPI <--> Mongo[(MongoDB Atlas)]
-        Admin[Admin Dashboard /admin/*] <--> CloudAPI
+        CloudAPI <--> Mongo[(MongoDB Atlas Cloud)]
+        Admin[Cloud Admin /admin/*] <--> CloudAPI
     end
 ```
 
@@ -90,12 +92,13 @@ SaveZonix/
 ├── README.md                    # Unified Monorepo Documentation
 │
 ├── SaveZonix-App/               # Desktop Application (.NET 10 Web / Win-x64)
-│   ├── Controllers/             # MVC Controllers (Home, Account, Playlist, Admin)
+│   ├── Controllers/             # MVC Controllers (Home, Account, Cinema, Playlist, Legal)
 │   ├── Core/                    # Media engines, stream slicer, ParallelDownloader
+│   ├── Data/                    # AppDbContext (SQLite) & DbSeeder (Clean 0-fake seed)
 │   ├── Extension/               # Chrome Extension (Manifest V3)
 │   ├── Models/                  # Data models and view-models
-│   ├── Services/                # YouTube, PlaylistQueue, CloudSync, FFmpeg services
-│   ├── Views/                   # Razor views & UI layouts
+│   ├── Services/                # YouTube, PlaylistQueue, CloudSettingsSync, FFmpeg services
+│   ├── Views/                   # Razor views & unified 4-column _Layout.cshtml
 │   ├── wwwroot/                 # Desktop UI (HTML5/CSS3/JS, themes, assets, app.ico)
 │   │   ├── assets/logo.png      # Official SaveZonix vector logo
 │   │   ├── app.ico              # Multi-resolution Windows app & installer icon
@@ -103,17 +106,17 @@ SaveZonix/
 │   │   ├── playlist.js          # Studio batch playlist manager
 │   │   └── active-downloads-monitor.js
 │   ├── installer/               # Inno Setup 6 configuration
-│   │   └── installer.iss        # Setup installer script (v2.5.1)
-│   ├── Program.cs               # App startup, routing, REST APIs, background workers
-│   └── Zonix.csproj             # .NET 10 project file (WinExe output, embedded icon)
+│   │   └── installer.iss        # Setup installer script (v2.5.2)
+│   ├── Program.cs               # App startup, core REST APIs, background workers
+│   └── Zonix.csproj             # .NET 10 project file (SQLite, bundled FFmpeg, WinExe)
 │
 └── SaveZonix-Web/               # Web Application & Cloud API (MERN Stack)
     ├── client/                  # React + Vite Frontend (Deployed to Vercel)
     │   ├── src/
-    │   │   ├── components/      # UI components (Hero, Features, Pricing, Download)
-    │   │   │   ├── AdminDashboard.jsx # Super Admin Dashboard (Zero-Gate, Sub-routed)
-    │   │   │   └── admin/       # Dedicated sub-tab views (Overview, Users, Telemetry)
-    │   │   ├── App.jsx          # Route definitions (/, /admin, /admin/:tabId)
+    │   │   ├── components/      # UI components (Hero, Features, Pricing, Footer, LegalPage)
+    │   │   │   ├── AdminDashboard.jsx # Super Admin Dashboard (Unified Auth, Sub-routed)
+    │   │   │   └── admin/       # Dedicated sub-tab views (Overview, Users, Downloads, etc.)
+    │   │   ├── App.jsx          # Route definitions (/, /admin/:tabId, /privacy, /terms)
     │   │   └── main.jsx         # Entry point
     │   ├── package.json
     │   └── vite.config.js
@@ -124,8 +127,9 @@ SaveZonix/
         │   ├── admin.js         # Admin endpoints + telemetry receiver
         │   ├── auth.js          # JWT & Google OAuth routes
         │   └── appConfig.js     # Desktop client remote configuration
+        ├── seeds/               # seedDatabase.js (Clean 0-fake history seeder)
         ├── package.json
-        └── index.js             # Express app entry & MongoDB connection
+        └── index.js             # Express app entry & MongoDB Atlas connection
 ```
 
 ---
@@ -133,38 +137,40 @@ SaveZonix/
 ## ⚡ Key Features & Modules
 
 ### 1. Desktop Engine & App (`SaveZonix-App`)
-* **64-Thread Dynamic Slicing:** Splits files into up to 64 concurrent byte-range HTTP streams for maximum bandwidth utilization.
+* **Embedded SQLite Local Storage (`streamhelper.db`):** Completely replaced heavyweight SQL Server dependencies with fast, zero-configuration embedded SQLite with WAL (Write-Ahead Logging).
+* **Decoupled Admin Responsibilities:** All administrative controls are centralized strictly on the Web Cloud portal ([https://save-zonix.vercel.app/admin/overview](https://save-zonix.vercel.app/admin/overview)), freeing the desktop app to focus on pure media download and playback speed.
+* **Unified 4-Column Layout:** Matching footer layout with emerald `All Systems Operational` badge, Product & Engine links, Legal & Policy links, and direct link to `🛡️ Cloud Admin`.
+* **64-Thread Dynamic Slicing:** Splits files into up to 64 concurrent byte-range HTTP streams for maximum bandwidth saturation.
 * **YouTube Single & Playlist Studio:**
   * Auto-detects all available resolutions: 1080p, 1440p 2K, 2160p 4K, 4320p 8K at 60fps with HDR.
-  * Audio extraction with direct 320kbps MP3 / AAC muxing via bundled FFmpeg.
-  * Multi-video playlist batch downloader with progress tracking, pause/resume, and real-size indicators (`1.36 GB / 1.36 GB`).
-* **HLS / M3U8 Live Stream Capturer:** Live stream recording engine that captures segmented `.m3u8` playlists and packages them into lossless `.mp4` containers.
+  * Audio extraction with direct 320kbps MP3 / AAC muxing via multi-directory detected bundled FFmpeg.
+  * Multi-video playlist batch downloader with progress tracking and pause/resume.
+* **HLS / M3U8 Live Stream Capturer:** Live stream recording engine capturing segmented `.m3u8` playlists into lossless `.mp4` containers.
 * **4K Cinema Studio:** Embedded theater mode player supporting hardware acceleration, picture-in-picture, audio boost, and frame-accurate seeking.
-* **Resilient Architecture:** Network interruptions are handled automatically with exponential backoff and resume tokens.
 
 ### 2. Super Admin Control Center (`SaveZonix-Web/client`)
-* **Instant Sub-routing:** Navigate directly to individual sub-pages with zero lag:
+* **Unified Single Sign-In:** No separate admin login form; uses the main user login token (`savezonix_token`), automatically granting full admin access to users with `role: 'Admin'` or `zaidm1323@gmail.com`.
+* **Separate Dedicated Routes:**
   * `/admin/overview` — Live KPIs, active downloads, system health, bandwidth graphs.
   * `/admin/users` — User management, subscription tiers, usage quotas.
   * `/admin/downloads` — Live telemetry history of downloads performed across desktop apps worldwide.
-  * `/admin/ai-advisor` — Automated telemetry diagnostics and bottleneck detector.
+  * `/admin/ai-cdn-advisor` — Real-time CDN probing and concurrency calibration.
   * `/admin/diagnostics` — Node runtime, memory heap, and database query latency.
   * `/admin/security` — Security event log, API rate limits, blocked IP controls.
-  * `/admin/engine` — Remote download engine configuration and feature toggles.
-* **Micro-Progress Lazy Loading:** Fast UI switches with progress indicator and per-tab data caching.
-* **Zero-Blocking Entry:** Pre-configured with super-admin access for rapid operational management.
+  * `/admin/engine-database` — Remote download engine configuration and MongoDB Atlas fleet status.
+* **Micro-Progress Lazy Loading:** Fast UI switches with progress indicator and per-tab state caching.
 
 ### 3. Cloud Telemetry & Backend (`SaveZonix-Web/server`)
-* **Public Telemetry Endpoint (`POST /api/admin/record-download`):** Desktop apps automatically sync completed and failed download metrics (file name, size, duration, average MB/s, peak speed, platform, user ID) to MongoDB Atlas.
+* **Public Telemetry Endpoint (`POST /api/admin/record-download`):** Desktop apps automatically report completed and failed download metrics to MongoDB Atlas in real time.
 * **Remote App Config (`GET /api/app-config`):** Centralized remote configuration distribution for all desktop client instances.
-* **Role-Based Authentication:** JWT-based user authentication with bcrypt password hashing and optional Google OAuth integration.
+* **Clean 0-Fake Seed:** Fresh database installations start completely clean with zero fake dummy records.
 
 ### 4. Chrome Extension (MV3)
 * **Automatic Media Sniffer:** Detects active video and audio streams across 50+ sites.
 * **One-Click Send:** Sends video URLs directly to the local desktop app (`http://localhost:5000`) for immediate high-speed acceleration.
 
 ### 5. Production Installer Pipeline
-* **Custom Inno Setup 6 Script:** Generates an enterprise-ready single-file setup installer (`SaveZonix-Setup-v2.5.1.exe`).
+* **Custom Inno Setup 6 Script:** Generates an enterprise-ready single-file setup installer (`SaveZonix-Setup-v2.5.2.exe`).
 * **Official Branding:** Real site logo embedded into the installer executable, the app shortcut, and the Windows "Installed Apps" list.
 * **Anti-Lock Compilation:** Compiles within an isolated temp directory to prevent Antivirus `EndUpdateResource` file-locking (Win32 Error 110).
 
@@ -255,6 +261,8 @@ To produce the production-ready Windows setup executable with 1 click:
 | `GET` | `/api/admin/download-history` | Fetches aggregated download history | Admin |
 | `GET` | `/api/admin/stats` | Fetches server KPIs, active users, storage metrics | Admin |
 | `GET` | `/api/admin/users` | Lists registered accounts with subscription tiers | Admin |
+| `GET` | `/api/admin/probe-cdn` | Probes CDN edge response and recommends thread caps | Admin |
+| `GET` | `/api/admin/database-status` | Reports MongoDB Atlas cluster & SQLite engine state | Admin |
 | `GET` | `/api/app-config` | Delivers remote configuration to desktop apps | Public |
 | `POST` | `/api/auth/register` | User account registration | Public |
 | `POST` | `/api/auth/login` | User login (returns JWT) | Public |
@@ -263,12 +271,14 @@ To produce the production-ready Windows setup executable with 1 click:
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `POST` | `/api/download` | Starts single file / stream download |
+| `POST` | `/api/analyze` | Analyzes video/stream URL and extracts downloadable streams |
+| `POST` | `/api/download` | Starts single file / multi-threaded stream download |
 | `POST` | `/api/playlist/analyze` | Parses YouTube playlist URL and returns item metadata |
 | `POST` | `/api/playlist/start-batch` | Starts batch playlist download queue |
 | `GET` | `/api/playlist/status` | Returns real-time progress for active batch job |
 | `POST` | `/api/playlist/cancel` | Cancels current playlist job gracefully |
 | `GET` | `/api/active-jobs` | Returns telemetry for all running background downloads |
+| `GET` | `/api/system/health` | Diagnostic health check returning engine status & version |
 
 ---
 
@@ -288,14 +298,23 @@ CLIENT_URL=https://save-zonix.vercel.app
 
 ## 🆕 What's New in v2.5.2
 
-* **YouTube Rate-Limit (429) & Stream Remux Fix:**
-  * Configured stealth mobile headers bypassing YouTube's HTTP 429 rate limit.
-  * Direct 4K/1080p stream extraction without fallback corruption.
-* **1-Click Open Extension Folder & Auto-Copy Path:**
-  * Replaced deceptive "1-click silent load" claim with an honest 1-click folder opener.
-  * Auto-copies the `Extension` path to clipboard and guides users with clear 3-step setup instructions.
-* **Automated Silent Update Sync:**
-  * Seamless remote update synchronization with Admin Panel and cloud releases.
+* **Complete SQL Server Retirement & Embedded SQLite Migration:**
+  * Removed `Microsoft.EntityFrameworkCore.SqlServer` and dual-DB sync service in favor of zero-overhead, fast embedded SQLite (`streamhelper.db`) with WAL mode.
+* **Centralized Web Cloud Admin & Desktop Decoupling:**
+  * Removed desktop admin endpoints from `Program.cs`. All administration is strictly handled via [https://save-zonix.vercel.app/admin/overview](https://save-zonix.vercel.app/admin/overview).
+  * Desktop app reports download telemetry directly to the cloud API (`POST /api/admin/record-download`).
+* **Strict Admin Link Stealth in Footers:**
+  * Completely removed all admin login / admin access links from public footers on both desktop and web apps for enhanced operational security.
+* **Unified Single Sign-In for Admin:**
+  * Unified user and admin authentication into a single modal. Admins log in once and receive immediate access across all `/admin/*` routes.
+* **Separate Direct Admin Sub-Routes:**
+  * Clean dedicated sub-routes for `/admin/overview`, `/admin/users`, `/admin/downloads`, `/admin/ai-cdn-advisor`, `/admin/diagnostics`, `/admin/security`, and `/admin/engine-database`.
+* **Zero-Fake Database Seeder:**
+  * Purged all hardcoded sample downloads from both `.NET` and MERN seed scripts. Clean start with 0 fake history records.
+* **Synchronized 4-Column Footers:**
+  * Matching 4-column footer design across desktop and web with emerald `All Systems Operational` badge, Product & Engine links, Resources & Docs, and Legal & Policy trust links.
+* **FFmpeg Multi-Path Resolution & Audio/Video Muxing:**
+  * Fixed video+audio stream muxing issues with multi-directory binary resolution.
 
 ---
 

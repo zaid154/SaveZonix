@@ -92,13 +92,6 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <button
-              onClick={onOpenAdmin}
-              style={{ background: 'none', border: 'none', color: '#475569', fontSize: '11px', cursor: 'pointer' }}
-              title="Admin Portal"
-            >
-              🛡️ Admin Access
-            </button>
             <a href="https://github.com/zaid154/SaveZonix" target="_blank" rel="noreferrer" style={{ color: '#64748b', textDecoration: 'none' }}>
               GitHub
             </a>
