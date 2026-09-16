@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const AppConfig = require('../models/AppConfig');
 const DownloadHistory = require('../models/DownloadHistory');
+const Payment = require('../models/Payment');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'savezonix_default_jwt_secret';
 const MASTER_ADMIN_KEY = process.env.ADMIN_KEY || 'savezonix_admin_2026';
@@ -824,6 +825,10 @@ router.get('/settings', adminAuth, async (req, res) => {
         freeDailyLimit: 10,
         lock4KForVip: true,
         vipMonthlyPriceINR: 99,
+        vipAnnualPriceINR: 799,
+        vipLifetimePriceINR: 1999,
+        razorpayKeyId: '',
+        razorpayKeySecret: '',
         announcementMessage: '',
         defaultThreads: 64,
         strictCdnMaxThreads: 32,
@@ -867,6 +872,10 @@ router.post('/settings', adminAuth, async (req, res) => {
       'freeDailyLimit',
       'lock4KForVip',
       'vipMonthlyPriceINR',
+      'vipAnnualPriceINR',
+      'vipLifetimePriceINR',
+      'razorpayKeyId',
+      'razorpayKeySecret',
       'announcementMessage',
       'defaultThreads',
       'strictCdnMaxThreads',
@@ -924,6 +933,106 @@ router.post('/sync-github-release', adminAuth, async (req, res) => {
       appDownloadUrl: downloadUrl,
       updateChangelog: release.body || `SaveZonix Release ${release.tag_name}`
     });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Financial Metrics & Transactions Ledger
+router.get('/financials', adminAuth, async (req, res) => {
+  try {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [allCompleted, monthCompleted, activeVipCount, recentPayments] = await Promise.all([
+      Payment.find({ status: 'completed' }).select('amount'),
+      Payment.find({ status: 'completed', createdAt: { $gte: startOfMonth } }).select('amount'),
+      User.countDocuments({ isVip: true }),
+      Payment.find().sort({ createdAt: -1 }).limit(50)
+    ]);
+
+    const totalRevenue = allCompleted.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const monthRevenue = monthCompleted.reduce((acc, p) => acc + (p.amount || 0), 0);
+    const totalOrders = allCompleted.length;
+
+    return res.json({
+      success: true,
+      stats: {
+        totalRevenue,
+        monthRevenue,
+        activeVipCount,
+        totalOrders
+      },
+      transactions: recentPayments
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Issue Refund for a Transaction
+router.post('/refund', adminAuth, async (req, res) => {
+  try {
+    const { paymentId, orderId } = req.body;
+    const query = paymentId ? { paymentId } : { orderId };
+    const payment = await Payment.findOne(query);
+
+    if (!payment) {
+      return res.status(404).json({ error: 'Payment transaction not found' });
+    }
+
+    if (payment.status === 'refunded') {
+      return res.status(400).json({ error: 'Payment is already refunded' });
+    }
+
+    const config = await AppConfig.findOne();
+    const keyId = config?.razorpayKeyId || process.env.RAZORPAY_KEY_ID;
+    const keySecret = config?.razorpayKeySecret || process.env.RAZORPAY_KEY_SECRET;
+
+    if (keyId && keySecret && payment.paymentId && !payment.isLicenseKey) {
+      const authHeader = 'Basic ' + Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+      const refundRes = await fetch(`https://api.razorpay.com/v1/payments/${payment.paymentId}/refund`, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: Math.round(payment.amount * 100),
+          notes: { reason: 'Admin initiated refund' }
+        })
+      });
+
+      const refundData = await refundRes.json();
+      if (!refundRes.ok) {
+        return res.status(502).json({ error: refundData.error?.description || 'Razorpay refund failed' });
+      }
+      payment.refundId = refundData.id;
+    }
+
+    payment.status = 'refunded';
+    payment.refundedAt = new Date();
+    payment.updatedAt = new Date();
+    await payment.save();
+
+    await User.findByIdAndUpdate(payment.userId, { isVip: false });
+
+    return res.json({ success: true, message: 'Payment refunded and VIP revoked successfully.', payment });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Generate Offline VIP License Key
+router.post('/generate-license-key', adminAuth, async (req, res) => {
+  try {
+    const { plan = 'monthly' } = req.body;
+    const suffix = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const planPrefix = plan === 'annual' ? 'ANNUAL' : plan === 'lifetime' ? 'LIFE' : 'MONTH';
+    const key = `SZ-VIP-${planPrefix}-${suffix}`;
+
+    return res.json({ success: true, licenseKey: key, plan });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

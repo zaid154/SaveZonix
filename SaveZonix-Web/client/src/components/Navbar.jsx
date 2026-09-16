@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function Navbar({ appConfig, user, onOpenAuth, onLogout, onNavigate, currentPath }) {
+export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogout, onNavigate, currentPath }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -270,6 +270,28 @@ export default function Navbar({ appConfig, user, onOpenAuth, onLogout, onNaviga
           ) : (
             <button onClick={onOpenAuth} className="btn-auth-nav">
               Sign In
+            </button>
+          )}
+
+          {!user?.isVip && (
+            <button
+              type="button"
+              onClick={onOpenVip}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '7px 14px',
+                background: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.35)',
+                borderRadius: '8px',
+                color: '#fbbf24',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Upgrade VIP
             </button>
           )}
 

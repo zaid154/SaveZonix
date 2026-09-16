@@ -10,11 +10,13 @@ import {
   IconRefresh,
   IconExternal,
   IconLogOut,
-  IconCheck
+  IconCheck,
+  IconCreditCard
 } from './admin/AdminIcons';
 
 import AdminErrorBoundary from './admin/AdminErrorBoundary';
 import OverviewTab from './admin/OverviewTab';
+import FinancialsTab from './admin/FinancialsTab';
 import UsersTab from './admin/UsersTab';
 import UserDetailsModal from './admin/UserDetailsModal';
 import DownloadsTab from './admin/DownloadsTab';
@@ -51,9 +53,10 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   function getTabFromPath(path) {
     if (!path) return 'overview';
     const sub = path.replace(/^\/admin\/?/i, '').toLowerCase().trim();
+    if (sub === 'financials' || sub === 'finance' || sub === 'sales') return 'financials';
     if (sub === 'ai-cdn-advisor' || sub === 'ai-advisor' || sub === 'ai_advisor') return 'ai-cdn-advisor';
     if (sub === 'engine-database' || sub === 'engine' || sub === 'engine_database') return 'engine-database';
-    const valid = ['overview', 'users', 'downloads', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
+    const valid = ['overview', 'financials', 'users', 'downloads', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
     if (valid.includes(sub)) return sub;
     return 'overview';
   }
@@ -597,6 +600,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       <div style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '16px', flexWrap: 'wrap' }}>
         {[
           { id: 'overview', label: 'Overview', icon: IconActivity },
+          { id: 'financials', label: 'Financials & VIP', icon: IconCreditCard },
           { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
           { id: 'downloads', label: `Downloads (${downloads.length || stats?.totalDownloads || 0})`, icon: IconDownload },
           { id: 'ai-cdn-advisor', label: 'AI CDN Advisor', icon: IconCpu },
@@ -694,6 +698,17 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             stats={stats}
             downloads={downloads}
             onNavigateToDownloads={() => handleTabClick('downloads')}
+          />
+        </AdminErrorBoundary>
+      )}
+
+      {/* Financials & VIP Sales Tab with Error Guard */}
+      {activeTab === 'financials' && (
+        <AdminErrorBoundary moduleName="Financials & VIP Transactions">
+          <FinancialsTab
+            settings={settings}
+            setSettings={setSettings}
+            onSaveSettings={handleSaveSettings}
           />
         </AdminErrorBoundary>
       )}

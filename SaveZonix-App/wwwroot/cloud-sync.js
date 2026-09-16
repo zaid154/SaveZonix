@@ -436,7 +436,7 @@
             const isVip = currentUser.isVip === true;
             const dailyLimit = cloudConfig?.freeDailyLimit || 10;
             const used = currentUser.dailyDownloads || 0;
-            const badgeLabel = isVip ? '💎 VIP Pro' : `🟢 ${currentUser.name.split(' ')[0]} (${used}/${dailyLimit})`;
+            const badgeLabel = isVip ? 'VIP Pro' : `${currentUser.name.split(' ')[0]} (${used}/${dailyLimit})`;
 
             badgeContainer.innerHTML = `
                 <div style="position: relative; display: inline-block;">
@@ -450,8 +450,13 @@
                         <div style="padding: 6px 10px; background: #030712; border-radius: 6px; font-size: 11.5px; color: ${isVip ? '#fbbf24' : '#38bdf8'}; margin-bottom: 10px; font-weight: 600;">
                             ${isVip ? 'Unlimited 4K Downloads' : `${Math.max(0, dailyLimit - used)} free downloads left today`}
                         </div>
+                        ${!isVip ? `
+                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" style="display: block; width: 100%; padding: 6px; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 6px; box-sizing: border-box;">
+                            Upgrade to VIP Pro
+                        </a>
+                        ` : ''}
                         <button id="btnCloudLogout" style="width: 100%; padding: 6px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">
-                            🚪 Sign Out
+                            Sign Out
                         </button>
                     </div>
                 </div>
@@ -476,7 +481,7 @@
 
             const guestText = document.getElementById('guestBadgeText');
             if (guestText) {
-                guestText.textContent = `👤 Guest (${guestRemaining} left)`;
+                guestText.textContent = `Guest (${guestRemaining} left)`;
             }
 
             const btnAuth = document.getElementById('btnOpenAuthModal');

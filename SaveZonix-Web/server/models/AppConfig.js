@@ -52,6 +52,22 @@ const AppConfigSchema = new mongoose.Schema({
     type: Number,
     default: 99
   },
+  vipAnnualPriceINR: {
+    type: Number,
+    default: 799
+  },
+  vipLifetimePriceINR: {
+    type: Number,
+    default: 1999
+  },
+  razorpayKeyId: {
+    type: String,
+    default: ''
+  },
+  razorpayKeySecret: {
+    type: String,
+    default: ''
+  },
   announcementMessage: {
     type: String,
     default: ''

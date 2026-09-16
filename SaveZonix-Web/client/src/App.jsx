@@ -9,9 +9,11 @@ import Footer from './components/Footer';
 import AuthModal from './components/AuthModal';
 import AdminDashboard from './components/AdminDashboard';
 import LegalPage from './components/LegalPage';
+import UpgradeVipModal from './components/UpgradeVipModal';
 
 export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isVipOpen, setIsVipOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [user, setUser] = useState(null);
   const [appConfig, setAppConfig] = useState(null);
@@ -72,6 +74,7 @@ export default function App() {
         appConfig={appConfig}
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenVip={() => setIsVipOpen(true)}
         onLogout={handleLogout}
         onOpenAdmin={() => navigate('/admin/overview')}
         onNavigate={navigate}
@@ -97,13 +100,7 @@ export default function App() {
             <HowItWorks />
             <Pricing
               appConfig={appConfig}
-              onSelectVip={() => {
-                if (!user) {
-                  setIsAuthOpen(true);
-                } else {
-                  alert('Redirecting to secure VIP checkout...');
-                }
-              }}
+              onSelectVip={() => setIsVipOpen(true)}
             />
             <FAQ />
           </>
@@ -121,6 +118,13 @@ export default function App() {
         isOpen={isAuthOpen}
         onClose={() => setIsAuthOpen(false)}
         onAuthSuccess={(u) => setUser(u)}
+      />
+
+      <UpgradeVipModal
+        isOpen={isVipOpen}
+        onClose={() => setIsVipOpen(false)}
+        user={user}
+        onSuccess={(u) => setUser(u)}
       />
     </div>
   );
