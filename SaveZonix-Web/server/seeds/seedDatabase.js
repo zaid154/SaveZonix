@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const AppConfig = require('../models/AppConfig');
 const DownloadHistory = require('../models/DownloadHistory');
+const Payment = require('../models/Payment');
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/SaveZonixDb';
 
@@ -197,10 +198,52 @@ async function runSeed() {
       console.log(`[Seed] Download history record (${d.title}) connected to ${d.userEmail}.`);
     }
 
+    // 5. Realistic Payment & License Records (2 Records)
+    console.log('[Seed] Seeding Realistic Payment & License Records (2 Records)...');
+    const samplePayments = [
+      {
+        userId: createdUsers[0]._id,
+        userEmail: createdUsers[0].email,
+        userName: createdUsers[0].name,
+        orderId: 'order_seed_987654321',
+        paymentId: 'pay_seed_123456789',
+        amount: 99,
+        currency: 'INR',
+        plan: 'monthly',
+        status: 'completed',
+        paymentMethod: 'UPI / Razorpay',
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      },
+      {
+        userId: createdUsers[0]._id,
+        userEmail: createdUsers[0].email,
+        userName: createdUsers[0].name,
+        orderId: 'lic_seed_44556677',
+        amount: 0,
+        currency: 'INR',
+        plan: 'annual',
+        status: 'completed',
+        paymentMethod: 'License Key',
+        isLicenseKey: true,
+        licenseKey: 'SZ-VIP-ANNUAL-TEST99',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
+      }
+    ];
+
+    for (const p of samplePayments) {
+      await Payment.findOneAndUpdate(
+        { orderId: p.orderId },
+        { $set: p },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      console.log(`[Seed] Payment record (${p.orderId} - INR ${p.amount}) connected to ${p.userEmail}.`);
+    }
+
     console.log('========================================================');
     console.log('   SaveZonix Web Database Seed Completed Successfully! ');
-    console.log(`   - 1 Super Admin & 3 Realistic Users Created/Updated`);
-    console.log(`   - 3 Download History Records Created & Connected`);
+    console.log('   - 1 Super Admin & 3 Realistic Users Created/Updated');
+    console.log('   - 3 Download History Records Created & Connected');
+    console.log('   - 2 Payment & License Ledger Records Seeded');
     console.log('========================================================');
     process.exit(0);
   } catch (err) {
