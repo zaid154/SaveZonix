@@ -7,6 +7,15 @@ echo ========================================================
 echo    SaveZonix - Building Production Setup Installer
 echo ========================================================
 echo Current Directory: %CD%
+echo [0/2] Synchronizing Master Brand Assets...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0branding\sync-branding.ps1"
+if %ERRORLEVEL% neq 0 (
+    color 0C
+    echo.
+    echo [ERROR] Brand sync failed!
+    pause
+    exit /b %ERRORLEVEL%
+)
 echo.
 
 echo [1/2] Publishing C# App (win-x64)...
