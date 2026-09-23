@@ -150,8 +150,9 @@
                             const cleanUrl = raw.replace(/\\\//g, '/').replace(/['"]/g, '');
                             if (cleanUrl.startsWith('http') && isValidMediaStreamUrl(cleanUrl) && !seen.has(cleanUrl)) {
                                 seen.add(cleanUrl);
-                                // KVS serves signed MP4 files through `/get_file/`; that path is not HLS.
-                                const isHls = cleanUrl.includes('.m3u8') || cleanUrl.includes('/hls/');
+                                // KVS serves signed MP4 files through `/get_file/`; however, okxxx1.com serves HLS from these URLs.
+                                const isOkxxx = (typeof window !== 'undefined' && window.location && (window.location.hostname.includes('okxxx') || window.location.hostname.includes('ok.xxx'))) || cleanUrl.includes('okxxx') || cleanUrl.includes('ok.xxx');
+                                const isHls = cleanUrl.includes('.m3u8') || cleanUrl.includes('/hls/') || isOkxxx;
                                 const isDash = cleanUrl.includes('.mpd');
                                 streams.push({
                                     url: cleanUrl,

@@ -138,8 +138,8 @@
     const progressiveLoadSection = document.getElementById('progressiveLoadSection');
     const progressiveTitleText = document.getElementById('progressiveTitleText');
     const progressiveSubText = document.getElementById('progressiveSubText');
-    const btnLoadNextBatch = document.getElementById('btnLoadNextBatch');
-    const btnLoadAllVideos = document.getElementById('btnLoadAllVideos');
+    const btnLoadNextBatch = document.getElementById('btnLoadNextBatch') || document.getElementById('btn-load-next');
+    const btnLoadAllVideos = document.getElementById('btnLoadAllVideos') || document.getElementById('btn-load-all');
     const progressiveLoadingBar = document.getElementById('progressiveLoadingBar');
     const progressiveLoadingMsg = document.getElementById('progressiveLoadingMsg');
 
@@ -991,19 +991,33 @@
         }
 
         try {
-            const resp = await fetch('/api/playlist/load', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    url: currentPlaylistUrl,
-                    limit: loadAll ? 0 : batchSize,
-                    offset: loadedVideos.length
-                })
-            });
+            const startIndex = loadedVideos.length + 1;
+            const limitParam = loadAll ? 'all' : batchSize;
+            let data = null;
 
-            const data = await resp.json();
-            if (!resp.ok || !data.success) {
-                showAlert('Load More Failed', data.message || 'Could not fetch additional videos.');
+            try {
+                const fetchUrl = `/api/playlist/fetch?url=${encodeURIComponent(currentPlaylistUrl)}&startIndex=${startIndex}&limit=${limitParam}`;
+                const fetchResp = await fetch(fetchUrl);
+                if (fetchResp.ok) {
+                    data = await fetchResp.json();
+                }
+            } catch { }
+
+            if (!data || !data.success) {
+                const resp = await fetch('/api/playlist/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        url: currentPlaylistUrl,
+                        limit: loadAll ? 0 : batchSize,
+                        offset: loadedVideos.length
+                    })
+                });
+                data = await resp.json();
+            }
+
+            if (!data || !data.success) {
+                showAlert('Load More Failed', data?.message || 'Could not fetch additional videos.');
                 return;
             }
 

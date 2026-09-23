@@ -37,22 +37,39 @@
 
     if (btnActiveCancelAll) {
         btnActiveCancelAll.addEventListener('click', async () => {
-            if (!confirm('Cancel all running playlist downloads?')) return;
+            if (!confirm('Cancel all running downloads?')) return;
             try {
                 btnActiveCancelAll.disabled = true;
                 btnActiveCancelAll.textContent = 'Cancelling...';
-                const resp = await fetch('/api/playlist/active-jobs');
-                if (resp.ok) {
-                    const jobs = await resp.json();
-                    if (Array.isArray(jobs)) {
-                        await Promise.all(jobs.map(j => fetch(`/api/playlist/cancel/${j.jobId}`, { method: 'POST' })));
+
+                // Call global cancel-all endpoint
+                await fetch('/api/downloads/cancel-all', { method: 'POST' });
+
+                // Also cancel any playlist jobs
+                try {
+                    const resp = await fetch('/api/playlist/active-jobs');
+                    if (resp.ok) {
+                        const jobs = await resp.json();
+                        if (Array.isArray(jobs)) {
+                            await Promise.all(jobs.map(j => fetch(`/api/playlist/cancel/${j.jobId}`, { method: 'POST' })));
+                        }
                     }
-                }
+                } catch { }
+
+                // Immediate UI feedback: update visible progress bars to Cancelled
+                document.querySelectorAll('.active-dl-card').forEach(card => {
+                    const statusBadge = card.querySelector('.active-dl-status');
+                    if (statusBadge) {
+                        statusBadge.className = 'active-dl-status status-failed';
+                        statusBadge.textContent = 'Cancelled';
+                    }
+                });
+
                 setTimeout(() => {
                     pollActiveJobs();
                     btnActiveCancelAll.disabled = false;
                     btnActiveCancelAll.textContent = '⏹ Cancel All';
-                }, 350);
+                }, 300);
             } catch { 
                 btnActiveCancelAll.disabled = false;
                 btnActiveCancelAll.textContent = '⏹ Cancel All';

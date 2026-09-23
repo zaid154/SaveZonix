@@ -228,14 +228,38 @@ public class M3U8Parser
             // Always add a StreamQuality item so that the client UI receives an explicit choice with IsDirectFile = false
             if (result.Qualities.Count == 0)
             {
-                result.Qualities.Add(new StreamQuality
+                // If the stream URL is a single variant (e.g. 480p on xHamster / tube CDN), generate higher tier options
+                var resMatch = Regex.Match(url, @"\/(\d+p)(?:\.hls|\.av1)?\.mp4\.m3u8", RegexOptions.IgnoreCase);
+                if (resMatch.Success)
                 {
-                    Resolution = result.IsLiveStream ? "🔴 Live Stream (Adaptive)" : "Original Quality (HLS Stream)",
-                    Url = url,
-                    IsDirectFile = false,
-                    DurationSeconds = duration,
-                    Bandwidth = 3500000
-                });
+                    string currentLabel = resMatch.Groups[1].Value;
+                    string[] targetTiers = { "1080p", "720p", "480p", "240p" };
+                    foreach (var tier in targetTiers)
+                    {
+                        string siblingUrl = url.Replace($"/{currentLabel}", $"/{tier}");
+                        int h = int.Parse(tier.Replace("p", ""));
+                        result.Qualities.Add(new StreamQuality
+                        {
+                            Resolution = h >= 1080 ? $"{tier} Full HD (Max Quality)" : (h >= 720 ? $"{tier} HD" : $"{tier} SD"),
+                            Url = siblingUrl,
+                            IsDirectFile = false,
+                            DurationSeconds = duration,
+                            Bandwidth = h * 7000L
+                        });
+                    }
+                    result.Qualities = result.Qualities.OrderByDescending(q => q.Bandwidth).ToList();
+                }
+                else
+                {
+                    result.Qualities.Add(new StreamQuality
+                    {
+                        Resolution = result.IsLiveStream ? "🔴 Live Stream (Adaptive)" : "Original Quality (HLS Stream)",
+                        Url = url,
+                        IsDirectFile = false,
+                        DurationSeconds = duration,
+                        Bandwidth = 3500000
+                    });
+                }
             }
 
             return result;
@@ -280,6 +304,7 @@ public class M3U8Parser
         result.IsDirectMediaFile = true;
 
         long length = 0;
+        string responseContentType = "";
         try
         {
             using var req = new HttpRequestMessage(HttpMethod.Head, url);
@@ -291,12 +316,61 @@ public class M3U8Parser
             }
 
             using var res = await _httpClient.SendAsync(req);
+            responseContentType = res.Content.Headers.ContentType?.MediaType ?? "";
             if (res.Content.Headers.ContentLength.HasValue && res.Content.Headers.ContentLength.Value > 0)
             {
                 length = res.Content.Headers.ContentLength.Value;
             }
         }
         catch { }
+
+        // ── Guard: Some CDNs (e.g. okxxx1.com/get_file/...mp4/) serve HLS playlists
+        // from URLs that look like direct .mp4 files. Detect this via Content-Type
+        // or by checking the first bytes, and re-parse as HLS instead of downloading raw.
+        bool looksLikeHls = responseContentType.Contains("mpegurl", StringComparison.OrdinalIgnoreCase)
+                         || responseContentType.Contains("m3u", StringComparison.OrdinalIgnoreCase);
+
+        // If not already identified as HLS, perform a small GET peek if length is 0,
+        // suspiciously small (<100KB), or if the URL contains tube get_file patterns
+        if (!looksLikeHls && (length == 0 || length < 102400 || url.Contains("/get_file/", StringComparison.OrdinalIgnoreCase) || url.Contains("okxxx", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                using var peekReq = new HttpRequestMessage(HttpMethod.Get, url);
+                peekReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(url));
+                if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0]))
+                    peekReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
+
+                using var peekRes = await _httpClient.SendAsync(peekReq, HttpCompletionOption.ResponseHeadersRead);
+                if (peekRes.IsSuccessStatusCode)
+                {
+                    var peekCt = peekRes.Content.Headers.ContentType?.MediaType ?? "";
+                    if (peekCt.Contains("mpegurl", StringComparison.OrdinalIgnoreCase) ||
+                        peekCt.Contains("m3u", StringComparison.OrdinalIgnoreCase))
+                    {
+                        looksLikeHls = true;
+                    }
+                    else
+                    {
+                        var snippet = await peekRes.Content.ReadAsStringAsync();
+                        if (snippet.TrimStart().StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
+                        {
+                            looksLikeHls = true;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (looksLikeHls)
+        {
+            Console.WriteLine($"[M3U8Parser] Direct-media URL actually serves HLS playlist, re-parsing as HLS: {url}");
+            result.IsDirectMediaFile = false;
+            result.IsMaster = false;
+            return await ParseInternalAsync(url);
+        }
 
         // Fallback: Ranged GET (bytes 0-0) if HEAD returned 0 or was blocked
         if (length == 0)
@@ -766,37 +840,144 @@ public class M3U8Parser
             }
         }
 
-        // 0a. xHamster Multi-Resolution HLS Parser (supports _TPL_ template or direct resolution suffix like 144p.av1.mp4.m3u8)
-        var xhMultiMatch = Regex.Match(cleanedHtml, @"(https?:\/\/[^\s""'<>]+multi=[^\s""'<>]+\/[^\s""'<>]+\/(?:_TPL_|\d+p)[^\s""'<>]+\.m3u8)", RegexOptions.IgnoreCase);
-        if (xhMultiMatch.Success)
+        // 0a. xHamster Multi-Resolution HLS & HTML5 Stream Parser (supports modern window.initials, xplayerSettings, multi= patterns, and HD variants)
+        try
         {
-            string masterRawUrl = xhMultiMatch.Groups[1].Value;
-            var multiPartMatch = Regex.Match(masterRawUrl, @"multi=([^/]+)");
-            if (multiPartMatch.Success)
+            // (1) Check modern xHamster multi= pattern with any delimiter structure
+            var xhMultiMatch = Regex.Match(cleanedHtml, @"(https?:\/\/[^\s""'<>]+multi=[^\s""'<>]+\/[^\s""'<>]+\/(?:_TPL_|\d+p)[^\s""'<>]+\.m3u8)", RegexOptions.IgnoreCase);
+            if (!xhMultiMatch.Success)
             {
-                string multiPart = multiPartMatch.Groups[1].Value;
-                var qEntries = Regex.Matches(multiPart, @"(\d+x\d+):(\w+):");
-                foreach (Match qe in qEntries)
+                xhMultiMatch = Regex.Match(cleanedHtml, @"(https?:\/\/[^\s""'<>]+multi=[^\s""'<>]+\.m3u8)", RegexOptions.IgnoreCase);
+            }
+
+            if (xhMultiMatch.Success)
+            {
+                string masterRawUrl = xhMultiMatch.Groups[1].Value;
+                var multiPartMatch = Regex.Match(masterRawUrl, @"multi=([^/&]+)");
+                if (multiPartMatch.Success)
                 {
-                    string res = qe.Groups[1].Value;
-                    string label = qe.Groups[2].Value; // e.g. 2160p, 1080p, 720p, 480p, 240p, 144p
-                    string specificPlaylistUrl = Regex.Replace(masterRawUrl, @"\/(_TPL_|\d+p)", $"/{label}");
-                    int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
-                    string resDisplay = h >= 2160 ? $"{label} 4K UHD ({res})" : (h >= 1080 ? $"{label} Full HD ({res})" : (h >= 720 ? $"{label} HD ({res})" : $"{label} SD ({res})"));
-                    qualities.Add(new StreamQuality
+                    string multiPart = multiPartMatch.Groups[1].Value;
+                    // Extract all resolution labels (2160p, 1080p, 720p, 480p, 360p, 240p, 144p)
+                    var labelMatches = Regex.Matches(multiPart, @"(\d+p)");
+                    var seenLabels = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (Match lm in labelMatches)
                     {
-                        Resolution = resDisplay,
-                        Url = specificPlaylistUrl,
-                        Bandwidth = h * 6000,
-                        IsDirectFile = false
-                    });
-                }
-                if (qualities.Count > 0)
-                {
-                    var sortedQualities = qualities.OrderByDescending(q => q.Bandwidth).ToList();
-                    return (sortedQualities[0].Url, sortedQualities);
+                        string label = lm.Groups[1].Value.ToLowerInvariant();
+                        if (!seenLabels.Add(label)) continue;
+
+                        string specificPlaylistUrl = Regex.IsMatch(masterRawUrl, @"\/(_TPL_|\d+p)")
+                            ? Regex.Replace(masterRawUrl, @"\/(_TPL_|\d+p)", $"/{label}")
+                            : masterRawUrl;
+
+                        int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                        string resDisplay = h >= 2160 ? $"{label} 4K Ultra HD" : (h >= 1080 ? $"{label} Full HD" : (h >= 720 ? $"{label} HD" : $"{label} SD"));
+                        qualities.Add(new StreamQuality
+                        {
+                            Resolution = resDisplay,
+                            Url = specificPlaylistUrl,
+                            Bandwidth = h * 7000L,
+                            IsDirectFile = false
+                        });
+                    }
+
+                    // Also check for widthxheight:label format
+                    if (qualities.Count == 0)
+                    {
+                        var qEntries = Regex.Matches(multiPart, @"(?:(\d+x\d+):)?(\d+p)");
+                        foreach (Match qe in qEntries)
+                        {
+                            string label = qe.Groups[2].Value;
+                            if (!seenLabels.Add(label)) continue;
+                            string specificPlaylistUrl = Regex.Replace(masterRawUrl, @"\/(_TPL_|\d+p)", $"/{label}");
+                            int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                            qualities.Add(new StreamQuality
+                            {
+                                Resolution = h >= 1080 ? $"{label} Full HD" : (h >= 720 ? $"{label} HD" : $"{label} SD"),
+                                Url = specificPlaylistUrl,
+                                Bandwidth = h * 7000L,
+                                IsDirectFile = false
+                            });
+                        }
+                    }
                 }
             }
+
+            // (2) Check window.initials or JSON player settings for explicit quality mappings
+            var jsonSourcesMatches = Regex.Matches(cleanedHtml, @"""(?:sources|hls|mp4)""\s*:\s*\{([^}]+)\}", RegexOptions.IgnoreCase);
+            foreach (Match jsm in jsonSourcesMatches)
+            {
+                var kvPairs = Regex.Matches(jsm.Groups[1].Value, @"""(\d+p)""\s*:\s*""(https?:[^""]+)""", RegexOptions.IgnoreCase);
+                foreach (Match kv in kvPairs)
+                {
+                    string label = kv.Groups[1].Value;
+                    string streamUrl = kv.Groups[2].Value.Replace("\\/", "/");
+                    int h = int.TryParse(Regex.Match(label, @"\d+").Value, out var ph) ? ph : 720;
+                    if (!qualities.Any(q => q.Url == streamUrl))
+                    {
+                        qualities.Add(new StreamQuality
+                        {
+                            Resolution = h >= 2160 ? $"{label} 4K Ultra HD" : (h >= 1080 ? $"{label} Full HD" : (h >= 720 ? $"{label} HD" : $"{label} SD")),
+                            Url = streamUrl,
+                            Bandwidth = h * 7000L,
+                            IsDirectFile = !streamUrl.Contains(".m3u8")
+                        });
+                    }
+                }
+            }
+
+            // (3) Check for direct xhcdn HLS master or variant URLs in page
+            if (qualities.Count == 0 && (baseUri.Host.Contains("xhamster") || cleanedHtml.Contains("xhcdn") || cleanedHtml.Contains("xhpingcdn")))
+            {
+                var xhUrls = Regex.Matches(cleanedHtml, @"(https?:\/\/[^\s""'<>]*(?:xhcdn|xhpingcdn)[^\s""'<>]+\.m3u8[^\s""'<>]*)", RegexOptions.IgnoreCase);
+                foreach (Match xu in xhUrls)
+                {
+                    string mUrl = xu.Groups[1].Value.Replace("\\/", "/");
+                    // If this is a specific variant (e.g. 480p or 720p), generate siblings
+                    var resMatch = Regex.Match(mUrl, @"\/(\d+p)(?:\.hls|\.av1)?\.mp4\.m3u8", RegexOptions.IgnoreCase);
+                    if (resMatch.Success)
+                    {
+                        string currentLabel = resMatch.Groups[1].Value;
+                        string[] targetTiers = { "1080p", "720p", "480p", "240p" };
+                        foreach (var tier in targetTiers)
+                        {
+                            string siblingUrl = mUrl.Replace($"/{currentLabel}", $"/{tier}");
+                            int h = int.Parse(tier.Replace("p", ""));
+                            if (!qualities.Any(q => q.Url == siblingUrl))
+                            {
+                                qualities.Add(new StreamQuality
+                                {
+                                    Resolution = h >= 1080 ? $"{tier} Full HD" : (h >= 720 ? $"{tier} HD" : $"{tier} SD"),
+                                    Url = siblingUrl,
+                                    Bandwidth = h * 7000L,
+                                    IsDirectFile = false
+                                });
+                            }
+                        }
+                        break;
+                    }
+                    else if (!qualities.Any(q => q.Url == mUrl))
+                    {
+                        qualities.Add(new StreamQuality
+                        {
+                            Resolution = "1080p Full HD (xHamster Stream)",
+                            Url = mUrl,
+                            Bandwidth = 5000000L,
+                            IsDirectFile = false
+                        });
+                    }
+                }
+            }
+
+            if (qualities.Count > 0)
+            {
+                var sortedQualities = qualities.OrderByDescending(q => q.Bandwidth).ToList();
+                return (sortedQualities[0].Url, sortedQualities);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[xHamster Extractor Error] {ex.Message}");
         }
 
         // 0b. mat6tube & pvvstream direct MP4 Full Video Extractor (strictly exclude 'tr_' preview trailers)

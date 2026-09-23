@@ -690,7 +690,12 @@
                         <button type="submit" id="btnSubmitOtp" style="box-sizing: border-box; width: 100%; padding: 12px; background: #10b981; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer;">Verify &amp; Activate Account</button>
                     </form>
 
-                    <div style="margin-top: 16px;">
+                    <div style="margin-top: 14px; font-size: 12.5px; color: #94a3b8;">
+                        Didn't receive code? <button type="button" id="btnResendDesktopOtp" style="background: none; border: none; color: #38bdf8; font-weight: 600; cursor: pointer; text-decoration: underline; padding: 0;">Resend Code</button>
+                        <span id="lblDesktopCooldown" style="display: none; color: #38bdf8; font-weight: 600;"></span>
+                    </div>
+
+                    <div style="margin-top: 14px;">
                         <button type="button" id="btnBackFromOtp" style="background: transparent; border: none; color: #64748b; font-size: 12.5px; cursor: pointer;">← Change Email / Back</button>
                     </div>
                 </div>
@@ -795,11 +800,56 @@
                 pendingRegisterData = { name, email, password };
                 document.getElementById('txtOtpNotice').textContent = `We sent a 6-digit verification code to ${email}`;
                 switchAuthView('otp');
+                startDesktopCooldown(60);
             } catch (err) {
                 showAuthMessage(err.message, 'error');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Send Verification Code';
+            }
+        });
+
+        // Desktop Resend OTP Cooldown Timer
+        let desktopCooldown = 0;
+        let desktopTimer = null;
+
+        function startDesktopCooldown(seconds = 60) {
+            desktopCooldown = seconds;
+            const btn = document.getElementById('btnResendDesktopOtp');
+            const lbl = document.getElementById('lblDesktopCooldown');
+            if (!btn || !lbl) return;
+            btn.style.display = 'none';
+            lbl.style.display = 'inline';
+            lbl.textContent = `Resend in ${desktopCooldown}s`;
+
+            if (desktopTimer) clearInterval(desktopTimer);
+            desktopTimer = setInterval(() => {
+                desktopCooldown--;
+                if (desktopCooldown <= 0) {
+                    clearInterval(desktopTimer);
+                    btn.style.display = 'inline';
+                    lbl.style.display = 'none';
+                } else {
+                    lbl.textContent = `Resend in ${desktopCooldown}s`;
+                }
+            }, 1000);
+        }
+
+        document.getElementById('btnResendDesktopOtp')?.addEventListener('click', async () => {
+            if (!pendingRegisterData || desktopCooldown > 0) return;
+            showAuthMessage('');
+            try {
+                const res = await fetch(`${CLOUD_API_BASE}/api/auth/send-register-otp`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pendingRegisterData)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Failed to resend OTP');
+                showAuthMessage(`New verification code sent to ${pendingRegisterData.email}!`, 'success');
+                startDesktopCooldown(60);
+            } catch (err) {
+                showAuthMessage(err.message, 'error');
             }
         });
 

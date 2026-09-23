@@ -59,6 +59,78 @@ public class PlaylistController : Controller
         return Ok(result);
     }
 
+    [HttpGet("/api/playlist/fetch")]
+    public async Task<IActionResult> FetchPlaylist(
+        [FromQuery] string url, 
+        [FromQuery] int? startIndex, 
+        [FromQuery] string? limit, 
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return BadRequest(new { success = false, message = "Playlist URL is required." });
+        }
+
+        int offset = (startIndex.HasValue && startIndex.Value > 1) ? startIndex.Value - 1 : 0;
+        int parsedLimit = 25;
+        if (string.Equals(limit, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedLimit = 0; // 0 indicates load all
+        }
+        else if (int.TryParse(limit, out var numLimit))
+        {
+            parsedLimit = numLimit;
+        }
+
+        var result = await _playlistService.LoadPlaylistAsync(url, parsedLimit, offset, ct);
+        if (!result.Success)
+        {
+            return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to fetch playlist items." });
+        }
+
+        return Ok(result);
+    }
+
+    [HttpPost("/api/playlist/fetch")]
+    public async Task<IActionResult> FetchPlaylistPost(
+        [FromBody] PlaylistLoadRequest req, 
+        [FromQuery] int? startIndex, 
+        [FromQuery] string? limit, 
+        CancellationToken ct)
+    {
+        string? targetUrl = req?.Url;
+        if (string.IsNullOrWhiteSpace(targetUrl))
+        {
+            return BadRequest(new { success = false, message = "Playlist URL is required." });
+        }
+
+        int offset = (startIndex.HasValue && startIndex.Value > 1) 
+            ? startIndex.Value - 1 
+            : (req?.Offset ?? 0);
+
+        int parsedLimit = 25;
+        if (string.Equals(limit, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            parsedLimit = 0;
+        }
+        else if (int.TryParse(limit, out var numLimit))
+        {
+            parsedLimit = numLimit;
+        }
+        else if (req?.Limit.HasValue == true)
+        {
+            parsedLimit = req.Limit.Value;
+        }
+
+        var result = await _playlistService.LoadPlaylistAsync(targetUrl, parsedLimit, offset, ct);
+        if (!result.Success)
+        {
+            return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to fetch playlist items." });
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("/api/playlist/import-tab-queue")]
     public IActionResult ImportTabQueue([FromBody] ImportTabQueueRequest req)
     {

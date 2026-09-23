@@ -1636,6 +1636,46 @@ public class Program
                                 isDirectDownload = false;
                             }
 
+                            // Guard: Some CDNs (e.g. okxxx1.com/get_file/...mp4/) serve HLS playlists
+                            // from URLs that look like direct .mp4 files. Probe both Content-Type and the first bytes
+                            // for #EXTM3U before committing to a direct download.
+                            if (isDirectDownload)
+                            {
+                                try
+                                {
+                                    using var probeReq = new HttpRequestMessage(HttpMethod.Get, req.StreamUrl);
+                                    probeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                                    probeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 1024);
+                                    var probeReferers = Zonix.Core.StreamSecurityHelper.GetCandidateReferers(new Uri(req.StreamUrl));
+                                    if (probeReferers.Count > 0 && !string.IsNullOrEmpty(probeReferers[0]))
+                                        probeReq.Headers.TryAddWithoutValidation("Referer", probeReferers[0]);
+
+                                    using var probeRes = await httpClient.SendAsync(probeReq, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                                    var probeCt = probeRes.Content.Headers.ContentType?.MediaType ?? "";
+                                    bool isHls = probeCt.Contains("mpegurl", StringComparison.OrdinalIgnoreCase) ||
+                                                 probeCt.Contains("m3u", StringComparison.OrdinalIgnoreCase);
+
+                                    if (!isHls && probeRes.IsSuccessStatusCode)
+                                    {
+                                        await using var probeStream = await probeRes.Content.ReadAsStreamAsync(cts.Token);
+                                        byte[] peekBuffer = new byte[512];
+                                        int peekRead = await probeStream.ReadAsync(peekBuffer, 0, peekBuffer.Length, cts.Token);
+                                        string peekText = System.Text.Encoding.UTF8.GetString(peekBuffer, 0, peekRead).TrimStart();
+                                        if (peekText.StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase) || peekText.Contains("#EXT-X-STREAM-INF"))
+                                        {
+                                            isHls = true;
+                                        }
+                                    }
+
+                                    if (isHls)
+                                    {
+                                        Console.WriteLine($"[Download] Detected HLS playlist inside direct-file URL (Content-Type: {probeCt}), switching to HLS mode.");
+                                        isDirectDownload = false;
+                                    }
+                                }
+                                catch { /* probe failure is non-fatal, proceed with direct download */ }
+                            }
+
                             if (isDirectDownload)
                             {
                                 var chunks = await downloader.DownloadDirectFileAsync(
@@ -2150,6 +2190,46 @@ public class Program
             }
             catch { }
             return Results.Ok(new { success = true });
+        });
+
+        app.MapPost("/api/downloads/cancel-all", async (IServiceProvider services) =>
+        {
+            int cancelledTasks = 0;
+            using var scope = services.CreateScope();
+            var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+
+            foreach (var kvp in _tasks)
+            {
+                var state = kvp.Value;
+                if (!state.IsCompleted && !state.IsError)
+                {
+                    try { state.Cts?.Cancel(); } catch { }
+                    state.IsPaused = true;
+                    state.Status = "Download Cancelled";
+                    cancelledTasks++;
+
+                    if (historyService != null)
+                    {
+                        try { await historyService.MarkCancelledAsync(state.TaskId); } catch { }
+                    }
+                }
+            }
+
+            try
+            {
+                var queueManager = services.GetService<SaveZonix.Services.IPlaylistQueueManager>();
+                if (queueManager != null)
+                {
+                    var activeJobs = queueManager.GetActiveJobs();
+                    foreach (var job in activeJobs)
+                    {
+                        queueManager.CancelBatchJob(job.JobId);
+                    }
+                }
+            }
+            catch { }
+
+            return Results.Ok(new { success = true, cancelledCount = cancelledTasks });
         });
 
         app.MapGet("/api/download-file/{taskId}", (string taskId) =>
