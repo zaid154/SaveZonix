@@ -966,20 +966,37 @@
             }
             if (btnLoadNextBatch) {
                 btnLoadNextBatch.style.display = 'inline-flex';
+                btnLoadNextBatch.disabled = false;
                 const span = btnLoadNextBatch.querySelector('span');
                 if (span) span.textContent = `Load Next 25 Videos (From #${loadedVideos.length + 1})`;
             }
             if (btnLoadAllVideos) {
                 btnLoadAllVideos.style.display = 'inline-flex';
+                btnLoadAllVideos.disabled = false;
             }
         } else {
-            progressiveLoadSection.style.display = 'none';
+            // End-of-queue: show completion state instead of hiding
+            progressiveLoadSection.style.display = 'block';
+            if (progressiveTitleText) {
+                progressiveTitleText.textContent = `✓ All ${loadedVideos.length} Videos Loaded`;
+            }
+            if (progressiveSubText) {
+                progressiveSubText.textContent = `Complete playlist loaded successfully. Select videos and start downloading.`;
+            }
+            if (btnLoadNextBatch) btnLoadNextBatch.style.display = 'none';
+            if (btnLoadAllVideos) btnLoadAllVideos.style.display = 'none';
         }
     }
 
     async function loadMoreVideos(batchSize = 25, loadAll = false) {
         if (!currentPlaylistUrl) return;
-        if (btnLoadNextBatch) btnLoadNextBatch.disabled = true;
+
+        // UI: Show loading spinner on button
+        if (btnLoadNextBatch) {
+            btnLoadNextBatch.disabled = true;
+            const span = btnLoadNextBatch.querySelector('span');
+            if (span) span.textContent = 'Loading...';
+        }
         if (btnLoadAllVideos) btnLoadAllVideos.disabled = true;
         if (progressiveLoadingBar) {
             progressiveLoadingBar.style.display = 'flex';
@@ -993,10 +1010,16 @@
         try {
             const startIndex = loadedVideos.length + 1;
             const limitParam = loadAll ? 'all' : batchSize;
+
+            // Get last video ID for seed-chaining (Mix playlists)
+            const lastVid = loadedVideos.length > 0 ? loadedVideos[loadedVideos.length - 1] : null;
+            const lastVideoId = lastVid ? lastVid.videoId : '';
+
             let data = null;
 
             try {
-                const fetchUrl = `/api/playlist/fetch?url=${encodeURIComponent(currentPlaylistUrl)}&startIndex=${startIndex}&limit=${limitParam}`;
+                let fetchUrl = `/api/playlist/fetch?url=${encodeURIComponent(currentPlaylistUrl)}&startIndex=${startIndex}&limit=${limitParam}`;
+                if (lastVideoId) fetchUrl += `&lastVideoId=${encodeURIComponent(lastVideoId)}`;
                 const fetchResp = await fetch(fetchUrl);
                 if (fetchResp.ok) {
                     data = await fetchResp.json();
@@ -1010,7 +1033,8 @@
                     body: JSON.stringify({
                         url: currentPlaylistUrl,
                         limit: loadAll ? 0 : batchSize,
-                        offset: loadedVideos.length
+                        offset: loadedVideos.length,
+                        lastVideoId: lastVideoId
                     })
                 });
                 data = await resp.json();
@@ -1023,12 +1047,22 @@
 
             const newVideos = data.videos || [];
             if (newVideos.length === 0) {
-                if (progressiveLoadSection) progressiveLoadSection.style.display = 'none';
+                // End of queue reached
+                updateProgressiveSection({ hasMore: false, isMix: data.isMix, totalKnownVideos: loadedVideos.length });
+                return;
+            }
+
+            // Deduplicate against already-loaded videos
+            const existingIds = new Set(loadedVideos.map(v => v.videoId));
+            const uniqueNewVideos = newVideos.filter(v => !existingIds.has(v.videoId));
+
+            if (uniqueNewVideos.length === 0) {
+                updateProgressiveSection({ hasMore: false, isMix: data.isMix, totalKnownVideos: loadedVideos.length });
                 return;
             }
 
             const startIdx = loadedVideos.length;
-            newVideos.forEach((v, i) => {
+            uniqueNewVideos.forEach((v, i) => {
                 const globalIdx = startIdx + i + 1;
                 v.originalIndex = globalIdx;
                 v.index = globalIdx;
@@ -1058,7 +1092,11 @@
         } catch (err) {
             showAlert('Network Error', err.message || 'Error fetching additional videos.');
         } finally {
-            if (btnLoadNextBatch) btnLoadNextBatch.disabled = false;
+            if (btnLoadNextBatch) {
+                btnLoadNextBatch.disabled = false;
+                const span = btnLoadNextBatch.querySelector('span');
+                if (span) span.textContent = `Load Next 25 Videos (From #${loadedVideos.length + 1})`;
+            }
             if (btnLoadAllVideos) btnLoadAllVideos.disabled = false;
             if (progressiveLoadingBar) progressiveLoadingBar.style.display = 'none';
         }

@@ -6,6 +6,7 @@ public class PlaylistLoadRequest
     public string? QueueKey { get; set; }
     public int? Limit { get; set; }
     public int? Offset { get; set; }
+    public string? LastVideoId { get; set; }
 }
 
 public class ImportTabQueueRequest

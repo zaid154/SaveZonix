@@ -62,7 +62,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    public async Task<PlaylistInfoResult> LoadPlaylistAsync(string urlOrId, int? limit = null, int? offset = null, CancellationToken cancellationToken = default)
+    public async Task<PlaylistInfoResult> LoadPlaylistAsync(string urlOrId, int? limit = null, int? offset = null, string? lastVideoId = null, CancellationToken cancellationToken = default)
     {
         string? playlistId = ExtractPlaylistId(urlOrId);
         string? seedVideoId = ExtractVideoId(urlOrId);
@@ -114,6 +114,101 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                     FormattedTotalDuration = full.FormattedTotalDuration,
                     Videos = pagedVideos
                 };
+            }
+        }
+
+        // Dynamic Seed-Chaining: When loading more items for a Mix and offset >= cached count,
+        // use the last video ID to construct a new Mix seed and fetch fresh recommendations
+        if (isMix && !string.IsNullOrWhiteSpace(lastVideoId) && skipCount > 0)
+        {
+            // Build existing ID set for deduplication from cache
+            var existingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (_cache.TryGetValue(playlistId, out var existingCache))
+            {
+                foreach (var v in existingCache.Result.Videos)
+                    existingIds.Add(v.VideoId);
+            }
+
+            try
+            {
+                // Construct a new Mix playlist ID seeded from the last video
+                var seedMixId = $"RD{lastVideoId}";
+                var seedVideos = new List<PlaylistVideoDto>();
+                int seedIdx = 0;
+
+                await foreach (var video in _youtubeClient.Playlists.GetVideosAsync(seedMixId, cancellationToken))
+                {
+                    if (existingIds.Contains(video.Id.Value))
+                        continue; // Skip duplicates
+
+                    seedIdx++;
+                    if (seedVideos.Count >= targetLimit)
+                        break;
+
+                    try
+                    {
+                        int durationSec = (int)(video.Duration?.TotalSeconds ?? 0);
+                        string formattedDur = video.Duration.HasValue
+                            ? (video.Duration.Value.TotalHours >= 1
+                                ? video.Duration.Value.ToString(@"hh\:mm\:ss")
+                                : video.Duration.Value.ToString(@"mm\:ss"))
+                            : "00:00";
+
+                        string thumb = video.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{video.Id}/hqdefault.jpg";
+
+                        seedVideos.Add(new PlaylistVideoDto
+                        {
+                            VideoId = video.Id.Value,
+                            Index = skipCount + seedVideos.Count + 1,
+                            Title = video.Title,
+                            Author = video.Author?.ChannelTitle ?? "Unknown",
+                            DurationSeconds = durationSec,
+                            FormattedDuration = formattedDur,
+                            ThumbnailUrl = thumb,
+                            IsAvailable = true,
+                            AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
+                            AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
+                        });
+                    }
+                    catch { }
+                }
+
+                if (seedVideos.Count > 0)
+                {
+                    // Merge into cache
+                    if (_cache.TryGetValue(playlistId, out var prevCache))
+                    {
+                        var merged = new List<PlaylistVideoDto>(prevCache.Result.Videos);
+                        merged.AddRange(seedVideos);
+                        prevCache.Result.Videos = merged;
+                        prevCache.Result.VideoCount = merged.Count;
+                        prevCache.Result.TotalKnownVideos = merged.Count;
+                        prevCache.Result.HasMore = seedVideos.Count >= targetLimit;
+                        _cache[playlistId] = (DateTime.UtcNow, prevCache.Result);
+                    }
+
+                    long totalSec = seedVideos.Sum(v => (long)v.DurationSeconds);
+                    var ts = TimeSpan.FromSeconds(totalSec);
+
+                    return new PlaylistInfoResult
+                    {
+                        Success = true,
+                        Id = playlistId,
+                        Title = _cache.TryGetValue(playlistId, out var c) ? c.Result.Title : "YouTube Mix",
+                        Author = _cache.TryGetValue(playlistId, out var c2) ? c2.Result.Author : "YouTube",
+                        ThumbnailUrl = seedVideos.FirstOrDefault()?.ThumbnailUrl ?? "",
+                        VideoCount = seedVideos.Count,
+                        TotalKnownVideos = (_cache.TryGetValue(playlistId, out var c3) ? c3.Result.Videos.Count : skipCount + seedVideos.Count),
+                        HasMore = seedVideos.Count >= targetLimit,
+                        IsMix = true,
+                        FormattedTotalDuration = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s",
+                        Videos = seedVideos
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[YouTube Mix Seed-Chain] Failed to chain from {lastVideoId}: {ex.Message}");
             }
         }
 

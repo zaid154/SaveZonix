@@ -194,7 +194,11 @@
                         const titleEl = item.querySelector('#video-title');
                         const bylineEl = item.querySelector('#byline');
                         const linkEl = item.querySelector('a#wc-endpoint') || item.querySelector('a');
-                        const lengthEl = item.querySelector('#length') || item.querySelector('.ytd-thumbnail-overlay-time-status-renderer');
+                        const lengthEl = item.querySelector('span.badge-shape-wiz__text')
+                            || item.querySelector('ytd-thumbnail-overlay-time-status-renderer span')
+                            || item.querySelector('#text.ytd-thumbnail-overlay-time-status-renderer')
+                            || item.querySelector('#length')
+                            || item.querySelector('.ytd-thumbnail-overlay-time-status-renderer');
                         const thumbImg = item.querySelector('img');
 
                         let videoId = '';
@@ -245,7 +249,20 @@
                                         if (ren && ren.videoId) {
                                             const vidTitle = ren.title?.simpleText || (ren.title?.runs && ren.title.runs[0]?.text) || 'Video';
                                             const vidAuthor = ren.shortBylineText?.simpleText || (ren.shortBylineText?.runs && ren.shortBylineText.runs[0]?.text) || 'YouTube';
-                                            const vidDur = ren.lengthText?.simpleText || (ren.lengthText?.runs && ren.lengthText.runs[0]?.text) || '00:00';
+                                            // Duration: Check thumbnailOverlays first (YouTube Mix), then lengthText (regular playlists)
+                                            let vidDur = '00:00';
+                                            if (Array.isArray(ren.thumbnailOverlays)) {
+                                                for (const ov of ren.thumbnailOverlays) {
+                                                    const timeText = ov?.thumbnailOverlayTimeStatusRenderer?.text;
+                                                    if (timeText) {
+                                                        vidDur = timeText.simpleText || (timeText.runs && timeText.runs[0]?.text) || vidDur;
+                                                        if (vidDur !== '00:00') break;
+                                                    }
+                                                }
+                                            }
+                                            if (vidDur === '00:00') {
+                                                vidDur = ren.lengthText?.simpleText || (ren.lengthText?.runs && ren.lengthText.runs[0]?.text) || '00:00';
+                                            }
                                             const vidThumb = (ren.thumbnail?.thumbnails && ren.thumbnail.thumbnails.length > 0) 
                                                 ? ren.thumbnail.thumbnails[ren.thumbnail.thumbnails.length - 1].url 
                                                 : `https://i.ytimg.com/vi/${ren.videoId}/hqdefault.jpg`;

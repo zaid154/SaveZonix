@@ -50,7 +50,7 @@ public class PlaylistController : Controller
             return BadRequest(new { success = false, message = "Playlist URL is required." });
         }
 
-        var result = await _playlistService.LoadPlaylistAsync(req.Url, req.Limit, req.Offset, ct);
+        var result = await _playlistService.LoadPlaylistAsync(req.Url, req.Limit, req.Offset, req.LastVideoId, ct);
         if (!result.Success)
         {
             return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to load playlist." });
@@ -63,7 +63,8 @@ public class PlaylistController : Controller
     public async Task<IActionResult> FetchPlaylist(
         [FromQuery] string url, 
         [FromQuery] int? startIndex, 
-        [FromQuery] string? limit, 
+        [FromQuery] string? limit,
+        [FromQuery] string? lastVideoId,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(url))
@@ -82,7 +83,7 @@ public class PlaylistController : Controller
             parsedLimit = numLimit;
         }
 
-        var result = await _playlistService.LoadPlaylistAsync(url, parsedLimit, offset, ct);
+        var result = await _playlistService.LoadPlaylistAsync(url, parsedLimit, offset, lastVideoId, ct);
         if (!result.Success)
         {
             return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to fetch playlist items." });
@@ -122,7 +123,7 @@ public class PlaylistController : Controller
             parsedLimit = req.Limit.Value;
         }
 
-        var result = await _playlistService.LoadPlaylistAsync(targetUrl, parsedLimit, offset, ct);
+        var result = await _playlistService.LoadPlaylistAsync(targetUrl, parsedLimit, offset, req?.LastVideoId, ct);
         if (!result.Success)
         {
             return BadRequest(new { success = false, message = result.ErrorMessage ?? "Failed to fetch playlist items." });
@@ -163,7 +164,25 @@ public class PlaylistController : Controller
         }
 
         var resolutions = await _playlistService.GetAvailableResolutionsAsync(req.VideoId, ct);
-        return Ok(new { success = true, videoId = req.VideoId, resolutions });
+
+        // Fetch real duration from YouTube for enrichment (fixes 00:00 from extension scrape)
+        string formattedDuration = "";
+        int durationSeconds = 0;
+        try
+        {
+            var ytClient = Zonix.Core.YouTubeClientFactory.SharedClient;
+            var video = await ytClient.Videos.GetAsync(req.VideoId, ct);
+            if (video.Duration.HasValue)
+            {
+                durationSeconds = (int)video.Duration.Value.TotalSeconds;
+                formattedDuration = video.Duration.Value.TotalHours >= 1
+                    ? video.Duration.Value.ToString(@"hh\:mm\:ss")
+                    : video.Duration.Value.ToString(@"mm\:ss");
+            }
+        }
+        catch { }
+
+        return Ok(new { success = true, videoId = req.VideoId, resolutions, formattedDuration, durationSeconds });
     }
 
     [HttpPost("/api/playlist/download-batch")]
