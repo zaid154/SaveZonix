@@ -110,11 +110,11 @@
                 }
             }
 
-            // Filter truly active or failed jobs that need attention
+            // Filter only truly active jobs that are currently running or queued
             const currentActiveJobs = activeJobs.filter(j => {
-                const isOngoing = j.status === 'Running' || j.status === 'Downloading' || j.status === 'Queued' ||
-                                  (j.activeCount > 0 || j.queuedCount > 0) || (j.failedCount > 0);
-                return isOngoing;
+                const hasPendingWork = (j.activeCount > 0 || j.queuedCount > 0);
+                const isOngoing = (j.status === 'Running' || j.status === 'Downloading' || j.status === 'Queued' || j.status === 'Pending') && !j.endTime;
+                return hasPendingWork || isOngoing;
             });
 
             if (currentActiveJobs.length === 0) {
@@ -189,12 +189,12 @@
         jobs.forEach((job, index) => {
             renderSingleJobCard(job, index);
 
-            // Also synchronize matching history table rows below
+            // Also synchronize matching history table rows below strictly by JobId
             try {
                 const rows = document.querySelectorAll('.history-pl-group-row');
                 rows.forEach(row => {
-                    const titleEl = row.querySelector('.pl-main-title');
-                    if (titleEl && (titleEl.textContent.includes(job.playlistTitle) || titleEl.textContent.includes(job.playlistCode))) {
+                    const rowJobId = row.getAttribute('data-job-id');
+                    if (rowJobId && rowJobId === job.jobId) {
                         const countEl = row.querySelector('.file-name-sub .file-text');
                         if (countEl) {
                             countEl.textContent = `${job.completedCount} of ${job.totalVideos} completed`;
@@ -243,7 +243,6 @@
             card.innerHTML = `
                 <div class="playlist-job-header" data-jobid="${job.jobId}">
                     <div class="job-header-left">
-                        <span class="job-icon">${isDone ? '✅' : '📁'}</span>
                         <div class="job-info-wrap">
                             <h3 class="job-title" title="${escapeHtml(job.playlistTitle || 'YouTube Playlist')}">
                                 ${job.playlistCode ? `<span class="pl-code-pill" style="margin-right: 6px;">${escapeHtml(job.playlistCode)}</span>` : ''}${escapeHtml(job.playlistTitle || 'YouTube Playlist')}
@@ -259,7 +258,7 @@
                     </div>
                     <div class="job-header-center">
                         <span class="active-speed-badge ${effectiveSpeed > 0 ? '' : 'zero-speed'}" id="jobSpeedBadge_${job.jobId}">
-                            ${effectiveSpeed > 0 ? `<span class="speed-pulse-icon">⚡</span> ${formatSpeed(effectiveSpeed)}${job.peakSpeedMBps > 0 ? ` <span style="font-size:10.5px; opacity:0.8; margin-left:4px;">(Peak: ${formatSpeed(job.peakSpeedMBps)})</span>` : ''}` : (job.peakSpeedMBps > 0 ? `⚡ Peak: ${formatSpeed(job.peakSpeedMBps)}` : '0.0 MB/s')}
+                            ${effectiveSpeed > 0 ? `${formatSpeed(effectiveSpeed)}${job.peakSpeedMBps > 0 ? ` <span style="font-size:10.5px; opacity:0.8; margin-left:4px;">(Peak: ${formatSpeed(job.peakSpeedMBps)})</span>` : ''}` : (job.peakSpeedMBps > 0 ? `Peak: ${formatSpeed(job.peakSpeedMBps)}` : '0.0 MB/s')}
                         </span>
                         <span class="job-percent-badge" id="jobPercentBadge_${job.jobId}">
                             ${effectivePct}%
@@ -269,16 +268,16 @@
                         <span id="jobRetryAllWrap_${job.jobId}">
                             ${job.failedCount > 0 ? `
                                 <button type="button" class="btn-active-ctrl btn-job-retry-all" data-jobid="${job.jobId}" title="Retry all failed videos">
-                                    🔄 Retry Failed (${job.failedCount})
+                                    Retry Failed (${job.failedCount})
                                 </button>
                             ` : ''}
                         </span>
                         <button type="button" class="btn-active-ctrl btn-job-folder" data-folder="${escapeHtml(job.outputFolder || '')}" title="Open Folder">
-                            📁
+                            Open
                         </button>
                         ${!isDone ? `
                             <button type="button" class="btn-active-ctrl btn-active-cancel btn-job-cancel" data-jobid="${job.jobId}" title="Cancel this playlist">
-                                ⏹
+                                Cancel
                             </button>
                         ` : ''}
                         <button type="button" class="btn-job-toggle" data-jobid="${job.jobId}" title="Toggle items view">
@@ -387,7 +386,7 @@
                 const jStart = formatTimeStr(job.startTime);
                 const jEnd = formatTimeStr(job.endTime);
                 if (jStart) {
-                    jobTimingEl.textContent = `• 🕒 ${jStart}${jEnd ? ` → ${jEnd}` : ' (Running)'}`;
+                    jobTimingEl.textContent = `• Started ${jStart}${jEnd ? ` — Finished ${jEnd}` : ''}`;
                 } else {
                     jobTimingEl.textContent = '';
                 }
@@ -397,10 +396,10 @@
             if (speedBadgeEl) {
                 if (effectiveSpeed > 0) {
                     speedBadgeEl.className = 'active-speed-badge';
-                    speedBadgeEl.innerHTML = `<span class="speed-pulse-icon">⚡</span> ${formatSpeed(effectiveSpeed)}${job.peakSpeedMBps > 0 ? ` <span style="font-size:10.5px; opacity:0.8; margin-left:4px;">(Peak: ${formatSpeed(job.peakSpeedMBps)})</span>` : ''}`;
+                    speedBadgeEl.innerHTML = `${formatSpeed(effectiveSpeed)}${job.peakSpeedMBps > 0 ? ` <span style="font-size:10.5px; opacity:0.8; margin-left:4px;">(Peak: ${formatSpeed(job.peakSpeedMBps)})</span>` : ''}`;
                 } else {
                     speedBadgeEl.className = 'active-speed-badge zero-speed';
-                    speedBadgeEl.textContent = job.peakSpeedMBps > 0 ? `⚡ Peak: ${formatSpeed(job.peakSpeedMBps)}` : '0.0 MB/s';
+                    speedBadgeEl.textContent = job.peakSpeedMBps > 0 ? `Peak: ${formatSpeed(job.peakSpeedMBps)}` : '0.0 MB/s';
                 }
             }
 
@@ -636,18 +635,18 @@
         const endStr = formatTimeStr(item.endTime);
         const isDone = item.status === 'Completed';
         const isFailed = item.status === 'Failed' || item.status === 'Cancelled';
-        const peakStr = item.peakSpeedMBps > 0 ? `⚡ Peak: ${formatSpeed(item.peakSpeedMBps)}` : '';
+        const peakStr = item.peakSpeedMBps > 0 ? `Peak: ${formatSpeed(item.peakSpeedMBps)}` : '';
         const avgStr = item.averageSpeedMBps > 0 ? `Avg: ${formatSpeed(item.averageSpeedMBps)}` : '';
 
         if (isDone) {
             const dur = item.durationSecondsTaken > 0 ? `${item.durationSecondsTaken}s` : '';
-            return `🕒 ${startStr || ''} → ${endStr || ''} ${dur ? `(${dur})` : ''} ${avgStr ? `• ${avgStr}` : ''} ${peakStr ? `• ${peakStr}` : ''}`.trim();
+            return `${startStr ? 'Started ' + startStr : ''} ${endStr ? '— Completed ' + endStr : ''} ${dur ? `(${dur})` : ''} ${avgStr ? `• ${avgStr}` : ''} ${peakStr ? `• ${peakStr}` : ''}`.trim();
         }
         if (isFailed) {
-            return `🕒 ${startStr ? `Started: ${startStr}` : ''} ${endStr ? `• Stopped: ${endStr}` : ''}`.trim();
+            return `${startStr ? `Started: ${startStr}` : ''} ${endStr ? `• Stopped: ${endStr}` : ''}`.trim();
         }
         if (startStr) {
-            return `🕒 Started: ${startStr} ${peakStr ? `• ${peakStr}` : ''}`.trim();
+            return `Started: ${startStr} ${peakStr ? `• ${peakStr}` : ''}`.trim();
         }
         return '';
     }

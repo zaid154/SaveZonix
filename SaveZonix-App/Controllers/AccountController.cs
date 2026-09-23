@@ -748,6 +748,15 @@ public class AccountController : Controller
 
         foreach (var d in allDownloads)
         {
+            if (string.IsNullOrWhiteSpace(d.ThumbnailUrl) && !string.IsNullOrWhiteSpace(d.OriginalUrl))
+            {
+                string? ytId = ExtractYouTubeVideoId(d.OriginalUrl);
+                if (!string.IsNullOrWhiteSpace(ytId))
+                {
+                    d.ThumbnailUrl = $"https://i.ytimg.com/vi/{ytId}/hqdefault.jpg";
+                }
+            }
+
             string strategy = d.DownloadStrategy ?? "";
             bool isExplicitPlaylist = strategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase) ||
                                       strategy.Equals("Playlist Batch", StringComparison.OrdinalIgnoreCase);
@@ -766,12 +775,14 @@ public class AccountController : Controller
                     var parts = strategy.Substring("Playlist:".Length).Split('•');
                     playlistCode = parts[0].Trim();
                     playlistTitle = parts.Length > 1 ? parts[1].Trim() : (!string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist");
-                    groupKey = playlistCode;
+                    string cleanTitleSlug = Regex.Replace(playlistTitle, @"[^a-zA-Z0-9]", "_").Trim('_');
+                    // Group by playlistCode, title and date so distinct downloads on different days do not merge
+                    groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd}";
                 }
                 else if (!string.IsNullOrEmpty(seriesName))
                 {
                     string cleanSlug = Regex.Replace(seriesName, @"[^a-zA-Z0-9_]", "_").Trim('_');
-                    groupKey = $"PL_SERIES_{cleanSlug}";
+                    groupKey = $"PL_SERIES_{cleanSlug}_{d.CreatedAt:yyyyMMdd}";
                     playlistCode = "PL-SERIES";
                     playlistTitle = seriesName;
                 }
@@ -783,12 +794,12 @@ public class AccountController : Controller
                     playlistTitle = "YouTube Playlist Collection";
                 }
 
+                // Check if this specific item is part of an active running job
+                string? matchingJobId = activeJobs?.FirstOrDefault(j =>
+                    j.Items != null && j.Items.Any(item => string.Equals(item.TaskId, d.Id, StringComparison.OrdinalIgnoreCase)))?.JobId;
+
                 if (!playlistBuckets.TryGetValue(groupKey, out var group))
                 {
-                    string? matchingJobId = activeJobs?.FirstOrDefault(j =>
-                        string.Equals(j.PlaylistCode, playlistCode, StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(j.PlaylistTitle, playlistTitle, StringComparison.OrdinalIgnoreCase))?.JobId;
-
                     group = new HistoryItemEntry
                     {
                         IsPlaylistGroup = true,
@@ -806,6 +817,10 @@ public class AccountController : Controller
                         SubItems = new List<StreamHelper.Data.DownloadHistory>()
                     };
                     playlistBuckets[groupKey] = group;
+                }
+                else if ((string.IsNullOrEmpty(group.JobId) || group.JobId == groupKey) && !string.IsNullOrEmpty(matchingJobId))
+                {
+                    group.JobId = matchingJobId;
                 }
 
                 group.SubItems.Add(d);
@@ -837,7 +852,6 @@ public class AccountController : Controller
             }
         }
 
-        int plIndex = 1;
         foreach (var group in playlistBuckets.Values)
         {
             if (group.TotalVideos <= 1 && group.SubItems.Count == 1)
@@ -860,12 +874,6 @@ public class AccountController : Controller
             }
             else
             {
-                if (group.PlaylistCode == "PL-SERIES" || string.IsNullOrEmpty(group.PlaylistCode))
-                {
-                    group.PlaylistCode = $"PL-{plIndex:D2}";
-                    plIndex++;
-                }
-
                 group.SubItems = group.SubItems
                     .OrderBy(s => ExtractIndexNumber(s))
                     .ThenBy(s => s.CreatedAt)
@@ -878,9 +886,8 @@ public class AccountController : Controller
                 }
 
                 var matchingJob = activeJobs?.FirstOrDefault(j =>
-                    (!string.IsNullOrEmpty(j.JobId) && string.Equals(j.JobId, group.JobId, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrEmpty(j.PlaylistCode) && string.Equals(j.PlaylistCode, group.PlaylistCode, StringComparison.OrdinalIgnoreCase)) ||
-                    (!string.IsNullOrEmpty(j.PlaylistTitle) && string.Equals(j.PlaylistTitle, group.Title, StringComparison.OrdinalIgnoreCase)));
+                    (!string.IsNullOrEmpty(group.JobId) && group.JobId != group.GroupKey && string.Equals(j.JobId, group.JobId, StringComparison.OrdinalIgnoreCase)) ||
+                    (j.Items != null && j.Items.Any(item => group.SubItems.Any(sub => string.Equals(sub.Id, item.TaskId, StringComparison.OrdinalIgnoreCase)))));
 
                 if (matchingJob != null)
                 {
@@ -890,6 +897,7 @@ public class AccountController : Controller
                     if (isJobActive)
                     {
                         group.IsActive = true;
+                        group.JobId = matchingJob.JobId;
                         group.TotalVideos = Math.Max(group.TotalVideos, matchingJob.TotalVideos);
                         group.CompletedCount = matchingJob.CompletedCount;
                         group.FailedCount = matchingJob.FailedCount;
@@ -903,7 +911,18 @@ public class AccountController : Controller
             }
         }
 
-        return finalEntries.OrderByDescending(g => g.CreatedAt).ToList();
+        var sortedEntries = finalEntries.OrderByDescending(g => g.CreatedAt).ToList();
+        int plSeq = 1;
+        foreach (var entry in sortedEntries)
+        {
+            if (entry.IsPlaylistGroup)
+            {
+                entry.PlaylistCode = $"PL-{plSeq:D2}";
+                plSeq++;
+            }
+        }
+
+        return sortedEntries;
     }
 
     private static int ExtractIndexNumber(StreamHelper.Data.DownloadHistory item)
@@ -964,6 +983,18 @@ public class AccountController : Controller
         if (partIdx > 2) return title.Substring(0, partIdx).Trim(' ', '-', '|', ':', '_');
 
         return "";
+    }
+
+    private static string? ExtractYouTubeVideoId(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        try
+        {
+            var match = Regex.Match(url, @"(?:youtu\.be\/|v=|\/embed\/|\/v\/|\/shorts\/)([a-zA-Z0-9_-]{11})");
+            if (match.Success) return match.Groups[1].Value;
+        }
+        catch { }
+        return null;
     }
 
     [HttpPost]

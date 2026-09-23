@@ -560,6 +560,52 @@
             btnLoadAllVideos.addEventListener('click', () => loadMoreVideos(0, true));
         }
 
+        // Smart Quality & Format Synchronization
+        let lastSelectedVideoQuality = 'Best';
+        function syncQualityAndFormat(source) {
+            const currentFmt = formatSelect ? formatSelect.value : 'MP4';
+            const currentQ = qualitySelect ? qualitySelect.value : 'Best';
+            const isAudioFmt = currentFmt === 'MP3' || currentFmt === 'M4A';
+            const isAudioQuality = currentQ === 'AudioOnly';
+
+            if (source === 'format') {
+                if (isAudioFmt) {
+                    if (!isAudioQuality) {
+                        lastSelectedVideoQuality = currentQ;
+                    }
+                    if (qualitySelect) qualitySelect.value = 'AudioOnly';
+                } else {
+                    if (isAudioQuality) {
+                        if (qualitySelect) {
+                            qualitySelect.value = (lastSelectedVideoQuality && lastSelectedVideoQuality !== 'AudioOnly') 
+                                ? lastSelectedVideoQuality 
+                                : 'Best';
+                        }
+                    }
+                }
+            } else if (source === 'quality') {
+                if (isAudioQuality) {
+                    if (!isAudioFmt) {
+                        if (formatSelect) formatSelect.value = 'MP3';
+                    }
+                } else {
+                    lastSelectedVideoQuality = currentQ;
+                    if (isAudioFmt) {
+                        if (formatSelect) formatSelect.value = 'MP4';
+                    }
+                }
+            }
+
+            updateSelectionMetrics();
+        }
+
+        if (formatSelect) {
+            formatSelect.addEventListener('change', () => syncQualityAndFormat('format'));
+        }
+        if (qualitySelect) {
+            qualitySelect.addEventListener('change', () => syncQualityAndFormat('quality'));
+        }
+
         // Download actions
         btnDownloadSelected.addEventListener('click', downloadSelectedVideos);
         btnDownloadAll.addEventListener('click', downloadAllVideos);
@@ -800,8 +846,8 @@
                 pushDownloadProtectionHistory();
 
                 if (playlistQueuedToast) {
-                    if (toastTitle) toastTitle.textContent = '🚀 Batch Download Active';
-                    if (toastMessage) toastMessage.textContent = `${(job.activeCount || 0) + (job.queuedCount || 0)} video(s) downloading in background.`;
+                    if (toastTitle) toastTitle.textContent = 'Download in Progress';
+                    if (toastMessage) toastMessage.textContent = `${(job.activeCount || 0) + (job.queuedCount || 0)} item(s) downloading in background.`;
                     playlistQueuedToast.style.display = 'flex';
                 }
 
@@ -1534,9 +1580,21 @@
         const activeAvailable = activeVideos.filter(v => v.isAvailable);
         const selectedCount = activeVideos.filter(v => selectedVideoIds.has(v.videoId)).length;
 
+        const currentFmt = formatSelect ? formatSelect.value : 'MP4';
+        const currentQ = qualitySelect ? qualitySelect.value : 'Best';
+        const isAudioMode = currentFmt === 'MP3' || currentFmt === 'M4A' || currentQ === 'AudioOnly';
+        const formatTag = isAudioMode ? (currentFmt === 'M4A' ? ' • M4A' : ' • MP3') : '';
+
         selectionCountBadge.textContent = `${selectedCount} selected`;
-        txtDownloadSelected.textContent = `Download Selected (${selectedCount})`;
+        txtDownloadSelected.textContent = `Download Selected (${selectedCount}${formatTag})`;
         btnDownloadSelected.disabled = selectedCount === 0;
+
+        if (btnDownloadAll) {
+            const spanAll = btnDownloadAll.querySelector('span');
+            if (spanAll) {
+                spanAll.textContent = `Download All (${activeAvailable.length}${formatTag})`;
+            }
+        }
 
         const allSelected = activeAvailable.length > 0 && activeAvailable.every(v => selectedVideoIds.has(v.videoId));
         const anySelected = activeAvailable.some(v => selectedVideoIds.has(v.videoId));
@@ -1693,8 +1751,17 @@
             }
         }
 
-        const quality = qualitySelect.value;
-        const format = formatSelect.value;
+        let quality = qualitySelect ? qualitySelect.value : 'Best';
+        let format = formatSelect ? formatSelect.value : 'MP4';
+
+        // Defensive normalization before dispatching
+        if (quality === 'AudioOnly' && format !== 'MP3' && format !== 'M4A') {
+            format = 'MP3';
+        }
+        if ((format === 'MP3' || format === 'M4A') && quality !== 'AudioOnly') {
+            quality = 'AudioOnly';
+        }
+
         const concurrency = parseInt(concurrencySelect.value, 10) || 6;
         const numberPrefix = chkNumberPrefix.checked;
         const playlistTitle = currentPlaylist ? currentPlaylist.title : 'YouTube Playlist';
@@ -1756,8 +1823,8 @@
 
             // Show floating toast notification linking to Downloads
             if (playlistQueuedToast) {
-                if (toastTitle) toastTitle.textContent = '🚀 Batch Download Queued';
-                if (toastMessage) toastMessage.textContent = `${videoList.length} video(s) queued. View all active playlists in Downloads & History.`;
+                if (toastTitle) toastTitle.textContent = 'Batch Download Queued';
+                if (toastMessage) toastMessage.textContent = `${videoList.length} item${videoList.length !== 1 ? 's' : ''} queued in background.`;
                 playlistQueuedToast.style.display = 'flex';
             }
 

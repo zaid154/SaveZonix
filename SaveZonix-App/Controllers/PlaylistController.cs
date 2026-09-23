@@ -312,14 +312,14 @@ public class PlaylistController : Controller
     [HttpPost("/api/playlist/retry-item")]
     public async Task<IActionResult> RetryItem([FromBody] RetryPlaylistItemRequest req)
     {
-        bool retried = await _queueManager.RetryPlaylistItemAsync(req.JobId, req.VideoId);
+        bool retried = await _queueManager.RetryPlaylistItemAsync(req.JobId, req.VideoId, req.TaskId);
         return Ok(new { success = retried });
     }
 
     [HttpPost("/api/playlist/retry-all-failed/{jobId}")]
-    public async Task<IActionResult> RetryAllFailed(string jobId)
+    public async Task<IActionResult> RetryAllFailed(string jobId, [FromQuery] string? groupKey = null)
     {
-        bool retried = await _queueManager.RetryFailedByGroupAsync(jobId);
+        bool retried = await _queueManager.RetryFailedByGroupAsync(jobId, groupKey);
         return Ok(new { success = retried });
     }
 

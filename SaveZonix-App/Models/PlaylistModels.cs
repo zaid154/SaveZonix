@@ -78,7 +78,7 @@ public class PlaylistBatchDownloadRequest
     public List<BatchVideoItemRequest>? Videos { get; set; }
     public string Quality { get; set; } = "Best"; // Best, 2160p, 1440p, 1080p, 720p, 480p, 360p, AudioOnly
     public string Format { get; set; } = "MP4"; // MP4, WebM, MP3, M4A
-    public bool NumberPrefix { get; set; } = true;
+    public bool NumberPrefix { get; set; } = false;
     public int Concurrency { get; set; } = 6; // 1 to 12 parallel downloads
     public string? OutputFolder { get; set; }
 }
@@ -115,6 +115,7 @@ public class PlaylistItemDownloadState
     public string Status { get; set; } = "Pending"; // Pending, Analyzing, Downloading, Muxing, Completed, Failed, Cancelled
     public string? ErrorMessage { get; set; }
     public int RetryCount { get; set; }
+    public bool IsUserCancelled { get; set; } = false;
 
     [System.Text.Json.Serialization.JsonIgnore]
     public CancellationTokenSource? Cts { get; set; }
@@ -142,6 +143,7 @@ public class PlaylistBatchJobState
     public string Status { get; set; } = "Queued"; // Queued, Downloading, Completed, Cancelled, HasErrors
     public string OutputFolder { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public bool IsUserCancelled { get; set; } = false;
     public List<PlaylistItemDownloadState> Items { get; set; } = new();
 
     [System.Text.Json.Serialization.JsonIgnore]
@@ -152,6 +154,7 @@ public class RetryPlaylistItemRequest
 {
     public string JobId { get; set; } = string.Empty;
     public string VideoId { get; set; } = string.Empty;
+    public string? TaskId { get; set; }
 }
 
 public class CancelPlaylistItemRequest

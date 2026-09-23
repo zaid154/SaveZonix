@@ -10,7 +10,7 @@ public interface IPlaylistQueueManager
     bool CancelBatchJob(string jobId);
     bool CancelPlaylistItem(string jobId, string videoId);
     bool CancelPlaylistItemByTaskId(string taskId);
-    Task<bool> RetryPlaylistItemAsync(string jobId, string videoId);
+    Task<bool> RetryPlaylistItemAsync(string jobId, string videoId, string? taskId = null);
     Task<bool> RetryAllFailedAsync(string jobId);
-    Task<bool> RetryFailedByGroupAsync(string groupIdentifier);
+    Task<bool> RetryFailedByGroupAsync(string groupIdentifier, string? groupKey = null);
 }

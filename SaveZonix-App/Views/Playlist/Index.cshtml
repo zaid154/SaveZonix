@@ -224,7 +224,7 @@
                     <label for="sortOrderSelect" class="filter-label">Order</label>
                     <select id="sortOrderSelect" class="studio-select sm">
                         <option value="original" selected>YouTube Order</option>
-                        <option value="reverse">Reverse (Ep 1 First)</option>
+                        <option value="reverse">Reverse Order</option>
                         <option value="titleAsc">Title A–Z</option>
                     </select>
                 </div>
@@ -239,13 +239,14 @@
                 <div class="control-item">
                     <label for="qualitySelect">Quality</label>
                     <select id="qualitySelect" class="studio-select">
-                        <option value="Best" selected>Best Available (Auto 4K / 2K / 1080p — Highest)</option>
+                        <option value="Best" selected>Best Available (Highest)</option>
+                        <option value="AudioOnly">Audio Only (320 kbps MP3 / AAC)</option>
                         <option value="2160p">4K Ultra HD (2160p)</option>
                         <option value="1440p">2K Quad HD (1440p)</option>
                         <option value="1080p">1080p Full HD</option>
-                        <option value="720p">720p HD (Super Fast)</option>
-                        <option value="480p">480p Standard</option>
-                        <option value="360p">360p Data Saver</option>
+                        <option value="720p">720p HD</option>
+                        <option value="480p">480p</option>
+                        <option value="360p">360p</option>
                     </select>
                 </div>
 
@@ -254,27 +255,27 @@
                     <select id="formatSelect" class="studio-select">
                         <option value="MP4" selected>MP4 Video (.mp4)</option>
                         <option value="WebM">WebM Video (.webm)</option>
-                        <option value="MP3">MP3 Audio 320k (.mp3)</option>
-                        <option value="M4A">M4A Audio (.m4a)</option>
+                        <option value="MP3">MP3 Audio (.mp3 • 320k)</option>
+                        <option value="M4A">M4A Audio (.m4a • 256k)</option>
                     </select>
                 </div>
 
                 <div class="control-item">
-                    <label for="concurrencySelect">Parallel Workers (Batch Speed)</label>
+                    <label for="concurrencySelect">Parallel Downloads</label>
                     <select id="concurrencySelect" class="studio-select sm">
-                        <option value="2">2 Videos — Conservative (Slow / Low Bandwidth)</option>
-                        <option value="4">4 Videos — Fast Multi-Stream (100 Mbps WiFi)</option>
-                        <option value="6" selected>6 Videos — High-Speed Turbo (200 Mbps WiFi)</option>
-                        <option value="8">8 Videos — Full Bandwidth Saturator (300+ Mbps WiFi)</option>
-                        <option value="10">10 Videos — Maximum Hyper-Boost (Gigabit Fiber)</option>
+                        <option value="2">2 concurrent streams</option>
+                        <option value="4">4 concurrent streams</option>
+                        <option value="6" selected>6 concurrent streams (Recommended)</option>
+                        <option value="8">8 concurrent streams (High speed)</option>
+                        <option value="10">10 concurrent streams (Maximum)</option>
                     </select>
                 </div>
 
                 <div class="control-item checkbox-item">
                     <label class="custom-checkbox">
-                        <input type="checkbox" id="chkNumberPrefix" checked />
+                        <input type="checkbox" id="chkNumberPrefix" />
                         <span class="checkmark"></span>
-                        <span class="chk-text">Number files (01 – Title.mp4)</span>
+                        <span class="chk-text">Number filenames (01 – Title)</span>
                     </label>
                 </div>
             </div>
@@ -379,17 +380,19 @@
 
 <!-- Floating Queued Notification Toast -->
 <div id="playlistQueuedToast" class="playlist-queued-toast" style="display:none;">
-    <div class="toast-icon-pulse">🚀</div>
+    <div class="toast-status-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    </div>
     <div class="toast-body">
-        <h4 id="toastTitle">Batch Download Started</h4>
-        <p id="toastMessage">Your videos have been queued for download.</p>
+        <h4 id="toastTitle">Batch Download Queued</h4>
+        <p id="toastMessage">Your items are downloading in the background.</p>
     </div>
     <div class="toast-actions">
         <a href="/Account/Downloads" class="btn-toast-view">
-            <span>⚡ Open Downloads</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span>View Downloads</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="9 18 15 12 9 6"></polyline></svg>
         </a>
-        <button type="button" id="btnDismissToast" class="btn-toast-dismiss" title="Dismiss notification">✕</button>
+        <button type="button" id="btnDismissToast" class="btn-toast-dismiss" title="Dismiss" aria-label="Dismiss">✕</button>
     </div>
 </div>
 

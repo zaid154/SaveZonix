@@ -64,27 +64,34 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
     public List<PlaylistBatchJobState> GetActiveJobs()
     {
-        var list = _jobs.Values
-            .Where(j => j.Status == "Running" || j.Status == "Downloading" || j.Status == "Queued" || (j.ActiveCount > 0 || j.QueuedCount > 0) || j.FailedCount > 0)
-            .OrderByDescending(j => j.CreatedAt)
-            .ToList();
-        foreach (var job in list)
+        foreach (var job in _jobs.Values)
         {
             UpdateJobStats(job);
         }
-        return list;
+
+        return _jobs.Values
+            .Where(j => j.EndTime == null &&
+                        (j.ActiveCount > 0 || j.QueuedCount > 0) &&
+                        j.Status != "Completed" &&
+                        j.Status != "Cancelled" &&
+                        j.Status != "Completed with Errors" &&
+                        j.Status != "Failed")
+            .OrderByDescending(j => j.CreatedAt)
+            .ToList();
     }
 
     public bool CancelBatchJob(string jobId)
     {
         if (_jobs.TryGetValue(jobId, out var job))
         {
+            job.IsUserCancelled = true;
             try { job.Cts?.Cancel(); } catch { }
             job.Status = "Cancelled";
             foreach (var item in job.Items)
             {
                 if (item.Status != "Completed")
                 {
+                    item.IsUserCancelled = true;
                     try { item.Cts?.Cancel(); } catch { }
                     item.Status = "Cancelled";
                     item.ErrorMessage = "Download cancelled by user";
@@ -108,6 +115,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             var item = job.Items.FirstOrDefault(i => i.VideoId == videoId || i.TaskId == videoId);
             if (item != null && item.Status != "Completed")
             {
+                item.IsUserCancelled = true;
                 try { item.Cts?.Cancel(); } catch { }
                 item.Status = "Cancelled";
                 item.ErrorMessage = "Download cancelled by user";
@@ -130,6 +138,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             var item = job.Items.FirstOrDefault(i => i.TaskId == taskId || i.VideoId == taskId);
             if (item != null && item.Status != "Completed")
             {
+                item.IsUserCancelled = true;
                 try { item.Cts?.Cancel(); } catch { }
                 item.Status = "Cancelled";
                 item.ErrorMessage = "Download cancelled by user";
@@ -145,70 +154,202 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         return false;
     }
 
-    public Task<bool> RetryPlaylistItemAsync(string jobId, string videoId)
+    public async Task<bool> RetryPlaylistItemAsync(string jobId, string videoId, string? taskId = null)
     {
-        if (!_jobs.TryGetValue(jobId, out var job))
+        // 1. Try to find the item in active in-memory batch jobs
+        PlaylistBatchJobState? job = null;
+        PlaylistItemDownloadState? item = null;
+
+        if (!string.IsNullOrEmpty(jobId) && _jobs.TryGetValue(jobId, out var foundJob))
         {
-            return Task.FromResult(false);
+            job = foundJob;
+            item = job.Items.FirstOrDefault(i => (!string.IsNullOrEmpty(taskId) && i.TaskId == taskId) || (!string.IsNullOrEmpty(videoId) && i.VideoId == videoId));
         }
 
-        var item = job.Items.FirstOrDefault(i => i.VideoId == videoId);
-        if (item == null) return Task.FromResult(false);
-
-        if (job.Cts == null || job.Cts.IsCancellationRequested)
+        if (item == null)
         {
-            job.Cts = new CancellationTokenSource();
+            foreach (var activeJob in _jobs.Values)
+            {
+                var candidate = activeJob.Items.FirstOrDefault(i => (!string.IsNullOrEmpty(taskId) && i.TaskId == taskId) || (!string.IsNullOrEmpty(videoId) && i.VideoId == videoId));
+                if (candidate != null)
+                {
+                    job = activeJob;
+                    item = candidate;
+                    break;
+                }
+            }
         }
-        item.Cts = new CancellationTokenSource();
 
-        item.Status = "Pending";
-        item.Percentage = 0;
-        item.SpeedMBps = 0;
-        item.BytesDownloaded = 0;
-        item.ErrorMessage = null;
-        item.RetryCount++;
+        // If found in an active job:
+        if (job != null && item != null)
+        {
+            if (job.Cts == null || job.Cts.IsCancellationRequested)
+            {
+                job.Cts = new CancellationTokenSource();
+            }
+            item.Cts = new CancellationTokenSource();
+            item.IsUserCancelled = false;
+            item.Status = "Pending";
+            item.Percentage = 0;
+            item.SpeedMBps = 0;
+            item.BytesDownloaded = 0;
+            item.ErrorMessage = null;
+            item.RetryCount++;
 
-        job.Status = "Downloading";
-        UpdateJobStats(job);
+            job.Status = "Downloading";
+            UpdateJobStats(job);
+
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                if (historyService != null)
+                {
+                    try { await historyService.MarkRetryingAsync(item.TaskId, item.RetryCount, "User retried download"); } catch { }
+                }
+            }
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await DownloadSingleItemAsync(item, job, job.Cts?.Token ?? CancellationToken.None);
+                }
+                catch (Exception ex)
+                {
+                    item.Status = "Failed";
+                    item.ErrorMessage = ex.Message;
+                }
+                finally
+                {
+                    UpdateJobStats(job);
+                    job.Status = job.FailedCount > 0 ? (job.CompletedCount > 0 ? "Completed with Errors" : "Failed") : (job.ActiveCount > 0 ? "Downloading" : "Completed");
+                }
+            });
+
+            return true;
+        }
+
+        // 2. Fallback: Lookup item from Database DownloadHistory by taskId or videoId
+        using var dbScope = _scopeFactory.CreateScope();
+        var dbHistory = dbScope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+        if (dbHistory == null) return false;
+
+        StreamHelper.Data.DownloadHistory? record = null;
+        if (!string.IsNullOrEmpty(taskId))
+        {
+            record = await dbHistory.GetDownloadByIdAsync(taskId);
+        }
+
+        if (record == null && !string.IsNullOrEmpty(videoId))
+        {
+            var (allDownloads, _) = await dbHistory.GetAllDownloadsAsync(1, 500, null, null, null, null);
+            record = allDownloads.FirstOrDefault(d => (!string.IsNullOrEmpty(d.OriginalUrl) && d.OriginalUrl.Contains(videoId)) || d.Id == videoId);
+        }
+
+        if (record == null) return false;
+
+        string targetVid = videoId;
+        if (string.IsNullOrEmpty(targetVid) && !string.IsNullOrEmpty(record.OriginalUrl))
+        {
+            try
+            {
+                var uri = new Uri(record.OriginalUrl);
+                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                targetVid = query["v"] ?? "";
+            }
+            catch { }
+        }
+        if (string.IsNullOrEmpty(targetVid)) targetVid = record.Id;
+
+        string singleJobId = Guid.NewGuid().ToString("N");
+        string parsedCode = "PL-01";
+        string parsedTitle = "Playlist Video";
+        if (!string.IsNullOrEmpty(record.DownloadStrategy) && record.DownloadStrategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = record.DownloadStrategy.Substring("Playlist:".Length).Split('•');
+            if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0])) parsedCode = parts[0].Trim();
+            if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])) parsedTitle = parts[1].Trim();
+        }
+
+        string thumb = !string.IsNullOrEmpty(record.ThumbnailUrl)
+            ? record.ThumbnailUrl
+            : $"https://i.ytimg.com/vi/{targetVid}/hqdefault.jpg";
+
+        var retryItemState = new PlaylistItemDownloadState
+        {
+            TaskId = record.Id, // REUSE EXISTING DATABASE ID - DO NOT DUPLICATE
+            VideoId = targetVid,
+            Index = 1,
+            SubId = $"{parsedCode} #01",
+            Title = record.Title,
+            ThumbnailUrl = thumb,
+            Quality = record.Quality,
+            Format = record.Format,
+            Status = "Pending",
+            RetryCount = record.RetryCount + 1,
+            Cts = new CancellationTokenSource()
+        };
+
+        var singleBatch = new PlaylistBatchJobState
+        {
+            JobId = singleJobId,
+            PlaylistCode = parsedCode,
+            PlaylistTitle = parsedTitle,
+            UserId = record.UserId,
+            UserEmail = record.UserEmail,
+            UserName = record.UserName,
+            TotalVideos = 1,
+            QueuedCount = 1,
+            Status = "Downloading",
+            OutputFolder = GetDownloadsDirectory(),
+            Cts = new CancellationTokenSource(),
+            Items = new List<PlaylistItemDownloadState> { retryItemState }
+        };
+
+        _jobs[singleJobId] = singleBatch;
+        try { await dbHistory.MarkRetryingAsync(record.Id, retryItemState.RetryCount, "User retried download"); } catch { }
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await DownloadSingleItemAsync(item, job, job.Cts?.Token ?? CancellationToken.None);
+                await DownloadSingleItemAsync(retryItemState, singleBatch, singleBatch.Cts?.Token ?? CancellationToken.None);
             }
             catch (Exception ex)
             {
-                item.Status = "Failed";
-                item.ErrorMessage = ex.Message;
+                retryItemState.Status = "Failed";
+                retryItemState.ErrorMessage = ex.Message;
             }
             finally
             {
-                UpdateJobStats(job);
-                job.Status = job.FailedCount > 0 ? (job.CompletedCount > 0 ? "Completed with Errors" : "Failed") : (job.ActiveCount > 0 ? "Downloading" : "Completed");
+                UpdateJobStats(singleBatch);
+                singleBatch.Status = retryItemState.Status == "Completed" ? "Completed" : "Failed";
             }
         });
 
-        return Task.FromResult(true);
+        return true;
     }
 
-    public Task<bool> RetryAllFailedAsync(string jobId)
+    public async Task<bool> RetryAllFailedAsync(string jobId)
     {
         if (!_jobs.TryGetValue(jobId, out var job))
         {
-            return Task.FromResult(false);
+            return false;
         }
 
         var failedItems = job.Items.Where(i => i.Status == "Failed" || i.Status == "Cancelled").ToList();
-        if (failedItems.Count == 0) return Task.FromResult(false);
+        if (failedItems.Count == 0) return false;
 
         if (job.Cts == null || job.Cts.IsCancellationRequested)
         {
             job.Cts = new CancellationTokenSource();
         }
 
+        job.IsUserCancelled = false;
+
         foreach (var item in failedItems)
         {
+            item.IsUserCancelled = false;
             item.Status = "Pending";
             item.Percentage = 0;
             item.SpeedMBps = 0;
@@ -220,6 +361,18 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         job.Status = "Downloading";
         UpdateJobStats(job);
+
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+            if (historyService != null)
+            {
+                foreach (var item in failedItems)
+                {
+                    try { await historyService.MarkRetryingAsync(item.TaskId, item.RetryCount, "Playlist batch retry"); } catch { }
+                }
+            }
+        }
 
         _ = Task.Run(async () =>
         {
@@ -250,54 +403,120 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             job.Status = job.FailedCount > 0 ? (job.CompletedCount > 0 ? "Completed with Errors" : "Failed") : "Completed";
         });
 
-        return Task.FromResult(true);
+        return true;
     }
 
-    public async Task<bool> RetryFailedByGroupAsync(string groupIdentifier)
+    public async Task<bool> RetryFailedByGroupAsync(string groupIdentifier, string? groupKey = null)
     {
-        if (string.IsNullOrWhiteSpace(groupIdentifier)) return false;
+        if (string.IsNullOrWhiteSpace(groupIdentifier) && string.IsNullOrWhiteSpace(groupKey)) return false;
+
+        string searchTarget = !string.IsNullOrWhiteSpace(groupIdentifier) ? groupIdentifier : groupKey!;
 
         // 1. Direct JobId match
-        if (_jobs.ContainsKey(groupIdentifier))
+        if (_jobs.ContainsKey(searchTarget))
         {
-            return await RetryAllFailedAsync(groupIdentifier);
+            return await RetryAllFailedAsync(searchTarget);
+        }
+        if (!string.IsNullOrEmpty(groupKey) && _jobs.ContainsKey(groupKey))
+        {
+            return await RetryAllFailedAsync(groupKey);
         }
 
         // 2. Search in-memory active jobs by PlaylistCode or Title
         var matchingJob = _jobs.Values.FirstOrDefault(j =>
-            string.Equals(j.JobId, groupIdentifier, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(j.PlaylistCode, groupIdentifier, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(j.PlaylistTitle, groupIdentifier, StringComparison.OrdinalIgnoreCase));
+            string.Equals(j.JobId, searchTarget, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(j.PlaylistCode, searchTarget, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(j.PlaylistTitle, searchTarget, StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrEmpty(groupKey) && (
+                string.Equals(j.JobId, groupKey, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(j.PlaylistCode, groupKey, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(j.PlaylistTitle, groupKey, StringComparison.OrdinalIgnoreCase))));
 
         if (matchingJob != null)
         {
             return await RetryAllFailedAsync(matchingJob.JobId);
         }
 
-        // 3. Fallback: Query database DownloadHistories by groupStrategy or taskId
+        // 3. Fallback: Query database DownloadHistories
         using var scope = _scopeFactory.CreateScope();
         var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
         if (historyService == null) return false;
 
-        var allRes = await historyService.GetAllDownloadsAsync(1, 500, null, null, null, null);
+        // Parse playlist code and potential date from groupKey or groupIdentifier (e.g. PL-01_Slug_20260924)
+        string targetKey = !string.IsNullOrWhiteSpace(groupKey) ? groupKey : groupIdentifier;
+        string playlistCode = "";
+        string datePart = "";
+        if (targetKey.StartsWith("PL-", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = targetKey.Split('_');
+            playlistCode = parts[0].Trim(); // e.g. "PL-01"
+            if (parts.Length >= 3 && parts.Last().Length == 8 && long.TryParse(parts.Last(), out _))
+            {
+                datePart = parts.Last();
+            }
+        }
+        else if (targetKey.StartsWith("PL_", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = targetKey.Split('_');
+            if (parts.Length >= 3 && parts.Last().Length == 8 && long.TryParse(parts.Last(), out _))
+            {
+                datePart = parts.Last();
+            }
+        }
+
+        var allRes = await historyService.GetAllDownloadsAsync(1, 1000, null, null, null, null);
         var failedHistories = allRes.Items
             .Where(d => (d.Status == StreamHelper.Data.DownloadStatus.Failed || d.Status == StreamHelper.Data.DownloadStatus.Cancelled) &&
-                        !string.IsNullOrEmpty(d.OriginalUrl) &&
-                        ((d.DownloadStrategy != null && d.DownloadStrategy.Contains(groupIdentifier, StringComparison.OrdinalIgnoreCase)) ||
-                         (d.Title != null && d.Title.Contains(groupIdentifier, StringComparison.OrdinalIgnoreCase))))
+                        !string.IsNullOrEmpty(d.OriginalUrl))
+            .Where(d =>
+            {
+                // Exact strategy match
+                if (d.DownloadStrategy != null && d.DownloadStrategy.Contains(targetKey, StringComparison.OrdinalIgnoreCase)) return true;
+                if (!string.IsNullOrEmpty(groupIdentifier) && d.DownloadStrategy != null && d.DownloadStrategy.Contains(groupIdentifier, StringComparison.OrdinalIgnoreCase)) return true;
+
+                // Match by Playlist Code (e.g. PL-01) and optional date
+                if (!string.IsNullOrEmpty(playlistCode) && d.DownloadStrategy != null && d.DownloadStrategy.Contains($"Playlist: {playlistCode}", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!string.IsNullOrEmpty(datePart))
+                    {
+                        return d.CreatedAt.ToString("yyyyMMdd") == datePart;
+                    }
+                    return true;
+                }
+
+                // Match by title
+                if (d.Title != null && d.Title.Contains(targetKey, StringComparison.OrdinalIgnoreCase)) return true;
+
+                return false;
+            })
             .ToList();
+
+        // If specific matching found none, try matching by code alone if present
+        if (failedHistories.Count == 0 && !string.IsNullOrEmpty(playlistCode))
+        {
+            failedHistories = allRes.Items
+                .Where(d => (d.Status == StreamHelper.Data.DownloadStatus.Failed || d.Status == StreamHelper.Data.DownloadStatus.Cancelled) &&
+                            !string.IsNullOrEmpty(d.OriginalUrl) &&
+                            d.DownloadStrategy != null && d.DownloadStrategy.Contains(playlistCode, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
 
         if (failedHistories.Count == 0) return false;
 
         // Create a new batch job on the fly for these failed items!
         string newJobId = Guid.NewGuid().ToString("N");
-        string playlistCode = groupIdentifier.StartsWith("PL-", StringComparison.OrdinalIgnoreCase) ? groupIdentifier : "PL-RETRY";
+        string resolvedCode = !string.IsNullOrEmpty(playlistCode) ? playlistCode : "PL-RETRY";
         string title = failedHistories.First().DownloadStrategy?.Replace("Playlist:", "").Trim() ?? "Retry Playlist Items";
+        if (title.Contains("•"))
+        {
+            var titleParts = title.Split('•');
+            if (titleParts.Length > 1 && !string.IsNullOrWhiteSpace(titleParts[1])) title = titleParts[1].Trim();
+        }
 
         var newJob = new PlaylistBatchJobState
         {
             JobId = newJobId,
-            PlaylistCode = playlistCode,
+            PlaylistCode = resolvedCode,
             PlaylistTitle = title,
             UserId = failedHistories.First().UserId,
             UserEmail = failedHistories.First().UserEmail,
@@ -319,23 +538,34 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 catch { }
                 if (string.IsNullOrEmpty(vid)) vid = h.Id;
 
+                string thumb = !string.IsNullOrEmpty(h.ThumbnailUrl)
+                    ? h.ThumbnailUrl
+                    : $"https://i.ytimg.com/vi/{vid}/hqdefault.jpg";
+
                 return new PlaylistItemDownloadState
                 {
-                    TaskId = h.Id,
+                    TaskId = h.Id, // REUSE EXISTING DATABASE ID - NO DUPLICATES!
                     VideoId = vid,
                     Index = idx + 1,
-                    SubId = $"{playlistCode} #{(idx + 1):D2}",
+                    SubId = $"{resolvedCode} #{(idx + 1):D2}",
                     Title = h.Title,
-                    ThumbnailUrl = h.ThumbnailUrl ?? "",
+                    ThumbnailUrl = thumb,
                     Quality = h.Quality,
                     Format = h.Format,
                     Status = "Pending",
+                    RetryCount = h.RetryCount + 1,
                     Cts = new CancellationTokenSource()
                 };
             }).ToList()
         };
 
         _jobs[newJobId] = newJob;
+
+        // Mark items as retrying in database immediately
+        foreach (var item in newJob.Items)
+        {
+            try { await historyService.MarkRetryingAsync(item.TaskId, item.RetryCount, "Playlist batch retry"); } catch { }
+        }
 
         _ = Task.Run(async () =>
         {
@@ -392,6 +622,10 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         {
             foreach (var v in request.Videos)
             {
+                string thumb = !string.IsNullOrWhiteSpace(v.ThumbnailUrl)
+                    ? v.ThumbnailUrl
+                    : (!string.IsNullOrWhiteSpace(v.VideoId) ? $"https://i.ytimg.com/vi/{v.VideoId}/hqdefault.jpg" : "");
+
                 items.Add(new PlaylistItemDownloadState
                 {
                     TaskId = Guid.NewGuid().ToString("N"),
@@ -399,7 +633,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     Index = v.Index,
                     SubId = $"{playlistCode} #{v.Index:D2}",
                     Title = v.Title,
-                    ThumbnailUrl = v.ThumbnailUrl,
+                    ThumbnailUrl = thumb,
                     FormattedDuration = v.FormattedDuration,
                     Quality = request.Quality,
                     Format = request.Format,
@@ -420,6 +654,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     VideoId = vid,
                     Index = index,
                     SubId = $"{playlistCode} #{index++:D2}",
+                    ThumbnailUrl = $"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
                     Quality = request.Quality,
                     Format = request.Format,
                     NumberPrefix = request.NumberPrefix,
@@ -478,7 +713,16 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 }
                 catch (OperationCanceledException)
                 {
-                    item.Status = "Cancelled";
+                    if (item.IsUserCancelled || job.IsUserCancelled)
+                    {
+                        item.Status = "Cancelled";
+                        item.ErrorMessage = "Download cancelled by user";
+                    }
+                    else
+                    {
+                        item.Status = "Failed";
+                        item.ErrorMessage = "Connection timed out or network stream interrupted";
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -530,6 +774,14 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 ? (video.Duration.Value.TotalHours >= 1 ? video.Duration.Value.ToString(@"hh\:mm\:ss") : video.Duration.Value.ToString(@"mm\:ss"))
                 : "00:00";
 
+            // Defensive Audio normalization
+            if (item.Quality.Equals("AudioOnly", StringComparison.OrdinalIgnoreCase) &&
+                !item.Format.Equals("MP3", StringComparison.OrdinalIgnoreCase) &&
+                !item.Format.Equals("M4A", StringComparison.OrdinalIgnoreCase))
+            {
+                item.Format = "MP3";
+            }
+
             string safeTitle = SanitizeFileName(video.Title);
             string ext = item.Format.ToLowerInvariant() switch
             {
@@ -539,8 +791,8 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 _ => ".mp4"
             };
 
-            // Always prefix index (01 - , 02 - ) for playlist items so File Explorer sorts cleanly
-            string prefix = item.Index > 0 ? $"{item.Index:D2} - " : "";
+            // Only prefix index (01 - , 02 - ) if explicitly enabled by user
+            string prefix = (item.NumberPrefix && item.Index > 0) ? $"{item.Index:D2} - " : "";
             string outFileName = $"{prefix}{safeTitle}{ext}";
             item.OutputFileName = outFileName;
 
@@ -611,9 +863,9 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
                 if (item.Format.Equals("MP3", StringComparison.OrdinalIgnoreCase))
                 {
-                    item.Status = "Converting to High-Quality MP3 (320 kbps)...";
+                    item.Status = "Converting to Studio-Quality MP3 (320 kbps)...";
                     item.Percentage = 90;
-                    bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "320k");
+                    bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "320k", "mp3");
                     if (!converted || !File.Exists(tempOutput))
                     {
                         File.Move(tempAudioRaw, tempOutput, true);
@@ -621,8 +873,13 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 }
                 else
                 {
-                    item.Status = "Finalizing M4A...";
-                    File.Move(tempAudioRaw, tempOutput, true);
+                    item.Status = "Finalizing High-Quality M4A (256 kbps AAC)...";
+                    item.Percentage = 90;
+                    bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "256k", "m4a");
+                    if (!converted || !File.Exists(tempOutput))
+                    {
+                        File.Move(tempAudioRaw, tempOutput, true);
+                    }
                 }
             }
             else
@@ -787,14 +1044,38 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         {
             item.EndTime = DateTime.UtcNow;
             item.DurationSecondsTaken = Math.Round(sw.Elapsed.TotalSeconds, 1);
-            item.Status = "Cancelled";
-            item.ErrorMessage = "Download cancelled by user";
-            using (var scope = _scopeFactory.CreateScope())
+            bool wasUserCancelled = item.IsUserCancelled || job.IsUserCancelled;
+            if (wasUserCancelled)
             {
-                var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
-                if (historyService != null)
+                item.Status = "Cancelled";
+                item.ErrorMessage = "Download cancelled by user";
+                using (var scope = _scopeFactory.CreateScope())
                 {
-                    try { await historyService.MarkCancelledAsync(item.TaskId); } catch { }
+                    var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                    if (historyService != null)
+                    {
+                        try { await historyService.MarkCancelledAsync(item.TaskId); } catch { }
+                    }
+                }
+            }
+            else
+            {
+                string friendlyReason = "Connection timed out or network stream interrupted";
+                if (ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) || ex is TimeoutException)
+                    friendlyReason = "Network connection timed out";
+                else if (ex.InnerException != null && !string.IsNullOrWhiteSpace(ex.InnerException.Message))
+                    friendlyReason = FormatFriendlyError(ex.InnerException.Message);
+
+                Console.WriteLine($"[Playlist Video Timeout/Abort] {item.SubId} ({item.VideoId}): {friendlyReason}");
+                item.Status = "Failed";
+                item.ErrorMessage = friendlyReason;
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                    if (historyService != null)
+                    {
+                        try { await historyService.MarkFailedAsync(item.TaskId, friendlyReason); } catch { }
+                    }
                 }
             }
         }
@@ -856,17 +1137,22 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
     private static string SanitizeFileName(string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "video.mp4";
-        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
-        invalid.UnionWith(new[] { '|', ':', '*', '?', '"', '<', '>', '/', '\\' });
+        if (string.IsNullOrWhiteSpace(name)) return "video";
+        var invalid = new HashSet<char>(Path.GetInvalidFileNameChars()) { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
         var sb = new System.Text.StringBuilder();
         foreach (var c in name)
         {
-            sb.Append(invalid.Contains(c) ? '-' : c);
+            if (c == '|' || c == '/' || c == '\\' || c == ':')
+            {
+                sb.Append(' ');
+            }
+            else if (!invalid.Contains(c))
+            {
+                sb.Append(c);
+            }
         }
-        string clean = System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"[-]{2,}", "-");
-        clean = System.Text.RegularExpressions.Regex.Replace(clean, @"\s{2,}", " ").Trim(' ', '.', '-');
-        return string.IsNullOrWhiteSpace(clean) ? "video.mp4" : clean;
+        string clean = System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\s+", " ").Trim(' ', '.');
+        return string.IsNullOrWhiteSpace(clean) ? "video" : clean;
     }
 
     private static string GetAvailableUniqueFilePath(string folder, string fileName)
@@ -1156,14 +1442,18 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         return false;
     }
 
-    private static async Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k")
+    private static async Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k", string format = "mp3")
     {
         try
         {
+            string audioCodecArgs = format.Equals("m4a", StringComparison.OrdinalIgnoreCase)
+                ? $"-c:a aac -b:a {bitrate} -ar 48000"
+                : $"-c:a libmp3lame -b:a {bitrate} -ar 48000 -id3v2_version 3";
+
             var psi = new ProcessStartInfo
             {
                 FileName = GetFfmpegPath(),
-                Arguments = $"-i \"{inputVideoPath}\" -vn -b:a {bitrate} -threads 0 \"{outputAudioPath}\" -y",
+                Arguments = $"-i \"{inputVideoPath}\" -vn {audioCodecArgs} -threads 0 \"{outputAudioPath}\" -y",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,
