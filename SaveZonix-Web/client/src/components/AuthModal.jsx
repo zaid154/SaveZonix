@@ -20,6 +20,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [password, setPassword] = useState('');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
   const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
   const [magicResetToken, setMagicResetToken] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -279,14 +282,16 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         <button className="btn-close-modal" onClick={onClose}>✕</button>
 
         {error && (
-          <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.15)', border: '1px solid #ef4444', color: '#f87171', borderRadius: '8px', fontSize: '13px', marginBottom: '14px', lineHeight: '1.4' }}>
-            {error}
+          <div className="auth-alert error">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span>{error}</span>
           </div>
         )}
 
         {message && (
-          <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.15)', border: '1px solid #10b981', color: '#34d399', borderRadius: '8px', fontSize: '13px', marginBottom: '14px', lineHeight: '1.4' }}>
-            {message}
+          <div className="auth-alert success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span>{message}</span>
           </div>
         )}
 
@@ -305,6 +310,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
                   required
+                  className="auth-input"
                 />
               </div>
 
@@ -315,19 +321,35 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               )}
 
               <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <label>Password</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ margin: 0 }}>Password</label>
                   <span onClick={() => { setView('forgot'); setError(''); setMessage(''); }} style={{ color: '#38bdf8', fontSize: '12px', cursor: 'pointer' }}>
                     Forgot password?
                   </span>
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="auth-input"
+                    style={{ paddingRight: '40px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPassword(!showLoginPassword)}
+                    className="btn-toggle-pw"
+                    title={showLoginPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showLoginPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn-modal-submit" disabled={loading}>
@@ -356,6 +378,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Rahul Sharma"
                   required
+                  className="auth-input"
                 />
               </div>
 
@@ -367,6 +390,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="rahul.sharma@gmail.com"
                   required
+                  className="auth-input"
                 />
               </div>
 
@@ -378,14 +402,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
               <div className="form-group">
                 <label>Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  minLength={6}
-                  required
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showRegPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    minLength={6}
+                    required
+                    className="auth-input"
+                    style={{ paddingRight: '40px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowRegPassword(!showRegPassword)}
+                    className="btn-toggle-pw"
+                    title={showRegPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showRegPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn-modal-submit" disabled={loading}>
@@ -420,26 +460,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     value={digit}
                     onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    style={{
-                      width: '46px',
-                      height: '56px',
-                      fontSize: '24px',
-                      fontWeight: 800,
-                      textAlign: 'center',
-                      background: '#030712',
-                      border: digit ? '2px solid #0ea5e9' : '2px solid #1e293b',
-                      borderRadius: '10px',
-                      color: '#38bdf8',
-                      outline: 'none',
-                      fontFamily: 'monospace',
-                      boxShadow: digit ? '0 0 12px rgba(14,165,233,0.3)' : 'none',
-                      transition: 'border-color 0.2s, box-shadow 0.2s'
-                    }}
+                    className={`auth-otp-box ${digit ? 'filled' : ''}`}
                   />
                 ))}
               </div>
 
-              <button type="submit" className="btn-modal-submit" style={{ background: '#10b981' }} disabled={loading || combinedOtp.length < 6}>
+              <button type="submit" className="btn-modal-submit" style={{ background: '#0284c7' }} disabled={loading || combinedOtp.length < 6}>
                 {loading ? 'Verifying...' : 'Verify & Activate Account'}
               </button>
             </form>
@@ -478,7 +504,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </p>
 
             {!magicResetToken && (
-              <form onSubmit={handleForgotStep1} style={{ marginBottom: '16px' }}>
+              <form onSubmit={handleForgotStep1} style={{ marginBottom: '18px' }}>
                 <div className="form-group">
                   <label>Registered Email</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -486,13 +512,14 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="rahul.sharma@gmail.com"
+                      placeholder="name@example.com"
                       required
+                      className="auth-input"
+                      style={{ flex: 1 }}
                     />
                     <button
                       type="submit"
-                      className="btn btn-secondary"
-                      style={{ padding: '8px 14px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                      className="btn-send-code"
                       disabled={loading || cooldown > 0}
                     >
                       {cooldown > 0 ? `${cooldown}s` : 'Send Code'}
@@ -505,8 +532,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             <form onSubmit={handleForgotStep2}>
               {!magicResetToken && (
                 <div className="form-group">
-                  <label>6-Digit Reset Code</label>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0 14px' }} onPaste={handleOtpPaste}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ margin: 0 }}>6-Digit Reset Code</label>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Expires in 10 mins</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '6px 0 16px' }} onPaste={handleOtpPaste}>
                     {otpDigits.map((digit, idx) => (
                       <input
                         key={idx}
@@ -517,19 +547,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                         value={digit}
                         onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                        style={{
-                          width: '42px',
-                          height: '50px',
-                          fontSize: '22px',
-                          fontWeight: 800,
-                          textAlign: 'center',
-                          background: '#030712',
-                          border: digit ? '2px solid #0ea5e9' : '2px solid #1e293b',
-                          borderRadius: '8px',
-                          color: '#38bdf8',
-                          outline: 'none',
-                          fontFamily: 'monospace'
-                        }}
+                        className={`auth-otp-box ${digit ? 'filled' : ''}`}
                       />
                     ))}
                   </div>
@@ -538,14 +556,30 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
               <div className="form-group">
                 <label>New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                  minLength={6}
-                  required
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    minLength={6}
+                    required
+                    className="auth-input"
+                    style={{ paddingRight: '40px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="btn-toggle-pw"
+                    title={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPassword ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <button type="submit" className="btn-modal-submit" disabled={loading}>
