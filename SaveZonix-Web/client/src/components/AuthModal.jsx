@@ -75,7 +75,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             localStorage.setItem('savezonix_token', data.token);
             localStorage.setItem('savezonix_user', JSON.stringify(data.user));
             onAuthSuccess(data.user);
-            setMessage('🎉 Account verified successfully via 1-Click Magic Link!');
+            setMessage('Account verified successfully via 1-Click Magic Link.');
             // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {

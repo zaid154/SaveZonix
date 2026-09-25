@@ -160,7 +160,12 @@ export default function OverviewTab({ stats, downloads, onNavigateToDownloads })
                             onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'; }}
                           />
                         ) : null}
-                        <div style={{ display: d.thumbnailUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#475569', fontSize: '11px' }}>🎬</div>
+                        <div style={{ display: d.thumbnailUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#475569' }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="18" height="18" x="3" y="3" rx="2" />
+                            <polygon points="10 8 16 12 10 16 10 8" fill="#475569" />
+                          </svg>
+                        </div>
                       </div>
                       <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: '#f8fafc' }} title={d.title || d.fileName}>
                         {d.title || d.fileName || d.originalUrl || 'Media Stream'}

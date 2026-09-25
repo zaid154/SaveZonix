@@ -69,8 +69,8 @@
                 </div>
                 <div style="position: relative;">
                     <input asp-for="Password" id="txtLoginPassword" type="password" class="form-control" placeholder="••••••••" required autocomplete="current-password" style="width: 100%; padding: 9px 38px 9px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #f0f6fc; font-size: 13px; outline: none;" />
-                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #8b949e; cursor: pointer; padding: 4px; font-size: 13px;">
-                        👁️
+                    <button type="button" onclick="togglePasswordVisibility()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #8b949e; cursor: pointer; padding: 4px; display: inline-flex; align-items: center; justify-content: center;" title="Toggle visibility">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                     </button>
                 </div>
                 <span asp-validation-for="Password" class="text-danger" style="font-size: 11px; color: #f85149; margin-top: 3px; display: block;"></span>

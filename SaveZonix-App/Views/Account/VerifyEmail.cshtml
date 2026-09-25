@@ -1,4 +1,4 @@
-﻿@model StreamHelper.ViewModels.VerifyEmailViewModel
+@model StreamHelper.ViewModels.VerifyEmailViewModel
 @{
     ViewData["Title"] = "Verify Email — SaveZonix";
 }
@@ -7,7 +7,11 @@
     <div class="auth-card" style="text-align: center;">
         @if (Model.IsSuccess)
         {
-            <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                <div style="width: 56px; height: 56px; border-radius: 14px; background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.25); display: flex; align-items: center; justify-content: center; color: #22c55e;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+            </div>
             <h1 class="auth-title">Email Verified!</h1>
             <p class="auth-subtitle">@Model.Message</p>
             <div style="margin-top: 28px;">
@@ -16,7 +20,11 @@
         }
         else
         {
-            <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+            <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+                <div style="width: 56px; height: 56px; border-radius: 14px; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.25); display: flex; align-items: center; justify-content: center; color: #f87171;">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </div>
+            </div>
             <h1 class="auth-title">Verification Issue</h1>
             <p class="auth-subtitle" style="color: var(--rose);">@Model.Message</p>
             <div style="margin-top: 28px;">

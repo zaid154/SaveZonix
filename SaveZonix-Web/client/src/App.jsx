@@ -10,6 +10,7 @@ import AuthModal from './components/AuthModal';
 import AdminDashboard from './components/AdminDashboard';
 import LegalPage from './components/LegalPage';
 import UpgradeVipModal from './components/UpgradeVipModal';
+import FeedbackPage from './components/FeedbackPage';
 
 export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -66,6 +67,7 @@ export default function App() {
 
   const isAdminRoute = currentPath === '/admin' || currentPath.startsWith('/admin/');
   const isLegalRoute = ['/privacy', '/terms', '/dmca', '/disclaimer'].includes(currentPath);
+  const isFeedbackRoute = currentPath === '/feedback' || currentPath === '/uninstall';
   const legalType = isLegalRoute ? currentPath.replace('/', '') : 'privacy';
 
   return (
@@ -93,6 +95,8 @@ export default function App() {
           />
         ) : isLegalRoute ? (
           <LegalPage type={legalType} onNavigate={navigate} />
+        ) : isFeedbackRoute ? (
+          <FeedbackPage onNavigate={navigate} />
         ) : (
           <>
             <Hero appConfig={appConfig} />

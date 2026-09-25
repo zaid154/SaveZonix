@@ -29,13 +29,13 @@
     string GetPlatformIcon(string? platform)
     {
         var p = (platform ?? "").ToLowerInvariant();
-        if (p.Contains("youtube")) return "▶";
-        if (p.Contains("instagram")) return "📸";
-        if (p.Contains("facebook")) return "📘";
-        if (p.Contains("xhamster")) return "🔞";
-        if (p.Contains("mat6")) return "🎬";
-        if (p.Contains("pixelflix")) return "⚡";
-        return "🌐";
+        if (p.Contains("youtube")) return "YT";
+        if (p.Contains("instagram")) return "IG";
+        if (p.Contains("facebook")) return "FB";
+        if (p.Contains("xhamster")) return "XH";
+        if (p.Contains("mat6")) return "M6";
+        if (p.Contains("pixelflix")) return "PX";
+        return "WEB";
     }
 
     string CleanPlatformName(string? platform)
@@ -93,16 +93,19 @@
                 <p class="page-subtitle">Your personal record of high-speed media stream downloads and extractions</p>
             </div>
             <div class="account-actions">
-                <a asp-controller="Home" asp-action="Index" class="btn btn-primary">
-                    <span>⚡ New Download</span>
+                <a asp-controller="Home" asp-action="Index" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>New Download</span>
                 </a>
             </div>
         </div>
 
         @if (TempData["SuccessMessage"] != null)
         {
-            <div class="alert success" style="margin-bottom: 24px;">
-                <span class="alert-icon">✅</span>
+            <div class="alert success" style="margin-bottom: 24px; display: flex; align-items: center; gap: 8px;">
+                <span class="alert-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
                 <span>@TempData["SuccessMessage"]</span>
             </div>
         }
@@ -141,7 +144,7 @@
             <form method="get" asp-action="Downloads" class="filter-form">
                 <div class="admin-filter-grid" style="grid-template-columns: 2fr 1fr 1fr auto;">
                     <div class="form-group search-input-wrapper">
-                        <span class="search-icon">🔍</span>
+                        <span class="search-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
                         <input type="text" name="search" value="@Model.SearchTerm" class="form-control admin-input" placeholder="Search by title, file name or URL..." />
                     </div>
                     <div class="form-group">
@@ -175,7 +178,9 @@
         @if (Model.Downloads.Count == 0)
         {
             <div class="glass-card empty-state-card">
-                <div class="empty-icon-wrap">📥</div>
+                <div class="empty-icon-wrap">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.6"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                </div>
                 <h3>No Downloads Found</h3>
                 <p>You haven't initiated any downloads matching your criteria.</p>
                 <div style="margin-top: 16px;">
@@ -348,7 +353,10 @@
                                         <div class="pl-nested-wrapper">
                                             <div class="pl-nested-header">
                                                 <div class="pl-nested-header-title">
-                                                    <span>📁 <strong>@entry.PlaylistCode</strong> — @entry.Title</span>
+                                                    <span style="display: inline-flex; align-items: center; gap: 6px;">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                                        <strong>@entry.PlaylistCode</strong> — @entry.Title
+                                                    </span>
                                                     <span class="pl-nested-counts">(@entry.CompletedCount / @entry.TotalVideos Completed @(hasFailures ? $"• {entry.FailedCount} Failed" : ""))</span>
                                                 </div>
                                                 @if (hasFailures)
@@ -384,7 +392,9 @@
                              }
                                                             else
                                                             {
-                                                                <div class="pl-sub-thumb-fallback">🎬</div>
+                                                                <div class="pl-sub-thumb-fallback">
+                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><polygon points="10 8 16 12 10 16 10 8" fill="#475569"/></svg>
+                                                                </div>
                                                             }
                                                             @if (!string.IsNullOrEmpty(subIdStr))
                                                             {
@@ -416,7 +426,7 @@
                                                                     @if (sub.AverageSpeedMBps > 0)
                                                                     {
                                                                         <span class="pl-sub-meta-speed">
-                                                                            ⚡ Avg: <strong>@sub.AverageSpeedMBps.ToString("F1") MB/s</strong>
+                                                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="#34d399" stroke="none" style="vertical-align: 0px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Avg: <strong>@sub.AverageSpeedMBps.ToString("F1") MB/s</strong>
                                                                             @(sub.PeakSpeedMBps > 0 ? $"• Peak: {sub.PeakSpeedMBps:F1} MB/s" : "")
                                                                         </span>
                                                                     }
@@ -499,7 +509,7 @@
                                                 @if (!string.IsNullOrEmpty(item.FileName) && item.FileName != item.Title)
                                                 {
                                                     <span class="file-name-sub" title="@item.FileName">
-                                                        <span class="file-icon">📄</span>
+                                                        <span class="file-icon"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
                                                         <span class="file-text">@item.FileName</span>
                                                     </span>
                                                 }
@@ -518,7 +528,10 @@
                                             <div class="speed-sub">
                                                 @if (item.AverageSpeedMBps > 0)
                                                 {
-                                                    <span class="speed-live" title="Avg: @item.AverageSpeedMBps.ToString("F1") MB/s | Peak: @item.PeakSpeedMBps.ToString("F1") MB/s">⚡ @item.AverageSpeedMBps.ToString("F1") MB/s @(item.PeakSpeedMBps > 0 ? $"• Peak {item.PeakSpeedMBps:F1}" : "")</span>
+                                                    <span class="speed-live" title="Avg: @item.AverageSpeedMBps.ToString("F1") MB/s | Peak: @item.PeakSpeedMBps.ToString("F1") MB/s">
+                                                        <svg width="10" height="10" viewBox="0 0 24 24" fill="#34d399" stroke="none" style="vertical-align: 0px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                                        @item.AverageSpeedMBps.ToString("F1") MB/s @(item.PeakSpeedMBps > 0 ? $"• Peak {item.PeakSpeedMBps:F1}" : "")
+                                                    </span>
                                                 }
                                                 else
                                                 {

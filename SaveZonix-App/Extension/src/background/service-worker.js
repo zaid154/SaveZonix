@@ -1,5 +1,14 @@
 // src/background/service-worker.js — Pure Native Stealth Stream Sniffer (Manifest V3)
 
+// Automatically open feedback survey on live Vercel site when extension is uninstalled
+try {
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
+        chrome.runtime.setUninstallURL('https://save-zonix.vercel.app/feedback?source=extension');
+    }
+} catch (e) {
+    console.warn('[SaveZonix] Failed to configure uninstall feedback URL:', e);
+}
+
 // Smart Dynamic Header Spoofing for Downloader Tab (Bypasses Hotlink Protection on phncdn, xnxx, pixelflix)
 if (chrome.declarativeNetRequest) {
     chrome.declarativeNetRequest.getDynamicRules().then(rules => {

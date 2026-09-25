@@ -161,7 +161,9 @@
                 <div class="banner-meta-tag">YOUTUBE PLAYLIST</div>
                 <h2 id="bannerTitle" class="banner-title">Loading Title...</h2>
                 <div class="banner-channel-row">
-                    <span class="channel-avatar">📺</span>
+                    <span class="channel-avatar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+                    </span>
                     <span id="bannerAuthor" class="channel-name">Channel Name</span>
                     <span class="verified-icon">✓</span>
                     <span class="dot-divider">•</span>
@@ -321,7 +323,9 @@
             </table>
         </div>
         <div id="emptySearchState" class="empty-state" style="display:none;">
-            <div class="empty-icon">🔍</div>
+            <div class="empty-icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
             <h3>No Videos Found</h3>
             <p>No playlist videos match your search query.</p>
         </div>
@@ -352,7 +356,9 @@
             <div class="progressive-load-inner">
                 <div class="progressive-info-col">
                     <div class="progressive-title">
-                        <span class="progressive-icon">📻</span>
+                        <span class="progressive-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                        </span>
                         <span id="progressiveTitleText">YouTube Mix Queue: Showing first 25 videos</span>
                     </div>
                     <div class="progressive-subtitle" id="progressiveSubText">
@@ -400,7 +406,9 @@
 <div id="urlChoiceModal" class="confirm-modal-backdrop" style="display:none;">
     <div class="confirm-modal-box url-choice-box">
         <div class="confirm-modal-header">
-            <div class="confirm-modal-icon url-choice-icon">🔗</div>
+            <div class="confirm-modal-icon url-choice-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+            </div>
             <div class="confirm-modal-title-wrap">
                 <h3 class="confirm-modal-title">Video or Playlist?</h3>
                 <p class="confirm-modal-subtitle">This link is part of a playlist</p>
@@ -413,7 +421,9 @@
             </p>
             <div class="url-choice-options">
                 <button type="button" id="btnChoiceSingleVideo" class="url-choice-btn choice-single">
-                    <span class="choice-icon">🎬</span>
+                    <span class="choice-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor"/></svg>
+                    </span>
                     <span class="choice-content">
                         <span class="choice-title">Download This Video Only</span>
                         <span class="choice-desc">Quick download — just this one video</span>
@@ -421,10 +431,12 @@
                     <span class="choice-arrow">→</span>
                 </button>
                 <button type="button" id="btnChoiceFullPlaylist" class="url-choice-btn choice-playlist">
-                    <span class="choice-icon">📋</span>
+                    <span class="choice-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    </span>
                     <span class="choice-content">
                         <span class="choice-title">Load Full Playlist</span>
-                        <span class="choice-desc">Browse & select videos from the playlist</span>
+                        <span class="choice-desc">Browse &amp; select videos from the playlist</span>
                     </span>
                     <span class="choice-arrow">→</span>
                 </button>
@@ -437,7 +449,9 @@
 <div id="leaveConfirmModal" class="confirm-modal-backdrop" style="display:none;">
     <div class="confirm-modal-box">
         <div class="confirm-modal-header">
-            <div class="confirm-modal-icon">⚠️</div>
+            <div class="confirm-modal-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
             <div class="confirm-modal-title-wrap">
                 <h3 class="confirm-modal-title">Downloads in Progress</h3>
                 <p class="confirm-modal-subtitle">Active downloads are running in background</p>
@@ -449,7 +463,9 @@
                 Your playlist videos are currently downloading. You can monitor and control live speeds anytime from the <strong>Downloads &amp; History</strong> page.
             </p>
             <div class="confirm-modal-tip">
-                <span class="tip-icon">💡</span>
+                <span class="tip-icon">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                </span>
                 <span><strong>Pro Tip:</strong> Click below to open Downloads &amp; History or remain here.</span>
             </div>
         </div>

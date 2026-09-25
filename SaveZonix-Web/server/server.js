@@ -12,6 +12,7 @@ const extensionUpdatesRoutes = require('./routes/extension-updates');
 const paymentRoutes = require('./routes/payment');
 const playlistRoutes = require('./routes/playlist');
 const downloadsRoutes = require('./routes/downloads');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -33,6 +34,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/telemetry', adminRoutes);
 app.use('/api/playlist', playlistRoutes);
 app.use('/api/downloads', downloadsRoutes);
+app.use('/api/feedback', feedbackRoutes);
 app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check

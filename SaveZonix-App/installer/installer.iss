@@ -47,6 +47,17 @@ begin
   Result := '';
 end;
 
+// Automatically launch live Vercel feedback page upon uninstallation completion
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  ErrorCode: Integer;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    ShellExec('open', 'https://save-zonix.vercel.app/feedback?source=desktop', '', '', SW_SHOW, ewNoWait, ErrorCode);
+  end;
+end;
+
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
