@@ -10,6 +10,7 @@
     let pollInterval = null;
     const collapsedJobIds = new Set();
     const renderedJobIds = new Set();
+    const renderedSingleTaskIds = new Set();
     let isReloadPending = false;
 
     // DOM Elements
@@ -83,15 +84,43 @@
         pollInterval = setInterval(pollActiveJobs, 1000);
     }
 
+    // Global Single Download Cancellation
+    window.cancelSingleActiveTask = async function(taskId) {
+        if (!confirm('Cancel this download?')) return;
+        try {
+            await fetch(`/api/cancel/${taskId}`, { method: 'POST' });
+            const card = document.getElementById(`singleTaskCard_${taskId}`);
+            if (card) card.remove();
+            renderedSingleTaskIds.delete(taskId);
+            pollActiveJobs();
+        } catch { }
+    };
+
     async function pollActiveJobs() {
         try {
-            const resp = await fetch('/api/playlist/active-jobs');
-            if (!resp.ok) return;
+            let activeJobs = [];
+            let singleTasks = [];
 
-            let activeJobs = await resp.json();
+            try {
+                const resp = await fetch('/api/downloads/active-all');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    activeJobs = Array.isArray(data.playlistJobs) ? data.playlistJobs : [];
+                    singleTasks = Array.isArray(data.singleDownloads) ? data.singleDownloads : [];
+                }
+            } catch {
+                try {
+                    const resp = await fetch('/api/playlist/active-jobs');
+                    if (resp.ok) {
+                        activeJobs = await resp.json();
+                    }
+                } catch { }
+            }
+
             if (!Array.isArray(activeJobs)) activeJobs = [];
+            if (!Array.isArray(singleTasks)) singleTasks = [];
 
-            // If active-jobs list is empty, check localStorage fallback for single job
+            // If active-jobs list is empty, check localStorage fallback for single playlist job
             if (activeJobs.length === 0) {
                 const raw = localStorage.getItem(STORAGE_KEY_ACTIVE_JOB);
                 if (raw) {
@@ -117,8 +146,11 @@
                 return hasPendingWork || isOngoing;
             });
 
-            if (currentActiveJobs.length === 0) {
-                if (renderedJobIds.size > 0 && !isReloadPending) {
+            // Filter truly active single downloads
+            const currentSingleTasks = singleTasks.filter(t => !t.isCompleted && !t.isError && !t.isPaused);
+
+            if (currentActiveJobs.length === 0 && currentSingleTasks.length === 0) {
+                if ((renderedJobIds.size > 0 || renderedSingleTaskIds.size > 0) && !isReloadPending) {
                     isReloadPending = true;
                     setTimeout(() => {
                         window.location.reload();
@@ -129,17 +161,17 @@
                 return;
             }
 
-            renderMultiJobs(currentActiveJobs);
+            renderMultiJobs(currentActiveJobs, currentSingleTasks);
 
         } catch (err) {
             console.error('[ActiveMonitor] Poll error:', err);
         }
     }
 
-    function renderMultiJobs(jobs) {
+    function renderMultiJobs(jobs, singleTasks = []) {
         activeDownloadsContainer.style.display = 'block';
 
-        // Calculate global summary across all active playlists
+        // Calculate global summary across all active playlists and single downloads
         let globalSpeedSum = 0;
         let totalActiveStreams = 0;
         let totalPendingVideos = 0;
@@ -156,11 +188,26 @@
             }
         });
 
+        singleTasks.forEach(t => {
+            if (t.speedMBps && t.speedMBps > 0) {
+                globalSpeedSum += t.speedMBps;
+            }
+            if (t.activeThreads && t.activeThreads > 0) {
+                totalActiveStreams += t.activeThreads;
+            }
+        });
+
         globalSpeedSum = Math.round(globalSpeedSum * 10) / 10;
 
         // Update Top Global Header
         if (activeJobsCountBadge) {
-            activeJobsCountBadge.textContent = `${jobs.length} Playlist${jobs.length > 1 ? 's' : ''} (${totalPendingVideos} in queue)`;
+            if (jobs.length > 0 && singleTasks.length > 0) {
+                activeJobsCountBadge.textContent = `${jobs.length} Playlist(s), ${singleTasks.length} Stream(s)`;
+            } else if (jobs.length > 0) {
+                activeJobsCountBadge.textContent = `${jobs.length} Playlist${jobs.length > 1 ? 's' : ''} (${totalPendingVideos} in queue)`;
+            } else {
+                activeJobsCountBadge.textContent = `${singleTasks.length} Active Download${singleTasks.length > 1 ? 's' : ''}`;
+            }
         }
 
         if (activeGlobalSpeedBadge) {
@@ -173,10 +220,22 @@
             }
         }
 
-        // Set of job IDs currently active
-        const liveJobIds = new Set(jobs.map(j => j.jobId));
+        // 1. Manage Single Download Cards
+        const liveSingleIds = new Set(singleTasks.map(t => t.taskId));
+        renderedSingleTaskIds.forEach(id => {
+            if (!liveSingleIds.has(id)) {
+                const el = document.getElementById(`singleTaskCard_${id}`);
+                if (el) el.remove();
+                renderedSingleTaskIds.delete(id);
+            }
+        });
 
-        // Remove cards for jobs that are no longer in the list
+        singleTasks.forEach(task => {
+            renderSingleTaskCard(task);
+        });
+
+        // 2. Manage Playlist Job Cards
+        const liveJobIds = new Set(jobs.map(j => j.jobId));
         renderedJobIds.forEach(id => {
             if (!liveJobIds.has(id)) {
                 const el = document.getElementById(`jobCard_${id}`);
@@ -203,6 +262,82 @@
                 });
             } catch { }
         });
+    }
+
+    function renderSingleTaskCard(task) {
+        renderedSingleTaskIds.add(task.taskId);
+
+        let card = document.getElementById(`singleTaskCard_${task.taskId}`);
+        const pct = Math.min(100, Math.max(0, Math.round(task.percentage || 0)));
+        const speed = task.speedMBps || 0;
+        const title = task.title || task.fileName || 'Active Download';
+        const threads = task.activeThreads || task.concurrency || 16;
+        const downloadedBytes = task.totalBytesDownloaded || 0;
+        const estBytes = task.estimatedTotalBytes || 0;
+        const statusText = task.status || (task.isMerging ? 'Merging Audio & Video...' : 'Downloading in Parallel...');
+
+        if (!card) {
+            card = document.createElement('div');
+            card.id = `singleTaskCard_${task.taskId}`;
+            card.className = 'single-task-active-card playlist-job-card';
+            card.style.marginBottom = '12px';
+            card.innerHTML = `
+                <div class="playlist-job-header" style="display: flex; align-items: center; justify-content: space-between; padding: 14px 18px;">
+                    <div class="job-header-left" style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
+                        <div class="media-thumb-container" style="width: 44px; height: 44px; min-width: 44px; border-radius: 8px; overflow: hidden; background: #1e293b; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            ${task.thumbnailUrl ? `<img src="${escapeHtml(task.thumbnailUrl)}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML='<span style=\\'font-size:20px;\\'>🎬</span>';" />` : `<span style="font-size: 20px;">🎬</span>`}
+                        </div>
+                        <div class="job-info-wrap" style="min-width: 0; flex: 1;">
+                            <h3 class="job-title" title="${escapeHtml(title)}" style="font-size: 13.5px; font-weight: 700; color: #f8fafc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 4px 0;">
+                                <span class="pl-code-pill" style="margin-right: 6px; background: rgba(14, 165, 233, 0.15); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.3); font-size: 10.5px; padding: 1px 6px; border-radius: 4px;">STREAM</span>${escapeHtml(title)}
+                            </h3>
+                            <div class="job-meta-line" style="display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: #94a3b8; flex-wrap: wrap;">
+                                <span id="stPct_${task.taskId}" style="color: #38bdf8; font-weight: 700;">${pct}%</span>
+                                <span>•</span>
+                                <span id="stBytes_${task.taskId}">${formatBytes(downloadedBytes)} ${estBytes > 0 ? '/ ' + formatBytes(estBytes) : ''}</span>
+                                <span>•</span>
+                                <span>${threads} workers</span>
+                                <span id="stStatus_${task.taskId}" style="color: #a5f3fc;">• ${escapeHtml(statusText)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="job-header-center" style="margin: 0 16px;">
+                        <span class="active-speed-badge ${speed > 0 ? '' : 'zero-speed'}" id="stSpeed_${task.taskId}">
+                            ⚡ ${formatSpeed(speed)}
+                        </span>
+                    </div>
+                    <div class="job-header-actions" style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+                        <button type="button" class="btn-job-action btn-job-cancel" onclick="cancelSingleActiveTask('${task.taskId}')" title="Cancel this download">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+                <div class="job-progress-bar-wrap" style="padding: 0 18px 14px 18px;">
+                    <div class="job-progress-track" style="height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 999px; overflow: hidden; position: relative;">
+                        <div class="job-progress-fill" id="stFill_${task.taskId}" style="width: ${pct}%; height: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            `;
+            activePlaylistsAccordionList.prepend(card);
+        } else {
+            const pctEl = document.getElementById(`stPct_${task.taskId}`);
+            if (pctEl) pctEl.textContent = `${pct}%`;
+
+            const bytesEl = document.getElementById(`stBytes_${task.taskId}`);
+            if (bytesEl) bytesEl.textContent = `${formatBytes(downloadedBytes)} ${estBytes > 0 ? '/ ' + formatBytes(estBytes) : ''}`;
+
+            const statusEl = document.getElementById(`stStatus_${task.taskId}`);
+            if (statusEl) statusEl.textContent = `• ${statusText}`;
+
+            const speedEl = document.getElementById(`stSpeed_${task.taskId}`);
+            if (speedEl) {
+                speedEl.className = `active-speed-badge ${speed > 0 ? '' : 'zero-speed'}`;
+                speedEl.textContent = `⚡ ${formatSpeed(speed)}`;
+            }
+
+            const fillEl = document.getElementById(`stFill_${task.taskId}`);
+            if (fillEl) fillEl.style.width = `${pct}%`;
+        }
     }
 
     function renderSingleJobCard(job, index) {
@@ -649,6 +784,14 @@
             return `Started: ${startStr} ${peakStr ? `• ${peakStr}` : ''}`.trim();
         }
         return '';
+    }
+
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return '0 B';
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
     }
 
     function formatSpeed(mbps) {

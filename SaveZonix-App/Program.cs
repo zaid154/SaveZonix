@@ -20,6 +20,10 @@ public class DownloadTaskState
     public string TaskId { get; set; } = string.Empty;
     public string? UserId { get; set; }
     public string FileName { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public string ThumbnailUrl { get; set; } = string.Empty;
+    public string Platform { get; set; } = string.Empty;
+    public string Quality { get; set; } = string.Empty;
     public double Percentage { get; set; }
     public double SpeedMBps { get; set; }
     public double PeakSpeedMBps { get; set; }
@@ -148,6 +152,9 @@ public class Program
 
     public static ISet<string> GetActiveTaskIds() => 
         _tasks.Where(kv => !kv.Value.IsCompleted && !kv.Value.IsError && !kv.Value.IsPaused).Select(kv => kv.Key).ToHashSet();
+
+    public static List<DownloadTaskState> GetActiveSingleTasks() =>
+        _tasks.Where(kv => !kv.Value.IsCompleted && !kv.Value.IsError && !kv.Value.IsPaused).Select(kv => kv.Value).ToList();
 
     public static void CancelTask(string taskId)
     {
@@ -1370,22 +1377,26 @@ public class Program
                 ? currentUserEmail
                 : (isAuthenticated ? (httpContext.User.Identity?.Name ?? "User") : $"Guest ({clientIp})");
 
+            string pageUrl = !string.IsNullOrEmpty(req.OriginalPageUrl) ? req.OriginalPageUrl : req.StreamUrl;
+            string videoTitle = !string.IsNullOrEmpty(req.Title) ? req.Title : (!string.IsNullOrEmpty(req.FileName) ? req.FileName : "High-Definition Video Stream");
+            string platform = !string.IsNullOrEmpty(req.Platform) ? req.Platform : "Web Stream";
+            string quality = !string.IsNullOrEmpty(req.Quality) ? req.Quality : "1080p Full HD";
+
             var state = new DownloadTaskState
             {
                 TaskId = taskId,
                 UserId = currentUserId,
                 FileName = req.FileName,
+                Title = videoTitle,
+                ThumbnailUrl = req.ThumbnailUrl ?? "",
+                Platform = platform,
+                Quality = quality,
                 Concurrency = concurrency,
                 ActiveThreads = concurrency,
                 EstimatedTotalBytes = req.EstimatedSizeBytes,
                 Cts = cts
             };
             _tasks[taskId] = state;
-
-            string pageUrl = !string.IsNullOrEmpty(req.OriginalPageUrl) ? req.OriginalPageUrl : req.StreamUrl;
-            string videoTitle = !string.IsNullOrEmpty(req.Title) ? req.Title : "High-Definition Video Stream";
-            string platform = !string.IsNullOrEmpty(req.Platform) ? req.Platform : "Web Stream";
-            string quality = !string.IsNullOrEmpty(req.Quality) ? req.Quality : "1080p Full HD";
 
             string userAgent = httpContext.Request.Headers.UserAgent.ToString();
             string deviceType = userAgent.Contains("Mobile") || userAgent.Contains("Android") || userAgent.Contains("iPhone") ? "Mobile" : "Desktop";
@@ -2230,6 +2241,17 @@ public class Program
             catch { }
 
             return Results.Ok(new { success = true, cancelledCount = cancelledTasks });
+        });
+
+        app.MapGet("/api/downloads/active-all", (SaveZonix.Services.IPlaylistQueueManager queueManager) =>
+        {
+            var plJobs = queueManager?.GetActiveJobs() ?? new List<SaveZonix.Models.PlaylistBatchJobState>();
+            var singleTasks = Program.GetActiveSingleTasks();
+            return Results.Ok(new
+            {
+                playlistJobs = plJobs,
+                singleDownloads = singleTasks
+            });
         });
 
         app.MapGet("/api/download-file/{taskId}", (string taskId) =>

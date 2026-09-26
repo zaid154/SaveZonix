@@ -52,6 +52,37 @@ function getClientMeta(req) {
   };
 }
 
+// Helper: Dynamically determine user's frontend domain (preserves Vercel domain vs local dev)
+function getFrontendUrl(req) {
+  const origin = req.headers['origin'];
+  if (origin && typeof origin === 'string' && origin.startsWith('http')) {
+    const clean = origin.replace(/\/+$/, '');
+    if (!clean.includes('localhost')) {
+      return clean;
+    }
+  }
+
+  const referer = req.headers['referer'];
+  if (referer && typeof referer === 'string' && referer.startsWith('http')) {
+    try {
+      const u = new URL(referer);
+      if (!u.host.includes('localhost')) {
+        return `${u.protocol}//${u.host}`;
+      }
+    } catch { }
+  }
+
+  if (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('localhost')) {
+    return process.env.FRONTEND_URL.replace(/\/+$/, '');
+  }
+
+  if (origin && origin.includes('localhost')) {
+    return origin.replace(/\/+$/, '');
+  }
+
+  return 'https://save-zonix.vercel.app';
+}
+
 // ─────────────────────────────────────────────────────────────
 // Step 1: Send Registration OTP & 1-Click Magic Link
 // ─────────────────────────────────────────────────────────────
@@ -114,7 +145,7 @@ router.post('/send-register-otp', otpRateLimiter, checkDisposableEmail, async (r
     );
 
     // Build 1-Click Magic Link
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = getFrontendUrl(req);
     const magicLink = `${frontendUrl}/?verify_email=${encodeURIComponent(normalizedEmail)}&verify_token=${magicToken}`;
 
     // Dispatch via Dual-Channel Engine (Gmail SMTP -> Brevo API failover)
@@ -341,7 +372,7 @@ router.post('/send-reset-otp', otpRateLimiter, async (req, res) => {
       { upsert: true, new: true }
     );
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = getFrontendUrl(req);
     const magicLink = `${frontendUrl}/?reset_email=${encodeURIComponent(normalizedEmail)}&reset_token=${magicToken}`;
 
     await sendOtpEmail(normalizedEmail, otp, 'reset', magicLink);

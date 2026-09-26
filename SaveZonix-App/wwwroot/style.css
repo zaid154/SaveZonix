@@ -5364,5 +5364,46 @@ textarea.form-control-input {
     }
     .account-card {
         padding: 18px 16px;
-    }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Downloads Table Horizontal Responsiveness & Action Column
+   ───────────────────────────────────────────────────────────── */
+.table-scroll-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+.table-scroll-container::-webkit-scrollbar {
+    height: 7px;
+}
+
+.table-scroll-container::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 4px;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(56, 189, 248, 0.3);
+    border-radius: 4px;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(56, 189, 248, 0.6);
+}
+
+.table-glass-card .modern-table {
+    min-width: 860px;
+    width: 100%;
+}
+
+.table-glass-card .title-cell-wrap {
+    max-width: 280px;
+}
+
+.table-glass-card .actions-td {
+    min-width: 110px;
+    text-align: right;
+    white-space: nowrap;
 }

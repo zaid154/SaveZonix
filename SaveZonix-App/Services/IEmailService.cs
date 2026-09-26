@@ -251,9 +251,15 @@ public class EmailService : IEmailService
             try
             {
                 var host = _config["Smtp:Host"] ?? "smtp.gmail.com";
-                var port = int.Parse(_config["Smtp:Port"] ?? "587");
-                var user = _config["Smtp:User"] ?? "trendykart.app@gmail.com";
-                var pass = _config["Smtp:Password"] ?? "ziqyiszqfggqgrjm";
+                var port = int.TryParse(_config["Smtp:Port"], out var p) ? p : 587;
+                var user = _config["Smtp:User"];
+                var pass = _config["Smtp:Password"];
+
+                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
+                {
+                    _logger.LogInformation("Desktop app: Local SMTP credentials omitted. All authentication & email dispatches are securely processed by SaveZonix Cloud Web Engine.");
+                    return;
+                }
 
                 using var client = new SmtpClient(host, port)
                 {

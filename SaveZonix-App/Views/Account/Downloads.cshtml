@@ -190,19 +190,20 @@
         }
         else
         {
-            <div class="table-responsive glass-card table-glass-card">
-                <table class="data-table modern-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 70px;">MEDIA</th>
-                            <th style="min-width: 260px;">TITLE &amp; SOURCE</th>
-                            <th style="width: 160px; white-space: nowrap;">QUALITY &amp; CODEC</th>
-                            <th style="width: 110px; white-space: nowrap;">SIZE / SPEED</th>
-                            <th style="width: 130px; white-space: nowrap;">STATUS</th>
-                            <th style="width: 130px; white-space: nowrap;">DATE</th>
-                            <th style="width: 160px; text-align: right; white-space: nowrap;">ACTION</th>
-                        </tr>
-                    </thead>
+            <div class="glass-card table-glass-card">
+                <div class="table-responsive table-scroll-container">
+                    <table class="data-table modern-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 54px;">MEDIA</th>
+                                <th style="min-width: 170px; max-width: 270px;">TITLE &amp; SOURCE</th>
+                                <th style="width: 130px; white-space: nowrap;">QUALITY &amp; CODEC</th>
+                                <th style="width: 105px; white-space: nowrap;">SIZE / SPEED</th>
+                                <th style="width: 115px; white-space: nowrap;">STATUS</th>
+                                <th style="width: 105px; white-space: nowrap;">DATE</th>
+                                <th style="width: 110px; text-align: right; white-space: nowrap;">ACTION</th>
+                            </tr>
+                        </thead>
                     <tbody>
                         @foreach (var entry in Model.GroupedEntries)
                         {
@@ -332,14 +333,17 @@
                                         </div>
                                     </td>
                                     <td class="actions-td" style="text-align: right; white-space: nowrap;">
-                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap;">
+                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 6px; white-space: nowrap;">
                                             @if (hasFailures)
                                             {
                                                 <button type="button" class="btn-pl-retry-all-main" onclick="retryPlaylistGroup(this, '@(entry.JobId ?? entry.GroupKey)', '@entry.GroupKey')" title="Retry all @entry.FailedCount failed video(s)">
                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                                                    <span>Retry @entry.FailedCount Failed</span>
+                                                    <span>Retry @entry.FailedCount</span>
                                                 </button>
                                             }
+                                            <button type="button" class="action-btn action-source" onclick="openDownloadsFolder()" title="Open Downloads folder">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                            </button>
                                             <button type="button" class="action-btn btn-toggle-pl-sub" onclick="togglePlaylistHistoryAccordion('@entry.GroupKey')" title="Expand / Collapse playlist videos">
                                                 <span id="plToggleIcon_@entry.GroupKey">▼</span>
                                             </button>
@@ -628,6 +632,7 @@
                         }
                     </tbody>
                 </table>
+                </div>
             </div>
 
             <!-- Figma Auto-Layout Inspired Modern Pagination -->
@@ -1129,6 +1134,10 @@
                     statusEl.innerHTML = '<span class="status-badge-modern status-err"><span class="status-indicator-dot dot-red"></span> Failed</span>';
                 }
             }
+        async function openDownloadsFolder() {
+            try {
+                await fetch('/api/open-folder', { method: 'POST' });
+            } catch { }
         }
     </script>
 }

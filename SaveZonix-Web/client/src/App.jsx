@@ -13,7 +13,13 @@ import UpgradeVipModal from './components/UpgradeVipModal';
 import FeedbackPage from './components/FeedbackPage';
 
 export default function App() {
-  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return !!(params.get('verify_email') || params.get('reset_email'));
+    }
+    return false;
+  });
   const [isVipOpen, setIsVipOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [user, setUser] = useState(null);

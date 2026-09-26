@@ -7,19 +7,23 @@ echo ========================================================
 echo    SaveZonix - Building Production Setup Installer
 echo ========================================================
 echo Current Directory: %CD%
-echo [0/2] Synchronizing Master Brand Assets...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0branding\sync-branding.ps1"
-if %ERRORLEVEL% neq 0 (
-    color 0C
-    echo.
-    echo [ERROR] Brand sync failed!
-    pause
-    exit /b %ERRORLEVEL%
+if exist "%~dp0SaveZonix-App\wwwroot\app.ico" (
+    echo [0/2] Master Brand Assets already in sync. Skipping regeneration...
+) else (
+    echo [0/2] Synchronizing Master Brand Assets...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0branding\sync-branding.ps1"
+    if %ERRORLEVEL% neq 0 (
+        color 0C
+        echo.
+        echo [ERROR] Brand sync failed!
+        pause
+        exit /b %ERRORLEVEL%
+    )
 )
 echo.
 
-echo [1/2] Publishing C# App (win-x64)...
-dotnet publish "%~dp0SaveZonix-App\Zonix.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o "%~dp0SaveZonix-App\bin\Release\net10.0\win-x64\publish"
+echo [1/2] Publishing C# App (win-x64, optimized)...
+dotnet publish "%~dp0SaveZonix-App\Zonix.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "%~dp0SaveZonix-App\bin\Release\net10.0\win-x64\publish"
 if %ERRORLEVEL% neq 0 (
     color 0C
     echo.
@@ -72,4 +76,4 @@ echo   SUCCESS! Setup EXE is ready in:
 echo   SaveZonix-App\installer\SaveZonix-Setup-v2.5.2.exe
 echo ========================================================
 echo.
-pause
+if not "%1"=="--no-pause" pause

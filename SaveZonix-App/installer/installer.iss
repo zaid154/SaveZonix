@@ -22,8 +22,10 @@ OutputDir=..\installer
 OutputBaseFilename=SaveZonix-Setup-v2.5.2
 SetupIconFile=..\wwwroot\app.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
-Compression=lzma2
+Compression=lzma2/fast
 SolidCompression=yes
+LZMANumBlockThreads=8
+LZMAUseSeparateProcess=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 CloseApplications=yes
@@ -65,7 +67,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-Source: "..\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb"
 Source: "..\Extension\*"; DestDir: "{app}\Extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]

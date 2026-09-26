@@ -78,23 +78,49 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             localStorage.setItem('savezonix_token', data.token);
             localStorage.setItem('savezonix_user', JSON.stringify(data.user));
             onAuthSuccess(data.user);
-            setMessage('Account verified successfully via 1-Click Magic Link.');
-            // Clean URL
-            window.history.replaceState({}, document.title, window.location.pathname);
+            setMessage('Account verified successfully via 1-Click Magic Link!');
+            setTimeout(() => {
+              if (onClose) onClose();
+            }, 2000);
           } else {
-            setError(data.error || 'Magic link verification failed.');
+            setError(data.error || 'Magic link verification failed or expired.');
           }
         })
         .catch(() => setError('Connection failed during verification.'))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          setLoading(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
     } else if (resetEmail && resetToken) {
       // 1-Click Password Reset
       setEmail(resetEmail);
       setMagicResetToken(resetToken);
       setView('forgot');
-      setMessage('1-Click reset link verified! Please enter your new password.');
-      // Clean URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+      setLoading(true);
+
+      // Verify token validity with server
+      fetch('/api/auth/magic-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail, token: resetToken })
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.type === 'reset') {
+            setMessage('1-Click reset link verified! Please enter your new password below.');
+            setError('');
+          } else {
+            setError(data.error || 'Password reset link is invalid or expired. Please request a new code.');
+            setMagicResetToken(null);
+          }
+        })
+        .catch(() => {
+          setMessage('Enter your new password below.');
+        })
+        .finally(() => {
+          setLoading(false);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
     }
   }, []);
 
