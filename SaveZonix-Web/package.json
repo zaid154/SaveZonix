@@ -13,6 +13,7 @@
     "server:dev": "npm run dev --workspace=server",
     "client": "npm run dev --workspace=client",
     "client:build": "npm run build --workspace=client",
+    "build": "npm run build --workspace=client",
     "start": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run server\" \"npm run client\"",
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run server:dev\" \"npm run client\""
   },

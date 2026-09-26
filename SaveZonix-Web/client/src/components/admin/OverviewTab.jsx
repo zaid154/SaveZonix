@@ -1,7 +1,7 @@
 import React from 'react';
-import { IconCrown } from './AdminIcons';
+import { IconCrown, IconMessageSquare } from './AdminIcons';
 
-export default function OverviewTab({ stats, downloads, onNavigateToDownloads }) {
+export default function OverviewTab({ stats, downloads, feedbacks = [], onNavigateToDownloads, onNavigateToFeedback }) {
   if (!stats) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -88,6 +88,27 @@ export default function OverviewTab({ stats, downloads, onNavigateToDownloads })
           </div>
           <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
             Avg Speed: <span style={{ color: '#34d399', fontWeight: 600 }}>{stats.averageSpeedMBps || 14.5} MB/s</span>
+          </div>
+        </div>
+
+        <div
+          onClick={onNavigateToFeedback}
+          style={{ padding: '20px', background: '#0d131f', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', cursor: onNavigateToFeedback ? 'pointer' : 'default', transition: 'all 0.15s ease' }}
+        >
+          <div style={{ color: '#f87171', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <IconMessageSquare size={13} color="#f87171" />
+              Feedbacks &amp; Uninstalls
+            </span>
+            {onNavigateToFeedback && <span style={{ fontSize: '11px', color: '#38bdf8' }}>View All &rarr;</span>}
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: '#fca5a5', marginTop: '6px' }}>
+            {Array.isArray(feedbacks) ? feedbacks.length : 0}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            <span style={{ color: '#f87171', fontWeight: 600 }}>
+              {Array.isArray(feedbacks) ? feedbacks.filter(f => f && f.source === 'desktop').length : 0}
+            </span> desktop uninstalls
           </div>
         </div>
       </div>

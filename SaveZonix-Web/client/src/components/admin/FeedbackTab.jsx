@@ -13,9 +13,14 @@ export default function FeedbackTab({
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 12;
 
+  // Guard against non-array inputs
+  const safeFeedbacks = Array.isArray(feedbacks) ? feedbacks : [];
+
   // Filtered feedbacks
   const filteredFeedbacks = useMemo(() => {
-    return (feedbacks || []).filter((item) => {
+    return safeFeedbacks.filter((item) => {
+      if (!item) return false;
+
       // Source filter
       if (sourceFilter !== 'all') {
         if (sourceFilter === 'desktop' && item.source !== 'desktop') return false;
@@ -44,7 +49,7 @@ export default function FeedbackTab({
 
       return true;
     });
-  }, [feedbacks, sourceFilter, ratingFilter, search]);
+  }, [safeFeedbacks, sourceFilter, ratingFilter, search]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredFeedbacks.length / pageSize));
@@ -54,12 +59,12 @@ export default function FeedbackTab({
   }, [filteredFeedbacks, currentPage, pageSize]);
 
   // High-level Metrics
-  const totalCount = feedbacks.length;
-  const desktopUninstallCount = feedbacks.filter(f => f.source === 'desktop').length;
-  const extensionCount = feedbacks.filter(f => f.source === 'extension').length;
-  const ratedFeedbacks = feedbacks.filter(f => f.rating > 0);
+  const totalCount = safeFeedbacks.length;
+  const desktopUninstallCount = safeFeedbacks.filter(f => f && f.source === 'desktop').length;
+  const extensionCount = safeFeedbacks.filter(f => f && f.source === 'extension').length;
+  const ratedFeedbacks = safeFeedbacks.filter(f => f && typeof f.rating === 'number' && f.rating > 0);
   const avgRating = ratedFeedbacks.length > 0
-    ? (ratedFeedbacks.reduce((sum, f) => sum + f.rating, 0) / ratedFeedbacks.length).toFixed(1)
+    ? (ratedFeedbacks.reduce((sum, f) => sum + (f.rating || 0), 0) / ratedFeedbacks.length).toFixed(1)
     : '0.0';
 
   function renderStars(rating) {

@@ -106,7 +106,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   const [feedbacks, setFeedbacks] = useState(() => {
     try {
       const cached = sessionStorage.getItem('sz_cache_feedbacks');
-      return cached ? JSON.parse(cached) : [];
+      const parsed = cached ? JSON.parse(cached) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch { return []; }
   });
 
@@ -690,7 +691,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           { id: 'financials', label: 'Financials & VIP', icon: IconCreditCard },
           { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
           { id: 'downloads', label: `Downloads (${downloads.length || stats?.totalDownloads || 0})`, icon: IconDownload },
-          { id: 'feedback', label: `Feedbacks (${feedbacks.length})`, icon: IconMessageSquare },
+          { id: 'feedback', label: `Feedbacks (${Array.isArray(feedbacks) ? feedbacks.length : 0})`, icon: IconMessageSquare },
           { id: 'ai-cdn-advisor', label: 'AI CDN Advisor', icon: IconCpu },
           { id: 'diagnostics', label: 'Diagnostics', icon: IconAlertCircle },
           { id: 'security', label: 'Security & Anti-Spam', icon: IconLock },
@@ -783,7 +784,9 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           <OverviewTab
             stats={stats}
             downloads={downloads}
+            feedbacks={feedbacks}
             onNavigateToDownloads={() => handleTabClick('downloads')}
+            onNavigateToFeedback={() => handleTabClick('feedback')}
           />
         </AdminErrorBoundary>
       )}
