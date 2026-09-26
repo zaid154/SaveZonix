@@ -4,8 +4,12 @@ const {
   startDownload,
   cancelDownload,
   cancelAllDownloads,
-  getActiveDownloads
+  getActiveDownloads,
+  recordDownloadTelemetry
 } = require('../controllers/downloadController');
+
+// Record / Telemetry for Web & Extension downloads
+router.post('/record', recordDownloadTelemetry);
 
 // Start download with format flag routing
 router.post('/start', startDownload);

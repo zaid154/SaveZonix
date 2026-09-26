@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let completedDownloadId = null;
     let videoDurationSeconds = 0;
     let totalSegmentsTracked = 0;
+    let currentTaskId = 'ext_' + Date.now();
 
     if (elSelThreads) {
         elSelThreads.value = String(initialThreads);
@@ -521,6 +522,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        // Live Telemetry: Track Extension Download Started
+        try {
+            fetch('https://save-zonix.vercel.app/api/downloads/record', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-client-source': 'extension' },
+                body: JSON.stringify({
+                    taskId: currentTaskId,
+                    title: videoShow || videoTitle,
+                    fileName: (videoShow || videoTitle || 'video').replace(/[\\/:*?"<>|\r\n]+/g, '_') + '.mp4',
+                    originalUrl: initialStreamUrl || candidates[0] || '',
+                    platform: platform || 'Extension Stream',
+                    quality: qualityLabel || '1080p',
+                    format: 'mp4',
+                    status: 'Downloading',
+                    downloadSource: 'extension',
+                    source: 'extension',
+                    downloadStrategy: 'Extension Multi-Thread'
+                })
+            }).catch(() => {});
+        } catch {}
+
         if (platform === 'YouTube' || (candidates[0] && candidates[0].includes('googlevideo.com'))) {
             let cleanUrl = 'https://www.youtube.com';
             const urlParams = new URLSearchParams(window.location.search);
@@ -768,6 +790,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                     downloadId: dlId || null
                 });
             }
+
+            // Sync completion telemetry to SaveZonix Cloud API (Extension Source)
+            try {
+                fetch('https://save-zonix.vercel.app/api/downloads/record', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-client-source': 'extension' },
+                    body: JSON.stringify({
+                        taskId: currentTaskId,
+                        title: videoShow || videoTitle || finalFileName,
+                        fileName: finalFileName,
+                        originalUrl: initialStreamUrl || '',
+                        platform: platform || 'Extension Stream',
+                        quality: qualityLabel || '1080p',
+                        format: 'mp4',
+                        fileSize: assembled.sizeBytes || 0,
+                        status: 'Completed',
+                        downloadSource: 'extension',
+                        source: 'extension',
+                        downloadStrategy: 'Extension Chunk Worker'
+                    })
+                }).catch(() => {});
+            } catch {}
         });
     }
 

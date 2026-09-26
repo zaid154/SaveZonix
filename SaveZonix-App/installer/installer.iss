@@ -28,7 +28,6 @@ LZMANumBlockThreads=8
 LZMAUseSeparateProcess=yes
 WizardStyle=modern
 DisableReadyPage=yes
-WizardSmallImageFile=wizard-small.bmp
 PrivilegesRequired=lowest
 CloseApplications=yes
 CloseApplicationsFilter=Zonix.exe

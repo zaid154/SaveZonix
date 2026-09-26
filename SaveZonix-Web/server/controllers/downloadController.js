@@ -107,11 +107,14 @@ async function startDownload(req, res) {
     startedAt: new Date()
   };
 
+  const rawSource = req.body.downloadSource || req.body.source || req.headers['x-client-source'] || 'web';
+  const downloadSource = String(rawSource).toLowerCase().includes('ext') ? 'extension' : 'web';
+
   // Register in active processes map
   activeProcesses.set(downloadId, {
     process: ytProcess,
     abortController,
-    metadata: taskMetadata
+    metadata: { ...taskMetadata, downloadSource }
   });
 
   // Create initial record in database if MongoDB model is active
@@ -126,7 +129,9 @@ async function startDownload(req, res) {
         quality: taskMetadata.resolution,
         format: taskMetadata.format,
         status: 'Downloading',
-        downloadType: req.user ? 'user' : 'guest'
+        downloadType: req.user ? 'user' : 'guest',
+        downloadSource: downloadSource,
+        source: downloadSource
       },
       { upsert: true, new: true }
     );
@@ -273,10 +278,79 @@ function getActiveDownloads(req, res) {
   return res.json({ success: true, count: list.length, downloads: list });
 }
 
+/**
+ * POST /api/downloads/record
+ * Universal endpoint for recording downloads from Web Portal or Chrome Extension
+ */
+async function recordDownloadTelemetry(req, res) {
+  try {
+    const {
+      taskId = crypto.randomUUID(),
+      title,
+      fileName,
+      originalUrl,
+      platform = 'Web Stream',
+      quality = '1080p',
+      format = 'mp4',
+      fileSize = 0,
+      downloadSpeedMBps = 0,
+      peakSpeedMBps = 0,
+      status = 'Completed',
+      downloadSource,
+      source,
+      userEmail,
+      userId,
+      downloadStrategy
+    } = req.body || {};
+
+    const rawSource = downloadSource || source || req.headers['x-client-source'] || 'web';
+    const cleanSource = String(rawSource).toLowerCase().includes('ext') ? 'extension' : (String(rawSource).toLowerCase().includes('desk') ? 'desktop' : 'web');
+
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+    const email = userEmail && userEmail.trim() ? userEmail.trim() : `Guest (${clientIp})`;
+
+    const record = await DownloadHistory.findOneAndUpdate(
+      { taskId },
+      {
+        $set: {
+          taskId,
+          title: (title || fileName || 'Media Item').trim(),
+          fileName: (fileName || title || 'download.mp4').trim(),
+          originalUrl: originalUrl || '',
+          platform: platform || 'Web Stream',
+          quality: quality || '1080p',
+          format: (format || 'mp4').toLowerCase().replace(/^\./, ''),
+          fileSize: Math.max(0, Number(fileSize) || 0),
+          downloadSpeedMBps: Math.max(0, Number(downloadSpeedMBps) || 0),
+          peakSpeedMBps: Math.max(0, Number(peakSpeedMBps) || 0),
+          status: status || 'Completed',
+          downloadSource: cleanSource,
+          source: cleanSource,
+          userEmail: email,
+          userId: userId || null,
+          downloadStrategy: downloadStrategy || (cleanSource === 'extension' ? 'Extension Chunk Worker' : 'Direct Web Download'),
+          ipAddress: clientIp,
+          updatedAt: new Date()
+        },
+        $setOnInsert: {
+          createdAt: new Date()
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    return res.json({ success: true, record });
+  } catch (err) {
+    console.error('[Download Telemetry Error]:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 module.exports = {
   startDownload,
   cancelDownload,
   cancelAllDownloads,
   getActiveDownloads,
+  recordDownloadTelemetry,
   activeProcesses
 };

@@ -291,7 +291,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
         );
       }
 
-      // 7. Feedback tab (and pre-fetch on overview): needs fresh feedback list
+      // 7. Feedback tab (and pre-fetch on overview): needs fresh feedback list AND stats & downloads
       if (tab === 'feedback' || tab === 'overview') {
         calls.push(
           fetch('/api/feedback', { headers })
@@ -300,6 +300,28 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
               if (d && Array.isArray(d.feedbacks)) {
                 setFeedbacks(d.feedbacks);
                 try { sessionStorage.setItem('sz_cache_feedbacks', JSON.stringify(d.feedbacks)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+        calls.push(
+          fetch('/api/admin/stats', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d) {
+                setStats(d);
+                try { sessionStorage.setItem('sz_cache_stats', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+        calls.push(
+          fetch('/api/admin/downloads', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (Array.isArray(d)) {
+                setDownloads(d);
+                try { sessionStorage.setItem('sz_cache_downloads', JSON.stringify(d)); } catch {}
               }
             })
             .catch(() => null)
@@ -835,6 +857,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
         <AdminErrorBoundary moduleName="User & Uninstall Feedbacks">
           <FeedbackTab
             feedbacks={feedbacks}
+            stats={stats}
+            downloads={downloads}
             onDeleteFeedback={handleDeleteFeedback}
             onRefresh={() => loadTabData('feedback', true)}
             loading={loading}

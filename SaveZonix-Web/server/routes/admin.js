@@ -230,6 +230,9 @@ router.get('/stats', adminAuth, async (req, res) => {
         vipUsers: 1,
         freeUsers: 2,
         totalDownloads: 18,
+        runningDownloads: 2,
+        webDownloads: 12,
+        extensionDownloads: 6,
         completedDownloads: 16,
         failedDownloads: 2,
         todayDownloads: 4,
@@ -266,7 +269,9 @@ router.get('/stats', adminAuth, async (req, res) => {
       newUsersToday,
       bandwidthAgg,
       platformAgg,
-      rawConfig
+      rawConfig,
+      runningDownloadsCount,
+      extensionDownloadsCount
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isActive: { $ne: false } }),
@@ -285,7 +290,15 @@ router.get('/stats', adminAuth, async (req, res) => {
         { $sort: { count: -1 } },
         { $limit: 6 }
       ]),
-      AppConfig.findOne().lean()
+      AppConfig.findOne().lean(),
+      DownloadHistory.countDocuments({ status: { $in: ['Downloading', 'Resolving', 'Retrying', 'Pending'] } }),
+      DownloadHistory.countDocuments({
+        $or: [
+          { downloadSource: 'extension' },
+          { source: 'extension' },
+          { downloadStrategy: { $regex: /extension|browser/i } }
+        ]
+      })
     ]);
 
     const config = rawConfig || {};
@@ -293,6 +306,10 @@ router.get('/stats', adminAuth, async (req, res) => {
     const avgSpeed = (bandwidthAgg[0]?.avgSpeed || 14.5).toFixed(1);
     const bandwidthMB = (totalBytes / (1024 * 1024)).toFixed(2);
     const bandwidthGB = (totalBytes / (1024 * 1024 * 1024)).toFixed(2);
+
+    const runningDownloads = runningDownloadsCount;
+    const extensionDownloads = extensionDownloadsCount;
+    const webDownloads = Math.max(0, totalDownloads - extensionDownloads);
 
     const platforms = {};
     if (platformAgg && platformAgg.length > 0) {
@@ -312,6 +329,9 @@ router.get('/stats', adminAuth, async (req, res) => {
       vipUsers,
       freeUsers: Math.max(0, totalUsers - vipUsers),
       totalDownloads,
+      runningDownloads,
+      webDownloads,
+      extensionDownloads,
       completedDownloads,
       failedDownloads,
       todayDownloads,
@@ -581,6 +601,8 @@ router.post('/record-download', async (req, res) => {
       format: (format || 'mp4').toLowerCase().replace(/^\./, ''),
       status: status || 'Completed',
       downloadType,
+      downloadSource: (String(req.body.downloadSource || req.body.source || (platform?.toLowerCase().includes('pixelflix') ? 'extension' : 'web')).toLowerCase().includes('ext') ? 'extension' : 'web'),
+      source: (String(req.body.downloadSource || req.body.source || (platform?.toLowerCase().includes('pixelflix') ? 'extension' : 'web')).toLowerCase().includes('ext') ? 'extension' : 'web'),
       userEmail: email,
       ipAddress: clientIp,
       createdAt: new Date()

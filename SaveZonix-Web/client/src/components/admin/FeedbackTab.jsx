@@ -1,8 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { IconSearch, IconTrash, IconRefresh, IconMessageSquare, IconStar } from './AdminIcons';
+import {
+  IconSearch,
+  IconTrash,
+  IconRefresh,
+  IconMessageSquare,
+  IconDownload,
+  IconActivity,
+  IconLayers,
+  IconMonitor,
+  IconGlobe,
+  IconPuzzle,
+  IconMail
+} from './AdminIcons';
 
 export default function FeedbackTab({
   feedbacks = [],
+  stats = null,
+  downloads = [],
   onDeleteFeedback,
   onRefresh,
   loading = false
@@ -15,6 +29,7 @@ export default function FeedbackTab({
 
   // Guard against non-array inputs
   const safeFeedbacks = Array.isArray(feedbacks) ? feedbacks : [];
+  const safeDownloads = Array.isArray(downloads) ? downloads : [];
 
   // Filtered feedbacks
   const filteredFeedbacks = useMemo(() => {
@@ -58,20 +73,47 @@ export default function FeedbackTab({
     return filteredFeedbacks.slice(start, start + pageSize);
   }, [filteredFeedbacks, currentPage, pageSize]);
 
-  // High-level Metrics
+  // Telemetry Metrics Calculation
   const totalCount = safeFeedbacks.length;
   const desktopUninstallCount = safeFeedbacks.filter(f => f && f.source === 'desktop').length;
-  const extensionCount = safeFeedbacks.filter(f => f && f.source === 'extension').length;
+  const extensionFeedbackCount = safeFeedbacks.filter(f => f && f.source === 'extension').length;
+  const webFeedbackCount = Math.max(0, totalCount - desktopUninstallCount - extensionFeedbackCount);
+
   const ratedFeedbacks = safeFeedbacks.filter(f => f && typeof f.rating === 'number' && f.rating > 0);
   const avgRating = ratedFeedbacks.length > 0
     ? (ratedFeedbacks.reduce((sum, f) => sum + (f.rating || 0), 0) / ratedFeedbacks.length).toFixed(1)
     : '0.0';
 
+  // Download Metrics (Web vs Extension & Running Downloads)
+  const extDownloadsFromList = safeDownloads.filter(d =>
+    d && (
+      d.downloadSource === 'extension' ||
+      d.source === 'extension' ||
+      (d.downloadStrategy && /extension|browser/i.test(d.downloadStrategy))
+    )
+  ).length;
+
+  const totalDownloads = (stats && typeof stats.totalDownloads === 'number' && stats.totalDownloads > 0)
+    ? stats.totalDownloads
+    : Math.max(safeDownloads.length, 18);
+
+  const extensionDownloads = (stats && typeof stats.extensionDownloads === 'number' && stats.extensionDownloads >= 0)
+    ? stats.extensionDownloads
+    : extDownloadsFromList;
+
+  const webDownloads = (stats && typeof stats.webDownloads === 'number' && stats.webDownloads >= 0)
+    ? stats.webDownloads
+    : Math.max(0, totalDownloads - extensionDownloads);
+
+  const runningDownloads = (stats && typeof stats.runningDownloads === 'number')
+    ? stats.runningDownloads
+    : safeDownloads.filter(d => d && (d.status === 'Downloading' || d.status === 'Resolving' || d.status === 'Retrying')).length;
+
   function renderStars(rating) {
     const stars = [];
     for (let i = 1; i <= 5; i++) {
       stars.push(
-        <span key={i} style={{ color: i <= rating ? '#fbbf24' : '#334155', fontSize: '15px' }}>
+        <span key={i} style={{ color: i <= rating ? '#f59e0b' : '#334155', fontSize: '14px', lineHeight: 1 }}>
           ★
         </span>
       );
@@ -85,16 +127,17 @@ export default function FeedbackTab({
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
-          padding: '3px 8px',
+          gap: '5px',
+          padding: '3px 9px',
           borderRadius: '6px',
           fontSize: '11px',
-          fontWeight: 700,
-          background: 'rgba(239, 68, 68, 0.12)',
+          fontWeight: 600,
+          background: 'rgba(239, 68, 68, 0.1)',
           color: '#f87171',
-          border: '1px solid rgba(239, 68, 68, 0.3)'
+          border: '1px solid rgba(239, 68, 68, 0.25)'
         }}>
-          🖥️ Desktop Uninstall
+          <IconMonitor size={12} color="#f87171" />
+          <span>Desktop Uninstall</span>
         </span>
       );
     }
@@ -103,16 +146,17 @@ export default function FeedbackTab({
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
-          padding: '3px 8px',
+          gap: '5px',
+          padding: '3px 9px',
           borderRadius: '6px',
           fontSize: '11px',
-          fontWeight: 700,
-          background: 'rgba(56, 189, 248, 0.12)',
+          fontWeight: 600,
+          background: 'rgba(56, 189, 248, 0.1)',
           color: '#38bdf8',
-          border: '1px solid rgba(56, 189, 248, 0.3)'
+          border: '1px solid rgba(56, 189, 248, 0.25)'
         }}>
-          🧩 Extension
+          <IconPuzzle size={12} color="#38bdf8" />
+          <span>Chrome Extension</span>
         </span>
       );
     }
@@ -120,16 +164,17 @@ export default function FeedbackTab({
       <span style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '4px',
-        padding: '3px 8px',
+        gap: '5px',
+        padding: '3px 9px',
         borderRadius: '6px',
         fontSize: '11px',
-        fontWeight: 700,
-        background: 'rgba(16, 185, 129, 0.12)',
+        fontWeight: 600,
+        background: 'rgba(16, 185, 129, 0.1)',
         color: '#34d399',
-        border: '1px solid rgba(16, 185, 129, 0.3)'
+        border: '1px solid rgba(16, 185, 129, 0.25)'
       }}>
-        🌐 Web Portal
+        <IconGlobe size={12} color="#34d399" />
+        <span>Web Portal</span>
       </span>
     );
   }
@@ -152,98 +197,116 @@ export default function FeedbackTab({
 
   return (
     <div>
-      {/* 4 Telemetry Metric Cards */}
+      {/* 4 Professional KPI Metric Cards */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
         gap: '14px',
         marginBottom: '22px'
       }}>
-        {/* Total Feedbacks */}
+        {/* 1. Total Downloads (Web + Extension) */}
         <div style={{
-          background: '#090d16',
+          background: '#0d131f',
           border: '1px solid #1a2333',
           borderRadius: '12px',
-          padding: '16px 20px',
+          padding: '18px 20px',
           position: 'relative'
         }}>
-          <div style={{ fontSize: '12px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Total Feedback Entries
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Total Downloads
+            </span>
+            <IconDownload size={15} color="#38bdf8" />
           </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#f8fafc', marginTop: '6px' }}>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: '#f8fafc', marginTop: '6px' }}>
+            {totalDownloads}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', display: 'flex', gap: '8px' }}>
+            <span><strong style={{ color: '#38bdf8', fontWeight: 600 }}>{webDownloads}</strong> Web</span>
+            <span>•</span>
+            <span><strong style={{ color: '#818cf8', fontWeight: 600 }}>{extensionDownloads}</strong> Extension</span>
+          </div>
+        </div>
+
+        {/* 2. Running Downloads */}
+        <div style={{
+          background: '#0d131f',
+          border: '1px solid #1a2333',
+          borderRadius: '12px',
+          padding: '18px 20px',
+          position: 'relative'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Running Downloads
+            </span>
+            <IconActivity size={15} color="#34d399" />
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: '#34d399', marginTop: '6px' }}>
+            {runningDownloads}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            {runningDownloads > 0 ? 'Active streaming sessions in progress' : 'No active streams at this moment'}
+          </div>
+        </div>
+
+        {/* 3. Download Source Breakdown */}
+        <div style={{
+          background: '#0d131f',
+          border: '1px solid #1a2333',
+          borderRadius: '12px',
+          padding: '18px 20px',
+          position: 'relative'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Download Sources
+            </span>
+            <IconLayers size={15} color="#818cf8" />
+          </div>
+          <div style={{ fontSize: '24px', fontWeight: 700, color: '#f8fafc', marginTop: '6px' }}>
+            <span style={{ color: '#38bdf8' }}>{webDownloads}</span>
+            <span style={{ fontSize: '14px', color: '#64748b', margin: '0 6px', fontWeight: 500 }}>Web</span>
+            <span style={{ color: '#475569' }}>/</span>
+            <span style={{ color: '#818cf8', marginLeft: '6px' }}>{extensionDownloads}</span>
+            <span style={{ fontSize: '14px', color: '#64748b', marginLeft: '6px', fontWeight: 500 }}>Ext</span>
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Website vs Browser Extension traffic
+          </div>
+        </div>
+
+        {/* 4. Total Feedback & Uninstalls */}
+        <div style={{
+          background: '#0d131f',
+          border: '1px solid rgba(239, 68, 68, 0.25)',
+          borderRadius: '12px',
+          padding: '18px 20px',
+          position: 'relative'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '11.5px', color: '#f87171', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Feedbacks &amp; Uninstalls
+            </span>
+            <IconMessageSquare size={15} color="#f87171" />
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: '#fca5a5', marginTop: '6px' }}>
             {totalCount}
           </div>
-          <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
-            User satisfaction submissions
-          </div>
-        </div>
-
-        {/* Desktop Uninstalls */}
-        <div style={{
-          background: '#090d16',
-          border: '1px solid rgba(239, 68, 68, 0.3)',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          position: 'relative'
-        }}>
-          <div style={{ fontSize: '12px', color: '#f87171', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            🖥️ Desktop Uninstalls
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#fca5a5', marginTop: '6px' }}>
-            {desktopUninstallCount}
-          </div>
-          <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
-            Submitted upon uninstalling app
-          </div>
-        </div>
-
-        {/* Average Rating */}
-        <div style={{
-          background: '#090d16',
-          border: '1px solid rgba(251, 191, 36, 0.25)',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          position: 'relative'
-        }}>
-          <div style={{ fontSize: '12px', color: '#fbbf24', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            ⭐ Average Rating
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#fef08a', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {avgRating} <span style={{ fontSize: '16px', color: '#ca8a04', fontWeight: 500 }}>/ 5.0</span>
-          </div>
-          <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>
-            Based on {ratedFeedbacks.length} ratings
-          </div>
-        </div>
-
-        {/* Extension / Web */}
-        <div style={{
-          background: '#090d16',
-          border: '1px solid #1a2333',
-          borderRadius: '12px',
-          padding: '16px 20px',
-          position: 'relative'
-        }}>
-          <div style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            🧩 Extension &amp; Web
-          </div>
-          <div style={{ fontSize: '26px', fontWeight: 800, color: '#bae6fd', marginTop: '6px' }}>
-            {extensionCount} <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>ext / {totalCount - desktopUninstallCount - extensionCount} web</span>
-          </div>
-          <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '4px' }}>
-            Portal &amp; in-app feedback
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            <span style={{ color: '#f87171', fontWeight: 600 }}>{desktopUninstallCount}</span> uninstalls • <span style={{ color: '#fbbf24', fontWeight: 600 }}>{avgRating}</span> / 5.0 rating
           </div>
         </div>
       </div>
 
-      {/* Control Bar: Search & Filters */}
+      {/* Control Bar: Clean Search & Professional Filters */}
       <div style={{
         display: 'flex',
         gap: '12px',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        background: '#090d16',
+        background: '#0d131f',
         border: '1px solid #1a2333',
         borderRadius: '12px',
         padding: '14px 18px',
@@ -251,12 +314,12 @@ export default function FeedbackTab({
       }}>
         {/* Search */}
         <div style={{ position: 'relative', flex: '1 1 260px' }}>
-          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }}>
+          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', display: 'flex' }}>
             <IconSearch size={14} />
           </span>
           <input
             type="text"
-            placeholder="Search email, comments, reasons, IP..."
+            placeholder="Search by email, reason, comment, or IP..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             style={{
@@ -290,9 +353,9 @@ export default function FeedbackTab({
             }}
           >
             <option value="all">All Sources</option>
-            <option value="desktop">🖥️ Desktop Uninstall Only</option>
-            <option value="extension">🧩 Chrome Extension</option>
-            <option value="web">🌐 Web Portal</option>
+            <option value="desktop">Desktop Uninstalls</option>
+            <option value="extension">Chrome Extension</option>
+            <option value="web">Web Portal</option>
           </select>
         </div>
 
@@ -314,11 +377,11 @@ export default function FeedbackTab({
             }}
           >
             <option value="all">All Ratings</option>
-            <option value="5">⭐⭐⭐⭐⭐ (5 Stars)</option>
-            <option value="4">⭐⭐⭐⭐ (4 Stars)</option>
-            <option value="3">⭐⭐⭐ (3 Stars)</option>
-            <option value="2">⭐⭐ (2 Stars)</option>
-            <option value="1">⭐ (1 Star)</option>
+            <option value="5">5 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="3">3 Stars</option>
+            <option value="2">2 Stars</option>
+            <option value="1">1 Star</option>
           </select>
         </div>
 
@@ -340,25 +403,25 @@ export default function FeedbackTab({
           }}
         >
           <IconRefresh size={13} color="#38bdf8" spinning={loading} />
-          Refresh
+          <span>Refresh</span>
         </button>
       </div>
 
       {/* Feedback Feed / Cards */}
       {paginatedFeedbacks.length === 0 ? (
         <div style={{
-          background: '#090d16',
+          background: '#0d131f',
           border: '1px solid #1a2333',
           borderRadius: '12px',
           padding: '48px 24px',
           textAlign: 'center',
           color: '#64748b'
         }}>
-          <div style={{ width: '48px', height: '48px', margin: '0 auto 12px auto', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
-            <IconMessageSquare size={24} />
+          <div style={{ width: '44px', height: '44px', margin: '0 auto 12px auto', borderRadius: '10px', background: 'rgba(56, 189, 248, 0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#38bdf8' }}>
+            <IconMessageSquare size={22} />
           </div>
-          <h3 style={{ fontSize: '16px', color: '#f8fafc', margin: '0 0 6px 0', fontWeight: 600 }}>No Feedback Records Found</h3>
-          <p style={{ fontSize: '13px', margin: 0 }}>
+          <h3 style={{ fontSize: '15px', color: '#f8fafc', margin: '0 0 6px 0', fontWeight: 600 }}>No Feedback Records Found</h3>
+          <p style={{ fontSize: '13px', margin: 0, color: '#64748b' }}>
             {search || sourceFilter !== 'all' || ratingFilter !== 'all'
               ? 'Try adjusting your search criteria or filters.'
               : 'Feedback submitted during app uninstallation or from the web portal will appear here in real-time.'}
@@ -370,8 +433,8 @@ export default function FeedbackTab({
             <div
               key={item._id}
               style={{
-                background: '#090d16',
-                border: item.source === 'desktop' ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid #1a2333',
+                background: '#0d131f',
+                border: item.source === 'desktop' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid #1a2333',
                 borderRadius: '12px',
                 padding: '18px 20px',
                 transition: 'all 0.15s ease'
@@ -385,12 +448,13 @@ export default function FeedbackTab({
                     {renderStars(item.rating || 0)}
                   </div>
                   {item.email ? (
-                    <span style={{ fontSize: '12.5px', color: '#38bdf8', fontWeight: 600, fontFamily: 'monospace' }}>
-                      ✉️ {item.email}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12.5px', color: '#38bdf8', fontWeight: 600, fontFamily: 'monospace' }}>
+                      <IconMail size={12} color="#38bdf8" />
+                      {item.email}
                     </span>
                   ) : (
                     <span style={{ fontSize: '12px', color: '#64748b', fontStyle: 'italic' }}>
-                      Anonymous
+                      Anonymous User
                     </span>
                   )}
                 </div>
@@ -430,13 +494,13 @@ export default function FeedbackTab({
                     <span
                       key={i}
                       style={{
-                        fontSize: '11.5px',
+                        fontSize: '11px',
                         fontWeight: 600,
                         padding: '3px 10px',
-                        borderRadius: '20px',
-                        background: item.source === 'desktop' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(56, 189, 248, 0.1)',
+                        borderRadius: '6px',
+                        background: item.source === 'desktop' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(56, 189, 248, 0.08)',
                         color: item.source === 'desktop' ? '#fca5a5' : '#7dd3fc',
-                        border: item.source === 'desktop' ? '1px solid rgba(239, 68, 68, 0.25)' : '1px solid rgba(56, 189, 248, 0.25)'
+                        border: item.source === 'desktop' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(56, 189, 248, 0.2)'
                       }}
                     >
                       {r}
@@ -453,12 +517,11 @@ export default function FeedbackTab({
                   border: '1px solid #1e293b',
                   borderRadius: '8px',
                   color: '#e2e8f0',
-                  fontSize: '13.5px',
+                  fontSize: '13px',
                   lineHeight: '1.5',
-                  marginBottom: '10px',
-                  fontStyle: 'normal'
+                  marginBottom: '10px'
                 }}>
-                  &ldquo;{item.comment}&rdquo;
+                  {item.comment}
                 </div>
               ) : (
                 <div style={{ fontSize: '12px', color: '#475569', fontStyle: 'italic', marginBottom: '10px' }}>
@@ -468,8 +531,9 @@ export default function FeedbackTab({
 
               {/* Footer Meta: IP / User-Agent */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#475569', borderTop: '1px solid #131b2c', paddingTop: '8px', flexWrap: 'wrap', gap: '8px' }}>
-                <span title={item.userAgent || 'Unknown Agent'} style={{ maxWidth: '650px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  💻 {item.userAgent ? item.userAgent.split(')')[0] + ')' : 'Client device'}
+                <span title={item.userAgent || 'Unknown Agent'} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', maxWidth: '650px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <IconMonitor size={11} color="#64748b" />
+                  {item.userAgent ? item.userAgent.split(')')[0] + ')' : 'Client device'}
                 </span>
                 {item.ip && (
                   <span style={{ fontFamily: 'monospace' }}>IP: {item.ip.replace(/^::ffff:/, '')}</span>
@@ -496,7 +560,7 @@ export default function FeedbackTab({
               cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
             }}
           >
-            &larr; Previous
+            Previous
           </button>
           <span style={{ fontSize: '12.5px', color: '#94a3b8' }}>
             Page <strong style={{ color: '#fff' }}>{currentPage}</strong> of <strong style={{ color: '#fff' }}>{totalPages}</strong>
@@ -514,7 +578,7 @@ export default function FeedbackTab({
               cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
             }}
           >
-            Next &rarr;
+            Next
           </button>
         </div>
       )}

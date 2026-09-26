@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { IconSearch, IconTrash, IconRefresh } from './AdminIcons';
+import { IconSearch, IconTrash, IconRefresh, IconDownload, IconActivity, IconGlobe, IconPuzzle } from './AdminIcons';
 
 // Helper: Extract YouTube Thumbnail from URL
 function getYouTubeThumbnail(url, fallback = '') {
@@ -256,8 +256,60 @@ export default function DownloadsTab({
 
   const totalRawVideos = filteredDownloads.length;
 
+  const totalDownloadsCount = (downloads || []).length;
+  const runningDownloadsCount = (downloads || []).filter(d => d && (d.status === 'Downloading' || d.status === 'Resolving' || d.status === 'Retrying')).length;
+  const extensionCount = (downloads || []).filter(d => d && (d.downloadSource === 'extension' || d.source === 'extension' || (d.downloadStrategy && /extension|browser/i.test(d.downloadStrategy)))).length;
+  const webCount = Math.max(0, totalDownloadsCount - extensionCount);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 4 Summary Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+        <div style={{ background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '11.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <span>Total Downloads</span>
+            <IconDownload size={14} color="#38bdf8" />
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 700, color: '#f8fafc', marginTop: '6px' }}>{totalDownloadsCount}</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            <span style={{ color: '#38bdf8' }}>{webCount}</span> Web • <span style={{ color: '#818cf8' }}>{extensionCount}</span> Extension
+          </div>
+        </div>
+
+        <div style={{ background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '11.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <span>Running Downloads</span>
+            <IconActivity size={14} color="#34d399" />
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 700, color: '#34d399', marginTop: '6px' }}>{runningDownloadsCount}</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            {runningDownloadsCount > 0 ? 'Active streaming sessions' : 'No active streams'}
+          </div>
+        </div>
+
+        <div style={{ background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '11.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <span>Web Downloads</span>
+            <IconGlobe size={14} color="#38bdf8" />
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 700, color: '#38bdf8', marginTop: '6px' }}>{webCount}</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Website &amp; direct portal downloads
+          </div>
+        </div>
+
+        <div style={{ background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#94a3b8', fontSize: '11.5px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            <span>Extension Downloads</span>
+            <IconPuzzle size={14} color="#818cf8" />
+          </div>
+          <div style={{ fontSize: '26px', fontWeight: 700, color: '#818cf8', marginTop: '6px' }}>{extensionCount}</div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            Browser extension captures
+          </div>
+        </div>
+      </div>
+
       {/* Top Filter & Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '10px', flex: 1, minWidth: '320px', flexWrap: 'wrap' }}>

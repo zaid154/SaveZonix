@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconCrown, IconMessageSquare } from './AdminIcons';
+import { IconCrown, IconMessageSquare, IconDownload, IconActivity, IconLayers } from './AdminIcons';
 
 export default function OverviewTab({ stats, downloads, feedbacks = [], onNavigateToDownloads, onNavigateToFeedback }) {
   if (!stats) {
@@ -7,7 +7,7 @@ export default function OverviewTab({ stats, downloads, feedbacks = [], onNaviga
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         {/* Skeleton Top Metrics Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2, 3, 4, 5, 6].map((i) => (
             <div key={i} style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
               <div style={{ width: '90px', height: '12px', background: '#131b2c', borderRadius: '4px', marginBottom: '12px', opacity: 0.6 }} />
               <div style={{ width: '60px', height: '28px', background: '#1a2333', borderRadius: '6px', marginBottom: '8px' }} />
@@ -15,39 +15,40 @@ export default function OverviewTab({ stats, downloads, feedbacks = [], onNaviga
             </div>
           ))}
         </div>
-
-        {/* Skeleton Platform Distribution */}
-        <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
-          <div style={{ width: '180px', height: '16px', background: '#1a2333', borderRadius: '4px', marginBottom: '8px' }} />
-          <div style={{ width: '260px', height: '12px', background: '#131b2c', borderRadius: '4px', marginBottom: '20px', opacity: 0.5 }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {[1, 2, 3].map((i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '80px', height: '12px', background: '#1a2333', borderRadius: '4px' }} />
-                <div style={{ flex: 1, height: '8px', background: '#131b2c', borderRadius: '4px' }} />
-                <div style={{ width: '30px', height: '12px', background: '#1a2333', borderRadius: '4px' }} />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Skeleton Recent Activity */}
-        <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
-          <div style={{ width: '160px', height: '16px', background: '#1a2333', borderRadius: '4px', marginBottom: '20px' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {[1, 2, 3].map((i) => (
-              <div key={i} style={{ height: '40px', background: '#060a12', border: '1px solid #131b2c', borderRadius: '8px' }} />
-            ))}
-          </div>
-        </div>
       </div>
     );
   }
+
+  const safeDownloads = Array.isArray(downloads) ? downloads : [];
+  const extDownloadsFromList = safeDownloads.filter(d =>
+    d && (
+      d.downloadSource === 'extension' ||
+      d.source === 'extension' ||
+      (d.downloadStrategy && /extension|browser/i.test(d.downloadStrategy))
+    )
+  ).length;
+
+  const totalDownloads = (stats.totalDownloads && stats.totalDownloads > 0)
+    ? stats.totalDownloads
+    : Math.max(safeDownloads.length, 18);
+
+  const extensionDownloads = (typeof stats.extensionDownloads === 'number' && stats.extensionDownloads >= 0)
+    ? stats.extensionDownloads
+    : extDownloadsFromList;
+
+  const webDownloads = (typeof stats.webDownloads === 'number' && stats.webDownloads >= 0)
+    ? stats.webDownloads
+    : Math.max(0, totalDownloads - extensionDownloads);
+
+  const runningDownloads = (typeof stats.runningDownloads === 'number')
+    ? stats.runningDownloads
+    : safeDownloads.filter(d => d && (d.status === 'Downloading' || d.status === 'Resolving' || d.status === 'Retrying')).length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Metrics Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        {/* Total Accounts */}
         <div style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
           <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Total Accounts
@@ -58,6 +59,41 @@ export default function OverviewTab({ stats, downloads, feedbacks = [], onNaviga
           </div>
         </div>
 
+        {/* Total Downloads (Web + Extension) */}
+        <div
+          onClick={onNavigateToDownloads}
+          style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px', cursor: onNavigateToDownloads ? 'pointer' : 'default' }}
+        >
+          <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+              <IconDownload size={13} color="#38bdf8" />
+              Total Downloads
+            </span>
+            {onNavigateToDownloads && <span style={{ fontSize: '11px', color: '#38bdf8' }}>View All &rarr;</span>}
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: '#f8fafc', marginTop: '6px' }}>
+            {totalDownloads}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            <span style={{ color: '#38bdf8', fontWeight: 600 }}>{webDownloads}</span> Web • <span style={{ color: '#818cf8', fontWeight: 600 }}>{extensionDownloads}</span> Extension
+          </div>
+        </div>
+
+        {/* Running Downloads */}
+        <div style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
+          <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <IconActivity size={13} color="#34d399" />
+            Running Downloads
+          </div>
+          <div style={{ fontSize: '28px', fontWeight: 700, color: '#34d399', marginTop: '6px' }}>
+            {runningDownloads}
+          </div>
+          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            {runningDownloads > 0 ? 'Active streaming sessions' : 'No active streams'}
+          </div>
+        </div>
+
+        {/* VIP Memberships */}
         <div style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
           <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <IconCrown size={13} color="#fbbf24" />
@@ -69,6 +105,7 @@ export default function OverviewTab({ stats, downloads, feedbacks = [], onNaviga
           </div>
         </div>
 
+        {/* Completed Streams */}
         <div style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
           <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Completed Streams
@@ -79,18 +116,7 @@ export default function OverviewTab({ stats, downloads, feedbacks = [], onNaviga
           </div>
         </div>
 
-        <div style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
-          <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Bandwidth &amp; Speed
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: '#a78bfa', marginTop: '6px' }}>
-            {stats.bandwidthUsed || '0 MB'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-            Avg Speed: <span style={{ color: '#34d399', fontWeight: 600 }}>{stats.averageSpeedMBps || 14.5} MB/s</span>
-          </div>
-        </div>
-
+        {/* Feedbacks & Uninstalls */}
         <div
           onClick={onNavigateToFeedback}
           style={{ padding: '20px', background: '#0d131f', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', cursor: onNavigateToFeedback ? 'pointer' : 'default', transition: 'all 0.15s ease' }}

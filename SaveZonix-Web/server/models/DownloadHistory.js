@@ -24,6 +24,17 @@ const DownloadHistorySchema = new mongoose.Schema({
     default: 'guest',
     index: true
   },
+  downloadSource: {
+    type: String,
+    enum: ['web', 'extension', 'desktop'],
+    default: 'web',
+    index: true
+  },
+  source: {
+    type: String,
+    default: 'web',
+    index: true
+  },
   originalUrl: {
     type: String,
     default: ''
