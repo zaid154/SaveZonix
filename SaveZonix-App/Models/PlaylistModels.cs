@@ -81,6 +81,7 @@ public class PlaylistBatchDownloadRequest
     public bool NumberPrefix { get; set; } = false;
     public int Concurrency { get; set; } = 6; // 1 to 12 parallel downloads
     public string? OutputFolder { get; set; }
+    public string? JobId { get; set; }
 }
 
 public class PlaylistProbeRequest

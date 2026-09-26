@@ -326,14 +326,63 @@ public class PlaylistController : Controller
     [HttpPost("/api/playlist/open-folder")]
     public IActionResult OpenFolder([FromBody] PlaylistBatchDownloadRequest? req)
     {
-        string folder = !string.IsNullOrWhiteSpace(req?.OutputFolder) && Directory.Exists(req.OutputFolder)
-            ? req.OutputFolder
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string? folder = null;
 
-        if (!Directory.Exists(folder))
+        // 1. Explicit OutputFolder
+        if (!string.IsNullOrWhiteSpace(req?.OutputFolder) && Directory.Exists(req.OutputFolder))
         {
-            folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads");
-            if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
+            folder = req.OutputFolder;
+        }
+
+        // 2. Lookup by JobId
+        if (folder == null && !string.IsNullOrWhiteSpace(req?.JobId))
+        {
+            var job = _queueManager.GetJobState(req.JobId);
+            if (job != null && !string.IsNullOrWhiteSpace(job.OutputFolder) && Directory.Exists(job.OutputFolder))
+            {
+                folder = job.OutputFolder;
+            }
+        }
+
+        // 3. Resolve by Playlist Title
+        if (folder == null && !string.IsNullOrWhiteSpace(req?.PlaylistTitle))
+        {
+            string rawTitle = req.PlaylistTitle.Trim();
+            // Strip leading browser tab notification counters like "(15) "
+            string safeTitle = System.Text.RegularExpressions.Regex.Replace(rawTitle, @"^\(\d+\)\s*", "");
+            var invalid = new HashSet<char>(Path.GetInvalidFileNameChars()) { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
+            var sb = new System.Text.StringBuilder();
+            foreach (var c in safeTitle)
+            {
+                if (!invalid.Contains(c)) sb.Append(c);
+            }
+            safeTitle = sb.ToString().Trim();
+
+            string baseAppDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SaveZonix");
+            string cand1 = Path.Combine(baseAppDownloads, safeTitle);
+            string legacyBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            string cand2 = Path.Combine(legacyBase, safeTitle);
+
+            if (Directory.Exists(cand1)) folder = cand1;
+            else if (Directory.Exists(cand2)) folder = cand2;
+        }
+
+        // 4. Fallback to main SaveZonix download root
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+        {
+            folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SaveZonix");
+            if (!Directory.Exists(folder))
+            {
+                try { Directory.CreateDirectory(folder); } catch { }
+            }
+            if (!Directory.Exists(folder))
+            {
+                folder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads", "SaveZonix");
+                if (!Directory.Exists(folder))
+                {
+                    try { Directory.CreateDirectory(folder); } catch { }
+                }
+            }
         }
 
         try

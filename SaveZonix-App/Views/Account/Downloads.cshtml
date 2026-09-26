@@ -338,7 +338,7 @@
                                                     <span>Retry @entry.FailedCount</span>
                                                 </button>
                                             }
-                                            <button type="button" class="action-btn action-source" onclick="openDownloadsFolder()" title="Open Downloads folder">
+                                            <button type="button" class="action-btn action-source" onclick="openPlaylistFolder('@(entry.JobId ?? "")', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(entry.Title))')" title="Open Playlist folder">
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
                                             </button>
                                             <button type="button" class="action-btn btn-toggle-pl-sub" onclick="togglePlaylistHistoryAccordion('@entry.GroupKey')" title="Expand / Collapse playlist videos">
@@ -360,13 +360,19 @@
                                                     </span>
                                                     <span class="pl-nested-counts">(@entry.CompletedCount / @entry.TotalVideos Completed @(hasFailures ? $"• {entry.FailedCount} Failed" : ""))</span>
                                                 </div>
-                                                @if (hasFailures)
-                                                {
-                                                    <button type="button" class="btn-pl-retry-all-header" onclick="retryPlaylistGroup(this, '@(entry.JobId ?? entry.GroupKey)', '@entry.GroupKey')" title="Retry all @entry.FailedCount failed video(s)">
-                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                                                        <span>Retry All @entry.FailedCount Failed</span>
+                                                <div style="display: inline-flex; align-items: center; gap: 8px;">
+                                                    <button type="button" class="btn-pl-retry-all-header" onclick="openPlaylistFolder('@(entry.JobId ?? "")', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(entry.Title))')" title="Open this playlist folder" style="background: rgba(14, 165, 233, 0.12); border-color: rgba(14, 165, 233, 0.35); color: #38bdf8;">
+                                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                                        <span>Open Folder</span>
                                                     </button>
-                                                }
+                                                    @if (hasFailures)
+                                                    {
+                                                        <button type="button" class="btn-pl-retry-all-header" onclick="retryPlaylistGroup(this, '@(entry.JobId ?? entry.GroupKey)', '@entry.GroupKey')" title="Retry all @entry.FailedCount failed video(s)">
+                                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                                            <span>Retry All @entry.FailedCount Failed</span>
+                                                        </button>
+                                                    }
+                                                </div>
                                             </div>
                                             <div class="pl-nested-items-list">
                                                 @foreach (var sub in entry.SubItems)
@@ -1298,6 +1304,18 @@
                 if (statusEl) {
                     statusEl.innerHTML = '<span class="status-badge-modern status-err"><span class="status-indicator-dot dot-red"></span> Failed</span>';
                 }
+            }
+        }
+
+        async function openPlaylistFolder(jobId, playlistTitle) {
+            try {
+                await fetch('/api/playlist/open-folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ jobId: jobId || null, playlistTitle: playlistTitle || null })
+                });
+            } catch {
+                openDownloadsFolder();
             }
         }
 

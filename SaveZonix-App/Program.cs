@@ -2799,11 +2799,18 @@ public class Program
 
     private static string GetDownloadsDirectory()
     {
-        string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SaveZonix");
+        if (!Directory.Exists(userDownloads))
+        {
+            try { Directory.CreateDirectory(userDownloads); } catch { }
+        }
         if (Directory.Exists(userDownloads)) return userDownloads;
 
-        string localDownloads = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads");
-        if (!Directory.Exists(localDownloads)) Directory.CreateDirectory(localDownloads);
+        string localDownloads = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads", "SaveZonix");
+        if (!Directory.Exists(localDownloads))
+        {
+            try { Directory.CreateDirectory(localDownloads); } catch { }
+        }
         return localDownloads;
     }
 

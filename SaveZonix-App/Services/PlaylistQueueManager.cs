@@ -275,16 +275,55 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             ? record.ThumbnailUrl
             : $"https://i.ytimg.com/vi/{targetVid}/hqdefault.jpg";
 
+        int parsedIndex = 1;
+        string parsedSubId = $"{parsedCode} #01";
+        bool hasPrefix = false;
+        if (!string.IsNullOrEmpty(record.FileName))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(record.FileName, @"^(\d{1,3})\s*-\s*");
+            if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
+            {
+                parsedIndex = idxVal;
+                parsedSubId = $"{parsedCode} #{parsedIndex:D2}";
+                hasPrefix = true;
+            }
+        }
+        if (!hasPrefix && !string.IsNullOrEmpty(record.ValidationDetails))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(record.ValidationDetails, @"#(\d{1,3})");
+            if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
+            {
+                parsedIndex = idxVal;
+                parsedSubId = $"{parsedCode} #{parsedIndex:D2}";
+                hasPrefix = true;
+            }
+        }
+
+        string baseDownloads = GetDownloadsDirectory();
+        string safeFolderTitle = SanitizeFileName(parsedTitle);
+        string retryFolder = Path.Combine(baseDownloads, safeFolderTitle);
+        string legacyBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string legacyFolder = Path.Combine(legacyBase, safeFolderTitle);
+        if (!Directory.Exists(retryFolder) && Directory.Exists(legacyFolder))
+        {
+            retryFolder = legacyFolder;
+        }
+        else if (!Directory.Exists(retryFolder))
+        {
+            try { Directory.CreateDirectory(retryFolder); } catch { }
+        }
+
         var retryItemState = new PlaylistItemDownloadState
         {
             TaskId = record.Id, // REUSE EXISTING DATABASE ID - DO NOT DUPLICATE
             VideoId = targetVid,
-            Index = 1,
-            SubId = $"{parsedCode} #01",
+            Index = parsedIndex,
+            SubId = parsedSubId,
             Title = record.Title,
             ThumbnailUrl = thumb,
             Quality = record.Quality,
             Format = record.Format,
+            NumberPrefix = hasPrefix,
             Status = "Pending",
             RetryCount = record.RetryCount + 1,
             Cts = new CancellationTokenSource()
@@ -301,7 +340,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             TotalVideos = 1,
             QueuedCount = 1,
             Status = "Downloading",
-            OutputFolder = GetDownloadsDirectory(),
+            OutputFolder = retryFolder,
             Cts = new CancellationTokenSource(),
             Items = new List<PlaylistItemDownloadState> { retryItemState }
         };
@@ -513,6 +552,20 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             if (titleParts.Length > 1 && !string.IsNullOrWhiteSpace(titleParts[1])) title = titleParts[1].Trim();
         }
 
+        string baseDownloads = GetDownloadsDirectory();
+        string safeFolderTitle = SanitizeFileName(title);
+        string retryFolder = Path.Combine(baseDownloads, safeFolderTitle);
+        string legacyBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string legacyFolder = Path.Combine(legacyBase, safeFolderTitle);
+        if (!Directory.Exists(retryFolder) && Directory.Exists(legacyFolder))
+        {
+            retryFolder = legacyFolder;
+        }
+        else if (!Directory.Exists(retryFolder))
+        {
+            try { Directory.CreateDirectory(retryFolder); } catch { }
+        }
+
         var newJob = new PlaylistBatchJobState
         {
             JobId = newJobId,
@@ -524,7 +577,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             TotalVideos = failedHistories.Count,
             QueuedCount = failedHistories.Count,
             Status = "Downloading",
-            OutputFolder = GetDownloadsDirectory(),
+            OutputFolder = retryFolder,
             Cts = new CancellationTokenSource(),
             Items = failedHistories.Select((h, idx) =>
             {
@@ -542,16 +595,38 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     ? h.ThumbnailUrl
                     : $"https://i.ytimg.com/vi/{vid}/hqdefault.jpg";
 
+                int parsedIndex = idx + 1;
+                bool hasPrefix = false;
+                if (!string.IsNullOrEmpty(h.FileName))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(h.FileName, @"^(\d{1,3})\s*-\s*");
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
+                    {
+                        parsedIndex = idxVal;
+                        hasPrefix = true;
+                    }
+                }
+                if (!hasPrefix && !string.IsNullOrEmpty(h.ValidationDetails))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(h.ValidationDetails, @"#(\d{1,3})");
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
+                    {
+                        parsedIndex = idxVal;
+                        hasPrefix = true;
+                    }
+                }
+
                 return new PlaylistItemDownloadState
                 {
                     TaskId = h.Id, // REUSE EXISTING DATABASE ID - NO DUPLICATES!
                     VideoId = vid,
-                    Index = idx + 1,
-                    SubId = $"{resolvedCode} #{(idx + 1):D2}",
+                    Index = parsedIndex,
+                    SubId = $"{resolvedCode} #{parsedIndex:D2}",
                     Title = h.Title,
                     ThumbnailUrl = thumb,
                     Quality = h.Quality,
                     Format = h.Format,
+                    NumberPrefix = hasPrefix,
                     Status = "Pending",
                     RetryCount = h.RetryCount + 1,
                     Cts = new CancellationTokenSource()
@@ -1217,16 +1292,26 @@ public class PlaylistQueueManager : IPlaylistQueueManager
     // ─────────────────────────────────────────────────────────────
     private static string GetDownloadsDirectory()
     {
-        string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SaveZonix");
+        if (!Directory.Exists(userDownloads))
+        {
+            try { Directory.CreateDirectory(userDownloads); } catch { }
+        }
         if (Directory.Exists(userDownloads)) return userDownloads;
-        string localDownloads = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads");
-        if (!Directory.Exists(localDownloads)) Directory.CreateDirectory(localDownloads);
+
+        string localDownloads = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads", "SaveZonix");
+        if (!Directory.Exists(localDownloads))
+        {
+            try { Directory.CreateDirectory(localDownloads); } catch { }
+        }
         return localDownloads;
     }
 
     private static string SanitizeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "video";
+        // Strip leading browser tab notification count like "(15) Video Title" -> "Video Title"
+        name = System.Text.RegularExpressions.Regex.Replace(name.Trim(), @"^\(\d+\)\s*", "");
         var invalid = new HashSet<char>(Path.GetInvalidFileNameChars()) { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
         var sb = new System.Text.StringBuilder();
         foreach (var c in name)
