@@ -380,30 +380,53 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var user = await FindUserByEmailAsync(model.Email);
-        if (user != null)
+        string cleanEmail = (model.Email ?? "").Trim().ToLowerInvariant();
+
+        try
         {
-            string token = Guid.NewGuid().ToString("N");
-            var callbackUrl = Url.Action("ResetPassword", "Account", new { code = token, email = model.Email }, Request.Scheme);
-            if (!string.IsNullOrEmpty(callbackUrl))
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/send-reset-otp", "https://save-zonix.vercel.app/api/auth/send-reset-otp" };
+
+            bool sent = false;
+            foreach (var url in cloudApiUrls)
             {
-                await _emailService.SendPasswordResetAsync(model.Email, callbackUrl);
+                try
+                {
+                    var payload = new { email = cleanEmail };
+                    var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                    var resp = await client.PostAsync(url, content);
+                    var respStr = await resp.Content.ReadAsStringAsync();
+
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        sent = true;
+                        Console.WriteLine($"[ForgotPassword] Cloud OTP dispatched successfully to: {cleanEmail} via {url}");
+                        break;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[ForgotPassword] Cloud dispatch note ({url}): {respStr}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ForgotPassword] Error calling {url}: {ex.Message}");
+                }
             }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ForgotPassword] Request error: {ex.Message}");
+        }
 
-        ViewBag.Message = "If an account matches that email, a password reset link has been dispatched to your inbox.";
-        return View("ForgotPasswordConfirmation");
+        return RedirectToAction("ResetPassword", new { email = cleanEmail });
     }
 
     [HttpGet]
     [AllowAnonymous]
     public IActionResult ResetPassword(string? code = null, string? email = null)
     {
-        if (string.IsNullOrEmpty(code))
-        {
-            return BadRequest("A reset code must be supplied.");
-        }
-        return View(new ResetPasswordViewModel { Code = code, Email = email ?? "" });
+        return View(new ResetPasswordViewModel { Code = code ?? "", Email = email ?? "" });
     }
 
     [HttpPost]
@@ -413,24 +436,87 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid) return View(model);
 
-        var user = await FindUserByEmailAsync(model.Email);
-        if (user == null)
+        string cleanEmail = (model.Email ?? "").Trim().ToLowerInvariant();
+        string cleanOtp = (model.Code ?? "").Trim();
+
+        // 1. Verify OTP with Cloud API (central verification)
+        bool verified = false;
+        string apiError = "Invalid or expired verification code. Please check the code in your email.";
+
+        try
         {
-            return RedirectToAction("Login");
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/verify-reset-otp", "https://save-zonix.vercel.app/api/auth/verify-reset-otp" };
+
+            foreach (var url in cloudApiUrls)
+            {
+                try
+                {
+                    var payload = new { email = cleanEmail, otp = cleanOtp, newPassword = model.Password };
+                    var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                    var resp = await client.PostAsync(url, content);
+                    var respStr = await resp.Content.ReadAsStringAsync();
+
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        verified = true;
+                        Console.WriteLine($"[ResetPassword] Verified and updated via Cloud API ({url}) for {cleanEmail}");
+                        break;
+                    }
+                    else
+                    {
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(respStr);
+                            if (doc.RootElement.TryGetProperty("error", out var errProp))
+                            {
+                                apiError = errProp.GetString() ?? apiError;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[ResetPassword] Error reaching {url}: {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ResetPassword] Verification failed: {ex.Message}");
+            apiError = "Unable to connect to verification server. Please check your internet connection.";
         }
 
-        string newHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
-        if (_usersCollection != null)
+        if (!verified)
         {
-            var update = Builders<BsonDocument>.Update
-                .Set("password", newHash)
-                .Set("PasswordHash", newHash)
-                .Set("updatedAt", DateTime.UtcNow);
-            await _usersCollection.UpdateOneAsync(Builders<BsonDocument>.Filter.Eq("_id", user["_id"]), update);
+            ModelState.AddModelError(string.Empty, apiError);
+            return View(model);
         }
 
-        ViewBag.SuccessMessage = "Your password has been successfully reset! You may now sign in.";
-        return View("ResetPasswordConfirmation");
+        // 2. Also sync local MongoDB if directly connected
+        try
+        {
+            if (_usersCollection != null)
+            {
+                string newHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
+                var update = Builders<BsonDocument>.Update
+                    .Set("password", newHash)
+                    .Set("PasswordHash", newHash)
+                    .Set("updatedAt", DateTime.UtcNow);
+                await _usersCollection.UpdateOneAsync(
+                    Builders<BsonDocument>.Filter.Or(
+                        Builders<BsonDocument>.Filter.Eq("email", cleanEmail),
+                        Builders<BsonDocument>.Filter.Eq("Email", cleanEmail)
+                    ),
+                    update
+                );
+            }
+        }
+        catch { }
+
+        TempData["SuccessMessage"] = "Your password has been reset successfully! Please sign in with your new password.";
+        return RedirectToAction("Login");
     }
 
     [HttpPost]
@@ -683,7 +769,7 @@ public class AccountController : Controller
         string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         string? userEmail = User.FindFirstValue(ClaimTypes.Email);
 
-        int pageSize = 15;
+        int pageSize = 8;
         List<StreamHelper.Data.DownloadHistory> rawItems = new();
 
         var activeJobs = _queueManager.GetActiveJobs();

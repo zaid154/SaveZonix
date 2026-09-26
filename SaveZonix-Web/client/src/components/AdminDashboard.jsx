@@ -11,7 +11,8 @@ import {
   IconExternal,
   IconLogOut,
   IconCheck,
-  IconCreditCard
+  IconCreditCard,
+  IconMessageSquare
 } from './admin/AdminIcons';
 
 import AdminErrorBoundary from './admin/AdminErrorBoundary';
@@ -20,6 +21,7 @@ import FinancialsTab from './admin/FinancialsTab';
 import UsersTab from './admin/UsersTab';
 import UserDetailsModal from './admin/UserDetailsModal';
 import DownloadsTab from './admin/DownloadsTab';
+import FeedbackTab from './admin/FeedbackTab';
 import AiAdvisorTab from './admin/AiAdvisorTab';
 import DiagnosticsTab from './admin/DiagnosticsTab';
 import SecurityTab from './admin/SecurityTab';
@@ -56,7 +58,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     if (sub === 'financials' || sub === 'finance' || sub === 'sales') return 'financials';
     if (sub === 'ai-cdn-advisor' || sub === 'ai-advisor' || sub === 'ai_advisor') return 'ai-cdn-advisor';
     if (sub === 'engine-database' || sub === 'engine' || sub === 'engine_database') return 'engine-database';
-    const valid = ['overview', 'financials', 'users', 'downloads', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
+    if (sub === 'feedback' || sub === 'feedbacks') return 'feedback';
+    const valid = ['overview', 'financials', 'users', 'downloads', 'feedback', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
     if (valid.includes(sub)) return sub;
     return 'overview';
   }
@@ -99,6 +102,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       const cached = sessionStorage.getItem('sz_cache_settings');
       return cached ? JSON.parse(cached) : null;
     } catch { return null; }
+  });
+  const [feedbacks, setFeedbacks] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('sz_cache_feedbacks');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
   });
 
   // Loaded Tabs Cache for 0ms Instant Switching
@@ -275,6 +284,21 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
               if (d) {
                 setSettings(d);
                 try { sessionStorage.setItem('sz_cache_settings', JSON.stringify(d)); } catch {}
+              }
+            })
+            .catch(() => null)
+        );
+      }
+
+      // 7. Feedback tab (and pre-fetch on overview): needs fresh feedback list
+      if (tab === 'feedback' || tab === 'overview') {
+        calls.push(
+          fetch('/api/feedback', { headers })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => {
+              if (d && Array.isArray(d.feedbacks)) {
+                setFeedbacks(d.feedbacks);
+                try { sessionStorage.setItem('sz_cache_feedbacks', JSON.stringify(d.feedbacks)); } catch {}
               }
             })
             .catch(() => null)
@@ -464,6 +488,29 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     }
   }
 
+  async function handleDeleteFeedback(id) {
+    if (!window.confirm('Are you sure you want to delete this feedback record?')) return;
+    try {
+      const res = await fetch(`/api/feedback/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        setFeedbacks(prev => {
+          const updated = prev.filter(f => f._id !== id);
+          try { sessionStorage.setItem('sz_cache_feedbacks', JSON.stringify(updated)); } catch {}
+          return updated;
+        });
+        setSaveMessage('Feedback record deleted.');
+        setTimeout(() => setSaveMessage(''), 3000);
+      } else {
+        alert('Failed to delete feedback record.');
+      }
+    } catch (err) {
+      alert('Error deleting feedback: ' + err.message);
+    }
+  }
+
   // Database Sync & Settings
   async function handleSyncDatabases() {
     try {
@@ -643,6 +690,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
           { id: 'financials', label: 'Financials & VIP', icon: IconCreditCard },
           { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
           { id: 'downloads', label: `Downloads (${downloads.length || stats?.totalDownloads || 0})`, icon: IconDownload },
+          { id: 'feedback', label: `Feedbacks (${feedbacks.length})`, icon: IconMessageSquare },
           { id: 'ai-cdn-advisor', label: 'AI CDN Advisor', icon: IconCpu },
           { id: 'diagnostics', label: 'Diagnostics', icon: IconAlertCircle },
           { id: 'security', label: 'Security & Anti-Spam', icon: IconLock },
@@ -775,6 +823,18 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             onDeleteDownloadRecord={handleDeleteDownloadRecord}
             onDeletePlaylist={handleDeletePlaylist}
             onRefresh={() => loadTabData('downloads', true)}
+          />
+        </AdminErrorBoundary>
+      )}
+
+      {/* Feedbacks & Uninstalls Tab with Error Guard */}
+      {activeTab === 'feedback' && (
+        <AdminErrorBoundary moduleName="User & Uninstall Feedbacks">
+          <FeedbackTab
+            feedbacks={feedbacks}
+            onDeleteFeedback={handleDeleteFeedback}
+            onRefresh={() => loadTabData('feedback', true)}
+            loading={loading}
           />
         </AdminErrorBoundary>
       )}

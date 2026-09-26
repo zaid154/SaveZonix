@@ -543,21 +543,37 @@ public class ParallelDownloader
         int attempt = 0;
         var uri = new Uri(chunk.Url);
         var referers = StreamSecurityHelper.GetCandidateReferers(uri);
+        long expectedTotalBytes = chunk.RangeEnd - chunk.RangeStart + 1;
 
         while (attempt < maxRetries && !ct.IsCancellationRequested)
         {
-            long attemptBytesRead = 0;
+            attempt++;
+            long existingBytes = 0;
+            if (File.Exists(chunk.LocalTempPath))
+            {
+                try { existingBytes = new FileInfo(chunk.LocalTempPath).Length; } catch { existingBytes = 0; }
+            }
+
+            if (existingBytes >= expectedTotalBytes && expectedTotalBytes > 0)
+            {
+                chunk.SizeBytes = existingBytes;
+                chunk.IsDownloaded = true;
+                return;
+            }
+
+            long rangeReqStart = chunk.RangeStart + existingBytes;
+            long rangeReqEnd = chunk.RangeEnd;
+
             try
             {
-                attempt++;
                 string referer = referers[(attempt - 1) % referers.Count];
 
                 using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                attemptCts.CancelAfter(TimeSpan.FromSeconds(25)); // 25s connection / header timeout
+                attemptCts.CancelAfter(TimeSpan.FromSeconds(45)); // 45s socket/read timeout for heavy CDNs
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, chunk.Url);
                 request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(chunk.RangeStart, chunk.RangeEnd);
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(rangeReqStart, rangeReqEnd);
 
                 if (!string.IsNullOrEmpty(referer))
                 {
@@ -571,54 +587,56 @@ public class ParallelDownloader
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptCts.Token);
                 response.EnsureSuccessStatusCode();
 
-                long expectedBytes = chunk.RangeEnd - chunk.RangeStart + 1;
-                if (response.StatusCode == HttpStatusCode.OK && chunk.RangeStart > 0)
+                if (response.StatusCode == HttpStatusCode.OK && rangeReqStart > 0)
                 {
                     throw new InvalidOperationException("Server returned 200 OK instead of 206 Partial Content for byte range.");
                 }
 
                 await using var contentStream = await response.Content.ReadAsStreamAsync(attemptCts.Token);
-                await using var fileStream = new FileStream(chunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                if (expectedBytes > 0)
-                {
-                    fileStream.SetLength(expectedBytes);
-                }
+                var fileMode = existingBytes > 0 ? FileMode.Append : FileMode.Create;
+                await using var fileStream = new FileStream(chunk.LocalTempPath, fileMode, FileAccess.Write, FileShare.None, 262144, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
                 byte[] buffer = new byte[262144];
                 int bytesRead;
-                long chunkTotal = 0;
 
                 while (true)
                 {
-                    attemptCts.CancelAfter(TimeSpan.FromSeconds(20));
+                    attemptCts.CancelAfter(TimeSpan.FromSeconds(45));
                     bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, attemptCts.Token);
                     if (bytesRead == 0) break;
 
                     await fileStream.WriteAsync(buffer, 0, bytesRead, attemptCts.Token);
-                    chunkTotal += bytesRead;
-                    attemptBytesRead += bytesRead;
+                    existingBytes += bytesRead;
                     totalBytesRef(bytesRead);
                 }
 
                 await fileStream.FlushAsync(ct);
 
-                if (expectedBytes > 0 && chunkTotal != expectedBytes)
+                if (expectedTotalBytes > 0 && existingBytes < expectedTotalBytes)
                 {
-                    throw new InvalidOperationException($"Chunk size mismatch: expected {expectedBytes} bytes, received {chunkTotal} bytes.");
+                    throw new InvalidOperationException($"Incomplete chunk: expected {expectedTotalBytes} bytes, received {existingBytes} bytes so far.");
                 }
 
-                chunk.SizeBytes = chunkTotal;
+                chunk.SizeBytes = existingBytes;
                 chunk.IsDownloaded = true;
                 return;
             }
-            catch (Exception) when (attempt < maxRetries && !ct.IsCancellationRequested)
+            catch (Exception ex) when (attempt < maxRetries && !ct.IsCancellationRequested)
             {
-                if (attemptBytesRead > 0)
-                {
-                    totalBytesRef((int)-attemptBytesRead);
-                }
-                try { if (File.Exists(chunk.LocalTempPath)) File.Delete(chunk.LocalTempPath); } catch { }
-                await Task.Delay(100 * attempt, ct);
+                // Resume from existing bytes on next attempt — DO NOT subtract bytes, DO NOT delete partial file
+                Console.WriteLine($"[ParallelDownloader] Chunk #{chunk.Index} attempt {attempt} retry notice: {ex.Message} (Resuming from {existingBytes}/{expectedTotalBytes} bytes)");
+                await Task.Delay(200 * attempt, ct);
+            }
+        }
+
+        // If all retries exhausted, check if we got the full chunk anyway
+        if (File.Exists(chunk.LocalTempPath))
+        {
+            long fiLen = new FileInfo(chunk.LocalTempPath).Length;
+            if (fiLen >= expectedTotalBytes)
+            {
+                chunk.SizeBytes = fiLen;
+                chunk.IsDownloaded = true;
             }
         }
     }

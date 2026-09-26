@@ -5370,13 +5370,13 @@ textarea.form-control-input {
    Downloads Table Horizontal Responsiveness & Action Column
    ───────────────────────────────────────────────────────────── */
 .table-scroll-container {
-    overflow-x: auto !important;
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     width: 100%;
 }
 
 .table-scroll-container::-webkit-scrollbar {
-    height: 7px;
+    height: 6px;
 }
 
 .table-scroll-container::-webkit-scrollbar-track {
@@ -5394,16 +5394,112 @@ textarea.form-control-input {
 }
 
 .table-glass-card .modern-table {
-    min-width: 860px;
     width: 100%;
+    table-layout: auto;
+}
+
+.table-glass-card .modern-table th {
+    padding: 12px 10px;
+    font-size: 11px;
+}
+
+.table-glass-card .modern-table td {
+    padding: 12px 10px;
+    font-size: 12.5px;
 }
 
 .table-glass-card .title-cell-wrap {
-    max-width: 280px;
+    min-width: 140px;
+    max-width: 320px;
+    overflow: hidden;
+}
+
+.table-glass-card .title-cell-wrap .table-main-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    max-width: 100%;
 }
 
 .table-glass-card .actions-td {
-    min-width: 110px;
+    width: 90px;
     text-align: right;
     white-space: nowrap;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Active Downloads Cancel & Action Button Dark-Rose Glass Styling
+   ───────────────────────────────────────────────────────────── */
+.btn-job-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #cbd5e1;
+    text-decoration: none;
+    line-height: 1.2;
+}
+
+.btn-job-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.22);
+}
+
+.btn-job-cancel,
+.btn-active-cancel {
+    background: rgba(244, 63, 94, 0.12) !important;
+    border: 1px solid rgba(244, 63, 94, 0.35) !important;
+    color: #fb7185 !important;
+    box-shadow: 0 2px 8px rgba(244, 63, 94, 0.15);
+}
+
+.btn-job-cancel:hover,
+.btn-active-cancel:hover {
+    background: rgba(244, 63, 94, 0.25) !important;
+    border-color: #f43f5e !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 14px rgba(244, 63, 94, 0.35);
+    transform: translateY(-1px);
+}
+
+.btn-item-action-sm {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.btn-item-cancel {
+    background: rgba(244, 63, 94, 0.12) !important;
+    border: 1px solid rgba(244, 63, 94, 0.35) !important;
+    color: #fb7185 !important;
+}
+
+.btn-item-cancel:hover {
+    background: rgba(244, 63, 94, 0.3) !important;
+    border-color: #f43f5e !important;
+    color: #ffffff !important;
+    transform: scale(1.12);
+    box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+}
+

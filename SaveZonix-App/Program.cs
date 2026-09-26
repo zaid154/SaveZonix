@@ -1451,7 +1451,7 @@ public class Program
 
                     var progress = new Progress<DownloadProgressReport>(p =>
                     {
-                        state.Percentage = p.Percentage;
+                        state.Percentage = Math.Max(state.Percentage, p.Percentage);
                         state.SpeedMBps = p.SpeedMBps;
                         state.PeakSpeedMBps = p.PeakSpeedMBps;
                         state.DownloadedSegments = p.DownloadedSegments;

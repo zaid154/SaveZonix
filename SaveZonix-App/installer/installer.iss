@@ -27,6 +27,8 @@ SolidCompression=yes
 LZMANumBlockThreads=8
 LZMAUseSeparateProcess=yes
 WizardStyle=modern
+DisableReadyPage=yes
+WizardSmallImageFile=wizard-small.bmp
 PrivilegesRequired=lowest
 CloseApplications=yes
 CloseApplicationsFilter=Zonix.exe
@@ -40,6 +42,23 @@ Type: files; Name: "{app}\wwwroot\app.ico.gz"
 Type: files; Name: "{app}\wwwroot\app.ico.br"
 
 [Code]
+const
+  DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+function DwmSetWindowAttribute(hwnd: HWND; dwAttribute: DWORD; var pvAttribute: Integer; cbAttribute: DWORD): Integer;
+external 'DwmSetWindowAttribute@dwmapi.dll stdcall';
+
+procedure InitializeWizard();
+var
+  DarkMode: Integer;
+begin
+  DarkMode := 1;
+  try
+    DwmSetWindowAttribute(WizardForm.Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, DarkMode, 4);
+  except
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;

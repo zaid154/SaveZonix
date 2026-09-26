@@ -42,4 +42,15 @@ router.get('/', async (req, res) => {
   }
 });
 
+// DELETE /api/feedback/:id — Admin delete a feedback entry
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await Feedback.findByIdAndDelete(id);
+    return res.json({ success: true, message: 'Feedback entry deleted.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

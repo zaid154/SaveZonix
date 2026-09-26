@@ -84,11 +84,6 @@
         <!-- User Downloads Header -->
         <div class="account-header">
             <div>
-                <div class="admin-breadcrumb">
-                    <span>MY ACCOUNT</span>
-                    <span class="sep">/</span>
-                    <span class="active">DOWNLOAD HISTORY</span>
-                </div>
                 <h1 class="page-title">Download History</h1>
                 <p class="page-subtitle">Your personal record of high-speed media stream downloads and extractions</p>
             </div>
@@ -192,16 +187,16 @@
         {
             <div class="glass-card table-glass-card">
                 <div class="table-responsive table-scroll-container">
-                    <table class="data-table modern-table">
+                    <table class="data-table modern-table" style="table-layout: fixed; width: 100%; min-width: 0;">
                         <thead>
                             <tr>
-                                <th style="width: 54px;">MEDIA</th>
-                                <th style="min-width: 170px; max-width: 270px;">TITLE &amp; SOURCE</th>
-                                <th style="width: 130px; white-space: nowrap;">QUALITY &amp; CODEC</th>
-                                <th style="width: 105px; white-space: nowrap;">SIZE / SPEED</th>
-                                <th style="width: 115px; white-space: nowrap;">STATUS</th>
-                                <th style="width: 105px; white-space: nowrap;">DATE</th>
-                                <th style="width: 110px; text-align: right; white-space: nowrap;">ACTION</th>
+                                <th style="width: 68px;">MEDIA</th>
+                                <th style="width: auto;">TITLE &amp; SOURCE</th>
+                                <th style="width: 120px; white-space: nowrap;">QUALITY &amp; CODEC</th>
+                                <th style="width: 95px; white-space: nowrap;">SIZE / SPEED</th>
+                                <th style="width: 105px; white-space: nowrap;">STATUS</th>
+                                <th style="width: 95px; white-space: nowrap;">DATE</th>
+                                <th style="width: 85px; text-align: right; white-space: nowrap;">ACTION</th>
                             </tr>
                         </thead>
                     <tbody>
@@ -636,68 +631,88 @@
             </div>
 
             <!-- Figma Auto-Layout Inspired Modern Pagination -->
-            @if (Model.TotalPages > 1)
+            @if (Model.TotalCount > 0)
             {
                 int current = Model.CurrentPage;
                 int total = Model.TotalPages;
-                var pageNumbers = new List<int>();
+                int startItem = ((current - 1) * Model.PageSize) + 1;
+                int endItem = Math.Min(current * Model.PageSize, Model.TotalCount);
 
-                pageNumbers.Add(1);
-                for (int i = Math.Max(2, current - 1); i <= Math.Min(total - 1, current + 1); i++)
-                {
-                    if (!pageNumbers.Contains(i)) pageNumbers.Add(i);
-                }
-                if (!pageNumbers.Contains(total)) pageNumbers.Add(total);
-                pageNumbers.Sort();
-
-                <div class="figma-pagination-container">
-                    @if (current > 1)
-                    {
-                        <a asp-action="Downloads" asp-route-page="@(current - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-nav-btn figma-btn-prev" title="Previous Page">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                        </a>
-                    }
-                    else
-                    {
-                        <span class="figma-nav-btn figma-btn-disabled" title="First Page">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                        </span>
-                    }
-
-                    <div class="figma-page-items">
-                        @{
-                            int lastPage = 0;
-                            foreach (int p in pageNumbers)
-                            {
-                                if (lastPage > 0 && p - lastPage > 1)
-                                {
-                                    <span class="figma-page-ellipsis">•••</span>
-                                }
-
-                                if (p == current)
-                                {
-                                    <span class="figma-page-btn figma-page-active">@p</span>
-                                }
-                                else
-                                {
-                                    <a asp-action="Downloads" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-page-btn">@p</a>
-                                }
-                                lastPage = p;
-                            }
-                        }
+                <div class="figma-pagination-wrapper" style="display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 32px; margin-bottom: 24px;">
+                    <div class="pagination-info" style="font-size: 12.5px; color: #94a3b8; font-weight: 500;">
+                        Showing <strong style="color: #38bdf8;">@startItem</strong> to <strong style="color: #38bdf8;">@endItem</strong> of <strong style="color: #f1f5f9;">@Model.TotalCount</strong> downloads
                     </div>
-
-                    @if (current < total)
+                    @if (total > 1)
                     {
-                        <a asp-action="Downloads" asp-route-page="@(current + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-nav-btn figma-btn-next" title="Next Page">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </a>
+                        var pageNumbers = new List<int>();
+                        pageNumbers.Add(1);
+                        for (int i = Math.Max(2, current - 1); i <= Math.Min(total - 1, current + 1); i++)
+                        {
+                            if (!pageNumbers.Contains(i)) pageNumbers.Add(i);
+                        }
+                        if (!pageNumbers.Contains(total)) pageNumbers.Add(total);
+                        pageNumbers.Sort();
+
+                        <div class="figma-pagination-container" style="margin-top: 0; margin-bottom: 0;">
+                            @if (current > 1)
+                            {
+                                <a asp-action="Downloads" asp-route-page="@(current - 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-nav-btn figma-btn-prev" title="Previous Page">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="figma-nav-btn figma-btn-disabled" title="First Page">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                                </span>
+                            }
+
+                            <div class="figma-page-items">
+                                @{
+                                    int lastPage = 0;
+                                    foreach (int p in pageNumbers)
+                                    {
+                                        if (lastPage > 0 && p - lastPage > 1)
+                                        {
+                                            <span class="figma-page-ellipsis">•••</span>
+                                        }
+
+                                        if (p == current)
+                                        {
+                                            <span class="figma-page-btn figma-page-active">@p</span>
+                                        }
+                                        else
+                                        {
+                                            <a asp-action="Downloads" asp-route-page="@p" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-page-btn">@p</a>
+                                        }
+                                        lastPage = p;
+                                    }
+                                }
+                            </div>
+
+                            @if (current < total)
+                            {
+                                <a asp-action="Downloads" asp-route-page="@(current + 1)" asp-route-search="@Model.SearchTerm" asp-route-status="@Model.StatusFilter" asp-route-platform="@Model.PlatformFilter" class="figma-nav-btn figma-btn-next" title="Next Page">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="figma-nav-btn figma-btn-disabled" title="Last Page">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                </span>
+                            }
+                        </div>
                     }
                     else
                     {
-                        <span class="figma-nav-btn figma-btn-disabled" title="Last Page">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </span>
+                        <div class="figma-pagination-container" style="margin-top: 0; margin-bottom: 0;">
+                            <span class="figma-nav-btn figma-btn-disabled"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg></span>
+                            <div class="figma-page-items">
+                                <span class="figma-page-btn figma-page-active">1</span>
+                            </div>
+                            <span class="figma-nav-btn figma-btn-disabled"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg></span>
+                        </div>
                     }
                 </div>
             }
@@ -708,6 +723,42 @@
 @section Scripts {
     <script src="~/active-downloads-monitor.js" asp-append-version="true"></script>
     <style>
+        /* ─── Guaranteed Zero Horizontal Scroll ─── */
+        .table-responsive,
+        .table-scroll-container {
+            overflow-x: hidden !important;
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        .table-glass-card .modern-table,
+        .modern-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+        }
+
+        .table-glass-card .modern-table th,
+        .table-glass-card .modern-table td {
+            padding: 10px 8px !important;
+            box-sizing: border-box !important;
+        }
+
+        .table-glass-card .title-cell-wrap {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+        }
+
+        .table-main-title {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            display: block !important;
+            max-width: 100% !important;
+        }
+
         /* ─── Guaranteed Date & Action Cell Formatting (No-Wrap) ─── */
         .date-cell, .date-main, .date-sub, td.date-td {
             white-space: nowrap !important;
@@ -1134,6 +1185,8 @@
                     statusEl.innerHTML = '<span class="status-badge-modern status-err"><span class="status-indicator-dot dot-red"></span> Failed</span>';
                 }
             }
+        }
+
         async function openDownloadsFolder() {
             try {
                 await fetch('/api/open-folder', { method: 'POST' });

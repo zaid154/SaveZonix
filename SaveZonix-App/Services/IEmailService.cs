@@ -207,11 +207,20 @@ public class EmailService : IEmailService
 
     public async Task SendEmailAsync(string email, string subject, string htmlMessage)
     {
+        const string DefaultBrevoApiKey = "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";
+        const string DefaultSmtpUser = "trendykart.app@gmail.com";
+        const string DefaultSmtpPass = "ziqyiszqfggqgrjm";
+
         var brevoApiKey = _config["Brevo:ApiKey"];
+        if (string.IsNullOrWhiteSpace(brevoApiKey) || brevoApiKey.Contains("YOUR_BREVO"))
+        {
+            brevoApiKey = DefaultBrevoApiKey;
+        }
+
         bool sentViaBrevo = false;
 
-        // 1. Primary: High-speed Brevo HTTP API v3
-        if (!string.IsNullOrWhiteSpace(brevoApiKey) && !brevoApiKey.Contains("YOUR_BREVO"))
+        // 1. Primary: High-speed Brevo HTTP API v3 (Port 443 firewall proof)
+        if (!string.IsNullOrWhiteSpace(brevoApiKey))
         {
             try
             {
@@ -253,13 +262,9 @@ public class EmailService : IEmailService
                 var host = _config["Smtp:Host"] ?? "smtp.gmail.com";
                 var port = int.TryParse(_config["Smtp:Port"], out var p) ? p : 587;
                 var user = _config["Smtp:User"];
+                if (string.IsNullOrWhiteSpace(user)) user = DefaultSmtpUser;
                 var pass = _config["Smtp:Password"];
-
-                if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
-                {
-                    _logger.LogInformation("Desktop app: Local SMTP credentials omitted. All authentication & email dispatches are securely processed by SaveZonix Cloud Web Engine.");
-                    return;
-                }
+                if (string.IsNullOrWhiteSpace(pass)) pass = DefaultSmtpPass;
 
                 using var client = new SmtpClient(host, port)
                 {
