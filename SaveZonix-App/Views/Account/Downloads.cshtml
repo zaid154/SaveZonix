@@ -190,13 +190,13 @@
                     <table class="data-table modern-table" style="table-layout: fixed; width: 100%; min-width: 0;">
                         <thead>
                             <tr>
-                                <th style="width: 58px;">MEDIA</th>
-                                <th style="width: 250px;">TITLE &amp; SOURCE</th>
-                                <th style="width: 115px; white-space: nowrap;">QUALITY &amp; CODEC</th>
-                                <th style="width: 95px; white-space: nowrap;">SIZE / SPEED</th>
-                                <th style="width: 105px; white-space: nowrap;">STATUS</th>
-                                <th style="width: 95px; white-space: nowrap;">DATE</th>
-                                <th style="width: 145px; text-align: right; white-space: nowrap;">ACTION</th>
+                                <th class="col-media">MEDIA</th>
+                                <th class="col-title">TITLE &amp; SOURCE</th>
+                                <th class="col-quality">QUALITY &amp; CODEC</th>
+                                <th class="col-size">SIZE / SPEED</th>
+                                <th class="col-status">STATUS</th>
+                                <th class="col-date">DATE</th>
+                                <th class="col-action">ACTION</th>
                             </tr>
                         </thead>
                     <tbody>
@@ -236,7 +236,7 @@
                                     : $"{batchElapsedSeconds:F0}s";
 
                                 <tr class="table-row-item history-pl-group-row" data-job-id="@(entry.JobId ?? "")" data-group-key="@entry.GroupKey">
-                                    <td>
+                                    <td class="col-media">
                                         <div class="media-thumb-container pl-thumb-container">
                                             @if (!string.IsNullOrEmpty(entry.ThumbnailUrl))
                                             {
@@ -251,14 +251,17 @@
                                             <span class="pl-thumb-badge">@entry.TotalVideos</span>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="title-cell-wrap" style="max-width: 250px; overflow: hidden;">
-                                            <div class="table-main-title pl-main-title" onclick="togglePlaylistHistoryAccordion('@entry.GroupKey')" style="cursor: pointer; max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@entry.Title">
+                                    <td class="col-title">
+                                        <div class="title-cell-wrap">
+                                            <div class="table-main-title pl-main-title" onclick="togglePlaylistHistoryAccordion('@entry.GroupKey')" style="cursor: pointer;" title="@entry.Title">
                                                 <span class="pl-code-pill">@entry.PlaylistCode</span>
-                                                <span>@entry.Title</span>
+                                                <span class="pl-title-text">@entry.Title</span>
                                             </div>
                                             <div class="table-meta-sub">
                                                 <span class="platform-tag plat-youtube">
+                                                    <span class="plat-icon">
+                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#ef4444"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                                                    </span>
                                                     <span class="plat-name">PLAYLIST</span>
                                                 </span>
                                                 <span class="file-name-sub">
@@ -279,15 +282,15 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="quality-cell" style="max-width: 115px; overflow: hidden;">
+                                    <td class="col-quality">
+                                        <div class="quality-cell">
                                             <div style="display: flex; align-items: center; gap: 6px;">
                                                 <span class="quality-pill">@groupQuality</span>
                                             </div>
                                             <div class="codec-sub" style="margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@groupFormat • @entry.TotalVideos Videos</div>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td class="col-size">
                                         <div class="size-cell">
                                             <div class="size-main">@entry.FormattedTotalSize</div>
                                             <div class="speed-sub">
@@ -295,7 +298,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td class="col-status">
                                         <div class="status-cell">
                                             @if (entry.IsActive)
                                             {
@@ -320,13 +323,13 @@
                                             }
                                         </div>
                                     </td>
-                                    <td class="date-td" style="white-space: nowrap;">
+                                    <td class="col-date date-td" style="white-space: nowrap;">
                                         <div class="date-cell">
                                             <div class="date-main">@FormatIndianDate(batchStart)</div>
                                             <div class="date-sub">@FormatIndianTime(batchStart, false)</div>
                                         </div>
                                     </td>
-                                    <td class="actions-td" style="width: 145px; min-width: 145px; text-align: right; white-space: nowrap;">
+                                    <td class="col-action actions-td" style="text-align: right; white-space: nowrap;">
                                         <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 5px; white-space: nowrap; width: 100%;">
                                             @if (hasFailures)
                                             {
@@ -475,7 +478,7 @@
                                 var platName = CleanPlatformName(item.Platform);
 
                                 <tr class="table-row-item">
-                                    <td>
+                                    <td class="col-media">
                                         <div class="media-thumb-container">
                                             @if (!string.IsNullOrEmpty(item.ThumbnailUrl))
                                             {
@@ -489,9 +492,11 @@
                                             }
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="title-cell-wrap" style="max-width: 250px; overflow: hidden;">
-                                            <div class="table-main-title" style="max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="@item.Title">@item.Title</div>
+                                    <td class="col-title">
+                                        <div class="title-cell-wrap">
+                                            <div class="table-main-title" title="@item.Title">
+                                                <span class="single-title-text">@item.Title</span>
+                                            </div>
                                             @if ((item.Status == StreamHelper.Data.DownloadStatus.Failed || item.Status == StreamHelper.Data.DownloadStatus.Cancelled) && !string.IsNullOrEmpty(item.ErrorReason))
                                             {
                                                 <div class="pl-sub-error-reason" style="margin: 3px 0 4px 0;" title="@item.ErrorReason">
@@ -514,13 +519,13 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
-                                        <div class="quality-cell" style="max-width: 115px; overflow: hidden;">
+                                    <td class="col-quality">
+                                        <div class="quality-cell">
                                             <span class="quality-pill">@cleanQ</span>
                                             <div class="codec-sub" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@(item.Format ?? "MP4") • @(item.Codec ?? "H.264 / AAC")</div>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td class="col-size">
                                         <div class="size-cell">
                                             <div class="size-main">@item.FormattedFileSize</div>
                                             <div class="speed-sub">
@@ -538,7 +543,7 @@
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td class="col-status">
                                         <div class="status-cell">
                                             @switch (item.Status)
                                             {
@@ -584,13 +589,13 @@
                                             ? $"{(int)(item.DownloadDurationSeconds / 60)}m {(int)(item.DownloadDurationSeconds % 60)}s"
                                             : $"{item.DownloadDurationSeconds:F1}s";
                                     }
-                                    <td class="date-td" style="white-space: nowrap;">
+                                    <td class="col-date date-td" style="white-space: nowrap;">
                                         <div class="date-cell">
                                             <div class="date-main">@FormatIndianDate(sStart)</div>
                                             <div class="date-sub">@FormatIndianTime(sStart, false)</div>
                                         </div>
                                     </td>
-                                    <td class="actions-td" style="width: 145px; min-width: 145px; text-align: right; white-space: nowrap;">
+                                    <td class="col-action actions-td" style="text-align: right; white-space: nowrap;">
                                         <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 5px; white-space: nowrap; width: 100%;">
                                             @if (!string.IsNullOrEmpty(item.OriginalUrl))
                                             {
@@ -742,23 +747,122 @@
         .table-glass-card .modern-table td {
             padding: 10px 8px !important;
             box-sizing: border-box !important;
+            vertical-align: middle !important;
         }
 
+        /* ─── Strict Column Width Balancing (Zero Gap between Date & Action) ─── */
+        .modern-table th.col-media,
+        .modern-table td.col-media {
+            width: 58px !important;
+            min-width: 58px !important;
+            max-width: 58px !important;
+            padding-left: 12px !important;
+        }
+
+        .modern-table th.col-title,
+        .modern-table td.col-title {
+            width: auto !important;
+            min-width: 260px !important;
+        }
+
+        .modern-table th.col-quality,
+        .modern-table td.col-quality {
+            width: 125px !important;
+            min-width: 125px !important;
+            max-width: 125px !important;
+            white-space: nowrap !important;
+        }
+
+        .modern-table th.col-size,
+        .modern-table td.col-size {
+            width: 105px !important;
+            min-width: 105px !important;
+            max-width: 105px !important;
+            white-space: nowrap !important;
+        }
+
+        .modern-table th.col-status,
+        .modern-table td.col-status {
+            width: 115px !important;
+            min-width: 115px !important;
+            max-width: 115px !important;
+            white-space: nowrap !important;
+        }
+
+        .modern-table th.col-date,
+        .modern-table td.col-date {
+            width: 100px !important;
+            min-width: 100px !important;
+            max-width: 100px !important;
+            white-space: nowrap !important;
+        }
+
+        .modern-table th.col-action,
+        .modern-table td.col-action {
+            width: 95px !important;
+            min-width: 95px !important;
+            max-width: 95px !important;
+            text-align: right !important;
+            padding-right: 12px !important;
+            white-space: nowrap !important;
+        }
+
+        /* ─── Fluid Title & Zero Overlap / Zero Premature Truncation ─── */
         .table-glass-card .title-cell-wrap {
             min-width: 0 !important;
             max-width: 100% !important;
+            width: 100% !important;
             overflow: hidden !important;
         }
 
         .table-main-title {
+            display: flex !important;
+            align-items: center !important;
+            gap: 7px !important;
+            min-width: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            font-size: 13.5px !important;
+            font-weight: 600 !important;
+            color: #f8fafc !important;
+            line-height: 1.35 !important;
+            margin-bottom: 3px !important;
+        }
+
+        .table-main-title .pl-code-pill {
+            flex-shrink: 0 !important;
+        }
+
+        .table-main-title .pl-title-text,
+        .table-main-title .single-title-text,
+        .table-main-title > span:last-child {
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
+            min-width: 0 !important;
+            flex: 1 1 auto !important;
             display: block !important;
-            max-width: 240px !important;
         }
 
-        /* ─── Guaranteed Date & Action Cell Formatting (No-Wrap) ─── */
+        .table-meta-sub {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            font-size: 11.5px !important;
+            color: #94a3b8 !important;
+            white-space: nowrap !important;
+            min-width: 0 !important;
+            overflow: hidden !important;
+        }
+
+        .file-name-sub {
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            min-width: 0 !important;
+        }
+
+        /* ─── Guaranteed Date & Action Cell Formatting (No-Wrap, Zero Dead Gap) ─── */
         .date-cell, .date-main, .date-sub, td.date-td {
             white-space: nowrap !important;
         }
@@ -781,9 +885,10 @@
             font-family: 'JetBrains Mono', monospace !important;
             white-space: nowrap !important;
         }
-        td.actions-td {
-            width: 145px !important;
-            min-width: 145px !important;
+        td.actions-td, th.col-action, td.col-action {
+            width: 95px !important;
+            min-width: 95px !important;
+            max-width: 95px !important;
             white-space: nowrap !important;
         }
         .actions-cell {
