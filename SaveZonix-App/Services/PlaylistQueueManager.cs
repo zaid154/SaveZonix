@@ -766,13 +766,46 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         {
             Directory.CreateDirectory(tempDirectory);
 
-            var video = await GetVideoMetadataWithRetryAsync(item.VideoId, ct);
-            item.Title = video.Title;
-            item.ThumbnailUrl = video.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{video.Id}/hqdefault.jpg";
-            item.DurationSeconds = (int)(video.Duration?.TotalSeconds ?? 0);
-            item.FormattedDuration = video.Duration.HasValue
-                ? (video.Duration.Value.TotalHours >= 1 ? video.Duration.Value.ToString(@"hh\:mm\:ss") : video.Duration.Value.ToString(@"mm\:ss"))
-                : "00:00";
+            // Only query YouTube API for metadata if title or details are missing
+            if (string.IsNullOrWhiteSpace(item.Title) || string.IsNullOrWhiteSpace(item.ThumbnailUrl) || item.DurationSeconds <= 0)
+            {
+                if (item.DurationSeconds <= 0 && !string.IsNullOrWhiteSpace(item.FormattedDuration) && item.FormattedDuration != "00:00")
+                {
+                    if (TimeSpan.TryParse(item.FormattedDuration, out var parsedSpan))
+                    {
+                        item.DurationSeconds = (int)parsedSpan.TotalSeconds;
+                    }
+                    else
+                    {
+                        var parts = item.FormattedDuration.Split(':');
+                        if (parts.Length == 2 && int.TryParse(parts[0], out int m) && int.TryParse(parts[1], out int s))
+                            item.DurationSeconds = m * 60 + s;
+                        else if (parts.Length == 3 && int.TryParse(parts[0], out int h) && int.TryParse(parts[1], out int m2) && int.TryParse(parts[2], out int s2))
+                            item.DurationSeconds = h * 3600 + m2 * 60 + s2;
+                    }
+                }
+
+                if (string.IsNullOrWhiteSpace(item.Title) || string.IsNullOrWhiteSpace(item.ThumbnailUrl) || item.DurationSeconds <= 0)
+                {
+                    try
+                    {
+                        var video = await GetVideoMetadataWithRetryAsync(item.VideoId, ct);
+                        if (string.IsNullOrWhiteSpace(item.Title)) item.Title = video.Title;
+                        if (string.IsNullOrWhiteSpace(item.ThumbnailUrl)) item.ThumbnailUrl = video.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{video.Id}/hqdefault.jpg";
+                        if (item.DurationSeconds <= 0) item.DurationSeconds = (int)(video.Duration?.TotalSeconds ?? 0);
+                        if (string.IsNullOrWhiteSpace(item.FormattedDuration) || item.FormattedDuration == "00:00")
+                        {
+                            item.FormattedDuration = video.Duration.HasValue
+                                ? (video.Duration.Value.TotalHours >= 1 ? video.Duration.Value.ToString(@"hh\:mm\:ss") : video.Duration.Value.ToString(@"mm\:ss"))
+                                : "00:00";
+                        }
+                    }
+                    catch
+                    {
+                        if (string.IsNullOrWhiteSpace(item.Title)) item.Title = $"Video {item.Index}";
+                    }
+                }
+            }
 
             // Defensive Audio normalization
             if (item.Quality.Equals("AudioOnly", StringComparison.OrdinalIgnoreCase) &&
@@ -782,7 +815,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 item.Format = "MP3";
             }
 
-            string safeTitle = SanitizeFileName(video.Title);
+            string safeTitle = SanitizeFileName(item.Title);
             string ext = item.Format.ToLowerInvariant() switch
             {
                 "mp3" => ".mp3",
@@ -832,7 +865,13 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             if (isAudioOnly)
             {
                 item.Status = "⚡ Turbo Downloading Audio Track...";
-                var audioStream = manifest.GetAudioOnlyStreams().GetWithHighestBitrate();
+                var audioStreams = manifest.GetAudioOnlyStreams().ToList();
+                IStreamInfo? audioStream = null;
+                if (item.Format.Equals("M4A", StringComparison.OrdinalIgnoreCase))
+                {
+                    audioStream = audioStreams.FirstOrDefault(s => s.Container == YoutubeExplode.Videos.Streams.Container.Mp4);
+                }
+                audioStream ??= audioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
                 if (audioStream == null)
                 {
                     throw new Exception("No audio stream available for this video.");
@@ -1020,6 +1059,11 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             item.EndTime = DateTime.UtcNow;
 
             long finalSize = File.Exists(finalDestination) ? new FileInfo(finalDestination).Length : item.TotalBytes;
+            if (finalSize > 0)
+            {
+                item.BytesDownloaded = finalSize;
+                item.TotalBytes = finalSize;
+            }
             double totalSeconds = sw.Elapsed.TotalSeconds;
             double avgSpeed = totalSeconds > 0 ? Math.Round((finalSize / (1024.0 * 1024.0)) / totalSeconds, 2) : 0;
             item.DurationSecondsTaken = Math.Round(totalSeconds, 1);
@@ -1107,8 +1151,9 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         int total = job.Items.Count;
         int completed = job.Items.Count(i => i.Status == "Completed");
         int failed = job.Items.Count(i => i.Status == "Failed" || i.Status == "Cancelled");
-        int active = job.Items.Count(i => i.Status == "Analyzing..." || i.Status.StartsWith("Downloading") || i.Status.StartsWith("Muxing") || i.Status.StartsWith("Converting") || i.Status.StartsWith("Validating"));
         int queued = job.Items.Count(i => i.Status == "Pending");
+        // Any item that is not completed, failed, cancelled, or pending is actively processing/downloading
+        int active = job.Items.Count(i => i.Status != "Completed" && i.Status != "Failed" && i.Status != "Cancelled" && i.Status != "Pending");
 
         job.CompletedCount = completed;
         job.FailedCount = failed;
@@ -1118,8 +1163,52 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         double sumPercent = job.Items.Sum(i => i.Percentage);
         job.OverallPercentage = total > 0 ? Math.Round(sumPercent / total, 1) : 0;
 
-        double sumSpeed = job.Items.Where(i => i.SpeedMBps > 0).Sum(i => i.SpeedMBps);
-        job.OverallSpeedMBps = Math.Round(sumSpeed, 1);
+        // Instantaneous sum of active items currently downloading chunks
+        double sumInstantSpeed = job.Items.Where(i => i.SpeedMBps > 0).Sum(i => i.SpeedMBps);
+
+        // Continuous rolling batch throughput tracking (delta bytes / delta time)
+        long nowTicks = Stopwatch.GetTimestamp();
+        long currentTotalBytes = job.Items.Sum(i => i.BytesDownloaded);
+
+        if (job.LastSampleTicks > 0)
+        {
+            double elapsedSec = (double)(nowTicks - job.LastSampleTicks) / Stopwatch.Frequency;
+            if (elapsedSec >= 0.4)
+            {
+                long deltaBytes = currentTotalBytes - job.LastSampleTotalBytes;
+                if (deltaBytes > 0)
+                {
+                    double measuredSpeed = (deltaBytes / (1024.0 * 1024.0)) / elapsedSec;
+                    if (measuredSpeed > 0.05)
+                    {
+                        job.SmoothedSpeedMBps = job.SmoothedSpeedMBps > 0
+                            ? Math.Round(job.SmoothedSpeedMBps * 0.25 + measuredSpeed * 0.75, 1)
+                            : Math.Round(measuredSpeed, 1);
+                    }
+                }
+                else if (elapsedSec > 2.5 && sumInstantSpeed <= 0)
+                {
+                    // Gentle decay if network paused / conversion happening
+                    job.SmoothedSpeedMBps = Math.Max(0, Math.Round(job.SmoothedSpeedMBps * 0.6, 1));
+                }
+
+                job.LastSampleTicks = nowTicks;
+                job.LastSampleTotalBytes = currentTotalBytes;
+            }
+        }
+        else
+        {
+            job.LastSampleTicks = nowTicks;
+            job.LastSampleTotalBytes = currentTotalBytes;
+        }
+
+        double displaySpeed = sumInstantSpeed > 0 ? sumInstantSpeed : job.SmoothedSpeedMBps;
+        if (active > 0 && displaySpeed <= 0 && job.SmoothedSpeedMBps > 0)
+        {
+            displaySpeed = job.SmoothedSpeedMBps;
+        }
+
+        job.OverallSpeedMBps = Math.Round(displaySpeed, 1);
         if (job.OverallSpeedMBps > job.PeakSpeedMBps) job.PeakSpeedMBps = job.OverallSpeedMBps;
     }
 
@@ -1197,14 +1286,10 @@ public class PlaylistQueueManager : IPlaylistQueueManager
     // ─────────────────────────────────────────────────────────────
     private static void AddYouTubePlayerHeaders(HttpRequestMessage req)
     {
-        req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-        req.Headers.TryAddWithoutValidation("Origin", "https://www.youtube.com");
+        req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
         req.Headers.TryAddWithoutValidation("Referer", "https://www.youtube.com/");
         req.Headers.TryAddWithoutValidation("Accept", "*/*");
-        req.Headers.TryAddWithoutValidation("Accept-Encoding", "identity;q=1, *;q=0");
-        req.Headers.TryAddWithoutValidation("Sec-Fetch-Dest", "video");
-        req.Headers.TryAddWithoutValidation("Sec-Fetch-Mode", "cors");
-        req.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "cross-site");
+        req.Headers.TryAddWithoutValidation("Accept-Encoding", "identity");
     }
 
     private async Task DownloadStreamParallelAsync(IStreamInfo streamInfo, string targetPath, IProgress<long>? progress, CancellationToken ct, int turboChunks = 32)
@@ -1422,7 +1507,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             var psiFallback = new ProcessStartInfo
             {
                 FileName = GetFfmpegPath(),
-                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a aac -b:a 192k -threads 0 -preset ultrafast -map 0:v:0 -map 1:a:0? \"{outputPath}\" -y",
+                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a aac -b:a 192k -threads 2 -preset ultrafast -map 0:v:0 -map 1:a:0? \"{outputPath}\" -y",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,
@@ -1446,14 +1531,41 @@ public class PlaylistQueueManager : IPlaylistQueueManager
     {
         try
         {
+            // If output format is M4A, attempt instant lossless stream copy first (-c:a copy)
+            if (format.Equals("m4a", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var psiCopy = new ProcessStartInfo
+                    {
+                        FileName = GetFfmpegPath(),
+                        Arguments = $"-i \"{inputVideoPath}\" -vn -c:a copy \"{outputAudioPath}\" -y",
+                        RedirectStandardOutput = false,
+                        RedirectStandardError = false,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    };
+                    using var procCopy = Process.Start(psiCopy);
+                    if (procCopy != null)
+                    {
+                        await procCopy.WaitForExitAsync();
+                        if (procCopy.ExitCode == 0 && File.Exists(outputAudioPath) && new FileInfo(outputAudioPath).Length > 1024)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch { }
+            }
+
             string audioCodecArgs = format.Equals("m4a", StringComparison.OrdinalIgnoreCase)
                 ? $"-c:a aac -b:a {bitrate} -ar 48000"
-                : $"-c:a libmp3lame -b:a {bitrate} -ar 48000 -id3v2_version 3";
+                : $"-c:a libmp3lame -b:a {bitrate} -ar 44100 -id3v2_version 3 -preset ultrafast";
 
             var psi = new ProcessStartInfo
             {
                 FileName = GetFfmpegPath(),
-                Arguments = $"-i \"{inputVideoPath}\" -vn {audioCodecArgs} -threads 0 \"{outputAudioPath}\" -y",
+                Arguments = $"-i \"{inputVideoPath}\" -vn {audioCodecArgs} -threads 2 \"{outputAudioPath}\" -y",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,

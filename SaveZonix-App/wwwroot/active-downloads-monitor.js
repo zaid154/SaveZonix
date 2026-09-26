@@ -178,14 +178,22 @@
 
         jobs.forEach(job => {
             totalPendingVideos += ((job.activeCount || 0) + (job.queuedCount || 0));
+            let jobSpeed = 0;
             if (Array.isArray(job.items)) {
                 job.items.forEach(it => {
                     if (it.speedMBps && it.speedMBps > 0) {
-                        globalSpeedSum += it.speedMBps;
+                        jobSpeed += it.speedMBps;
                         totalActiveStreams++;
                     }
                 });
             }
+            if (jobSpeed <= 0 && job.overallSpeedMBps && job.overallSpeedMBps > 0) {
+                jobSpeed = job.overallSpeedMBps;
+                if (totalActiveStreams === 0 && (job.activeCount || 0) > 0) {
+                    totalActiveStreams += job.activeCount;
+                }
+            }
+            globalSpeedSum += jobSpeed;
         });
 
         singleTasks.forEach(t => {

@@ -148,6 +148,15 @@ public class PlaylistBatchJobState
 
     [System.Text.Json.Serialization.JsonIgnore]
     public CancellationTokenSource? Cts { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public long LastSampleTicks { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public long LastSampleTotalBytes { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public double SmoothedSpeedMBps { get; set; }
 }
 
 public class RetryPlaylistItemRequest
