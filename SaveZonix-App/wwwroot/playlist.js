@@ -1490,8 +1490,8 @@
                     </a>
                 </td>
                 <td class="col-meta video-meta-cell">
-                    <h4 title="${escapeHtml(v.title)}"><a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener noreferrer" class="video-title-link">${escapeHtml(v.title)}</a></h4>
-                    <div class="video-sub">${escapeHtml(v.author || '')}</div>
+                    <h4 title="${escapeHtml(v.title)}"><a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener noreferrer" class="video-title-link" title="${escapeHtml(v.title)}">${escapeHtml(formatShortTitle(v.title, 4))}</a></h4>
+                    <div class="video-sub" title="${escapeHtml(v.author || '')}">${escapeHtml(formatShortTitle(v.author || '', 3))}</div>
                 </td>
                 <td class="col-duration text-center"><span class="duration-text">${v.formattedDuration}</span></td>
                 <td class="col-qualities">
@@ -2214,6 +2214,17 @@
         try {
             await fetch('/api/open-folder', { method: 'POST' });
         } catch { }
+    }
+
+    function formatShortTitle(text, maxWords = 4) {
+        if (!text) return '';
+        const words = text.trim().split(/\s+/);
+        if (words.length > maxWords) {
+            let shortText = words.slice(0, maxWords).join(' ');
+            shortText = shortText.replace(/[\s|\-:•,]+$/, '');
+            return shortText + '...';
+        }
+        return text;
     }
 
     function escapeHtml(str) {
