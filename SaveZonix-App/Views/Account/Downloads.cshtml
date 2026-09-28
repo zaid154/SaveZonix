@@ -389,7 +389,13 @@
                                                         : (sub.DownloadDurationSeconds > 0 ? subStart.AddSeconds(sub.DownloadDurationSeconds) : subStart);
                                                     string subDurationStr = sub.DownloadDurationSeconds >= 60
                                                         ? $"{(int)(sub.DownloadDurationSeconds / 60)}m {(int)(sub.DownloadDurationSeconds % 60)}s"
-                                                        : $"{sub.DownloadDurationSeconds:F1}s";
+                                                        : $"{Math.Max(1, (int)Math.Round(sub.DownloadDurationSeconds))}s";
+
+                                                    var subPlat = !string.IsNullOrWhiteSpace(sub.Platform) ? sub.Platform : "YouTube";
+                                                    var subPlatClass = GetPlatformBadgeClass(subPlat);
+                                                    var subPlatName = CleanPlatformName(subPlat);
+                                                    var isSubYouTube = subPlatClass.Contains("youtube") || subPlat.ToLowerInvariant().Contains("youtube");
+                                                    var targetUrl = !string.IsNullOrWhiteSpace(sub.OriginalUrl) ? sub.OriginalUrl : "";
 
                                                     <div id="subItemRow_@sub.Id" class="pl-nested-item-row @(subFailed ? "pl-sub-failed" : "")">
                                                         <div class="pl-sub-media">
@@ -409,36 +415,88 @@
                                                             }
                                                         </div>
                                                         <div class="pl-sub-info">
-                                                            <div class="pl-sub-title" title="@sub.Title">@sub.Title</div>
-                                                            @if (subFailed && !string.IsNullOrEmpty(sub.ErrorReason))
-                                                            {
-                                                                <div class="pl-sub-error-reason" title="@sub.ErrorReason">
-                                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                                                                    Reason: @sub.ErrorReason
-                                                                </div>
-                                                            }
-                                                            else
-                                                            {
-                                                                <div class="pl-sub-meta">
-                                                                    <span class="pl-sub-meta-spec">@cleanSubQ • @(sub.Format ?? "MP4") • @sub.FormattedFileSize</span>
-                                                                    <span class="pl-sub-meta-time">
-                                                                        <span class="pl-time-tag"><span class="lbl">Start:</span> <strong>@FormatIndianTime(subStart, true)</strong></span>
-                                                                        <span class="pl-time-arrow">→</span>
-                                                                        <span class="pl-time-tag"><span class="lbl">End:</span> <strong>@FormatIndianTime(subEnd, true)</strong></span>
+                                                            <div class="pl-sub-title-wrap">
+                                                                @if (!string.IsNullOrWhiteSpace(targetUrl))
+                                                                {
+                                                                    <a href="@targetUrl" target="_blank" rel="noopener noreferrer" class="pl-sub-title pl-sub-title-link" title="@sub.Title">@sub.Title</a>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <div class="pl-sub-title" title="@sub.Title">@sub.Title</div>
+                                                                }
+                                                            </div>
+                                                            <div class="pl-sub-meta">
+                                                                @if (!string.IsNullOrWhiteSpace(targetUrl))
+                                                                {
+                                                                    <a href="@targetUrl" target="_blank" rel="noopener noreferrer" class="platform-tag @subPlatClass pl-sub-platform-badge" title="Source: @subPlatName (Click to open)">
+                                                                        <span class="plat-icon">
+                                                                            @if (isSubYouTube)
+                                                                            {
+                                                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="#ef4444"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <span>@GetPlatformIcon(subPlat)</span>
+                                                                            }
+                                                                        </span>
+                                                                        <span class="plat-name">@subPlatName</span>
+                                                                    </a>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="platform-tag @subPlatClass pl-sub-platform-badge" title="Source: @subPlatName">
+                                                                        <span class="plat-icon">
+                                                                            @if (isSubYouTube)
+                                                                            {
+                                                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="#ef4444"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                                                                            }
+                                                                            else
+                                                                            {
+                                                                                <span>@GetPlatformIcon(subPlat)</span>
+                                                                            }
+                                                                        </span>
+                                                                        <span class="plat-name">@subPlatName</span>
+                                                                    </span>
+                                                                }
+
+                                                                <span class="pl-sub-meta-spec">
+                                                                    <span class="spec-quality">@cleanSubQ</span>
+                                                                    <span class="spec-dot">•</span>
+                                                                    <span class="spec-format">@(sub.Format ?? "MP4")</span>
+                                                                    @if (!string.IsNullOrEmpty(sub.FormattedFileSize) && sub.FormattedFileSize != "0 B" && sub.FormattedFileSize != "0 MB")
+                                                                    {
+                                                                        <span class="spec-dot">•</span>
+                                                                        <span class="spec-size">@sub.FormattedFileSize</span>
+                                                                    }
+                                                                </span>
+
+                                                                @if (subFailed && !string.IsNullOrEmpty(sub.ErrorReason))
+                                                                {
+                                                                    <span class="pl-sub-error-pill" title="@sub.ErrorReason">
+                                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; margin-right: 3px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                                                                        <span>Reason: @sub.ErrorReason</span>
+                                                                    </span>
+                                                                }
+                                                                else
+                                                                {
+                                                                    <span class="pl-sub-meta-time" title="Started: @FormatIndianTime(subStart, true) • Finished: @FormatIndianTime(subEnd, true)">
+                                                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -1px; opacity: 0.7;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                                                                        <span>@FormatIndianTime(subEnd, false)</span>
                                                                         @if (sub.DownloadDurationSeconds > 0)
                                                                         {
                                                                             <span class="pl-time-dur">(@subDurationStr)</span>
                                                                         }
                                                                     </span>
+
                                                                     @if (sub.AverageSpeedMBps > 0)
                                                                     {
-                                                                        <span class="pl-sub-meta-speed">
-                                                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="#34d399" stroke="none" style="vertical-align: 0px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Avg: <strong>@sub.AverageSpeedMBps.ToString("F1") MB/s</strong>
-                                                                            @(sub.PeakSpeedMBps > 0 ? $"• Peak: {sub.PeakSpeedMBps:F1} MB/s" : "")
+                                                                        <span class="pl-sub-meta-speed" title="Average speed: @sub.AverageSpeedMBps.ToString("F1") MB/s@(sub.PeakSpeedMBps > 0 ? $" • Peak: {sub.PeakSpeedMBps:F1} MB/s" : "")">
+                                                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="#38bdf8" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                                                            <span>Avg: @sub.AverageSpeedMBps.ToString("F1") MB/s</span>
                                                                         </span>
                                                                     }
-                                                                </div>
-                                                            }
+                                                                }
+                                                            </div>
                                                         </div>
                                                         <div class="pl-sub-status">
                                                             @if (sub.Status == StreamHelper.Data.DownloadStatus.Completed)
@@ -938,68 +996,149 @@
             line-height: 1.2 !important;
         }
 
+        /* ─── Playlist Accordion Sub-Item Polish ─── */
+        .pl-sub-title,
+        .pl-sub-title-link {
+            font-size: 12.5px !important;
+            font-weight: 600 !important;
+            color: #f1f5f9 !important;
+            white-space: normal !important;
+            word-break: break-word !important;
+            line-height: 1.35 !important;
+            display: inline-block !important;
+            text-decoration: none !important;
+            transition: color 0.15s ease !important;
+        }
+
+        .pl-sub-title-link:hover {
+            color: #38bdf8 !important;
+            text-decoration: underline !important;
+        }
+
+        .pl-sub-thumb-link {
+            display: block !important;
+            border-radius: 6px !important;
+            overflow: hidden !important;
+            position: relative !important;
+            transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+        }
+
+        .pl-sub-thumb-link:hover {
+            transform: scale(1.04) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+        }
+
         .pl-sub-meta {
             display: flex !important;
             align-items: center !important;
             flex-wrap: wrap !important;
-            gap: 8px !important;
-            font-size: 11.5px !important;
-            margin-top: 4px !important;
+            gap: 6px !important;
+            font-size: 11px !important;
+            margin-top: 5px !important;
+        }
+
+        .pl-sub-platform-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 2px 7px !important;
+            border-radius: 4px !important;
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.3px !important;
+            text-decoration: none !important;
+            transition: all 0.15s ease !important;
+        }
+
+        .pl-sub-platform-badge:hover {
+            filter: brightness(1.15) !important;
+            transform: translateY(-1px) !important;
         }
 
         .pl-sub-meta-spec {
-            color: #94a3b8;
-            font-weight: 500;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            padding: 2px 8px !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 5px !important;
+            color: #94a3b8 !important;
+            font-weight: 500 !important;
+            font-size: 11px !important;
+        }
+
+        .pl-sub-meta-spec .spec-quality {
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
+        }
+
+        .pl-sub-meta-spec .spec-dot {
+            color: #475569 !important;
+            font-size: 9px !important;
+        }
+
+        .pl-sub-meta-spec .spec-format {
+            color: #94a3b8 !important;
+        }
+
+        .pl-sub-meta-spec .spec-size {
+            color: #cbd5e1 !important;
+            font-weight: 600 !important;
         }
 
         .pl-sub-meta-time {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            padding: 2px 8px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 5px;
-            font-size: 11px;
-            color: #94a3b8;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+            padding: 2px 8px !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 5px !important;
+            font-size: 11px !important;
+            color: #cbd5e1 !important;
+            font-family: inherit !important;
         }
 
-        .pl-sub-meta-time .lbl {
-            color: #64748b;
-            font-size: 10.5px;
-            margin-right: 2px;
-        }
-
-        .pl-sub-meta-time strong {
-            color: #e2e8f0;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        }
-
-        .pl-time-arrow {
-            color: #64748b;
-            font-size: 10px;
+        .pl-sub-meta-time svg {
+            color: #64748b !important;
+            flex-shrink: 0 !important;
         }
 
         .pl-time-dur {
-            color: #38bdf8;
-            font-weight: 600;
-            margin-left: 2px;
+            color: #38bdf8 !important;
+            font-weight: 600 !important;
+            font-size: 10.5px !important;
         }
 
         .pl-sub-meta-speed {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            padding: 2px 8px;
-            background: rgba(14, 165, 233, 0.1);
-            border: 1px solid rgba(14, 165, 233, 0.25);
-            border-radius: 5px;
-            font-size: 11px;
-            color: #38bdf8;
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 2px 8px !important;
+            background: rgba(14, 165, 233, 0.1) !important;
+            border: 1px solid rgba(14, 165, 233, 0.25) !important;
+            border-radius: 5px !important;
+            font-size: 11px !important;
+            color: #38bdf8 !important;
+            font-weight: 600 !important;
         }
 
-        .pl-sub-meta-speed strong {
-            color: #7dd3fc;
+        .pl-sub-error-pill {
+            display: inline-flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            padding: 2px 8px !important;
+            background: rgba(244, 63, 94, 0.12) !important;
+            border: 1px solid rgba(244, 63, 94, 0.3) !important;
+            border-radius: 5px !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            color: #fb7185 !important;
+            max-width: 100% !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
         .pl-date-range {
