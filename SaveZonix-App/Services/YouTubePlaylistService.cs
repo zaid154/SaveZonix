@@ -83,37 +83,41 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         // If limit is explicitly 0, load all.
         // If limit is specified > 0, use it.
         // If isMix and limit not specified, default to 25 (exact YouTube watch page queue).
-        // Otherwise for normal playlists, default to 100 or all.
+        bool loadAll = (limit.HasValue && limit.Value == 0);
         int targetLimit = (limit.HasValue && limit.Value > 0) 
             ? limit.Value 
-            : ((limit.HasValue && limit.Value == 0) ? int.MaxValue : (isMix ? 25 : 100));
+            : (loadAll ? 500 : (isMix ? 25 : 100));
 
         int skipCount = (offset.HasValue && offset.Value > 0) ? offset.Value : 0;
 
         // Check 15-minute memory cache for instant response if cached has enough items
-        if (_cache.TryGetValue(playlistId, out var cached) && (DateTime.UtcNow - cached.CachedAt).TotalMinutes < 15)
+        if (!loadAll && _cache.TryGetValue(playlistId, out var cached) && (DateTime.UtcNow - cached.CachedAt).TotalMinutes < 15)
         {
             var full = cached.Result;
-            if (full.Videos != null && full.Videos.Count > 0 && (full.Videos.Count >= skipCount + targetLimit || !full.HasMore))
+            long needed = (long)skipCount + targetLimit;
+            if (full.Videos != null && full.Videos.Count > 0 && (full.Videos.Count >= needed || (!full.HasMore && full.Videos.Count > skipCount)))
             {
                 var pagedVideos = full.Videos.Skip(skipCount).Take(targetLimit).ToList();
-                bool moreAvailable = (skipCount + pagedVideos.Count) < full.Videos.Count || full.HasMore;
-                return new PlaylistInfoResult
+                if (pagedVideos.Count > 0)
                 {
-                    Success = true,
-                    Id = full.Id,
-                    Title = full.Title,
-                    Author = full.Author,
-                    AuthorUrl = full.AuthorUrl,
-                    ThumbnailUrl = full.ThumbnailUrl,
-                    Description = full.Description,
-                    VideoCount = pagedVideos.Count,
-                    TotalKnownVideos = full.TotalKnownVideos > 0 ? full.TotalKnownVideos : full.Videos.Count,
-                    HasMore = moreAvailable,
-                    IsMix = isMix,
-                    FormattedTotalDuration = full.FormattedTotalDuration,
-                    Videos = pagedVideos
-                };
+                    bool moreAvailable = (skipCount + pagedVideos.Count) < full.Videos.Count || full.HasMore;
+                    return new PlaylistInfoResult
+                    {
+                        Success = true,
+                        Id = full.Id,
+                        Title = full.Title,
+                        Author = full.Author,
+                        AuthorUrl = full.AuthorUrl,
+                        ThumbnailUrl = full.ThumbnailUrl,
+                        Description = full.Description,
+                        VideoCount = pagedVideos.Count,
+                        TotalKnownVideos = full.TotalKnownVideos > 0 ? full.TotalKnownVideos : full.Videos.Count,
+                        HasMore = moreAvailable,
+                        IsMix = isMix,
+                        FormattedTotalDuration = full.FormattedTotalDuration,
+                        Videos = pagedVideos
+                    };
+                }
             }
         }
 
@@ -199,7 +203,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                         ThumbnailUrl = seedVideos.FirstOrDefault()?.ThumbnailUrl ?? "",
                         VideoCount = seedVideos.Count,
                         TotalKnownVideos = (_cache.TryGetValue(playlistId, out var c3) ? c3.Result.Videos.Count : skipCount + seedVideos.Count),
-                        HasMore = seedVideos.Count >= targetLimit,
+                        HasMore = seedVideos.Count > 0 && (skipCount + seedVideos.Count < 400),
                         IsMix = true,
                         FormattedTotalDuration = ts.TotalHours >= 1 ? $"{(int)ts.TotalHours}h {ts.Minutes}m" : $"{ts.Minutes}m {ts.Seconds}s",
                         Videos = seedVideos

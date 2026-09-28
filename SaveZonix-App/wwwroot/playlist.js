@@ -1040,31 +1040,118 @@
         // UI: Show loading spinner on button
         if (btnLoadNextBatch) {
             btnLoadNextBatch.disabled = true;
-            const span = btnLoadNextBatch.querySelector('span');
-            if (span) span.textContent = 'Loading...';
         }
-        if (btnLoadAllVideos) btnLoadAllVideos.disabled = true;
+        if (btnLoadAllVideos) {
+            btnLoadAllVideos.disabled = true;
+            const spanAll = btnLoadAllVideos.querySelector('span');
+            if (spanAll) spanAll.textContent = 'Loading All...';
+        }
         if (progressiveLoadingBar) {
             progressiveLoadingBar.style.display = 'flex';
-            if (progressiveLoadingMsg) {
-                progressiveLoadingMsg.textContent = loadAll
-                    ? 'Fetching all remaining videos from YouTube... Please wait a moment...'
-                    : `Fetching next ${batchSize} videos (#${loadedVideos.length + 1} to #${loadedVideos.length + batchSize}) from YouTube...`;
-            }
         }
 
         try {
-            const startIndex = loadedVideos.length + 1;
-            const limitParam = loadAll ? 'all' : batchSize;
+            if (loadAll) {
+                let keepFetching = true;
+                const maxCap = 400;
 
-            // Get last video ID for seed-chaining (Mix playlists)
+                while (keepFetching && loadedVideos.length < maxCap) {
+                    const startIndex = loadedVideos.length + 1;
+                    const lastVid = loadedVideos.length > 0 ? loadedVideos[loadedVideos.length - 1] : null;
+                    const lastVideoId = lastVid ? lastVid.videoId : '';
+
+                    if (progressiveLoadingMsg) {
+                        progressiveLoadingMsg.textContent = `Fetching all videos... (${loadedVideos.length} loaded so far)`;
+                    }
+
+                    let data = null;
+                    try {
+                        let fetchUrl = `/api/playlist/fetch?url=${encodeURIComponent(currentPlaylistUrl)}&startIndex=${startIndex}&limit=25`;
+                        if (lastVideoId) fetchUrl += `&lastVideoId=${encodeURIComponent(lastVideoId)}`;
+                        const fetchResp = await fetch(fetchUrl);
+                        if (fetchResp.ok) {
+                            data = await fetchResp.json();
+                        }
+                    } catch { }
+
+                    if (!data || !data.success) {
+                        try {
+                            const resp = await fetch('/api/playlist/load', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    url: currentPlaylistUrl,
+                                    limit: 25,
+                                    offset: loadedVideos.length,
+                                    lastVideoId: lastVideoId
+                                })
+                            });
+                            data = await resp.json();
+                        } catch { }
+                    }
+
+                    if (!data || !data.success || !data.videos || data.videos.length === 0) {
+                        keepFetching = false;
+                        break;
+                    }
+
+                    const newVideos = data.videos || [];
+                    const existingIds = new Set(loadedVideos.map(v => v.videoId));
+                    const uniqueNewVideos = newVideos.filter(v => !existingIds.has(v.videoId));
+
+                    if (uniqueNewVideos.length === 0) {
+                        keepFetching = false;
+                        break;
+                    }
+
+                    const startIdx = loadedVideos.length;
+                    uniqueNewVideos.forEach((v, i) => {
+                        const globalIdx = startIdx + i + 1;
+                        v.originalIndex = globalIdx;
+                        v.index = globalIdx;
+                        if (v.isAvailable && !removedVideoIds.has(v.videoId)) {
+                            selectedVideoIds.add(v.videoId);
+                        }
+                        loadedVideos.push(v);
+                    });
+
+                    if (bannerCountBadge) bannerCountBadge.textContent = `${loadedVideos.length} Videos`;
+                    if (data.formattedTotalDuration && bannerDuration) {
+                        bannerDuration.textContent = data.formattedTotalDuration;
+                    }
+
+                    renderVideosTable();
+                    updateSelectionMetrics();
+
+                    if (!data.hasMore || loadedVideos.length >= maxCap) {
+                        keepFetching = false;
+                        break;
+                    }
+
+                    // Brief breathing space for UI refresh and socket throttle
+                    await new Promise(res => setTimeout(res, 120));
+                }
+
+                updateProgressiveSection({ hasMore: false, isMix: currentPlaylist?.isMix, totalKnownVideos: loadedVideos.length });
+                return;
+            }
+
+            // Normal single batch loading (25 items)
+            if (btnLoadNextBatch) {
+                const span = btnLoadNextBatch.querySelector('span');
+                if (span) span.textContent = 'Loading...';
+            }
+            if (progressiveLoadingMsg) {
+                progressiveLoadingMsg.textContent = `Fetching next ${batchSize} videos (#${loadedVideos.length + 1} to #${loadedVideos.length + batchSize}) from YouTube...`;
+            }
+
+            const startIndex = loadedVideos.length + 1;
             const lastVid = loadedVideos.length > 0 ? loadedVideos[loadedVideos.length - 1] : null;
             const lastVideoId = lastVid ? lastVid.videoId : '';
 
             let data = null;
-
             try {
-                let fetchUrl = `/api/playlist/fetch?url=${encodeURIComponent(currentPlaylistUrl)}&startIndex=${startIndex}&limit=${limitParam}`;
+                let fetchUrl = `/api/playlist/fetch?url=${encodeURIComponent(currentPlaylistUrl)}&startIndex=${startIndex}&limit=${batchSize}`;
                 if (lastVideoId) fetchUrl += `&lastVideoId=${encodeURIComponent(lastVideoId)}`;
                 const fetchResp = await fetch(fetchUrl);
                 if (fetchResp.ok) {
@@ -1078,7 +1165,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         url: currentPlaylistUrl,
-                        limit: loadAll ? 0 : batchSize,
+                        limit: batchSize,
                         offset: loadedVideos.length,
                         lastVideoId: lastVideoId
                     })
@@ -1093,12 +1180,10 @@
 
             const newVideos = data.videos || [];
             if (newVideos.length === 0) {
-                // End of queue reached
                 updateProgressiveSection({ hasMore: false, isMix: data.isMix, totalKnownVideos: loadedVideos.length });
                 return;
             }
 
-            // Deduplicate against already-loaded videos
             const existingIds = new Set(loadedVideos.map(v => v.videoId));
             const uniqueNewVideos = newVideos.filter(v => !existingIds.has(v.videoId));
 
@@ -1123,7 +1208,6 @@
                 bannerDuration.textContent = data.formattedTotalDuration;
             }
 
-            // Auto-advance to next page if pageSize is active and current page was full
             if (pageSize !== 'all') {
                 const prevTotalPages = Math.ceil(startIdx / pageSize);
                 if (currentPage === prevTotalPages) {
@@ -1143,7 +1227,11 @@
                 const span = btnLoadNextBatch.querySelector('span');
                 if (span) span.textContent = `Load Next 25 Videos (From #${loadedVideos.length + 1})`;
             }
-            if (btnLoadAllVideos) btnLoadAllVideos.disabled = false;
+            if (btnLoadAllVideos) {
+                btnLoadAllVideos.disabled = false;
+                const spanAll = btnLoadAllVideos.querySelector('span');
+                if (spanAll) spanAll.textContent = 'Load All (~400+)';
+            }
             if (progressiveLoadingBar) progressiveLoadingBar.style.display = 'none';
         }
     }
