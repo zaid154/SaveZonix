@@ -1445,6 +1445,9 @@
             } else {
                 actionHtml = `
                     <div class="row-actions-group">
+                        <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener noreferrer" class="btn-row-action btn-row-play" title="Play on YouTube (New Tab)" aria-label="Play on YouTube in new tab">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        </a>
                         ${v.isAvailable ? `
                             <button type="button" class="btn-row-action btn-row-dl" data-videoid="${v.videoId}" title="Download this video">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -1478,13 +1481,16 @@
                 </td>
                 <td class="col-index video-index-badge text-center">${idxStr}</td>
                 <td class="col-preview">
-                    <div class="video-thumb-preview">
+                    <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener noreferrer" class="video-thumb-preview" title="Play on YouTube (New Tab)">
                         <img src="${v.thumbnailUrl || '/icons/icon48.png'}" alt="Thumb" loading="lazy" onerror="this.src='/icons/icon48.png';" />
                         <span class="thumb-duration-pill">${v.formattedDuration || '00:00'}</span>
-                    </div>
+                        <div class="thumb-play-hover-overlay">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffffff"><path d="M8 5v14l11-7z"/></svg>
+                        </div>
+                    </a>
                 </td>
                 <td class="col-meta video-meta-cell">
-                    <h4 title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</h4>
+                    <h4 title="${escapeHtml(v.title)}"><a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener noreferrer" class="video-title-link">${escapeHtml(v.title)}</a></h4>
                     <div class="video-sub">${escapeHtml(v.author || '')}</div>
                 </td>
                 <td class="col-duration text-center"><span class="duration-text">${v.formattedDuration}</span></td>

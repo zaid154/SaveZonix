@@ -1027,6 +1027,55 @@
     color: #ffffff;
 }
 
+.btn-row-play {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    text-decoration: none;
+}
+
+.btn-row-play:hover {
+    background: #ef4444;
+    border-color: #ef4444;
+    color: #ffffff;
+    transform: scale(1.06);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+.video-thumb-preview {
+    position: relative;
+    display: block;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.thumb-play-hover-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    border-radius: var(--pl-radius-sm);
+}
+
+.video-thumb-preview:hover .thumb-play-hover-overlay {
+    opacity: 1;
+}
+
+.video-title-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.video-title-link:hover {
+    color: var(--pl-cyan-light);
+    text-decoration: underline;
+}
+
 .row-overflow-wrapper {
     position: relative;
     display: inline-flex;
