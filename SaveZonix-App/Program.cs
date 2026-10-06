@@ -422,17 +422,24 @@ public class Program
             });
         }
 
-        // 4. Redis Distributed Cache & High-Performance Acceleration
-        var redisConn = builder.Configuration["Redis:ConnectionString"] ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING") ?? "localhost:6379,abortConnect=false,connectTimeout=4000";
-        try
+        // 4. Redis Distributed Cache & High-Performance Acceleration (Zero-Blocking)
+        var explicitRedisConn = builder.Configuration["Redis:ConnectionString"] ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING");
+        if (!string.IsNullOrWhiteSpace(explicitRedisConn))
         {
-            var multiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(redisConn);
-            builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(multiplexer);
-            Console.WriteLine($"[Redis Bootstrap] ⚡ Initialized Redis connection to: {redisConn}");
+            try
+            {
+                var multiplexer = StackExchange.Redis.ConnectionMultiplexer.Connect(explicitRedisConn);
+                builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(multiplexer);
+                Console.WriteLine($"[Redis Bootstrap] ⚡ Initialized Redis connection to: {explicitRedisConn}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Redis Bootstrap Notice] Connection to '{explicitRedisConn}' failed: {ex.Message}. Running in High-Speed In-Memory Fallback Cache.");
+            }
         }
-        catch (Exception ex)
+        else
         {
-            Console.WriteLine($"[Redis Bootstrap Notice] Connection to '{redisConn}' failed: {ex.Message}. Running in High-Speed In-Memory Fallback Cache.");
+            Console.WriteLine("[Redis Bootstrap] ⚡ Running in Zero-Latency High-Speed In-Memory Cache mode.");
         }
         builder.Services.AddSingleton<SaveZonix.Services.IRedisCacheService, SaveZonix.Services.RedisCacheService>();
 
@@ -466,35 +473,6 @@ public class Program
         bool forceReset = args.Any(a => a.Equals("--seed-reset", StringComparison.OrdinalIgnoreCase) || 
                                        a.Equals("--reset-db", StringComparison.OrdinalIgnoreCase) ||
                                        a.Equals("seed-reset", StringComparison.OrdinalIgnoreCase));
-
-        // 5. Database Auto-Migration & Seeder
-        try
-        {
-            await DbSeeder.SeedAsync(app.Services, app.Configuration, forceReset);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
-        }
-
-        // 6. Clean and Reconcile Stale / Orphaned Downloads from Previous Sessions
-        try
-        {
-            using var startupScope = app.Services.CreateScope();
-            var startupHistoryService = startupScope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
-            if (startupHistoryService != null)
-            {
-                int cleaned = await startupHistoryService.ReconcileOrphanedDownloadsAsync(GetActiveTaskIds());
-                if (cleaned > 0)
-                {
-                    Console.WriteLine($"[Startup] Reconciled {cleaned} orphaned download(s) to Cancelled.");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Startup Reconciliation Notice] {ex.Message}");
-        }
 
         if (!app.Environment.IsDevelopment())
         {
@@ -2931,34 +2909,56 @@ public class Program
         Console.WriteLine($" 🌐 Access URL: http://localhost:{port}\n");
         Console.ResetColor();
 
-        // Auto-launch browser once server is confirmed listening and healthy
-        _ = Task.Run(async () =>
+        // Instant Browser Launch & Background Warmup upon Server Ready
+        app.Lifetime.ApplicationStarted.Register(() =>
         {
-            using var http = new HttpClient();
-            for (int i = 0; i < 40; i++)
+            // 1. Instantly Launch Chrome/Browser (Opens immediately with 0 delay)
+            _ = Task.Run(() =>
             {
-                await Task.Delay(250);
                 try
                 {
-                    var res = await http.GetAsync($"http://localhost:{port}");
-                    if (res.IsSuccessStatusCode)
+                    Process.Start(new ProcessStartInfo
                     {
-                        break;
+                        FileName = $"http://localhost:{port}",
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Browser Launch Notice] {ex.Message}");
+                }
+            });
+
+            // 2. Perform DB Auto-Migration, Seeder, and Stale Job Reconciliation Asynchronously in Background
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await DbSeeder.SeedAsync(app.Services, app.Configuration, forceReset);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
+                }
+
+                try
+                {
+                    using var startupScope = app.Services.CreateScope();
+                    var startupHistoryService = startupScope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                    if (startupHistoryService != null)
+                    {
+                        int cleaned = await startupHistoryService.ReconcileOrphanedDownloadsAsync(GetActiveTaskIds());
+                        if (cleaned > 0)
+                        {
+                            Console.WriteLine($"[Startup] Reconciled {cleaned} orphaned download(s) to Cancelled.");
+                        }
                     }
                 }
-                catch { }
-            }
-
-            // Server is ready! Launch browser to localhost
-            try
-            {
-                Process.Start(new ProcessStartInfo
+                catch (Exception ex)
                 {
-                    FileName = $"http://localhost:{port}",
-                    UseShellExecute = true
-                });
-            }
-            catch { }
+                    Console.WriteLine($"[Startup Reconciliation Notice] {ex.Message}");
+                }
+            });
         });
 
         app.Run();
