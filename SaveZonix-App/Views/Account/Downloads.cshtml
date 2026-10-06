@@ -521,6 +521,21 @@
                                                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                                                                     </button>
                                                                 }
+                                                                @if (sub.Status == StreamHelper.Data.DownloadStatus.Completed)
+                                                                {
+                                                                    <button type="button" class="action-btn action-play-instant" onclick="openDownloadsPlayer('@sub.Id', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(sub.Title))', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(sub.FileName))')" title="Instant Play / Stream (iOS & Mac ready)">
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                                                    </button>
+                                                                    <button type="button" class="action-btn action-reveal" onclick="revealDownloadFile('@sub.Id', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(sub.FileName))')" title="Show in Folder (Explorer / Finder)">
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                                                    </button>
+                                                                    <button type="button" class="action-btn action-share" onclick="shareDownloadFile('@sub.Id', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(sub.Title))', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(sub.FileName))')" title="AirDrop / Share to Apple Device">
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                                                    </button>
+                                                                    <a href="/api/stream/preview?id=@sub.Id&fileName=@Uri.EscapeDataString(sub.FileName)&download=true" download="@sub.FileName" class="action-btn action-download-direct" title="Download directly to this device">
+                                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                                                    </a>
+                                                                }
                                                                 <a href="@sub.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
                                                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                                                                 </a>
@@ -669,6 +684,21 @@
                                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                                                     </a>
                                                 }
+                                                @if (item.Status == StreamHelper.Data.DownloadStatus.Completed)
+                                                {
+                                                    <button type="button" class="action-btn action-play-instant" onclick="openDownloadsPlayer('@item.Id', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(item.Title))', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(item.FileName))')" title="Instant Play / Stream (iOS & Mac ready)">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                                    </button>
+                                                    <button type="button" class="action-btn action-reveal" onclick="revealDownloadFile('@item.Id', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(item.FileName))')" title="Show in Folder (Explorer / Finder)">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                                    </button>
+                                                    <button type="button" class="action-btn action-share" onclick="shareDownloadFile('@item.Id', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(item.Title))', '@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(item.FileName))')" title="AirDrop / Share to Apple Device">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                                    </button>
+                                                    <a href="/api/stream/preview?id=@item.Id&fileName=@Uri.EscapeDataString(item.FileName)&download=true" download="@item.FileName" class="action-btn action-download-direct" title="Download directly to this device">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                                    </a>
+                                                }
                                                 <a href="@item.OriginalUrl" target="_blank" class="action-btn action-source" title="Open source stream / webpage" rel="noopener noreferrer">
                                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
                                                 </a>
@@ -785,6 +815,49 @@
                 </div>
             }
         }
+    </div>
+</div>
+
+<!-- In-App Cinema / Apple QuickTime & iOS Safari Player Modal -->
+<div id="downloadsPlayerModal" class="cinema-player-modal" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,0.92); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); z-index:99999; align-items:center; justify-content:center; padding:16px;">
+    <div class="cinema-modal-card" style="background:#090d16; border:1px solid rgba(56,189,248,0.3); border-radius:18px; max-width:960px; width:100%; box-shadow:0 25px 60px rgba(0,0,0,0.85); overflow:hidden; display:flex; flex-direction:column; animation:fadeInScale 0.25s ease;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.08);">
+            <div style="display:flex; align-items:center; gap:10px; overflow:hidden;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:rgba(56,189,248,0.15); color:#38bdf8;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                </span>
+                <div style="overflow:hidden;">
+                    <h3 id="downloadsPlayerTitle" style="margin:0; font-size:14px; font-weight:700; color:#f8fafc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:650px;">Media Stream</h3>
+                    <div id="downloadsPlayerSubtitle" style="font-size:11px; color:#94a3b8; margin-top:2px;">HTML5 Smooth Range Stream • iOS Safari & macOS QuickTime Ready</div>
+                </div>
+            </div>
+            <button type="button" onclick="closeDownloadsPlayer()" style="background:none; border:none; color:#94a3b8; cursor:pointer; padding:6px 10px; font-size:18px; border-radius:8px;" title="Close (Esc)">✕</button>
+        </div>
+        <div style="position:relative; background:#000; display:flex; align-items:center; justify-content:center; min-height:280px; max-height:68vh;">
+            <video id="downloadsModalVideo" controls playsinline webkit-playsinline preload="metadata" style="max-width:100%; max-height:68vh; width:100%; outline:none;"></video>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; padding:12px 20px; background:rgba(255,255,255,0.02); border-top:1px solid rgba(255,255,255,0.08);">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <button type="button" id="btnDownloadsPlayerReveal" class="btn-active-ctrl" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <span>Show in Folder</span>
+                </button>
+                <button type="button" id="btnDownloadsPlayerShare" class="btn-active-ctrl" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; background:rgba(168,85,247,0.12); border-color:rgba(168,85,247,0.3); color:#c084fc;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    <span>AirDrop / Share</span>
+                </button>
+                <button type="button" id="btnDownloadsPlayerAppleOpt" class="btn-active-ctrl" style="font-size:12px; padding:6px 12px; display:inline-flex; align-items:center; gap:6px; background:rgba(52,211,153,0.12); border-color:rgba(52,211,153,0.3); color:#34d399;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <span>Optimize for Apple (H.264/AAC)</span>
+                </button>
+            </div>
+            <div>
+                <a id="btnDownloadsPlayerDownload" href="#" download class="btn-active-ctrl" style="font-size:12px; padding:6px 14px; background:#0284c7; border-color:#38bdf8; color:#fff; display:inline-flex; align-items:center; gap:6px; text-decoration:none;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Save to Device</span>
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1477,5 +1550,148 @@
                 await fetch('/api/open-folder', { method: 'POST' });
             } catch { }
         }
+
+        // ─── APPLE & CROSS-PLATFORM INSTANT MEDIA STREAMING ───
+        let currentPlayingMeta = null;
+
+        function openDownloadsPlayer(id, title, fileName) {
+            currentPlayingMeta = { id, title, fileName };
+            const modal = document.getElementById('downloadsPlayerModal');
+            const video = document.getElementById('downloadsModalVideo');
+            const titleEl = document.getElementById('downloadsPlayerTitle');
+            const btnReveal = document.getElementById('btnDownloadsPlayerReveal');
+            const btnShare = document.getElementById('btnDownloadsPlayerShare');
+            const btnDl = document.getElementById('btnDownloadsPlayerDownload');
+            const btnOpt = document.getElementById('btnDownloadsPlayerAppleOpt');
+
+            if (!modal || !video) return;
+
+            if (titleEl) titleEl.textContent = title || fileName || 'Media Stream';
+            
+            const streamUrl = '/api/stream/preview?id=' + encodeURIComponent(id || '') + '&fileName=' + encodeURIComponent(fileName || '');
+            video.src = streamUrl;
+
+            if (btnReveal) {
+                btnReveal.onclick = () => revealDownloadFile(id, fileName);
+            }
+            if (btnShare) {
+                btnShare.onclick = () => shareDownloadFile(id, title, fileName);
+            }
+            if (btnDl) {
+                btnDl.href = streamUrl + '&download=true';
+                btnDl.setAttribute('download', fileName || 'media.mp4');
+            }
+            if (btnOpt) {
+                btnOpt.onclick = () => optimizeMediaForApple(id, fileName);
+            }
+
+            modal.style.display = 'flex';
+            video.play().catch(() => {});
+        }
+
+        function closeDownloadsPlayer() {
+            const modal = document.getElementById('downloadsPlayerModal');
+            const video = document.getElementById('downloadsModalVideo');
+            if (video) {
+                video.pause();
+                video.removeAttribute('src');
+                video.load();
+            }
+            if (modal) modal.style.display = 'none';
+            currentPlayingMeta = null;
+        }
+
+        async function revealDownloadFile(id, fileName) {
+            try {
+                const resp = await fetch('/api/file/reveal?id=' + encodeURIComponent(id || '') + '&fileName=' + encodeURIComponent(fileName || ''));
+                const data = await resp.json();
+                if (!data.success) {
+                    openDownloadsFolder();
+                }
+            } catch {
+                openDownloadsFolder();
+            }
+        }
+
+        async function shareDownloadFile(id, title, fileName) {
+            const streamUrl = window.location.origin + '/api/stream/preview?id=' + encodeURIComponent(id || '') + '&fileName=' + encodeURIComponent(fileName || '');
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: title || fileName || 'SaveZonix Video',
+                        text: 'Stream or download from SaveZonix: ' + (title || fileName),
+                        url: streamUrl
+                    });
+                    return;
+                } catch { }
+            }
+            try {
+                await navigator.clipboard.writeText(streamUrl);
+                showDownloadsToast('Stream link copied! Share via AirDrop or paste into browser.');
+            } catch {
+                prompt('Copy media link for AirDrop / device sharing:', streamUrl);
+            }
+        }
+
+        async function optimizeMediaForApple(id, fileName) {
+            const btn = document.getElementById('btnDownloadsPlayerAppleOpt');
+            const originalHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="status-spinner-tiny"></span> Converting...';
+            }
+            try {
+                const resp = await fetch('/api/media/apple-optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id || '', fileName: fileName || '' })
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    showDownloadsToast('✓ Apple Optimization complete! Playing H.264/AAC stream.');
+                    const video = document.getElementById('downloadsModalVideo');
+                    if (video && data.previewUrl) {
+                        video.src = data.previewUrl;
+                        video.play().catch(() => {});
+                    }
+                } else {
+                    showDownloadsToast('Optimization notice: ' + (data.message || 'File is already in optimal format.'));
+                }
+            } catch (err) {
+                showDownloadsToast('Error during optimization: ' + err.message);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        function showDownloadsToast(msg) {
+            let toast = document.getElementById('downloadsToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'downloadsToast';
+                toast.style.cssText = 'position:fixed; bottom:24px; right:24px; background:#0f172a; border:1px solid #38bdf8; color:#f8fafc; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:100000; transition:all 0.3s ease;';
+                document.body.appendChild(toast);
+            }
+            toast.textContent = msg;
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateY(0)';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+            }, 4000);
+        }
+
+        // Close player modal on Esc key or click outside
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeDownloadsPlayer();
+        });
+
+        document.addEventListener('click', (e) => {
+            const modal = document.getElementById('downloadsPlayerModal');
+            if (modal && e.target === modal) closeDownloadsPlayer();
+        });
     </script>
 }

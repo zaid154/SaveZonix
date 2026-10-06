@@ -12,8 +12,13 @@ using SaveZonix.Services;
 using StreamHelper.Data;
 using StreamHelper.Services;
 using Zonix.Core;
+using Zonix.Core.Engines;
 
 namespace SaveZonix;
+
+public record PowerTrimRequest(string InputPath, double StartSeconds, double EndSeconds);
+public record BulkBatchCreateRequest(List<string> Urls);
+public record CookieImportRequest(string Content);
 
 public class DownloadTaskState
 {
@@ -141,6 +146,13 @@ public class SilentUpdateRequest
 {
     public string DownloadUrl { get; set; } = string.Empty;
     public string TargetVersion { get; set; } = string.Empty;
+}
+
+public class AppleOptimizeRequest
+{
+    public string? Path { get; set; }
+    public string? Id { get; set; }
+    public string? FileName { get; set; }
 }
 
 public class Program
@@ -349,6 +361,9 @@ public class Program
 
     public static async Task Main(string[] args)
     {
+        // 0. Initialize Universal Crash Prevention Shield
+        CrashGuard.Initialize();
+
         string rootDir = FindRootWithWwwroot();
         string wwwrootDir = Path.Combine(rootDir, "wwwroot");
         Directory.SetCurrentDirectory(rootDir);
@@ -433,17 +448,19 @@ public class Program
         builder.Services.AddSingleton<SaveZonix.Services.IYouTubePlaylistService, SaveZonix.Services.YouTubePlaylistService>();
         builder.Services.AddSingleton<SaveZonix.Services.IPlaylistQueueManager, SaveZonix.Services.PlaylistQueueManager>();
 
+        // 6. Decoupled Core Super-Engines (Fault-Isolated Micro-Engines)
+        builder.Services.AddSingleton<TranscoderEngine>();
+        builder.Services.AddSingleton<TurboDownloadEngine>();
+        builder.Services.AddSingleton<MediaAnalyzerEngine>();
+        builder.Services.AddSingleton<ServiceHealthMonitor>();
+        builder.Services.AddSingleton<PowerFeaturesEngine>();
+        builder.Services.AddSingleton<BulkBatchEngine>();
+        builder.Services.AddSingleton<CookieVaultEngine>();
+
         builder.Services.AddControllersWithViews();
 
         var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
-        if (Environment.GetEnvironmentVariable("PORT") != null)
-        {
-            builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
-        }
-        else
-        {
-            builder.WebHost.UseUrls($"http://localhost:{port}");
-        }
+        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
         var app = builder.Build();
         bool forceReset = args.Any(a => a.Equals("--seed-reset", StringComparison.OrdinalIgnoreCase) || 
@@ -2710,7 +2727,198 @@ public class Program
             return Results.Ok(history);
         });
 
+        // ─────────────────────────────────────────────────────────────
+        // SUPER-ENGINE TELEMETRY & POWER FEATURES API ENDPOINTS
+        // ─────────────────────────────────────────────────────────────
 
+        app.MapGet("/api/engine/health", (ServiceHealthMonitor monitor) =>
+        {
+            return Results.Ok(monitor.GetHealthSnapshot());
+        });
+
+        app.MapGet("/api/engine/stats", (ServiceHealthMonitor monitor) =>
+        {
+            return Results.Ok(monitor.GetHealthSnapshot());
+        });
+
+        app.MapGet("/api/power/sponsors", async (string videoId, PowerFeaturesEngine engine) =>
+        {
+            var segments = await engine.GetSponsorSegmentsAsync(videoId);
+            return Results.Ok(new { success = true, videoId, count = segments.Count, segments });
+        });
+
+        app.MapGet("/api/power/subtitles", async (string videoId, PowerFeaturesEngine engine) =>
+        {
+            var subs = await engine.GetAvailableSubtitlesAsync(videoId);
+            return Results.Ok(new { success = true, videoId, count = subs.Count, subtitles = subs });
+        });
+
+        app.MapPost("/api/power/trim", async (PowerTrimRequest req, PowerFeaturesEngine engine) =>
+        {
+            if (string.IsNullOrEmpty(req.InputPath) || !File.Exists(req.InputPath))
+                return Results.BadRequest(new { success = false, message = "Input video file not found." });
+
+            string outDir = Path.GetDirectoryName(req.InputPath) ?? GetDownloadsDirectory();
+            string outName = $"{Path.GetFileNameWithoutExtension(req.InputPath)}_trimmed_{DateTime.UtcNow.Ticks % 10000}{Path.GetExtension(req.InputPath)}";
+            string outPath = Path.Combine(outDir, outName);
+
+            bool ok = await engine.TrimVideoAsync(req.InputPath, outPath, TimeSpan.FromSeconds(req.StartSeconds), TimeSpan.FromSeconds(req.EndSeconds));
+            return Results.Ok(new { success = ok, outputPath = outPath });
+        });
+
+        app.MapPost("/api/batch/multi-url", (BulkBatchCreateRequest req, BulkBatchEngine batchEngine) =>
+        {
+            if (req.Urls == null || req.Urls.Count == 0)
+                return Results.BadRequest(new { success = false, message = "No valid URLs provided." });
+
+            string downloadDir = GetDownloadsDirectory();
+            string batchId = batchEngine.CreateBatch(req.Urls);
+            batchEngine.StartBatchBackground(batchId, downloadDir, maxConcurrency: 4);
+
+            return Results.Ok(new { success = true, batchId });
+        });
+
+        app.MapGet("/api/batch/multi-url/{batchId}", (string batchId, BulkBatchEngine batchEngine) =>
+        {
+            var status = batchEngine.GetBatchStatus(batchId);
+            if (status == null) return Results.NotFound(new { success = false, message = "Batch not found." });
+            return Results.Ok(new { success = true, status });
+        });
+
+        // ─────────────────────────────────────────────────────────────
+        // DESKTOP & CROSS-PLATFORM (APPLE / WINDOWS / MOBILE) INTEGRATION APIS
+        // ─────────────────────────────────────────────────────────────
+
+        // File Reveal: Opens Windows File Explorer or Mac Finder highlighting the completed download
+        app.MapGet("/api/file/reveal", async (string? path, string? id, string? fileName, StreamHelper.Services.IDownloadHistoryService? historyService) =>
+        {
+            string? targetPath = await ResolveMediaFilePathAsync(path, id, fileName, historyService);
+            if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
+            {
+                targetPath = GetDownloadsDirectory();
+            }
+
+            try
+            {
+                if (OperatingSystem.IsWindows())
+                {
+                    if (File.Exists(targetPath))
+                        Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{targetPath}\"") { UseShellExecute = true });
+                    else
+                        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{targetPath}\"") { UseShellExecute = true });
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    if (File.Exists(targetPath))
+                        Process.Start("open", $"-R \"{targetPath}\"");
+                    else
+                        Process.Start("open", $"\"{targetPath}\"");
+                }
+                else
+                {
+                    string dir = File.Exists(targetPath) ? (Path.GetDirectoryName(targetPath) ?? targetPath) : targetPath;
+                    Process.Start("xdg-open", $"\"{dir}\"");
+                }
+                return Results.Ok(new { success = true, resolvedPath = targetPath });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(ex.Message);
+            }
+        });
+
+        // Network Info: Returns local Wi-Fi / LAN IP so iPhone, iPad, and MacBook can connect instantly
+        app.MapGet("/api/system/network-info", () =>
+        {
+            var ips = new List<string>();
+            try
+            {
+                var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork && !System.Net.IPAddress.IsLoopback(ip))
+                    {
+                        ips.Add(ip.ToString());
+                    }
+                }
+            }
+            catch { }
+
+            string p = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+            var urls = ips.Select(ip => $"http://{ip}:{p}").ToList();
+
+            return Results.Ok(new { success = true, port = p, localIps = ips, fullUrls = urls });
+        });
+
+        // HTML5 Media Range Streaming: Smooth seeking on iOS Safari, macOS QuickTime, and Chrome
+        app.MapGet("/api/stream/preview", async (string? path, string? id, string? fileName, bool? download, StreamHelper.Services.IDownloadHistoryService? historyService) =>
+        {
+            string? targetPath = await ResolveMediaFilePathAsync(path, id, fileName, historyService);
+            if (string.IsNullOrWhiteSpace(targetPath) || !File.Exists(targetPath))
+                return Results.NotFound(new { success = false, message = "File not found." });
+
+            string ext = Path.GetExtension(targetPath).ToLowerInvariant();
+            string contentType = ext switch
+            {
+                ".mp4" => "video/mp4",
+                ".webm" => "video/webm",
+                ".mkv" => "video/x-matroska",
+                ".mp3" => "audio/mpeg",
+                ".m4a" => "audio/mp4",
+                ".wav" => "audio/wav",
+                ".flac" => "audio/flac",
+                _ => "application/octet-stream"
+            };
+
+            string outName = Path.GetFileName(targetPath);
+            return download == true
+                ? Results.File(targetPath, contentType, fileDownloadName: outName, enableRangeProcessing: true)
+                : Results.File(targetPath, contentType, enableRangeProcessing: true);
+        });
+
+        // Apple Device Optimization: Fast transcode to Apple-friendly H.264/AAC with +faststart
+        app.MapPost("/api/media/apple-optimize", async (AppleOptimizeRequest req, Zonix.Core.Engines.TranscoderEngine transcoder, StreamHelper.Services.IDownloadHistoryService? historyService) =>
+        {
+            string? inputPath = await ResolveMediaFilePathAsync(req?.Path, req?.Id, req?.FileName, historyService);
+            if (string.IsNullOrWhiteSpace(inputPath) || !File.Exists(inputPath))
+                return Results.BadRequest(new { success = false, message = "Source media file not found." });
+
+            string dir = Path.GetDirectoryName(inputPath) ?? GetDownloadsDirectory();
+            string baseName = Path.GetFileNameWithoutExtension(inputPath);
+            string outputPath = Path.Combine(dir, $"{baseName}_Apple_Optimized.mp4");
+
+            var result = await transcoder.OptimizeForAppleDeviceAsync(inputPath, outputPath);
+            if (result.Success && File.Exists(outputPath))
+            {
+                return Results.Ok(new 
+                { 
+                    success = true, 
+                    outputPath, 
+                    fileName = Path.GetFileName(outputPath),
+                    previewUrl = $"/api/stream/preview?path={Uri.EscapeDataString(outputPath)}" 
+                });
+            }
+
+            return Results.Problem(result.ErrorMessage);
+        });
+
+        // Browser Cookie Vault: YouTube 1080p Premium & Age-Restricted Unlocks
+        app.MapGet("/api/cookies/status", (CookieVaultEngine vault) =>
+        {
+            return Results.Ok(new { success = true, status = vault.GetStatus() });
+        });
+
+        app.MapPost("/api/cookies/import", (CookieImportRequest req, CookieVaultEngine vault) =>
+        {
+            bool ok = vault.ImportCookies(req.Content);
+            return Results.Ok(new { success = ok, status = vault.GetStatus() });
+        });
+
+        app.MapPost("/api/cookies/clear", (CookieVaultEngine vault) =>
+        {
+            vault.ClearCookies();
+            return Results.Ok(new { success = true, status = vault.GetStatus() });
+        });
 
         // 6. Map Default Controller Route
         app.MapControllerRoute(
@@ -2812,6 +3020,44 @@ public class Program
             try { Directory.CreateDirectory(localDownloads); } catch { }
         }
         return localDownloads;
+    }
+
+    private static async Task<string?> ResolveMediaFilePathAsync(string? path, string? id, string? fileName, StreamHelper.Services.IDownloadHistoryService? historyService)
+    {
+        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            return Path.GetFullPath(path);
+
+        string targetFileName = fileName ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(targetFileName) && !string.IsNullOrWhiteSpace(id) && historyService != null)
+        {
+            try
+            {
+                var item = await historyService.GetDownloadByIdAsync(id);
+                if (item != null && !string.IsNullOrWhiteSpace(item.FileName))
+                    targetFileName = item.FileName;
+            }
+            catch { }
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetFileName))
+        {
+            string baseDir = GetDownloadsDirectory();
+            string direct = Path.Combine(baseDir, targetFileName);
+            if (File.Exists(direct)) return direct;
+
+            try
+            {
+                var found = Directory.GetFiles(baseDir, targetFileName, SearchOption.AllDirectories).FirstOrDefault();
+                if (found != null && File.Exists(found)) return found;
+            }
+            catch { }
+
+            string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+            string userDirect = Path.Combine(userDownloads, targetFileName);
+            if (File.Exists(userDirect)) return userDirect;
+        }
+
+        return null;
     }
 
     private static string FormatBytes(long bytes)

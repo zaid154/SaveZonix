@@ -15,6 +15,31 @@
             </p>
         </div>
 
+        <!-- Super-Engine Immunity & Power Status Bar -->
+        <div class="engine-status-bar" style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; font-size: 11.5px; color: #10b981; font-weight: 600;">
+                <span style="width: 7px; height: 7px; background: #10b981; border-radius: 50%; box-shadow: 0 0 6px #10b981;"></span>
+                CrashGuard Shield Active
+            </div>
+            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 20px; font-size: 11.5px; color: #38bdf8; font-weight: 600;">
+                <span style="width: 7px; height: 7px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 6px #38bdf8;"></span>
+                Turbo ArrayPool (Zero-GC)
+            </div>
+            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 20px; font-size: 11.5px; color: #c084fc; font-weight: 600;">
+                <span style="width: 7px; height: 7px; background: #c084fc; border-radius: 50%; box-shadow: 0 0 6px #c084fc;"></span>
+                Transcoder Super-Engine Online
+            </div>
+            <button type="button" id="btnOpenBulkModal" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: linear-gradient(135deg, rgba(236,72,153,0.15), rgba(99,102,241,0.15)); border: 1px solid rgba(236,72,153,0.4); border-radius: 20px; font-size: 11.5px; color: #f472b6; font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
+                📋 Bulk Batch (Paste 100 Links)
+            </button>
+            <button type="button" id="btnOpenMobileConnect" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; font-size: 11.5px; color: #38bdf8; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+                📱 Connect iPhone / Mac
+            </button>
+            <button type="button" id="btnOpenCookieModal" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); border-radius: 20px; font-size: 11.5px; color: #facc15; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+                🍪 Cookie Vault (1080p Premium)
+            </button>
+        </div>
+
         <!-- Core Video & Playlist Downloader Card -->
         <div class="downloader-wrapper">
             <div class="downloader-card">
@@ -22,7 +47,11 @@
                     <div class="heading-left">
                         <h2 class="card-title">Paste Video or Playlist Link</h2>
                     </div>
-                    <div class="heading-right">
+                    <div class="heading-right" style="display: flex; align-items: center; gap: 8px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #cbd5e1; cursor: pointer; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); padding: 3px 8px; border-radius: 6px;">
+                            <input type="checkbox" id="chkSmartMode" style="accent-color: #38bdf8;">
+                            <span>⚡ Smart Mode (1-Click)</span>
+                        </label>
                         <span class="badge badge-strategy" id="strategyBadge">Auto-Detect &bull; High Speed</span>
                         <span class="badge badge-threads" id="topThreadsBadge" style="display:none;">256x Hyper Engine</span>
                     </div>
@@ -42,6 +71,16 @@
                             <div class="spinner hidden" id="analyzeSpinner"></div>
                         </button>
                     </div>
+
+                    <!-- Clipboard Auto-Detected Link Chip (like JDownloader 2) -->
+                    <div id="clipboardDetectedChip" style="display: none; align-items: center; justify-content: space-between; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 8px; padding: 7px 12px; margin-top: 8px; font-size: 12px; color: #38bdf8;">
+                        <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                            <span>📋 Clipboard Link Detected:</span>
+                            <span id="clipboardDetectedUrl" style="color: #fff; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px;"></span>
+                        </div>
+                        <button type="button" id="btnUseClipboardLink" style="padding: 3px 10px; background: #38bdf8; border: none; border-radius: 5px; color: #0f172a; font-weight: 700; font-size: 11px; cursor: pointer; white-space: nowrap;">Paste &amp; Analyze</button>
+                    </div>
+
                     <div class="input-helper-tip">
                         <span>Paste any YouTube video link, shorts, or full playlist URL to start.</span>
                     </div>
@@ -130,6 +169,44 @@
                                     <button type="button" class="btn-thread-preset" data-threads="256">256x Max</button>
                                 </div>
                                 <input type="range" id="threadsRange" min="16" max="256" step="16" value="64" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+                            </div>
+
+                            <!-- Super-Engine Power Features -->
+                            <div class="power-features-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; padding: 12px; background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(51, 65, 85, 0.6); border-radius: 8px;">
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; cursor: pointer;">
+                                    <input type="checkbox" id="chkSponsorBlock" checked style="accent-color: #38bdf8; width: 15px; height: 15px;">
+                                    <span>✂️ Auto-Skip Sponsors (SponsorBlock)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; cursor: pointer;">
+                                    <input type="checkbox" id="chkSubtitles" style="accent-color: #38bdf8; width: 15px; height: 15px;">
+                                    <span>💬 Fetch Subtitles (.SRT)</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cbd5e1; cursor: pointer;">
+                                    <input type="checkbox" id="chkTrimSnippet" style="accent-color: #38bdf8; width: 15px; height: 15px;">
+                                    <span>⏱️ Trim Video Snippet</span>
+                                </label>
+                                <div style="display: flex; align-items: center; gap: 6px;">
+                                    <span style="font-size: 11.5px; color: #94a3b8;">Speed Throttle:</span>
+                                    <select id="selSpeedThrottle" style="flex: 1; background: #0f172a; border: 1px solid #334155; color: #cbd5e1; font-size: 11px; padding: 4px 6px; border-radius: 4px;">
+                                        <option value="0">Unlimited (Max Speed)</option>
+                                        <option value="50">50 MB/s</option>
+                                        <option value="20">20 MB/s</option>
+                                        <option value="10">10 MB/s</option>
+                                        <option value="5">5 MB/s</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Trimming Inputs Row (Hidden until toggled) -->
+                            <div id="trimInputsRow" style="display: none; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; padding: 10px 12px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 6px;">
+                                <div>
+                                    <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 3px;">Start Time (hh:mm:ss)</label>
+                                    <input type="text" id="trimStartTime" placeholder="00:00:00" value="00:00:00" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 3px;">End Time (hh:mm:ss)</label>
+                                    <input type="text" id="trimEndTime" placeholder="00:05:00" value="00:00:00" style="width: 100%; background: #0f172a; border: 1px solid #334155; color: #fff; font-size: 12px; padding: 4px 8px; border-radius: 4px; font-family: monospace;">
+                                </div>
                             </div>
 
                             <!-- Destination Directory -->
@@ -278,13 +355,21 @@
                         </div>
 
                         <div class="pro-success-actions">
-                            <a id="btnDirectSave" class="pro-btn-action pro-btn-primary" href="#" download>
+                            <button id="btnInstantPlay" class="pro-btn-action pro-btn-primary" type="button" style="background: linear-gradient(135deg, #0284c7, #2563eb); border: none; cursor: pointer;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span>▶️ Instant Cinema Play</span>
+                            </button>
+                            <a id="btnDirectSave" class="pro-btn-action pro-btn-secondary" href="#" download>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                                 <span id="btnDirectSaveText">Save Video (.mp4)</span>
                             </a>
                             <button id="btnOpenFolder" class="pro-btn-action pro-btn-secondary" type="button">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                                 <span>Open Folder</span>
+                            </button>
+                            <button id="btnShareApple" class="pro-btn-action pro-btn-ghost" type="button" style="display: none;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                                <span>Share / AirDrop</span>
                             </button>
                             <button id="btnReset" class="pro-btn-action pro-btn-ghost" type="button">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
@@ -470,6 +555,133 @@
                     </span>
                     <span class="choice-arrow">→</span>
                 </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Batch Multi-URL Modal -->
+<div id="bulkBatchModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 99999; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 16px; width: 100%; max-width: 650px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 22px;">📋</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #f9fafb;">Bulk Multi-URL Batch Downloader</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 12px; color: #9ca3af;">Paste 5 to 100 video links (one per line) for high-speed concurrent batch downloading</p>
+                </div>
+            </div>
+            <button type="button" id="btnCloseBulkModal" style="background: transparent; border: none; color: #9ca3af; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1;">&times;</button>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #d1d5db; margin-bottom: 6px;">Paste URLs (one per line):</label>
+            <textarea id="bulkUrlsInput" rows="7" placeholder="https://www.youtube.com/watch?v=...&#10;https://www.youtube.com/watch?v=...&#10;https://instagram.com/p/...&#10;https://twitter.com/..." style="width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-family: monospace; font-size: 12px; padding: 10px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+
+        <div id="bulkBatchProgressBox" style="display: none; margin-bottom: 16px; background: #0f172a; border: 1px solid #1e293b; border-radius: 8px; padding: 12px;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #cbd5e1; margin-bottom: 6px;">
+                <span id="bulkStatusText">Processing Batch...</span>
+                <span id="bulkCompletedCount">0 / 0</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden;">
+                <div id="bulkProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ec4899, #8b5cf6); transition: width 0.3s ease;"></div>
+            </div>
+            <div id="bulkItemsList" style="margin-top: 10px; max-height: 150px; overflow-y: auto; font-size: 11px; color: #94a3b8; display: flex; flex-direction: column; gap: 4px;"></div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" id="btnCancelBulk" style="padding: 9px 16px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: #d1d5db; font-size: 13px; font-weight: 600; cursor: pointer;">Close</button>
+            <button type="button" id="btnStartBulkBatch" style="padding: 9px 20px; background: linear-gradient(135deg, #ec4899, #8b5cf6); border: none; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(236,72,153,0.3);">🚀 Start Batch Download</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mobile Connect Modal (Apple iPhone, iPad & Mac Wi-Fi Access) -->
+<div id="mobileConnectModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 99999; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 16px; width: 100%; max-width: 550px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); position: relative; text-align: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 12px; text-align: left;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">📱</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #f9fafb;">Connect Apple iPhone, iPad &amp; Mac</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 12px; color: #9ca3af;">Use SaveZonix wirelessly over your local Wi-Fi network</p>
+                </div>
+            </div>
+            <button type="button" id="btnCloseMobileModal" style="background: transparent; border: none; color: #9ca3af; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1;">&times;</button>
+        </div>
+
+        <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 16px; text-align: left;">
+            Open Safari or Chrome on your <strong>iPhone, iPad, or MacBook</strong> connected to the same Wi-Fi and open this address:
+        </p>
+
+        <div id="mobileUrlsContainer" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+            <div style="background: #0f172a; border: 1px solid #38bdf8; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 15px; color: #38bdf8; font-weight: 700; user-select: all;" id="primaryMobileUrl">
+                Detecting Wi-Fi IP...
+            </div>
+        </div>
+
+        <div style="background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px; font-size: 12px; color: #94a3b8; text-align: left; margin-bottom: 16px;">
+            <strong style="color: #cbd5e1;">💡 Tip for Apple iPhone &amp; iPad:</strong><br>
+            Open in Safari, tap the <strong style="color:#fff;">Share</strong> button and select <strong style="color:#fff;">"Add to Home Screen"</strong> to use SaveZonix as a full standalone iOS App!
+        </div>
+
+        <div style="display: flex; justify-content: flex-end;">
+            <button type="button" id="btnCloseMobileModalBtn" style="padding: 9px 20px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: #d1d5db; font-size: 13px; font-weight: 600; cursor: pointer;">Got It</button>
+        </div>
+    </div>
+</div>
+
+<!-- Cookie Vault Modal (1080p Premium & Age-Restricted Unlock) -->
+<div id="cookieVaultModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 99999; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 16px; width: 100%; max-width: 600px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">🍪</span>
+                <div>
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #f9fafb;">Browser Cookie Vault</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 12px; color: #9ca3af;">Unlock YouTube 1080p Premium high-bitrate &amp; age-restricted videos</p>
+                </div>
+            </div>
+            <button type="button" id="btnCloseCookieModal" style="background: transparent; border: none; color: #9ca3af; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1;">&times;</button>
+        </div>
+
+        <div id="cookieStatusBadge" style="display: flex; align-items: center; justify-content: space-between; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 12.5px; color: #facc15;">
+            <span id="cookieStatusText">Checking cookie status...</span>
+            <button type="button" id="btnClearCookies" style="display: none; padding: 3px 8px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); color: #f87171; border-radius: 4px; font-size: 11px; cursor: pointer;">Clear Stored Cookies</button>
+        </div>
+
+        <div style="margin-bottom: 16px;">
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #d1d5db; margin-bottom: 6px;">Paste Netscape / JSON Cookies (from Chrome, Edge or Safari):</label>
+            <textarea id="cookiePasteInput" rows="6" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;...&#9;LOGIN_INFO&#9;...&#10;or [ { &quot;name&quot;: &quot;LOGIN_INFO&quot;, &quot;value&quot;: &quot;...&quot; } ]" style="width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-family: monospace; font-size: 12px; padding: 10px; resize: vertical; box-sizing: border-box;"></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" id="btnCloseCookieModalBtn" style="padding: 9px 16px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: #d1d5db; font-size: 13px; font-weight: 600; cursor: pointer;">Close</button>
+            <button type="button" id="btnSaveCookies" style="padding: 9px 20px; background: linear-gradient(135deg, #eab308, #ca8a04); border: none; border-radius: 8px; color: #000; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);">💾 Save &amp; Activate Cookies</button>
+        </div>
+    </div>
+</div>
+
+<!-- In-App Cinema & Audio Preview Modal -->
+<div id="inAppMediaModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 99999; justify-content: center; align-items: center; padding: 20px;">
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 16px; width: 100%; max-width: 800px; padding: 20px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); position: relative;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 id="inAppMediaTitle" style="margin: 0; font-size: 15px; font-weight: 700; color: #f9fafb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%;">Preview Media</h4>
+            <button type="button" id="btnCloseMediaModal" style="background: transparent; border: none; color: #9ca3af; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1;">&times;</button>
+        </div>
+
+        <div style="border-radius: 12px; overflow: hidden; background: #000; margin-bottom: 14px; max-height: 480px; display: flex; align-items: center; justify-content: center;">
+            <video id="inAppVideoPlayer" controls playsinline preload="metadata" style="width: 100%; max-height: 480px; display: block; outline: none;"></video>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="font-size: 12px; color: #94a3b8;">
+                <span id="inAppMediaMeta">Apple Safari &amp; QuickTime Ready</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="button" id="btnRevealFromPlayer" style="padding: 7px 14px; background: #1f2937; border: 1px solid #374151; border-radius: 6px; color: #cbd5e1; font-size: 12px; font-weight: 600; cursor: pointer;">📁 Show in Folder</button>
+                <button type="button" id="btnShareFromPlayer" style="display: none; padding: 7px 14px; background: #0284c7; border: none; border-radius: 6px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">📤 Share / AirDrop</button>
             </div>
         </div>
     </div>

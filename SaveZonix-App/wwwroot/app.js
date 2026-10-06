@@ -479,6 +479,14 @@ async function executeAnalyze() {
 
         streamData = data;
         renderStreamDetails(data);
+
+        // ⚡ 1-Click Smart Mode: Auto-dispatch download if enabled
+        const chkSmart = document.getElementById('chkSmartMode');
+        if (chkSmart && chkSmart.checked) {
+            setTimeout(() => {
+                if (btnStartDownload) btnStartDownload.click();
+            }, 600);
+        }
     } catch (err) {
         clearTimeout(t1);
         clearTimeout(t2);
@@ -1086,11 +1094,65 @@ function drawSpeedSparkline() {
     canvasCtx.fill();
 }
 
+let lastCompletedOutputPath = '';
+let lastCompletedTaskId = '';
+
+function playCompletionChime() {
+    try {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextClass) return;
+        const audioCtx = new AudioContextClass();
+        const now = audioCtx.currentTime;
+        const notes = [523.25, 659.25, 783.99]; // Pleasant C5 - E5 - G5 ascending chord
+        notes.forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+            gain.gain.setValueAtTime(0, now + idx * 0.12);
+            gain.gain.linearRampToValueAtTime(0.12, now + idx * 0.12 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.35);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + idx * 0.12);
+            osc.stop(now + idx * 0.12 + 0.4);
+        });
+    } catch { }
+}
+
+function showDesktopNotification(title, sizeBytes) {
+    try {
+        if (!("Notification" in window)) return;
+        if (Notification.permission === "granted") {
+            new Notification("✓ Download Complete! - SaveZonix", {
+                body: `${title} (${formatBytes(sizeBytes || 0, false)})`,
+                icon: "/favicon.ico"
+            });
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    new Notification("✓ Download Complete! - SaveZonix", {
+                        body: title,
+                        icon: "/favicon.ico"
+                    });
+                }
+            });
+        }
+    } catch { }
+}
+
 function onDownloadComplete(state, fileName) {
     progressBarFill.style.width = '100%';
     percentText.textContent = '100%';
     progressSection.classList.add('hidden');
     successSection.classList.remove('hidden');
+
+    lastCompletedTaskId = state.taskId;
+    lastCompletedOutputPath = state.outputPath || '';
+
+    // 🔔 Native Sound & Toast Feedback
+    playCompletionChime();
+    showDesktopNotification(streamData?.title || fileName, state.totalBytesDownloaded);
 
     const downloadUrl = `/api/download-file/${state.taskId}`;
     btnDirectSave.href = downloadUrl;
@@ -1103,6 +1165,21 @@ function onDownloadComplete(state, fileName) {
 
     const peakText = state.peakSpeedMBps > 0 ? ` • Peak: ${state.peakSpeedMBps.toFixed(1)} MB/s` : '';
     successSummary.textContent = `Completed in ${state.mergeSeconds ? state.mergeSeconds.toFixed(1) : '1'}s • File Size: ${formatBytes(state.totalBytesDownloaded || 0, false)}${peakText}`;
+
+    // 📱 Apple Web Share / AirDrop Support
+    const btnShareApple = document.getElementById('btnShareApple');
+    if (btnShareApple && navigator.share) {
+        btnShareApple.style.display = 'inline-flex';
+        btnShareApple.onclick = async () => {
+            try {
+                await navigator.share({
+                    title: streamData?.title || fileName,
+                    text: `Downloaded ${fileName} with SaveZonix`,
+                    url: window.location.origin + `/api/download-file/${state.taskId}`
+                });
+            } catch { }
+        };
+    }
 
     // ⚡ Instant Telemetry Push to Render MongoDB (so Cloud Admin Panel gets live download history)
     try {
@@ -1137,7 +1214,11 @@ function onDownloadComplete(state, fileName) {
 
 btnOpenFolder.addEventListener('click', async () => {
     try {
-        await fetch('/api/open-folder', { method: 'POST' });
+        if (lastCompletedOutputPath) {
+            await fetch(`/api/file/reveal?path=${encodeURIComponent(lastCompletedOutputPath)}`);
+        } else {
+            await fetch('/api/open-folder', { method: 'POST' });
+        }
     } catch { }
 });
 
@@ -1268,4 +1349,360 @@ window.addEventListener('unhandledrejection', (event) => {
             })
         });
     } catch { }
+});
+
+// ─────────────────────────────────────────────────────────────
+// SUPER-ENGINE POWER FEATURES & BULK BATCH CONTROLLER
+// ─────────────────────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Bulk Batch Modal Controls
+    const btnOpenBulkModal = document.getElementById('btnOpenBulkModal');
+    const btnCloseBulkModal = document.getElementById('btnCloseBulkModal');
+    const btnCancelBulk = document.getElementById('btnCancelBulk');
+    const bulkBatchModal = document.getElementById('bulkBatchModal');
+    const btnStartBulkBatch = document.getElementById('btnStartBulkBatch');
+    const bulkUrlsInput = document.getElementById('bulkUrlsInput');
+    const bulkBatchProgressBox = document.getElementById('bulkBatchProgressBox');
+    const bulkProgressBar = document.getElementById('bulkProgressBar');
+    const bulkStatusText = document.getElementById('bulkStatusText');
+    const bulkCompletedCount = document.getElementById('bulkCompletedCount');
+    const bulkItemsList = document.getElementById('bulkItemsList');
+
+    if (btnOpenBulkModal && bulkBatchModal) {
+        btnOpenBulkModal.addEventListener('click', () => {
+            bulkBatchModal.style.display = 'flex';
+            if (bulkUrlsInput) bulkUrlsInput.focus();
+        });
+
+        const closeModal = () => {
+            bulkBatchModal.style.display = 'none';
+        };
+
+        if (btnCloseBulkModal) btnCloseBulkModal.addEventListener('click', closeModal);
+        if (btnCancelBulk) btnCancelBulk.addEventListener('click', closeModal);
+
+        bulkBatchModal.addEventListener('click', (e) => {
+            if (e.target === bulkBatchModal) closeModal();
+        });
+    }
+
+    // 2. Start Bulk Batch
+    if (btnStartBulkBatch && bulkUrlsInput) {
+        btnStartBulkBatch.addEventListener('click', async () => {
+            const rawText = bulkUrlsInput.value.trim();
+            if (!rawText) {
+                alert('Please paste at least one video or stream URL.');
+                return;
+            }
+
+            const urls = rawText.split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+            if (urls.length === 0) {
+                alert('No valid HTTP/HTTPS URLs found.');
+                return;
+            }
+
+            btnStartBulkBatch.disabled = true;
+            btnStartBulkBatch.textContent = 'Launching Batch...';
+            if (bulkBatchProgressBox) bulkBatchProgressBox.style.display = 'block';
+
+            try {
+                const resp = await fetch('/api/batch/multi-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls: urls })
+                });
+
+                const data = await resp.json();
+                if (!data.success || !data.batchId) {
+                    alert(data.message || 'Failed to start batch.');
+                    btnStartBulkBatch.disabled = false;
+                    btnStartBulkBatch.textContent = '🚀 Start Batch Download';
+                    return;
+                }
+
+                btnStartBulkBatch.textContent = 'Batch Running...';
+
+                // Poll batch progress
+                const batchId = data.batchId;
+                const pollBatch = setInterval(async () => {
+                    try {
+                        const statusResp = await fetch(`/api/batch/multi-url/${batchId}`);
+                        if (!statusResp.ok) return;
+
+                        const statusData = await statusResp.json();
+                        if (statusData.success && statusData.status) {
+                            const b = statusData.status;
+                            const total = b.totalItems || 1;
+                            const completed = (b.completedItems || 0) + (b.failedItems || 0);
+                            const pct = Math.round((completed / total) * 100);
+
+                            if (bulkProgressBar) bulkProgressBar.style.width = `${pct}%`;
+                            if (bulkCompletedCount) bulkCompletedCount.textContent = `${completed} / ${total} Finished`;
+                            if (bulkStatusText) {
+                                bulkStatusText.textContent = b.isCompleted ? '✓ Batch Completed!' : `Downloading (${b.inProgressItems} active)...`;
+                            }
+
+                            if (bulkItemsList && Array.isArray(b.items)) {
+                                bulkItemsList.innerHTML = b.items.map(it => `
+                                    <div style="display:flex; justify-content:space-between; padding:3px 6px; background:#1e293b; border-radius:4px;">
+                                        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;">${it.title || it.url}</span>
+                                        <span style="color:${it.status === 'Completed' ? '#10b981' : it.status === 'Failed' ? '#f43f5e' : '#38bdf8'}; font-weight:600;">${it.status} (${it.percentage}%)</span>
+                                    </div>
+                                `).join('');
+                            }
+
+                            if (b.isCompleted) {
+                                clearInterval(pollBatch);
+                                btnStartBulkBatch.disabled = false;
+                                btnStartBulkBatch.textContent = '🚀 Start Another Batch';
+                            }
+                        }
+                    } catch { }
+                }, 1200);
+
+            } catch (err) {
+                alert(`Network error starting batch: ${err.message}`);
+                btnStartBulkBatch.disabled = false;
+                btnStartBulkBatch.textContent = '🚀 Start Batch Download';
+            }
+        });
+    }
+
+    // 3. Trimming Inputs Toggle
+    const chkTrimSnippet = document.getElementById('chkTrimSnippet');
+    const trimInputsRow = document.getElementById('trimInputsRow');
+    if (chkTrimSnippet && trimInputsRow) {
+        chkTrimSnippet.addEventListener('change', () => {
+            trimInputsRow.style.display = chkTrimSnippet.checked ? 'grid' : 'none';
+        });
+    }
+
+    // 4. Clipboard Auto-Sniffer (Instant Link Detection like JDownloader 2 / IDM)
+    const clipboardDetectedChip = document.getElementById('clipboardDetectedChip');
+    const clipboardDetectedUrl = document.getElementById('clipboardDetectedUrl');
+    const btnUseClipboardLink = document.getElementById('btnUseClipboardLink');
+    let lastCheckedClipboard = '';
+
+    const checkClipboardForVideoLinks = async () => {
+        try {
+            if (!navigator.clipboard || !navigator.clipboard.readText) return;
+            const text = (await navigator.clipboard.readText()).trim();
+            if (!text || text === lastCheckedClipboard || text === streamUrlInput?.value.trim()) return;
+
+            const isMediaLink = /(youtube\.com|youtu\.be|instagram\.com|tiktok\.com|twitter\.com|x\.com|\.mp4|\.m3u8)/i.test(text);
+            if (isMediaLink && text.startsWith('http')) {
+                lastCheckedClipboard = text;
+                if (clipboardDetectedChip && clipboardDetectedUrl) {
+                    clipboardDetectedUrl.textContent = text;
+                    clipboardDetectedChip.style.display = 'flex';
+                }
+            }
+        } catch { }
+    };
+
+    window.addEventListener('focus', checkClipboardForVideoLinks);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkClipboardForVideoLinks();
+    });
+
+    if (btnUseClipboardLink && streamUrlInput) {
+        btnUseClipboardLink.addEventListener('click', () => {
+            if (clipboardDetectedUrl) {
+                streamUrlInput.value = clipboardDetectedUrl.textContent;
+                if (clipboardDetectedChip) clipboardDetectedChip.style.display = 'none';
+                if (btnAnalyze) btnAnalyze.click();
+            }
+        });
+    }
+
+    // 5. 1-Click Smart Mode Persistence (4K Video Downloader+ / SnapDownloader feature)
+    const chkSmartMode = document.getElementById('chkSmartMode');
+    if (chkSmartMode) {
+        chkSmartMode.checked = localStorage.getItem('zonix_smart_mode') === 'true';
+        chkSmartMode.addEventListener('change', () => {
+            localStorage.setItem('zonix_smart_mode', chkSmartMode.checked ? 'true' : 'false');
+        });
+    }
+
+    // 6. Apple iPhone, iPad & Mac Wi-Fi Connect Modal
+    const btnOpenMobileConnect = document.getElementById('btnOpenMobileConnect');
+    const mobileConnectModal = document.getElementById('mobileConnectModal');
+    const btnCloseMobileModal = document.getElementById('btnCloseMobileModal');
+    const btnCloseMobileModalBtn = document.getElementById('btnCloseMobileModalBtn');
+    const primaryMobileUrl = document.getElementById('primaryMobileUrl');
+
+    if (btnOpenMobileConnect && mobileConnectModal) {
+        btnOpenMobileConnect.addEventListener('click', async () => {
+            mobileConnectModal.style.display = 'flex';
+            try {
+                const res = await fetch('/api/system/network-info');
+                const data = await res.json();
+                if (data.success && data.fullUrls && data.fullUrls.length > 0) {
+                    primaryMobileUrl.innerHTML = data.fullUrls.map(u => `
+                        <div style="margin-bottom:6px;">
+                            <a href="${u}" target="_blank" style="color:#38bdf8; text-decoration:none; font-size:16px;">${u}</a>
+                        </div>
+                    `).join('');
+                }
+            } catch { }
+        });
+
+        const closeMobile = () => { mobileConnectModal.style.display = 'none'; };
+        if (btnCloseMobileModal) btnCloseMobileModal.addEventListener('click', closeMobile);
+        if (btnCloseMobileModalBtn) btnCloseMobileModalBtn.addEventListener('click', closeMobile);
+
+        mobileConnectModal.addEventListener('click', (e) => {
+            if (e.target === mobileConnectModal) closeMobile();
+        });
+    }
+
+    // 7. Browser Cookie Vault (1080p Premium & Age-Restricted Unlock)
+    const btnOpenCookieModal = document.getElementById('btnOpenCookieModal');
+    const cookieVaultModal = document.getElementById('cookieVaultModal');
+    const btnCloseCookieModal = document.getElementById('btnCloseCookieModal');
+    const btnCloseCookieModalBtn = document.getElementById('btnCloseCookieModalBtn');
+    const cookieStatusText = document.getElementById('cookieStatusText');
+    const btnClearCookies = document.getElementById('btnClearCookies');
+    const btnSaveCookies = document.getElementById('btnSaveCookies');
+    const cookiePasteInput = document.getElementById('cookiePasteInput');
+
+    const updateCookieStatus = async () => {
+        try {
+            const res = await fetch('/api/cookies/status');
+            const data = await res.json();
+            if (data.success && data.status) {
+                if (cookieStatusText) cookieStatusText.textContent = data.status.summary;
+                if (btnClearCookies) btnClearCookies.style.display = data.status.hasCookies ? 'inline-block' : 'none';
+            }
+        } catch { }
+    };
+
+    if (btnOpenCookieModal && cookieVaultModal) {
+        btnOpenCookieModal.addEventListener('click', () => {
+            cookieVaultModal.style.display = 'flex';
+            updateCookieStatus();
+        });
+
+        const closeCookie = () => { cookieVaultModal.style.display = 'none'; };
+        if (btnCloseCookieModal) btnCloseCookieModal.addEventListener('click', closeCookie);
+        if (btnCloseCookieModalBtn) btnCloseCookieModalBtn.addEventListener('click', closeCookie);
+
+        cookieVaultModal.addEventListener('click', (e) => {
+            if (e.target === cookieVaultModal) closeCookie();
+        });
+
+        if (btnSaveCookies && cookiePasteInput) {
+            btnSaveCookies.addEventListener('click', async () => {
+                const text = cookiePasteInput.value.trim();
+                if (!text) { alert('Please paste cookies first.'); return; }
+                btnSaveCookies.disabled = true;
+                btnSaveCookies.textContent = 'Saving...';
+                try {
+                    const res = await fetch('/api/cookies/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content: text })
+                    });
+                    const d = await res.json();
+                    if (d.success) {
+                        alert('✓ Cookies imported successfully! 1080p Premium & Age-Restricted streams unlocked.');
+                        cookiePasteInput.value = '';
+                        updateCookieStatus();
+                    } else {
+                        alert('Could not parse cookies. Ensure Netscape or JSON format.');
+                    }
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                } finally {
+                    btnSaveCookies.disabled = false;
+                    btnSaveCookies.textContent = '💾 Save & Activate Cookies';
+                }
+            });
+        }
+
+        if (btnClearCookies) {
+            btnClearCookies.addEventListener('click', async () => {
+                if (!confirm('Clear all stored cookies?')) return;
+                await fetch('/api/cookies/clear', { method: 'POST' });
+                updateCookieStatus();
+            });
+        }
+    }
+
+    // 8. In-App Cinema & Audio Preview Modal (Playsinline for Apple iOS Safari)
+    const inAppMediaModal = document.getElementById('inAppMediaModal');
+    const btnCloseMediaModal = document.getElementById('btnCloseMediaModal');
+    const inAppVideoPlayer = document.getElementById('inAppVideoPlayer');
+    const inAppMediaTitle = document.getElementById('inAppMediaTitle');
+    const btnInstantPlay = document.getElementById('btnInstantPlay');
+    const btnRevealFromPlayer = document.getElementById('btnRevealFromPlayer');
+    const btnShareFromPlayer = document.getElementById('btnShareFromPlayer');
+
+    let currentMediaUrl = '';
+
+    window.openInAppMediaPreview = (title, mediaUrl) => {
+        if (!inAppMediaModal || !inAppVideoPlayer) return;
+        currentMediaUrl = mediaUrl;
+        if (inAppMediaTitle) inAppMediaTitle.textContent = title;
+        inAppVideoPlayer.src = mediaUrl;
+        inAppMediaModal.style.display = 'flex';
+        inAppVideoPlayer.play().catch(() => {});
+
+        if (btnShareFromPlayer) {
+            btnShareFromPlayer.style.display = navigator.share ? 'inline-block' : 'none';
+        }
+    };
+
+    if (btnInstantPlay) {
+        btnInstantPlay.addEventListener('click', () => {
+            const mediaUrl = btnDirectSave?.href;
+            if (mediaUrl) {
+                openInAppMediaPreview(streamData?.title || 'Downloaded Video', mediaUrl);
+            }
+        });
+    }
+
+    if (btnCloseMediaModal && inAppMediaModal) {
+        btnCloseMediaModal.addEventListener('click', () => {
+            if (inAppVideoPlayer) {
+                inAppVideoPlayer.pause();
+                inAppVideoPlayer.src = '';
+            }
+            inAppMediaModal.style.display = 'none';
+        });
+
+        inAppMediaModal.addEventListener('click', (e) => {
+            if (e.target === inAppMediaModal) {
+                if (inAppVideoPlayer) {
+                    inAppVideoPlayer.pause();
+                    inAppVideoPlayer.src = '';
+                }
+                inAppMediaModal.style.display = 'none';
+            }
+        });
+    }
+
+    if (btnRevealFromPlayer) {
+        btnRevealFromPlayer.addEventListener('click', async () => {
+            if (lastCompletedOutputPath) {
+                await fetch(`/api/file/reveal?path=${encodeURIComponent(lastCompletedOutputPath)}`);
+            } else {
+                await fetch('/api/open-folder', { method: 'POST' });
+            }
+        });
+    }
+
+    if (btnShareFromPlayer) {
+        btnShareFromPlayer.addEventListener('click', async () => {
+            if (navigator.share && currentMediaUrl) {
+                try {
+                    await navigator.share({
+                        title: inAppMediaTitle?.textContent || 'Media File',
+                        url: currentMediaUrl
+                    });
+                } catch { }
+            }
+        });
+    }
 });
