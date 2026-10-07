@@ -2803,18 +2803,35 @@ textarea.form-control-input {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .quality-pill {
     font-size: 12.5px;
     font-weight: 700;
     color: #e2e8f0;
+    display: inline-block;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
 }
 
 .codec-sub {
     font-size: 11px;
     color: #64748b;
     font-family: 'JetBrains Mono', monospace;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Size & Speed Cell */
@@ -2822,26 +2839,43 @@ textarea.form-control-input {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .size-main {
     font-size: 13px;
     font-weight: 700;
     color: #f1f5f9;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .speed-sub {
     font-size: 11px;
     color: #64748b;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .speed-live {
     color: #34d399;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .threads-text {
     color: #64748b;
+    white-space: nowrap;
 }
 
 /* Modern Status Badges */
@@ -5472,21 +5506,23 @@ body {
 }
 
 .table-glass-card .title-cell-wrap {
-    min-width: 140px;
-    max-width: 320px;
+    min-width: 180px;
+    max-width: 100%;
     overflow: hidden;
 }
 
 .table-glass-card .title-cell-wrap .table-main-title {
-    white-space: nowrap;
+    white-space: normal;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: block;
+    display: flex;
     max-width: 100%;
 }
 
 .table-glass-card .actions-td {
-    width: 90px;
+    width: 175px;
+    min-width: 175px;
+    max-width: 175px;
     text-align: right;
     white-space: nowrap;
 }

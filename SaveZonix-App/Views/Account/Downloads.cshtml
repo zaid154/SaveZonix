@@ -5,12 +5,14 @@
     string CleanQuality(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "1080p Full HD";
-        var q = raw;
-        if (q.Contains("(Desktop - Requires browser context)", StringComparison.OrdinalIgnoreCase))
-            q = q.Replace("(Desktop - Requires browser context)", "", StringComparison.OrdinalIgnoreCase).Trim();
-        if (q.Contains("(Direct Stream)", StringComparison.OrdinalIgnoreCase))
-            q = q.Replace("(Direct Stream)", "", StringComparison.OrdinalIgnoreCase).Trim();
+        var q = raw.Trim();
+        // Remove parenthetical descriptions such as (Instagram Reel), (Direct Stream), (HLS Stream), (Desktop...), (Max Quality)
+        q = System.Text.RegularExpressions.Regex.Replace(q, @"\s*\([^)]*\)", "").Trim();
+        // Clean any extraneous separator characters or duplicate spaces
+        q = System.Text.RegularExpressions.Regex.Replace(q, @"\s+", " ").Trim('-', '•', '|', ' ');
         if (string.IsNullOrWhiteSpace(q)) return "Original HD";
+        if (q.Equals("AudioOnly", StringComparison.OrdinalIgnoreCase) || q.Equals("Audio Only", StringComparison.OrdinalIgnoreCase))
+            return "Audio Only";
         return q;
     }
 
@@ -285,7 +287,7 @@
                                     <td class="col-quality">
                                         <div class="quality-cell">
                                             <div style="display: flex; align-items: center; gap: 6px;">
-                                                <span class="quality-pill">@groupQuality</span>
+                                                <span class="quality-pill" title="@groupQuality">@groupQuality</span>
                                             </div>
                                             <div class="codec-sub" style="margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@groupFormat • @entry.TotalVideos Videos</div>
                                         </div>
@@ -600,7 +602,7 @@
                                     </td>
                                     <td class="col-quality">
                                         <div class="quality-cell">
-                                            <span class="quality-pill">@cleanQ</span>
+                                            <span class="quality-pill" title="@cleanQ">@cleanQ</span>
                                             <div class="codec-sub" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@(item.Format ?? "MP4") • @(item.Codec ?? "H.264 / AAC")</div>
                                         </div>
                                     </td>
@@ -864,10 +866,11 @@
 @section Scripts {
     <script src="~/active-downloads-monitor.js" asp-append-version="true"></script>
     <style>
-        /* ─── Guaranteed Zero Horizontal Scroll ─── */
+        /* ─── Guaranteed Responsive Smooth Scroll ─── */
         .table-responsive,
         .table-scroll-container {
-            overflow-x: hidden !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
             width: 100% !important;
             max-width: 100% !important;
         }
@@ -887,7 +890,7 @@
             vertical-align: middle !important;
         }
 
-        /* ─── Strict Column Width Balancing (Zero Gap between Date & Action) ─── */
+        /* ─── Strict Column Width Balancing (Zero Overlap Guarantee) ─── */
         .modern-table th.col-media,
         .modern-table td.col-media {
             width: 86px !important;
@@ -909,48 +912,102 @@
         .modern-table th.col-title,
         .modern-table td.col-title {
             width: auto !important;
-            min-width: 260px !important;
+            min-width: 240px !important;
         }
 
         .modern-table th.col-quality,
         .modern-table td.col-quality {
-            width: 125px !important;
-            min-width: 125px !important;
-            max-width: 125px !important;
+            width: 140px !important;
+            min-width: 140px !important;
+            max-width: 140px !important;
             white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
         .modern-table th.col-size,
         .modern-table td.col-size {
-            width: 105px !important;
-            min-width: 105px !important;
-            max-width: 105px !important;
+            width: 110px !important;
+            min-width: 110px !important;
+            max-width: 110px !important;
             white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
         .modern-table th.col-status,
         .modern-table td.col-status {
-            width: 115px !important;
-            min-width: 115px !important;
-            max-width: 115px !important;
+            width: 120px !important;
+            min-width: 120px !important;
+            max-width: 120px !important;
             white-space: nowrap !important;
+            overflow: hidden !important;
         }
 
         .modern-table th.col-date,
         .modern-table td.col-date {
-            width: 100px !important;
-            min-width: 100px !important;
-            max-width: 100px !important;
+            width: 105px !important;
+            min-width: 105px !important;
+            max-width: 105px !important;
             white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
 
         .modern-table th.col-action,
         .modern-table td.col-action {
-            width: 95px !important;
-            min-width: 95px !important;
-            max-width: 95px !important;
+            width: 175px !important;
+            min-width: 175px !important;
+            max-width: 175px !important;
             text-align: right !important;
-            padding-right: 12px !important;
+            padding-right: 14px !important;
+            white-space: nowrap !important;
+            overflow: visible !important;
+        }
+
+        /* ─── Cell Inner Overflow Protection (Zero Collision Guarantee) ─── */
+        .quality-cell {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        .quality-pill {
+            display: inline-block !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+            vertical-align: bottom !important;
+        }
+
+        .codec-sub {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        .size-cell {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            white-space: nowrap !important;
+        }
+
+        .size-main,
+        .speed-sub,
+        .speed-live,
+        .threads-text {
+            min-width: 0 !important;
+            max-width: 100% !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
             white-space: nowrap !important;
         }
 
@@ -1037,10 +1094,13 @@
             white-space: nowrap !important;
         }
         td.actions-td, th.col-action, td.col-action {
-            width: 95px !important;
-            min-width: 95px !important;
-            max-width: 95px !important;
+            width: 175px !important;
+            min-width: 175px !important;
+            max-width: 175px !important;
             white-space: nowrap !important;
+            text-align: right !important;
+            padding-right: 14px !important;
+            overflow: visible !important;
         }
         .actions-cell {
             white-space: nowrap !important;
@@ -1049,6 +1109,24 @@
             justify-content: flex-end !important;
             gap: 5px !important;
             width: 100% !important;
+            overflow: visible !important;
+        }
+        .actions-cell form {
+            margin: 0 !important;
+            padding: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+        }
+        .action-btn {
+            width: 30px !important;
+            height: 30px !important;
+            min-width: 30px !important;
+            border-radius: 7px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-shrink: 0 !important;
+            transition: all 0.2s ease !important;
         }
 
         /* ─── Quality & Codec and Time Diagnostics Polish ─── */
