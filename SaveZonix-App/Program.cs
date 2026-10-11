@@ -17,14 +17,24 @@ using SaveZonix.Models;
 using Zonix.Core.Engines;
 
 // 0. Single-Instance Guard & Process Shield
-const string AppMutexName = "SaveZonix_SingleInstance_Mutex_2026";
-bool isFirstInstance;
-using var singleInstanceMutex = new Mutex(true, AppMutexName, out isFirstInstance);
 var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+bool isAlreadyRunning = false;
 
-if (!isFirstInstance)
+try
 {
-    // If SaveZonix is already running in background, focus/open the browser to it and exit cleanly
+    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(350));
+    using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(350) };
+    var response = client.GetAsync($"http://127.0.0.1:{port}/api/system/health", cts.Token).GetAwaiter().GetResult();
+    if (response.IsSuccessStatusCode)
+    {
+        isAlreadyRunning = true;
+    }
+}
+catch { }
+
+if (isAlreadyRunning)
+{
+    // SaveZonix is already actively running and serving traffic! Focus/open browser and exit cleanly.
     MediaHelper.OpenBrowser($"http://localhost:{port}");
     return;
 }
