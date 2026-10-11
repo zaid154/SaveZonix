@@ -15,7 +15,11 @@ public static class WebApplicationExtensions
 {
     public static WebApplication UseSaveZonixMiddlewares(this WebApplication app)
     {
-        if (!app.Environment.IsDevelopment())
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseDeveloperExceptionPage();
+        }
+        else
         {
             app.UseExceptionHandler("/Home/Error");
             app.UseHsts();

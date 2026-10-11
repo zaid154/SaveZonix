@@ -29,12 +29,12 @@ public class AccountController : Controller
     private readonly IPlaylistQueueManager _queueManager;
 
     public AccountController(
-        IMongoDatabase? mongoDb,
-        IEmailService emailService,
-        IDownloadHistoryService downloadHistoryService,
-        IAdminSettingsService adminSettingsService,
-        IDownloadAnalyticsService analyticsService,
-        IPlaylistQueueManager queueManager)
+        IMongoDatabase? mongoDb = null,
+        IEmailService emailService = null!,
+        IDownloadHistoryService downloadHistoryService = null!,
+        IAdminSettingsService adminSettingsService = null!,
+        IDownloadAnalyticsService analyticsService = null!,
+        IPlaylistQueueManager queueManager = null!)
     {
         _usersCollection = mongoDb?.GetCollection<BsonDocument>("users");
         _emailService = emailService;

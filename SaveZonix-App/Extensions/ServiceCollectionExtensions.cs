@@ -39,11 +39,6 @@ public static class ServiceCollectionExtensions
                 Console.WriteLine($"[MongoDB Driver Init Notice] {ex.Message}");
             }
         }
-        else
-        {
-            services.AddSingleton<IMongoClient>(sp => null!);
-            services.AddSingleton<IMongoDatabase>(sp => null!);
-        }
 
         // 2. Cookie Authentication & OAuth
         var authBuilder = services.AddAuthentication(options =>

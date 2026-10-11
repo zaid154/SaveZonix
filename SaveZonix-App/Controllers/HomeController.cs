@@ -52,4 +52,11 @@ public class HomeController : Controller
         ViewData["ActiveNav"] = "Contact";
         return View();
     }
+
+    [Route("/Home/Error")]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+    public IActionResult Error()
+    {
+        return RedirectToAction("Index");
+    }
 }
