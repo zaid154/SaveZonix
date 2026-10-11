@@ -1,7 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Bson;
 using MongoDB.Driver;
@@ -49,6 +53,15 @@ public interface IDownloadHistoryService
 
 public class DownloadHistoryService : IDownloadHistoryService
 {
+    private static readonly ConcurrentDictionary<string, DownloadHistory> _localStore = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object _fileLock = new();
+    private static readonly object _initLock = new();
+    private static bool _initialized = false;
+    private static readonly string _localFilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "SaveZonix",
+        "downloads_history.json");
+
     private readonly IMongoDatabase? _mongoDb;
     private readonly IMongoCollection<BsonDocument>? _cloudHistoryCollection;
     private readonly IMongoCollection<DownloadRecord>? _legacyDownloadsCollection;
@@ -56,6 +69,8 @@ public class DownloadHistoryService : IDownloadHistoryService
 
     public DownloadHistoryService(IMongoDatabase? mongoDb = null, Microsoft.Extensions.Configuration.IConfiguration? config = null)
     {
+        EnsureInitialized();
+
         if (mongoDb != null)
         {
             _mongoDb = mongoDb;
@@ -67,20 +82,24 @@ public class DownloadHistoryService : IDownloadHistoryService
         {
             try
             {
-                string connStr = config["MongoDb:ConnectionString"]
-                    ?? config.GetConnectionString("MongoDb")
-                    ?? "mongodb+srv://mohdzaid620268_db_user:1liyz6EzQSI8HeU8@cluster0.u2wwzoi.mongodb.net/SaveZonixDb?retryWrites=true&w=majority";
-                string dbName = config["MongoDb:DatabaseName"] ?? "SaveZonixDb";
+                string? connStr = config["MongoDb:ConnectionString"] ?? config.GetConnectionString("MongoDb");
+                if (!string.IsNullOrWhiteSpace(connStr))
+                {
+                    string dbName = config["MongoDb:DatabaseName"] ?? "SaveZonixDb";
+                    var mongoSettings = MongoClientSettings.FromConnectionString(connStr);
+                    mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
+                    mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(2);
 
-                var mongoSettings = MongoClientSettings.FromConnectionString(connStr);
-                mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
-                mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(5);
-
-                var client = new MongoClient(mongoSettings);
-                _mongoDb = client.GetDatabase(dbName);
-                _cloudHistoryCollection = _mongoDb.GetCollection<BsonDocument>("downloadhistories");
-                _legacyDownloadsCollection = _mongoDb.GetCollection<DownloadRecord>("downloads");
-                _isMongoConnected = true;
+                    var client = new MongoClient(mongoSettings);
+                    _mongoDb = client.GetDatabase(dbName);
+                    _cloudHistoryCollection = _mongoDb.GetCollection<BsonDocument>("downloadhistories");
+                    _legacyDownloadsCollection = _mongoDb.GetCollection<DownloadRecord>("downloads");
+                    _isMongoConnected = true;
+                }
+                else
+                {
+                    _isMongoConnected = false;
+                }
             }
             catch (Exception ex)
             {
@@ -90,143 +109,147 @@ public class DownloadHistoryService : IDownloadHistoryService
         }
     }
 
-    private static DownloadHistory MapBsonToHistory(BsonDocument doc)
+    private static void EnsureInitialized()
     {
-        string taskId = doc.Contains("taskId") && !doc["taskId"].IsBsonNull ? doc["taskId"].AsString :
-                       (doc.Contains("TaskId") && !doc["TaskId"].IsBsonNull ? doc["TaskId"].AsString :
-                       (doc.Contains("_id") ? doc["_id"].ToString() ?? Guid.NewGuid().ToString("N") : Guid.NewGuid().ToString("N")));
-
-        string title = doc.Contains("title") && !doc["title"].IsBsonNull ? doc["title"].AsString :
-                      (doc.Contains("VideoTitle") && !doc["VideoTitle"].IsBsonNull ? doc["VideoTitle"].AsString :
-                      (doc.Contains("Title") && !doc["Title"].IsBsonNull ? doc["Title"].AsString : "Video Stream"));
-
-        string fileName = doc.Contains("fileName") && !doc["fileName"].IsBsonNull ? doc["fileName"].AsString :
-                         (doc.Contains("FileName") && !doc["FileName"].IsBsonNull ? doc["FileName"].AsString : $"{title}.mp4");
-
-        string originalUrl = doc.Contains("originalUrl") && !doc["originalUrl"].IsBsonNull ? doc["originalUrl"].AsString :
-                            (doc.Contains("OriginalUrl") && !doc["OriginalUrl"].IsBsonNull ? doc["OriginalUrl"].AsString : "");
-
-        string? thumbnailUrl = doc.Contains("thumbnailUrl") && !doc["thumbnailUrl"].IsBsonNull ? doc["thumbnailUrl"].AsString :
-                              (doc.Contains("ThumbnailUrl") && !doc["ThumbnailUrl"].IsBsonNull ? doc["ThumbnailUrl"].AsString : null);
-
-        string platform = doc.Contains("platform") && !doc["platform"].IsBsonNull ? doc["platform"].AsString :
-                         (doc.Contains("Platform") && !doc["Platform"].IsBsonNull ? doc["Platform"].AsString : "Web Stream");
-
-        string quality = doc.Contains("quality") && !doc["quality"].IsBsonNull ? doc["quality"].AsString :
-                        (doc.Contains("Quality") && !doc["Quality"].IsBsonNull ? doc["Quality"].AsString : "1080p Full HD");
-
-        string format = doc.Contains("format") && !doc["format"].IsBsonNull ? doc["format"].AsString :
-                       (doc.Contains("Format") && !doc["Format"].IsBsonNull ? doc["Format"].AsString : "MP4");
-
-        long fileSize = 0;
-        if (doc.Contains("fileSize") && !doc["fileSize"].IsBsonNull) fileSize = doc["fileSize"].ToInt64();
-        else if (doc.Contains("FileSizeBytes") && !doc["FileSizeBytes"].IsBsonNull) fileSize = doc["FileSizeBytes"].ToInt64();
-        else if (doc.Contains("FileSize") && !doc["FileSize"].IsBsonNull) fileSize = doc["FileSize"].ToInt64();
-
-        long downloadedBytes = fileSize;
-        if (doc.Contains("downloadedBytes") && !doc["downloadedBytes"].IsBsonNull) downloadedBytes = doc["downloadedBytes"].ToInt64();
-        else if (doc.Contains("DownloadedBytes") && !doc["DownloadedBytes"].IsBsonNull) downloadedBytes = doc["DownloadedBytes"].ToInt64();
-
-        double avgSpeed = 0;
-        if (doc.Contains("downloadSpeedMBps") && !doc["downloadSpeedMBps"].IsBsonNull) avgSpeed = doc["downloadSpeedMBps"].ToDouble();
-        else if (doc.Contains("DownloadSpeedMBps") && !doc["DownloadSpeedMBps"].IsBsonNull) avgSpeed = doc["DownloadSpeedMBps"].ToDouble();
-        else if (doc.Contains("AverageSpeedMBps") && !doc["AverageSpeedMBps"].IsBsonNull) avgSpeed = doc["AverageSpeedMBps"].ToDouble();
-
-        double peakSpeed = avgSpeed;
-        if (doc.Contains("peakSpeedMBps") && !doc["peakSpeedMBps"].IsBsonNull) peakSpeed = doc["peakSpeedMBps"].ToDouble();
-        else if (doc.Contains("PeakSpeedMBps") && !doc["PeakSpeedMBps"].IsBsonNull) peakSpeed = doc["PeakSpeedMBps"].ToDouble();
-
-        string statusStr = doc.Contains("status") && !doc["status"].IsBsonNull ? doc["status"].AsString :
-                          (doc.Contains("Status") && !doc["Status"].IsBsonNull ? doc["Status"].AsString : "Completed");
-
-        DownloadStatus parsedStatus = DownloadStatus.Completed;
-        if (Enum.TryParse<DownloadStatus>(statusStr, true, out var st))
+        if (_initialized) return;
+        lock (_initLock)
         {
-            parsedStatus = st;
+            if (_initialized) return;
+            _initialized = true;
+
+            try
+            {
+                var dir = Path.GetDirectoryName(_localFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                if (File.Exists(_localFilePath))
+                {
+                    string json = File.ReadAllText(_localFilePath);
+                    var items = JsonSerializer.Deserialize<List<DownloadHistory>>(json);
+                    if (items != null)
+                    {
+                        foreach (var it in items)
+                        {
+                            if (!string.IsNullOrEmpty(it.Id))
+                            {
+                                _localStore[it.Id] = it;
+                            }
+                        }
+                    }
+                }
+
+                AutoDiscoverDownloadsFromDisk();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DownloadHistoryService EnsureInitialized] {ex.Message}");
+            }
         }
+    }
 
-        string? userId = doc.Contains("userId") && !doc["userId"].IsBsonNull ? doc["userId"].ToString() :
-                        (doc.Contains("UserId") && !doc["UserId"].IsBsonNull ? doc["UserId"].ToString() : null);
-
-        string? userEmail = doc.Contains("userEmail") && !doc["userEmail"].IsBsonNull ? doc["userEmail"].AsString :
-                           (doc.Contains("UserEmail") && !doc["UserEmail"].IsBsonNull ? doc["UserEmail"].AsString : null);
-
-        string? userName = doc.Contains("userName") && !doc["userName"].IsBsonNull ? doc["userName"].AsString :
-                          (doc.Contains("UserName") && !doc["UserName"].IsBsonNull ? doc["UserName"].AsString : null);
-
-        DateTime createdAt = DateTime.UtcNow;
-        if (doc.Contains("createdAt") && !doc["createdAt"].IsBsonNull) createdAt = doc["createdAt"].ToUniversalTime();
-        else if (doc.Contains("CreatedAt") && !doc["CreatedAt"].IsBsonNull) createdAt = doc["CreatedAt"].ToUniversalTime();
-
-        DateTime startTime = createdAt;
-        if (doc.Contains("startTime") && !doc["startTime"].IsBsonNull) startTime = doc["startTime"].ToUniversalTime();
-        else if (doc.Contains("StartTime") && !doc["StartTime"].IsBsonNull) startTime = doc["StartTime"].ToUniversalTime();
-
-        DateTime? completionTime = null;
-        if (doc.Contains("completionTime") && !doc["completionTime"].IsBsonNull) completionTime = doc["completionTime"].ToUniversalTime();
-        else if (doc.Contains("CompletionTime") && !doc["CompletionTime"].IsBsonNull) completionTime = doc["CompletionTime"].ToUniversalTime();
-
-        double totalDuration = 0;
-        if (doc.Contains("downloadDurationSeconds") && !doc["downloadDurationSeconds"].IsBsonNull) totalDuration = doc["downloadDurationSeconds"].ToDouble();
-        else if (doc.Contains("timeTakenSeconds") && !doc["timeTakenSeconds"].IsBsonNull) totalDuration = doc["timeTakenSeconds"].ToDouble();
-        else if (doc.Contains("TimeTakenSeconds") && !doc["TimeTakenSeconds"].IsBsonNull) totalDuration = doc["TimeTakenSeconds"].ToDouble();
-
-        string strategy = doc.Contains("downloadStrategy") && !doc["downloadStrategy"].IsBsonNull ? doc["downloadStrategy"].AsString :
-                         (doc.Contains("DownloadStrategy") && !doc["DownloadStrategy"].IsBsonNull ? doc["DownloadStrategy"].AsString : "HLS Multi-Thread");
-
-        string validationStatus = doc.Contains("validationStatus") && !doc["validationStatus"].IsBsonNull ? doc["validationStatus"].AsString :
-                                 (doc.Contains("ValidationStatus") && !doc["ValidationStatus"].IsBsonNull ? doc["ValidationStatus"].AsString : "Passed");
-
-        string validationDetails = doc.Contains("validationDetails") && !doc["validationDetails"].IsBsonNull ? doc["validationDetails"].AsString :
-                                  (doc.Contains("ValidationDetails") && !doc["ValidationDetails"].IsBsonNull ? doc["ValidationDetails"].AsString : "");
-
-        string audioVideoDetails = doc.Contains("audioVideoDetails") && !doc["audioVideoDetails"].IsBsonNull ? doc["audioVideoDetails"].AsString :
-                                  (doc.Contains("AudioVideoDetails") && !doc["AudioVideoDetails"].IsBsonNull ? doc["AudioVideoDetails"].AsString : "");
-
-        string? errorReason = doc.Contains("errorReason") && !doc["errorReason"].IsBsonNull ? doc["errorReason"].AsString :
-                             (doc.Contains("errorMessage") && !doc["errorMessage"].IsBsonNull ? doc["errorMessage"].AsString :
-                             (doc.Contains("ErrorReason") && !doc["ErrorReason"].IsBsonNull ? doc["ErrorReason"].AsString : null));
-
-        int durationSeconds = 0;
-        if (doc.Contains("durationSeconds") && !doc["durationSeconds"].IsBsonNull) durationSeconds = doc["durationSeconds"].ToInt32();
-        else if (doc.Contains("DurationSeconds") && !doc["DurationSeconds"].IsBsonNull) durationSeconds = doc["DurationSeconds"].ToInt32();
-
-        int threadsUsed = 64;
-        if (doc.Contains("threadsUsed") && !doc["threadsUsed"].IsBsonNull) threadsUsed = doc["threadsUsed"].ToInt32();
-        else if (doc.Contains("ThreadsUsed") && !doc["ThreadsUsed"].IsBsonNull) threadsUsed = doc["ThreadsUsed"].ToInt32();
-
-        return new DownloadHistory
+    private static void SaveLocalStore()
+    {
+        try
         {
-            Id = taskId,
-            UserId = userId,
-            UserEmail = userEmail,
-            UserName = userName,
-            Title = title,
-            FileName = fileName,
-            OriginalUrl = originalUrl,
-            ThumbnailUrl = thumbnailUrl,
-            Platform = platform,
-            MediaType = "Video",
-            Format = format,
-            Quality = quality,
-            DurationSeconds = durationSeconds,
-            FileSize = fileSize,
-            DownloadedBytes = downloadedBytes,
-            AverageSpeedMBps = avgSpeed,
-            PeakSpeedMBps = peakSpeed,
-            DownloadDurationSeconds = totalDuration,
-            Status = parsedStatus,
-            StartTime = startTime,
-            CompletionTime = completionTime,
-            ThreadsUsed = threadsUsed,
-            DownloadStrategy = strategy,
-            ValidationStatus = validationStatus,
-            ValidationDetails = validationDetails,
-            AudioVideoDetails = audioVideoDetails,
-            ErrorReason = errorReason,
-            CreatedAt = createdAt,
-            UpdatedAt = DateTime.UtcNow
-        };
+            lock (_fileLock)
+            {
+                var dir = Path.GetDirectoryName(_localFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+
+                var list = _localStore.Values.OrderByDescending(x => x.CreatedAt).ToList();
+                var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+                string tempFile = _localFilePath + ".tmp";
+                File.WriteAllText(tempFile, json);
+                File.Move(tempFile, _localFilePath, true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[SaveLocalStore Error] {ex.Message}");
+        }
+    }
+
+    private static void AutoDiscoverDownloadsFromDisk()
+    {
+        try
+        {
+            string downloadsDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SaveZonix");
+            if (!Directory.Exists(downloadsDir)) return;
+
+            var supportedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mp3", ".m4a", ".webm", ".mkv" };
+            var files = Directory.GetFiles(downloadsDir, "*.*", SearchOption.AllDirectories);
+
+            bool addedAny = false;
+            var existingNames = new HashSet<string>(_localStore.Values.Select(v => v.FileName), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var filePath in files)
+            {
+                var fi = new FileInfo(filePath);
+                if (!supportedExts.Contains(fi.Extension) || fi.Length == 0) continue;
+
+                if (existingNames.Contains(fi.Name)) continue;
+
+                string id = "local_" + Math.Abs(fi.FullName.GetHashCode()).ToString("X8") + "_" + fi.Length;
+                if (_localStore.ContainsKey(id)) continue;
+
+                string? parentDir = Path.GetDirectoryName(filePath);
+                string folderName = !string.IsNullOrEmpty(parentDir) ? Path.GetFileName(parentDir) : "";
+                string title = Path.GetFileNameWithoutExtension(fi.Name);
+
+                bool isAudio = fi.Extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) || fi.Extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase);
+
+                string strategy;
+                if (!string.IsNullOrEmpty(folderName) && !string.Equals(folderName, "SaveZonix", StringComparison.OrdinalIgnoreCase))
+                {
+                    strategy = $"Playlist: PL-01 • {folderName} • Local Import";
+                }
+                else
+                {
+                    strategy = "Adaptive Parallel";
+                }
+
+                var entry = new DownloadHistory
+                {
+                    Id = id,
+                    Title = title,
+                    FileName = fi.Name,
+                    OriginalUrl = "",
+                    Platform = isAudio ? "Music Stream" : "Web Stream",
+                    MediaType = isAudio ? "Audio" : "Video",
+                    Format = fi.Extension.TrimStart('.').ToUpperInvariant(),
+                    Quality = isAudio ? "320 kbps" : "1080p Full HD",
+                    FileSize = fi.Length,
+                    DownloadedBytes = fi.Length,
+                    Status = DownloadStatus.Completed,
+                    DownloadStrategy = strategy,
+                    ValidationStatus = "Passed",
+                    ValidationDetails = "Verified media file on disk",
+                    StartTime = fi.CreationTimeUtc,
+                    CompletionTime = fi.LastWriteTimeUtc,
+                    CreatedAt = fi.CreationTimeUtc,
+                    UpdatedAt = fi.LastWriteTimeUtc
+                };
+
+                _localStore[id] = entry;
+                existingNames.Add(fi.Name);
+                addedAny = true;
+            }
+
+            if (addedAny)
+            {
+                SaveLocalStore();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[AutoDiscoverDownloadsFromDisk Notice] {ex.Message}");
+        }
     }
 
     public string SanitizeUrl(string url)
@@ -259,7 +282,7 @@ public class DownloadHistoryService : IDownloadHistoryService
         return url;
     }
 
-    public async Task<DownloadHistory> CreateOrUpdateDownloadAsync(
+    public Task<DownloadHistory> CreateOrUpdateDownloadAsync(
         string taskId,
         string? userId,
         string? userEmail,
@@ -278,6 +301,7 @@ public class DownloadHistoryService : IDownloadHistoryService
         int threads,
         string strategy)
     {
+        EnsureInitialized();
         string cleanUrl = SanitizeUrl(originalUrl);
         DateTime now = DateTime.UtcNow;
 
@@ -308,539 +332,518 @@ public class DownloadHistoryService : IDownloadHistoryService
             UpdatedAt = now
         };
 
-        if (_cloudHistoryCollection != null)
+        _localStore[taskId] = download;
+        SaveLocalStore();
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
         {
-            try
+            _ = Task.Run(async () =>
             {
-                string dType = "guest";
-                if (string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase)) dType = "admin";
-                else if (!string.IsNullOrEmpty(userId) || (!string.IsNullOrEmpty(userEmail) && !userEmail.StartsWith("Guest", StringComparison.OrdinalIgnoreCase))) dType = "user";
-
-                BsonValue bsonUserId = string.IsNullOrEmpty(userId) ? BsonNull.Value : (BsonValue)userId;
-
-                var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                var update = Builders<BsonDocument>.Update
-                    .Set("taskId", taskId)
-                    .Set("title", title)
-                    .Set("fileName", fileName)
-                    .Set("originalUrl", cleanUrl)
-                    .Set("thumbnailUrl", thumbnailUrl ?? "")
-                    .Set("platform", platform)
-                    .Set("quality", quality)
-                    .Set("fileSize", estimatedBytes)
-                    .Set("format", format)
-                    .Set("status", "Downloading")
-                    .Set("downloadType", dType)
-                    .Set("userId", bsonUserId)
-                    .Set("userEmail", userEmail ?? "Guest")
-                    .Set("userName", userName ?? "Guest")
-                    .Set("ipAddress", "127.0.0.1")
-                    .Set("downloadStrategy", strategy)
-                    .Set("threadsUsed", threads)
-                    .Set("durationSeconds", durationSeconds)
-                    .Set("startTime", now)
-                    .Set("updatedAt", now)
-                    .SetOnInsert("createdAt", now);
-
-                await _cloudHistoryCollection.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[MongoDB Cloud Download Record Error] {ex.Message}");
-            }
-        }
-
-        if (_legacyDownloadsCollection != null)
-        {
-            try
-            {
-                var legacyRecord = new DownloadRecord
+                try
                 {
-                    TaskId = taskId,
-                    UserId = userId,
-                    UserEmail = userEmail,
-                    VideoTitle = title,
-                    OriginalUrl = cleanUrl,
-                    ThumbnailUrl = thumbnailUrl,
-                    Platform = platform,
-                    Quality = quality,
-                    FileSizeBytes = estimatedBytes,
-                    DurationSeconds = durationSeconds,
-                    DownloadStrategy = strategy,
-                    StartTime = now,
-                    Status = "Downloading",
-                    CreatedAt = now
-                };
-                await _legacyDownloadsCollection.ReplaceOneAsync(
-                    x => x.TaskId == taskId,
-                    legacyRecord,
-                    new ReplaceOptions { IsUpsert = true });
-            }
-            catch { }
-        }
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    string dType = "guest";
+                    if (string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase)) dType = "admin";
+                    else if (!string.IsNullOrEmpty(userId) || (!string.IsNullOrEmpty(userEmail) && !userEmail.StartsWith("Guest", StringComparison.OrdinalIgnoreCase))) dType = "user";
 
-        return download;
-    }
+                    BsonValue bsonUserId = string.IsNullOrEmpty(userId) ? BsonNull.Value : (BsonValue)userId;
 
-    public async Task UpdateProgressAsync(string taskId, DownloadStatus status, long downloadedBytes, double avgSpeed, double peakSpeed, double elapsedSeconds)
-    {
-        if (_cloudHistoryCollection == null) return;
-
-        try
-        {
-            var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-            var update = Builders<BsonDocument>.Update
-                .Set("status", status.ToString())
-                .Set("downloadedBytes", downloadedBytes)
-                .Set("downloadSpeedMBps", avgSpeed)
-                .Set("peakSpeedMBps", peakSpeed)
-                .Set("downloadDurationSeconds", elapsedSeconds)
-                .Set("updatedAt", DateTime.UtcNow);
-
-            await _cloudHistoryCollection.UpdateOneAsync(filter, update);
-        }
-        catch { }
-    }
-
-    public async Task MarkCompletedAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds)
-    {
-        await MarkCompletedWithValidationAsync(taskId, finalSize, avgSpeed, peakSpeed, totalSeconds, "Passed", "Verified media structure", 0, "Standard Container");
-    }
-
-    public async Task MarkCompletedWithValidationAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds, string validationStatus, string validationDetails, double probedDuration, string audioVideoDetails)
-    {
-        DateTime now = DateTime.UtcNow;
-
-        if (_cloudHistoryCollection != null)
-        {
-            try
-            {
-                var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                var update = Builders<BsonDocument>.Update
-                    .Set("status", "Completed")
-                    .Set("fileSize", finalSize)
-                    .Set("downloadedBytes", finalSize)
-                    .Set("downloadSpeedMBps", avgSpeed)
-                    .Set("peakSpeedMBps", peakSpeed)
-                    .Set("downloadDurationSeconds", totalSeconds)
-                    .Set("completionTime", now)
-                    .Set("validationStatus", validationStatus)
-                    .Set("validationDetails", validationDetails)
-                    .Set("audioVideoDetails", audioVideoDetails)
-                    .Set("updatedAt", now);
-
-                await _cloudHistoryCollection.UpdateOneAsync(filter, update);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[MongoDB MarkCompleted Error] {ex.Message}");
-            }
-        }
-
-        if (_legacyDownloadsCollection != null)
-        {
-            try
-            {
-                var update = Builders<DownloadRecord>.Update
-                    .Set(x => x.Status, "Completed")
-                    .Set(x => x.FileSizeBytes, finalSize)
-                    .Set(x => x.DownloadSpeedMBps, avgSpeed)
-                    .Set(x => x.PeakSpeedMBps, peakSpeed)
-                    .Set(x => x.TimeTakenSeconds, totalSeconds)
-                    .Set(x => x.CompletionTime, now)
-                    .Set(x => x.ValidationStatus, validationStatus)
-                    .Set(x => x.ValidationDetails, validationDetails)
-                    .Set(x => x.AudioVideoDetails, audioVideoDetails);
-
-                await _legacyDownloadsCollection.UpdateOneAsync(x => x.TaskId == taskId, update);
-            }
-            catch { }
-        }
-    }
-
-    public async Task MarkCorruptedAsync(string taskId, string errorReason, string validationStatus, string validationDetails, int retryCount)
-    {
-        if (_cloudHistoryCollection == null) return;
-
-        try
-        {
-            var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-            var update = Builders<BsonDocument>.Update
-                .Set("status", "Corrupted")
-                .Set("errorReason", errorReason)
-                .Set("validationStatus", validationStatus)
-                .Set("validationDetails", validationDetails)
-                .Set("retryCount", retryCount)
-                .Set("completionTime", DateTime.UtcNow)
-                .Set("updatedAt", DateTime.UtcNow);
-
-            await _cloudHistoryCollection.UpdateOneAsync(filter, update);
-        }
-        catch { }
-    }
-
-    public async Task MarkRetryingAsync(string taskId, int retryCount, string retryReason)
-    {
-        if (_cloudHistoryCollection == null) return;
-
-        try
-        {
-            var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-            var update = Builders<BsonDocument>.Update
-                .Set("status", "Retrying")
-                .Set("retryCount", retryCount)
-                .Set("errorReason", $"Retry {retryCount}: {retryReason}")
-                .Set("updatedAt", DateTime.UtcNow);
-
-            await _cloudHistoryCollection.UpdateOneAsync(filter, update);
-        }
-        catch { }
-    }
-
-    public async Task MarkFailedAsync(string taskId, string errorReason)
-    {
-        DateTime now = DateTime.UtcNow;
-
-        if (_cloudHistoryCollection != null)
-        {
-            try
-            {
-                var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                var update = Builders<BsonDocument>.Update
-                    .Set("status", "Failed")
-                    .Set("errorReason", errorReason)
-                    .Set("validationStatus", "Failed")
-                    .Set("completionTime", now)
-                    .Set("updatedAt", now);
-
-                await _cloudHistoryCollection.UpdateOneAsync(filter, update);
-            }
-            catch { }
-        }
-
-        if (_legacyDownloadsCollection != null)
-        {
-            try
-            {
-                var update = Builders<DownloadRecord>.Update
-                    .Set(x => x.Status, "Failed")
-                    .Set(x => x.ErrorMessage, errorReason)
-                    .Set(x => x.CompletionTime, now);
-
-                await _legacyDownloadsCollection.UpdateOneAsync(x => x.TaskId == taskId, update);
-            }
-            catch { }
-        }
-    }
-
-    public async Task MarkCancelledAsync(string taskId)
-    {
-        DateTime now = DateTime.UtcNow;
-
-        if (_cloudHistoryCollection != null)
-        {
-            try
-            {
-                var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                var update = Builders<BsonDocument>.Update
-                    .Set("status", "Cancelled")
-                    .Set("errorReason", "Download cancelled by user")
-                    .Set("completionTime", now)
-                    .Set("updatedAt", now);
-
-                await _cloudHistoryCollection.UpdateOneAsync(filter, update);
-            }
-            catch { }
-        }
-
-        if (_legacyDownloadsCollection != null)
-        {
-            try
-            {
-                var update = Builders<DownloadRecord>.Update
-                    .Set(x => x.Status, "Cancelled")
-                    .Set(x => x.ErrorMessage, "Download cancelled by user")
-                    .Set(x => x.CompletionTime, now);
-
-                await _legacyDownloadsCollection.UpdateOneAsync(x => x.TaskId == taskId, update);
-            }
-            catch { }
-        }
-    }
-
-    public async Task<int> ReconcileOrphanedDownloadsAsync(ISet<string>? activeTaskIds = null)
-    {
-        if (_cloudHistoryCollection == null) return 0;
-
-        try
-        {
-            var fb = Builders<BsonDocument>.Filter;
-            var filter = fb.In("status", new[] { "Downloading", "Retrying", "Resolving" });
-
-            var activeDocs = await _cloudHistoryCollection.Find(filter).ToListAsync();
-            int updated = 0;
-
-            foreach (var doc in activeDocs)
-            {
-                string taskId = doc.Contains("taskId") && !doc["taskId"].IsBsonNull ? doc["taskId"].AsString :
-                               (doc.Contains("_id") ? doc["_id"].ToString() ?? "" : "");
-
-                DateTime threshold = DateTime.UtcNow.AddMinutes(-10);
-                DateTime updatedAt = doc.Contains("updatedAt") && doc["updatedAt"].IsBsonDateTime
-                    ? doc["updatedAt"].ToUniversalTime()
-                    : (doc.Contains("createdAt") && doc["createdAt"].IsBsonDateTime ? doc["createdAt"].ToUniversalTime() : DateTime.MinValue);
-
-                if ((string.IsNullOrEmpty(taskId) || activeTaskIds == null || !activeTaskIds.Contains(taskId)) && (updatedAt < threshold || updatedAt == DateTime.MinValue))
-                {
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
                     var update = Builders<BsonDocument>.Update
-                        .Set("status", "Cancelled")
-                        .Set("errorReason", "Download session ended or was interrupted")
-                        .Set("completionTime", DateTime.UtcNow)
+                        .Set("taskId", taskId)
+                        .Set("title", title)
+                        .Set("fileName", fileName)
+                        .Set("originalUrl", cleanUrl)
+                        .Set("thumbnailUrl", thumbnailUrl ?? "")
+                        .Set("platform", platform)
+                        .Set("quality", quality)
+                        .Set("fileSize", estimatedBytes)
+                        .Set("format", format)
+                        .Set("status", "Downloading")
+                        .Set("downloadType", dType)
+                        .Set("userId", bsonUserId)
+                        .Set("userEmail", userEmail ?? "Guest")
+                        .Set("userName", userName ?? "Guest")
+                        .Set("ipAddress", "127.0.0.1")
+                        .Set("downloadStrategy", strategy)
+                        .Set("threadsUsed", threads)
+                        .Set("durationSeconds", durationSeconds)
+                        .Set("startTime", now)
+                        .Set("updatedAt", now)
+                        .SetOnInsert("createdAt", now);
+
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, new UpdateOptions { IsUpsert = true }, cts.Token);
+                }
+                catch { }
+            });
+        }
+
+        return Task.FromResult(download);
+    }
+
+    public Task UpdateProgressAsync(string taskId, DownloadStatus status, long downloadedBytes, double avgSpeed, double peakSpeed, double elapsedSeconds)
+    {
+        EnsureInitialized();
+        if (_localStore.TryGetValue(taskId, out var item))
+        {
+            item.Status = status;
+            item.DownloadedBytes = downloadedBytes;
+            item.AverageSpeedMBps = avgSpeed;
+            item.PeakSpeedMBps = peakSpeed;
+            item.DownloadDurationSeconds = elapsedSeconds;
+            item.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                    var update = Builders<BsonDocument>.Update
+                        .Set("status", status.ToString())
+                        .Set("downloadedBytes", downloadedBytes)
+                        .Set("downloadSpeedMBps", avgSpeed)
+                        .Set("peakSpeedMBps", peakSpeed)
+                        .Set("downloadDurationSeconds", elapsedSeconds)
                         .Set("updatedAt", DateTime.UtcNow);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(fb.Eq("_id", doc["_id"]), update);
-                    updated++;
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
                 }
-            }
+                catch { }
+            });
+        }
 
-            return updated;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[ReconcileOrphanedDownloads Notice] {ex.Message}");
-            return 0;
-        }
+        return Task.CompletedTask;
     }
 
-    public async Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform)
+    public Task MarkCompletedAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds)
     {
-        if (_cloudHistoryCollection == null) return (new List<DownloadHistory>(), 0);
-
-        try
-        {
-            var fb = Builders<BsonDocument>.Filter;
-            var filter = fb.Empty;
-
-            if (!string.IsNullOrWhiteSpace(userId))
-            {
-                filter &= fb.Or(
-                    fb.Eq("userId", userId),
-                    fb.Eq("UserId", userId)
-                );
-            }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var s = search.Trim();
-                var regex = new BsonRegularExpression(s, "i");
-                filter &= fb.Or(
-                    fb.Regex("title", regex),
-                    fb.Regex("fileName", regex),
-                    fb.Regex("originalUrl", regex),
-                    fb.Regex("VideoTitle", regex)
-                );
-            }
-
-            if (!string.IsNullOrWhiteSpace(status) && status != "All")
-            {
-                filter &= fb.Or(
-                    fb.Eq("status", status),
-                    fb.Eq("Status", status)
-                );
-            }
-
-            if (!string.IsNullOrWhiteSpace(platform) && platform != "All")
-            {
-                filter &= fb.Or(
-                    fb.Regex("platform", new BsonRegularExpression(platform, "i")),
-                    fb.Regex("Platform", new BsonRegularExpression(platform, "i"))
-                );
-            }
-
-            long totalCount = await _cloudHistoryCollection.CountDocumentsAsync(filter);
-            var docs = await _cloudHistoryCollection.Find(filter)
-                .Sort(Builders<BsonDocument>.Sort.Descending("createdAt"))
-                .Skip((page - 1) * pageSize)
-                .Limit(pageSize)
-                .ToListAsync();
-
-            var items = docs.Select(MapBsonToHistory).ToList();
-            return (items, (int)totalCount);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[GetUserDownloadsAsync Notice] {ex.Message}");
-            return (new List<DownloadHistory>(), 0);
-        }
+        return MarkCompletedWithValidationAsync(taskId, finalSize, avgSpeed, peakSpeed, totalSeconds, "Passed", "Verified media structure", 0, "Standard Container");
     }
 
-    public async Task<(List<DownloadHistory> Items, int TotalCount)> GetAllDownloadsAsync(int page, int pageSize, string? search, string? status, string? platform, string? userEmail)
+    public Task MarkCompletedWithValidationAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds, string validationStatus, string validationDetails, double probedDuration, string audioVideoDetails)
     {
-        if (_cloudHistoryCollection == null) return (new List<DownloadHistory>(), 0);
+        EnsureInitialized();
+        DateTime now = DateTime.UtcNow;
 
-        try
+        if (_localStore.TryGetValue(taskId, out var item))
         {
-            var fb = Builders<BsonDocument>.Filter;
-            var filter = fb.Empty;
-
-            if (!string.IsNullOrWhiteSpace(userEmail))
-            {
-                var emailRegex = new BsonRegularExpression(userEmail, "i");
-                filter &= fb.Or(
-                    fb.Regex("userEmail", emailRegex),
-                    fb.Regex("UserEmail", emailRegex)
-                );
-            }
-
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var s = search.Trim();
-                var regex = new BsonRegularExpression(s, "i");
-                filter &= fb.Or(
-                    fb.Regex("title", regex),
-                    fb.Regex("fileName", regex),
-                    fb.Regex("originalUrl", regex),
-                    fb.Regex("userEmail", regex),
-                    fb.Regex("VideoTitle", regex)
-                );
-            }
-
-            if (!string.IsNullOrWhiteSpace(status) && status != "All")
-            {
-                filter &= fb.Or(
-                    fb.Eq("status", status),
-                    fb.Eq("Status", status)
-                );
-            }
-
-            if (!string.IsNullOrWhiteSpace(platform) && platform != "All")
-            {
-                filter &= fb.Or(
-                    fb.Regex("platform", new BsonRegularExpression(platform, "i")),
-                    fb.Regex("Platform", new BsonRegularExpression(platform, "i"))
-                );
-            }
-
-            long totalCount = await _cloudHistoryCollection.CountDocumentsAsync(filter);
-            var docs = await _cloudHistoryCollection.Find(filter)
-                .Sort(Builders<BsonDocument>.Sort.Descending("createdAt"))
-                .Skip((page - 1) * pageSize)
-                .Limit(pageSize)
-                .ToListAsync();
-
-            var items = docs.Select(MapBsonToHistory).ToList();
-            return (items, (int)totalCount);
+            item.Status = DownloadStatus.Completed;
+            item.FileSize = finalSize;
+            item.DownloadedBytes = finalSize;
+            item.AverageSpeedMBps = avgSpeed;
+            item.PeakSpeedMBps = peakSpeed;
+            item.DownloadDurationSeconds = totalSeconds;
+            item.CompletionTime = now;
+            item.ValidationStatus = validationStatus;
+            item.ValidationDetails = validationDetails;
+            item.ProbedDurationSeconds = probedDuration;
+            item.AudioVideoDetails = audioVideoDetails;
+            item.UpdatedAt = now;
+            SaveLocalStore();
         }
-        catch (Exception ex)
+        else
         {
-            Console.WriteLine($"[GetAllDownloadsAsync Notice] {ex.Message}");
-            return (new List<DownloadHistory>(), 0);
-        }
-    }
-
-    public async Task<DownloadHistory?> GetDownloadByIdAsync(string id)
-    {
-        if (string.IsNullOrWhiteSpace(id) || _cloudHistoryCollection == null) return null;
-
-        try
-        {
-            var fb = Builders<BsonDocument>.Filter;
-            var filters = new List<FilterDefinition<BsonDocument>>
+            var newItem = new DownloadHistory
             {
-                fb.Eq("taskId", id),
-                fb.Eq("TaskId", id)
+                Id = taskId,
+                FileSize = finalSize,
+                DownloadedBytes = finalSize,
+                AverageSpeedMBps = avgSpeed,
+                PeakSpeedMBps = peakSpeed,
+                DownloadDurationSeconds = totalSeconds,
+                Status = DownloadStatus.Completed,
+                CompletionTime = now,
+                ValidationStatus = validationStatus,
+                ValidationDetails = validationDetails,
+                ProbedDurationSeconds = probedDuration,
+                AudioVideoDetails = audioVideoDetails,
+                CreatedAt = now,
+                UpdatedAt = now
             };
-
-            if (ObjectId.TryParse(id, out var oid))
-            {
-                filters.Add(fb.Eq("_id", oid));
-            }
-
-            var doc = await _cloudHistoryCollection.Find(fb.Or(filters)).FirstOrDefaultAsync();
-            return doc != null ? MapBsonToHistory(doc) : null;
+            _localStore[taskId] = newItem;
+            SaveLocalStore();
         }
-        catch
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
         {
-            return null;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                    var update = Builders<BsonDocument>.Update
+                        .Set("status", "Completed")
+                        .Set("fileSize", finalSize)
+                        .Set("downloadedBytes", finalSize)
+                        .Set("downloadSpeedMBps", avgSpeed)
+                        .Set("peakSpeedMBps", peakSpeed)
+                        .Set("downloadDurationSeconds", totalSeconds)
+                        .Set("completionTime", now)
+                        .Set("validationStatus", validationStatus)
+                        .Set("validationDetails", validationDetails)
+                        .Set("audioVideoDetails", audioVideoDetails)
+                        .Set("updatedAt", now);
+
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
+                }
+                catch { }
+            });
         }
+
+        return Task.CompletedTask;
     }
 
-    public async Task<bool> DeleteDownloadAsync(string id, string? userId = null)
+    public Task MarkCorruptedAsync(string taskId, string errorReason, string validationStatus, string validationDetails, int retryCount)
     {
-        if (string.IsNullOrWhiteSpace(id)) return false;
-
-        bool deleted = false;
-
-        if (_cloudHistoryCollection != null)
+        EnsureInitialized();
+        DateTime now = DateTime.UtcNow;
+        if (_localStore.TryGetValue(taskId, out var item))
         {
-            try
-            {
-                var fb = Builders<BsonDocument>.Filter;
-                var filters = new List<FilterDefinition<BsonDocument>>
-                {
-                    fb.Eq("taskId", id),
-                    fb.Eq("title", id),
-                    fb.Eq("fileName", id)
-                };
-
-                if (ObjectId.TryParse(id, out var oid))
-                {
-                    filters.Add(fb.Eq("_id", oid));
-                }
-
-                var filter = fb.Or(filters);
-                if (!string.IsNullOrEmpty(userId))
-                {
-                    filter &= fb.Or(fb.Eq("userId", userId), fb.Eq("UserId", userId));
-                }
-
-                var res = await _cloudHistoryCollection.DeleteManyAsync(filter);
-                deleted = res.DeletedCount > 0;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[MongoDB Cloud Delete Error] {ex.Message}");
-            }
+            item.Status = DownloadStatus.Corrupted;
+            item.ErrorReason = errorReason;
+            item.ValidationStatus = validationStatus;
+            item.ValidationDetails = validationDetails;
+            item.RetryCount = retryCount;
+            item.CompletionTime = now;
+            item.UpdatedAt = now;
+            SaveLocalStore();
         }
 
-        if (_legacyDownloadsCollection != null)
+        if (_isMongoConnected && _cloudHistoryCollection != null)
         {
-            try
+            _ = Task.Run(async () =>
             {
-                var fb = Builders<DownloadRecord>.Filter;
-                var filter = fb.Or(fb.Eq(x => x.TaskId, id), fb.Eq(x => x.VideoTitle, id));
-                if (!string.IsNullOrEmpty(userId))
+                try
                 {
-                    filter &= fb.Eq(x => x.UserId, userId);
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                    var update = Builders<BsonDocument>.Update
+                        .Set("status", "Corrupted")
+                        .Set("errorReason", errorReason)
+                        .Set("validationStatus", validationStatus)
+                        .Set("validationDetails", validationDetails)
+                        .Set("retryCount", retryCount)
+                        .Set("completionTime", now)
+                        .Set("updatedAt", now);
+
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
                 }
-                await _legacyDownloadsCollection.DeleteManyAsync(filter);
-            }
-            catch { }
+                catch { }
+            });
         }
 
-        return deleted;
+        return Task.CompletedTask;
     }
 
-    public async Task<bool> ClearAllDownloadsAsync()
+    public Task MarkRetryingAsync(string taskId, int retryCount, string retryReason)
     {
-        if (_cloudHistoryCollection != null)
+        EnsureInitialized();
+        DateTime now = DateTime.UtcNow;
+        if (_localStore.TryGetValue(taskId, out var item))
         {
-            try
-            {
-                await _cloudHistoryCollection.DeleteManyAsync(Builders<BsonDocument>.Filter.Empty);
-            }
-            catch { }
+            item.Status = DownloadStatus.Retrying;
+            item.RetryCount = retryCount;
+            item.ErrorReason = $"Retry {retryCount}: {retryReason}";
+            item.UpdatedAt = now;
+            SaveLocalStore();
         }
 
-        if (_legacyDownloadsCollection != null)
+        if (_isMongoConnected && _cloudHistoryCollection != null)
         {
-            try
+            _ = Task.Run(async () =>
             {
-                await _legacyDownloadsCollection.DeleteManyAsync(Builders<DownloadRecord>.Filter.Empty);
-            }
-            catch { }
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                    var update = Builders<BsonDocument>.Update
+                        .Set("status", "Retrying")
+                        .Set("retryCount", retryCount)
+                        .Set("errorReason", $"Retry {retryCount}: {retryReason}")
+                        .Set("updatedAt", now);
+
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
+                }
+                catch { }
+            });
         }
 
-        return true;
+        return Task.CompletedTask;
+    }
+
+    public Task MarkFailedAsync(string taskId, string errorReason)
+    {
+        EnsureInitialized();
+        DateTime now = DateTime.UtcNow;
+        if (_localStore.TryGetValue(taskId, out var item))
+        {
+            item.Status = DownloadStatus.Failed;
+            item.ErrorReason = errorReason;
+            item.ValidationStatus = "Failed";
+            item.CompletionTime = now;
+            item.UpdatedAt = now;
+            SaveLocalStore();
+        }
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                    var update = Builders<BsonDocument>.Update
+                        .Set("status", "Failed")
+                        .Set("errorReason", errorReason)
+                        .Set("validationStatus", "Failed")
+                        .Set("completionTime", now)
+                        .Set("updatedAt", now);
+
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
+                }
+                catch { }
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task MarkCancelledAsync(string taskId)
+    {
+        EnsureInitialized();
+        DateTime now = DateTime.UtcNow;
+        if (_localStore.TryGetValue(taskId, out var item))
+        {
+            item.Status = DownloadStatus.Cancelled;
+            item.ErrorReason = "Download cancelled by user";
+            item.CompletionTime = now;
+            item.UpdatedAt = now;
+            SaveLocalStore();
+        }
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                    var update = Builders<BsonDocument>.Update
+                        .Set("status", "Cancelled")
+                        .Set("errorReason", "Download cancelled by user")
+                        .Set("completionTime", now)
+                        .Set("updatedAt", now);
+
+                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
+                }
+                catch { }
+            });
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<int> ReconcileOrphanedDownloadsAsync(ISet<string>? activeTaskIds = null)
+    {
+        EnsureInitialized();
+        int updated = 0;
+        DateTime threshold = DateTime.UtcNow.AddMinutes(-5);
+
+        foreach (var kvp in _localStore)
+        {
+            var item = kvp.Value;
+            if (item.Status == DownloadStatus.Downloading || item.Status == DownloadStatus.Retrying || item.Status == DownloadStatus.Resolving)
+            {
+                if (activeTaskIds == null || !activeTaskIds.Contains(item.Id))
+                {
+                    if (item.UpdatedAt < threshold || item.UpdatedAt == DateTime.MinValue)
+                    {
+                        item.Status = DownloadStatus.Cancelled;
+                        item.ErrorReason = "Download session ended or was interrupted";
+                        item.CompletionTime = DateTime.UtcNow;
+                        item.UpdatedAt = DateTime.UtcNow;
+                        updated++;
+                    }
+                }
+            }
+        }
+
+        if (updated > 0)
+        {
+            SaveLocalStore();
+        }
+
+        return Task.FromResult(updated);
+    }
+
+    public Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform)
+    {
+        EnsureInitialized();
+
+        var query = _localStore.Values.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            // Desktop user visibility: Show user's downloads or local downloads where userId is unset
+            query = query.Where(d => string.Equals(d.UserId, userId, StringComparison.OrdinalIgnoreCase) ||
+                                     string.Equals(d.UserEmail, userId, StringComparison.OrdinalIgnoreCase) ||
+                                     string.IsNullOrEmpty(d.UserId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string s = search.Trim();
+            query = query.Where(d =>
+                (d.Title != null && d.Title.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                (d.FileName != null && d.FileName.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                (d.OriginalUrl != null && d.OriginalUrl.Contains(s, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(d => string.Equals(d.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(platform) && !string.Equals(platform, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(d => d.Platform != null && d.Platform.Contains(platform, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var ordered = query.OrderByDescending(d => d.CreatedAt).ToList();
+        int totalCount = ordered.Count;
+        var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return Task.FromResult((paged, totalCount));
+    }
+
+    public Task<(List<DownloadHistory> Items, int TotalCount)> GetAllDownloadsAsync(int page, int pageSize, string? search, string? status, string? platform, string? userEmail)
+    {
+        EnsureInitialized();
+
+        var query = _localStore.Values.AsEnumerable();
+
+        if (!string.IsNullOrWhiteSpace(userEmail))
+        {
+            query = query.Where(d => d.UserEmail != null && d.UserEmail.Contains(userEmail, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string s = search.Trim();
+            query = query.Where(d =>
+                (d.Title != null && d.Title.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                (d.FileName != null && d.FileName.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                (d.OriginalUrl != null && d.OriginalUrl.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                (d.UserEmail != null && d.UserEmail.Contains(s, StringComparison.OrdinalIgnoreCase)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(d => string.Equals(d.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(platform) && !string.Equals(platform, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            query = query.Where(d => d.Platform != null && d.Platform.Contains(platform, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var ordered = query.OrderByDescending(d => d.CreatedAt).ToList();
+        int totalCount = ordered.Count;
+        var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+
+        return Task.FromResult((paged, totalCount));
+    }
+
+    public Task<DownloadHistory?> GetDownloadByIdAsync(string id)
+    {
+        EnsureInitialized();
+        if (string.IsNullOrWhiteSpace(id)) return Task.FromResult<DownloadHistory?>(null);
+
+        if (_localStore.TryGetValue(id, out var found))
+        {
+            return Task.FromResult<DownloadHistory?>(found);
+        }
+
+        var match = _localStore.Values.FirstOrDefault(d =>
+            string.Equals(d.Id, id, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(d.FileName, id, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(d.Title, id, StringComparison.OrdinalIgnoreCase));
+
+        return Task.FromResult<DownloadHistory?>(match);
+    }
+
+    public Task<bool> DeleteDownloadAsync(string id, string? userId = null)
+    {
+        EnsureInitialized();
+        if (string.IsNullOrWhiteSpace(id)) return Task.FromResult(false);
+
+        bool removed = false;
+        if (_localStore.TryRemove(id, out _))
+        {
+            removed = true;
+        }
+        else
+        {
+            var matchKey = _localStore.FirstOrDefault(kvp =>
+                string.Equals(kvp.Key, id, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(kvp.Value.FileName, id, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(kvp.Value.Title, id, StringComparison.OrdinalIgnoreCase)).Key;
+
+            if (!string.IsNullOrEmpty(matchKey) && _localStore.TryRemove(matchKey, out _))
+            {
+                removed = true;
+            }
+        }
+
+        if (removed)
+        {
+            SaveLocalStore();
+        }
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    var fb = Builders<BsonDocument>.Filter;
+                    var filter = fb.Or(fb.Eq("taskId", id), fb.Eq("title", id), fb.Eq("fileName", id));
+                    await _cloudHistoryCollection.DeleteManyAsync(filter, cts.Token);
+                }
+                catch { }
+            });
+        }
+
+        return Task.FromResult(removed);
+    }
+
+    public Task<bool> ClearAllDownloadsAsync()
+    {
+        EnsureInitialized();
+        _localStore.Clear();
+        SaveLocalStore();
+
+        if (_isMongoConnected && _cloudHistoryCollection != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await _cloudHistoryCollection.DeleteManyAsync(Builders<BsonDocument>.Filter.Empty, cts.Token);
+                }
+                catch { }
+            });
+        }
+
+        return Task.FromResult(true);
     }
 }

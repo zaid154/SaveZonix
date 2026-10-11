@@ -28,32 +28,35 @@ public class MongoDbAnalyticsService : IDownloadAnalyticsService
         _config = config;
         _logger = logger;
 
-        try
+        string? connStr = config["MongoDb:ConnectionString"] 
+            ?? config.GetConnectionString("MongoDb");
+
+        if (!string.IsNullOrWhiteSpace(connStr))
         {
-            string connStr = config["MongoDb:ConnectionString"] 
-                ?? config.GetConnectionString("MongoDb") 
-                ?? "mongodb://127.0.0.1:27017";
-            string dbName = config["MongoDb:DatabaseName"] ?? "SaveZonixDb";
+            try
+            {
+                string dbName = config["MongoDb:DatabaseName"] ?? "SaveZonixDb";
 
-            var mongoSettings = MongoClientSettings.FromConnectionString(connStr);
-            mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(5);
-            mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(5);
+                var mongoSettings = MongoClientSettings.FromConnectionString(connStr);
+                mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
+                mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(2);
 
-            var client = new MongoClient(mongoSettings);
-            _database = client.GetDatabase(dbName);
-            _downloadsCollection = _database.GetCollection<DownloadRecord>("downloads");
-            _usersCollection = _database.GetCollection<SaveZonixUser>("users");
-            _settingsCollection = _database.GetCollection<PlatformSettings>("settings");
-            _siteRulesCollection = _database.GetCollection<SiteRule>("site_rules");
-            _securityLogsCollection = _database.GetCollection<SecurityLog>("security_logs");
-            _platformsCollection = _database.GetCollection<PlatformInfo>("platforms");
-            _isMongoConnected = true;
+                var client = new MongoClient(mongoSettings);
+                _database = client.GetDatabase(dbName);
+                _downloadsCollection = _database.GetCollection<DownloadRecord>("downloads");
+                _usersCollection = _database.GetCollection<SaveZonixUser>("users");
+                _settingsCollection = _database.GetCollection<PlatformSettings>("settings");
+                _siteRulesCollection = _database.GetCollection<SiteRule>("site_rules");
+                _securityLogsCollection = _database.GetCollection<SecurityLog>("security_logs");
+                _platformsCollection = _database.GetCollection<PlatformInfo>("platforms");
+                _isMongoConnected = true;
 
-            Console.WriteLine($"[MongoDB Driver] Connected to MongoDB: {dbName}");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning("MongoDB Driver connection notice: {Message}", ex.Message);
+                Console.WriteLine($"[MongoDB Driver] Connected to MongoDB: {dbName}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("MongoDB Driver connection notice: {Message}", ex.Message);
+            }
         }
 
         _ = LoadInitialDataFromMongoAsync();
