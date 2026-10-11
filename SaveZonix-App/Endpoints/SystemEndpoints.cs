@@ -24,7 +24,7 @@ public static class SystemEndpoints
             return Results.Ok(new
             {
                 status = "running",
-                version = "2.5.2",
+                version = "2.5.4",
                 engine = "SaveZonix Turbo Multi-Threaded Engine",
                 timestamp = DateTime.UtcNow
             });
@@ -65,7 +65,7 @@ public static class SystemEndpoints
                 return Results.BadRequest(new { success = false, message = "Invalid download URL" });
             }
 
-            bool started = SilentUpdateManager.StartUpdate(req.DownloadUrl, req.TargetVersion ?? "2.5.2");
+            bool started = SilentUpdateManager.StartUpdate(req.DownloadUrl, req.TargetVersion ?? "2.5.4");
             return Results.Ok(new { success = started, message = started ? "Update download initialized." : "Update already running." });
         });
 
@@ -94,10 +94,10 @@ public static class SystemEndpoints
         app.MapGet("/api/app-config", async (IAdminSettingsService adminSettings) =>
         {
             var settings = await adminSettings.GetAllSettingsAsync();
-            var dlUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/download/v2.5.2/SaveZonix-Setup-v2.5.2.exe");
+            var dlUrl = settings.GetValueOrDefault("DownloadUrl", "https://github.com/zaid154/SaveZonix/releases/download/v2.5.4/SaveZonix-Setup-v2.5.4.exe");
             return Results.Ok(new
             {
-                latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.2"),
+                latestAppVersion = settings.GetValueOrDefault("LatestAppVersion", "2.5.4"),
                 minAllowedVersion = settings.GetValueOrDefault("MinAllowedVersion", "2.0.0"),
                 forceUpdate = settings.GetValueOrDefault("ForceUpdate", "false").Equals("true", StringComparison.OrdinalIgnoreCase),
                 downloadUrl = dlUrl,

@@ -68,7 +68,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 Console.ForegroundColor = ConsoleColor.Cyan;
 Console.WriteLine($@"
 ══════════════════════════════════════════════════════════════════
-  🚀 SaveZonix Client Engine v2.5.2 Running
+  🚀 SaveZonix Client Engine v2.5.4 Running
   ⚡ Parallel Segment Downloader & Media Studio Online
   🌐 http://localhost:{port}
 ══════════════════════════════════════════════════════════════════
