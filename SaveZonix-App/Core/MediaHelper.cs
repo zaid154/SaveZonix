@@ -296,4 +296,24 @@ public static class MediaHelper
         if (bytes < 1024 * 1024 * 1024) return $"{(bytes / (1024.0 * 1024.0)):F1} MB";
         return $"{(bytes / (1024.0 * 1024.0 * 1024.0)):F2} GB";
     }
+
+    public static void OpenBrowser(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("cmd", $"/c start \"\" \"{url}\"") { CreateNoWindow = true });
+            }
+            catch { }
+        }
+    }
 }
