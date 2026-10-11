@@ -74,16 +74,12 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-// 5. Background Startup Lifecycle (Auto-seed, orphan reconcile & auto-launch browser)
-bool forceReset = args.Any(a => a.Equals("--seed-reset", StringComparison.OrdinalIgnoreCase) ||
-                               a.Equals("--reset-db", StringComparison.OrdinalIgnoreCase) ||
-                               a.Equals("seed-reset", StringComparison.OrdinalIgnoreCase));
-
+// 5. Background Startup Lifecycle (Orphan reconcile & auto-launch browser)
 app.Lifetime.ApplicationStarted.Register(() =>
 {
     _ = Task.Run(async () =>
     {
-        await app.RunStartupTasksAsync(forceReset);
+        await app.RunStartupTasksAsync();
     });
 
     _ = Task.Run(async () =>

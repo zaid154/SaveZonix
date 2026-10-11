@@ -73,16 +73,8 @@ public static class WebApplicationExtensions
         return app;
     }
 
-    public static async Task RunStartupTasksAsync(this WebApplication app, bool forceReset = false)
+    public static async Task RunStartupTasksAsync(this WebApplication app)
     {
-        try
-        {
-            await DbSeeder.SeedAsync(app.Services, app.Configuration, forceReset);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Database Seeder Notice] {ex.Message}");
-        }
 
         try
         {
