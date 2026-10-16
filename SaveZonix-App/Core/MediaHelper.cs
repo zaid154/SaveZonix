@@ -302,12 +302,31 @@ public static class MediaHelper
             {
                 var found = Directory.GetFiles(baseDir, targetFileName, SearchOption.AllDirectories).FirstOrDefault();
                 if (found != null && File.Exists(found)) return found;
+
+                // Also check for unique suffixed files like "video (1).mp4", "video (2).mp4"
+                string nameNoExt = Path.GetFileNameWithoutExtension(targetFileName);
+                string ext = Path.GetExtension(targetFileName);
+                var patternMatch = Directory.GetFiles(baseDir, $"{nameNoExt}*{ext}", SearchOption.AllDirectories)
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .FirstOrDefault();
+                if (patternMatch != null && File.Exists(patternMatch)) return patternMatch;
             }
             catch { }
 
             string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
             string userDirect = Path.Combine(userDownloads, targetFileName);
             if (File.Exists(userDirect)) return userDirect;
+
+            try
+            {
+                string nameNoExt = Path.GetFileNameWithoutExtension(targetFileName);
+                string ext = Path.GetExtension(targetFileName);
+                var patternMatch = Directory.GetFiles(userDownloads, $"{nameNoExt}*{ext}", SearchOption.TopDirectoryOnly)
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .FirstOrDefault();
+                if (patternMatch != null && File.Exists(patternMatch)) return patternMatch;
+            }
+            catch { }
         }
 
         return null;

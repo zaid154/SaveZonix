@@ -330,10 +330,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             // For Instagram: Strictly prioritize the active visible reel from live scan!
             videos = scanRes.streams.map(st => ({
                 ...st,
-                title: res.metadata?.title || 'Instagram Reel',
-                showName: res.metadata?.showName || 'Instagram Reel',
-                subtitle: res.metadata?.subtitle || '',
-                thumbnail: res.thumbnail || res.metadata?.thumbnail || st.thumbnail || '',
+                title: scanRes.metadata?.title || 'Instagram Reel',
+                showName: scanRes.metadata?.showName || 'Instagram Reel',
+                subtitle: scanRes.metadata?.subtitle || '',
+                thumbnail: scanRes.thumbnail || scanRes.metadata?.thumbnail || st.thumbnail || '',
                 platform: 'Instagram',
                 isDirectMp4: true,
                 isDownloadable: st.isDownloadable !== false

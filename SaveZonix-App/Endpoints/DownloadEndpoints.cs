@@ -573,12 +573,17 @@ public static class DownloadEndpoints
         {
             using var req = new HttpRequestMessage(HttpMethod.Get, url);
             req.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 1023);
+            req.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(url));
+            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0]))
+                req.Headers.TryAddWithoutValidation("Referer", referers[0]);
+
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
             if (resp.IsSuccessStatusCode)
             {
                 string cType = resp.Content.Headers.ContentType?.MediaType ?? "";
-                if (cType.Contains("mpegurl", StringComparison.OrdinalIgnoreCase)) return false;
+                if (cType.Contains("mpegurl", StringComparison.OrdinalIgnoreCase) || cType.Contains("m3u", StringComparison.OrdinalIgnoreCase)) return false;
                 var bytes = await resp.Content.ReadAsByteArrayAsync(cts.Token);
                 if (bytes.Length > 7 && bytes[0] == '#' && bytes[1] == 'E' && bytes[2] == 'X' && bytes[3] == 'T') return false;
             }

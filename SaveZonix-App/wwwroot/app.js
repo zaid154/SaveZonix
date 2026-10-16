@@ -1150,6 +1150,25 @@ function onDownloadComplete(state, fileName) {
     lastCompletedTaskId = state.taskId;
     lastCompletedOutputPath = state.outputPath || '';
 
+    const savedFullPathDisplay = document.getElementById('savedFullPathDisplay');
+    if (savedFullPathDisplay) {
+        const finalPath = state.outputPath || (destPathDisplay?.textContent ? (destPathDisplay.textContent.replace(/[\\/]$/, '') + '\\' + fileName) : fileName);
+        savedFullPathDisplay.textContent = finalPath;
+        savedFullPathDisplay.title = finalPath;
+    }
+    const btnCopySavedPath = document.getElementById('btnCopySavedPath');
+    if (btnCopySavedPath && !btnCopySavedPath.dataset.bound) {
+        btnCopySavedPath.dataset.bound = 'true';
+        btnCopySavedPath.onclick = () => {
+            const p = savedFullPathDisplay?.textContent;
+            if (p) {
+                navigator.clipboard.writeText(p);
+                btnCopySavedPath.textContent = '✓ Copied!';
+                setTimeout(() => { btnCopySavedPath.textContent = '📋 Copy Path'; }, 2000);
+            }
+        };
+    }
+
     // 🔔 Native Sound & Toast Feedback
     playCompletionChime();
     showDesktopNotification(streamData?.title || fileName, state.totalBytesDownloaded);

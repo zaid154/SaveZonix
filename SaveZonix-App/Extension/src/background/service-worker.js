@@ -445,7 +445,7 @@ async function resolveInstagramForDashboard(pageUrl) {
     }
 
     if (!stream) {
-        return { success: false, message: 'Instagram has not exposed this Reel's media stream yet. Keep the Reel tab open, start playback, and retry.' };
+        return { success: false, message: "Instagram has not exposed this Reel's media stream yet. Keep the Reel tab open, start playback, and retry." };
     }
 
     return {
