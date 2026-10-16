@@ -132,7 +132,11 @@
                                 const singleJob = await singleResp.json();
                                 if (singleJob && singleJob.status !== 'Completed' && singleJob.status !== 'Cancelled') {
                                     activeJobs = [singleJob];
+                                } else {
+                                    localStorage.removeItem(STORAGE_KEY_ACTIVE_JOB);
                                 }
+                            } else {
+                                localStorage.removeItem(STORAGE_KEY_ACTIVE_JOB);
                             }
                         }
                     } catch { }

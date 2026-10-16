@@ -87,6 +87,7 @@ public static class StreamSecurityHelper
         }
         else if (host.Contains("googlevideo"))
         {
+            candidates.Add("https://www.youtube.com/");
             candidates.Add(string.Empty);
         }
         else if (host.Contains("youtube"))

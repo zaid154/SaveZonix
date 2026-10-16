@@ -15,6 +15,7 @@ using SaveZonix.Models;
 using SaveZonix.Services;
 using StreamHelper.Data;
 using StreamHelper.Services;
+using YoutubeExplode.Videos.Streams;
 using Zonix.Core;
 
 namespace SaveZonix.Endpoints;
@@ -117,7 +118,7 @@ public static class DownloadEndpoints
                 }
             }
 
-            var taskId = Guid.NewGuid().ToString("N");
+            var taskId = !string.IsNullOrWhiteSpace(req.TaskId) ? req.TaskId.Trim() : ("dl_" + Guid.NewGuid().ToString("N"));
             int concurrency = Math.Clamp(req.Concurrency, 1, 256);
             var cts = new CancellationTokenSource();
 
@@ -176,7 +177,7 @@ public static class DownloadEndpoints
                     {
                         StrictCdnMaxThreads = await adminSettings.GetSettingIntAsync("StrictCdnMaxThreads", 8),
                         OpenCdnMaxThreads = await adminSettings.GetSettingIntAsync("OpenCdnMaxThreads", 256),
-                        StrictCdnDomains = await adminSettings.GetSettingAsync("StrictCdnDomains", "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo")
+                        StrictCdnDomains = await adminSettings.GetSettingAsync("StrictCdnDomains", "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo,googlevideo,youtube")
                     };
 
                     string downloadsFolder = !string.IsNullOrWhiteSpace(req.DestinationFolder) && Directory.Exists(req.DestinationFolder)
@@ -306,80 +307,214 @@ public static class DownloadEndpoints
                         }
                         else
                         {
-                            if (req.StreamUrl.Contains("youtube.com/watch", StringComparison.OrdinalIgnoreCase) || req.StreamUrl.Contains("youtu.be/", StringComparison.OrdinalIgnoreCase))
-                            {
-                                finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Cannot download YouTube webpage directly. Use SaveZonix Chrome Extension or re-analyze." };
-                                break;
-                            }
+                            bool isYouTubeUrl = req.StreamUrl.Contains("youtube.com", StringComparison.OrdinalIgnoreCase) ||
+                                                req.StreamUrl.Contains("youtu.be", StringComparison.OrdinalIgnoreCase) ||
+                                                System.Text.RegularExpressions.Regex.IsMatch(req.StreamUrl.Trim(), @"^[a-zA-Z0-9_-]{11}$");
 
-                            bool isDirect = req.IsDirectFile && !req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase);
-                            if (isDirect) isDirect = await CheckIsDirectStreamAsync(httpClient, req.StreamUrl);
-
-                            if (isDirect)
+                            if (isYouTubeUrl)
                             {
-                                string directTempDir = Path.Combine(tempDirectory, "direct_chunks");
-                                var chunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, directTempDir, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
-                                if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, directTempDir) || !File.Exists(tempMergedFile))
+                                state.Status = "Resolving YouTube Media Streams...";
+                                var ytMatch = System.Text.RegularExpressions.Regex.Match(req.StreamUrl, @"(?:v=|youtu\.be\/|embed\/|shorts\/|^)([a-zA-Z0-9_-]{11})");
+                                string videoId = ytMatch.Success ? ytMatch.Groups[1].Value : req.StreamUrl.Trim();
+
+                                var ytClient = YouTubeClientFactory.SharedClient;
+                                var manifest = await ytClient.Videos.Streams.GetManifestAsync(videoId, cts.Token);
+
+                                bool isAudioRequest = targetExt == ".mp3" || targetExt == ".m4a" || string.Equals(req.Format, "MP3", StringComparison.OrdinalIgnoreCase);
+                                if (isAudioRequest)
                                 {
-                                    finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Direct media stream failed to download completely." };
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                var parser = new M3U8Parser(httpClient);
-                                var mediaPlaylist = await parser.ParseAsync(req.StreamUrl);
+                                    state.Status = "Downloading YouTube Audio Track...";
+                                    var audioStreams = manifest.GetAudioOnlyStreams().ToList();
+                                    var bestAudio = targetExt == ".m4a"
+                                        ? (audioStreams.FirstOrDefault(s => s.Container == Container.Mp4) ?? audioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault())
+                                        : audioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
 
-                                if (req.StreamUrl.Contains("phncdn.com") || req.StreamUrl.Contains("pornhub") || req.StreamUrl.Contains("xhcdn") || req.StreamUrl.Contains("xhamster"))
-                                {
-                                    state.Status = "Streaming Adaptive HLS Container...";
-                                    using var proc = Process.Start(new ProcessStartInfo
+                                    if (bestAudio == null)
+                                        throw new Exception("No audio stream found for YouTube video.");
+
+                                    string tempRawAudio = Path.Combine(tempDirectory, "audio_raw.bin");
+                                    string audioTempDir = Path.Combine(tempDirectory, "audio_chunks");
+                                    var chunks = await downloader.DownloadDirectFileAsync(bestAudio.Url, audioTempDir, bestAudio.Size.Bytes, Math.Clamp(concurrency, 4, 16), progress, cts.Token);
+                                    if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempRawAudio, audioTempDir) || !File.Exists(tempRawAudio))
                                     {
-                                        FileName = MediaHelper.GetFfmpegPath(),
-                                        Arguments = $"-headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\nReferer: https://www.pornhub.com/\\r\\n\" -i \"{req.StreamUrl.Trim()}\" -c copy -bsf:a aac_adtstoasc -movflags +faststart \"{tempMergedFile}\" -y",
-                                        UseShellExecute = false,
-                                        CreateNoWindow = true
-                                    });
-                                    if (proc != null) await proc.WaitForExitAsync(cts.Token);
+                                        finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to download audio stream." };
+                                        break;
+                                    }
+
+                                    if (targetExt == ".mp3")
+                                    {
+                                        state.Status = "Extracting High-Quality MP3 (320 kbps)...";
+                                        state.IsMerging = true;
+                                        bool extracted = await MediaHelper.ExtractAudioAsync(tempRawAudio, tempMergedFile, "320k");
+                                        if (!extracted || !File.Exists(tempMergedFile)) File.Move(tempRawAudio, tempMergedFile, true);
+                                    }
+                                    else
+                                    {
+                                        File.Move(tempRawAudio, tempMergedFile, true);
+                                    }
                                 }
                                 else
                                 {
-                                    var segmentUrls = mediaPlaylist.SegmentUrls;
-                                    if (segmentUrls.Count == 0 && mediaPlaylist.Qualities.Count > 0 && mediaPlaylist.Qualities[0].Url != req.StreamUrl)
+                                    state.Status = "Analyzing YouTube Video Quality Streams...";
+                                    var allVideoStreams = manifest.GetVideoStreams().ToList();
+                                    IVideoStreamInfo? videoStream = null;
+
+                                    if (!string.IsNullOrWhiteSpace(req.Quality) && !req.Quality.Equals("Best", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        var sub = await parser.ParseAsync(mediaPlaylist.Qualities[0].Url);
-                                        segmentUrls = sub.SegmentUrls;
+                                        string cleanQ = req.Quality.ToLowerInvariant().Replace("p", "").Trim();
+                                        videoStream = allVideoStreams.FirstOrDefault(s => s.VideoQuality.Label.StartsWith(cleanQ, StringComparison.OrdinalIgnoreCase));
                                     }
+                                    videoStream ??= allVideoStreams.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
 
-                                    var downloaded = await downloader.DownloadSegmentsAsync(segmentUrls, tempDirectory, concurrency, progress, cts.Token, req.EstimatedSizeBytes);
-                                    bool isAudio = targetExt is ".mp3" or ".m4a";
+                                    if (videoStream == null)
+                                        throw new Exception("No video stream found for YouTube video.");
 
-                                    if (isAudio)
+                                    if (videoStream is MuxedStreamInfo muxed)
                                     {
-                                        state.Status = "Extracting High-Quality Audio Track...";
-                                        state.IsMerging = true;
-                                        var tempVideo = Path.Combine(tempDirectory, "full_temp.ts");
-                                        var mSw = Stopwatch.StartNew();
-                                        if (await SegmentMerger.MergeSegmentsAsync(downloaded, tempVideo, tempDirectory, false) && File.Exists(tempVideo))
+                                        state.Status = $"Downloading YouTube {videoStream.VideoQuality.Label} Stream...";
+                                        string muxTempDir = Path.Combine(tempDirectory, "muxed_chunks");
+                                        var chunks = await downloader.DownloadDirectFileAsync(muxed.Url, muxTempDir, muxed.Size.Bytes, Math.Clamp(concurrency, 4, 16), progress, cts.Token);
+                                        if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, muxTempDir) || !File.Exists(tempMergedFile))
                                         {
-                                            await MediaHelper.ExtractAudioAsync(tempVideo, tempMergedFile, "320k");
-                                            mSw.Stop();
-                                            state.MergeSeconds = mSw.Elapsed.TotalSeconds;
+                                            finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to download YouTube stream." };
+                                            break;
                                         }
                                     }
                                     else
                                     {
-                                        state.Status = "Merging Segments into MP4...";
-                                        state.IsMerging = true;
-                                        var mSw = Stopwatch.StartNew();
-                                        bool merged = await SegmentMerger.MergeSegmentsAsync(downloaded, tempMergedFile, tempDirectory, false);
-                                        mSw.Stop();
-                                        state.MergeSeconds = mSw.Elapsed.TotalSeconds;
+                                        var bestAudio = manifest.GetAudioOnlyStreams()
+                                            .Where(s => s.Container == Container.Mp4)
+                                            .OrderByDescending(s => s.Bitrate)
+                                            .FirstOrDefault() ?? manifest.GetAudioOnlyStreams().OrderByDescending(s => s.Bitrate).FirstOrDefault();
 
-                                        if (!merged || !File.Exists(tempMergedFile))
+                                        state.Status = $"Downloading YouTube {videoStream.VideoQuality.Label} + Audio (Parallel)...";
+                                        string vidTempDir = Path.Combine(tempDirectory, "yt_vid_chunks");
+                                        string audTempDir = Path.Combine(tempDirectory, "yt_aud_chunks");
+                                        string tempYtVid = Path.Combine(tempDirectory, "yt_vid.mp4");
+                                        string tempYtAud = Path.Combine(tempDirectory, "yt_aud.mp4");
+
+                                        long vidSize = videoStream.Size.Bytes;
+                                        long audSize = bestAudio?.Size.Bytes ?? 0;
+                                        long totalYtBytes = vidSize + audSize;
+
+                                        long vidDownloaded = 0, audDownloaded = 0;
+                                        var vidProg = new Progress<DownloadProgressReport>(vp =>
                                         {
-                                            finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to assemble video segments into valid MP4." };
+                                            Interlocked.Exchange(ref vidDownloaded, vp.TotalBytesDownloaded);
+                                            long cur = Interlocked.Read(ref vidDownloaded) + Interlocked.Read(ref audDownloaded);
+                                            state.Percentage = totalYtBytes > 0 ? Math.Min(100.0, Math.Round((double)cur / totalYtBytes * 100.0, 1)) : vp.Percentage;
+                                            state.SpeedMBps = vp.SpeedMBps;
+                                            state.PeakSpeedMBps = vp.PeakSpeedMBps;
+                                            state.TotalBytesDownloaded = cur;
+                                            state.EstimatedTotalBytes = totalYtBytes;
+                                            state.Status = vp.Status;
+                                        });
+                                        var audProg = new Progress<DownloadProgressReport>(ap =>
+                                        {
+                                            Interlocked.Exchange(ref audDownloaded, ap.TotalBytesDownloaded);
+                                        });
+
+                                        var vTask = downloader.DownloadDirectFileAsync(videoStream.Url, vidTempDir, vidSize, Math.Clamp(concurrency, 4, 16), vidProg, cts.Token);
+                                        var aTask = bestAudio != null
+                                            ? downloader.DownloadDirectFileAsync(bestAudio.Url, audTempDir, audSize, 4, audProg, cts.Token)
+                                            : Task.FromResult(new List<SegmentItem>());
+
+                                        await Task.WhenAll(vTask, aTask);
+
+                                        if (!await SegmentMerger.MergeSegmentsAsync(await vTask, tempYtVid, vidTempDir))
+                                        {
+                                            finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to merge YouTube video stream." };
                                             break;
+                                        }
+
+                                        if (bestAudio != null && await SegmentMerger.MergeSegmentsAsync(await aTask, tempYtAud, audTempDir))
+                                        {
+                                            state.Status = "Muxing YouTube Video & Audio Container...";
+                                            state.IsMerging = true;
+                                            bool muxedOk = await MediaHelper.MuxVideoAndAudioAsync(tempYtVid, tempYtAud, tempMergedFile);
+                                            if (!muxedOk || !File.Exists(tempMergedFile))
+                                            {
+                                                File.Move(tempYtVid, tempMergedFile, true);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            File.Move(tempYtVid, tempMergedFile, true);
+                                        }
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                bool isDirect = req.IsDirectFile && !req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase);
+                                if (isDirect) isDirect = await CheckIsDirectStreamAsync(httpClient, req.StreamUrl);
+
+                                if (isDirect)
+                                {
+                                    string directTempDir = Path.Combine(tempDirectory, "direct_chunks");
+                                    var chunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, directTempDir, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+                                    if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, directTempDir) || !File.Exists(tempMergedFile))
+                                    {
+                                        finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Direct media stream failed to download completely." };
+                                        break;
+                                    }
+                                }
+                                else
+                                {
+                                    var parser = new M3U8Parser(httpClient);
+                                    var mediaPlaylist = await parser.ParseAsync(req.StreamUrl);
+
+                                    if (req.StreamUrl.Contains("phncdn.com") || req.StreamUrl.Contains("pornhub") || req.StreamUrl.Contains("xhcdn") || req.StreamUrl.Contains("xhamster"))
+                                    {
+                                        state.Status = "Streaming Adaptive HLS Container...";
+                                        using var proc = Process.Start(new ProcessStartInfo
+                                        {
+                                            FileName = MediaHelper.GetFfmpegPath(),
+                                            Arguments = $"-headers \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\\r\\nReferer: https://www.pornhub.com/\\r\\n\" -i \"{req.StreamUrl.Trim()}\" -c copy -bsf:a aac_adtstoasc -movflags +faststart \"{tempMergedFile}\" -y",
+                                            UseShellExecute = false,
+                                            CreateNoWindow = true
+                                        });
+                                        if (proc != null) await proc.WaitForExitAsync(cts.Token);
+                                    }
+                                    else
+                                    {
+                                        var segmentUrls = mediaPlaylist.SegmentUrls;
+                                        if (segmentUrls.Count == 0 && mediaPlaylist.Qualities.Count > 0 && mediaPlaylist.Qualities[0].Url != req.StreamUrl)
+                                        {
+                                            var sub = await parser.ParseAsync(mediaPlaylist.Qualities[0].Url);
+                                            segmentUrls = sub.SegmentUrls;
+                                        }
+
+                                        var downloaded = await downloader.DownloadSegmentsAsync(segmentUrls, tempDirectory, concurrency, progress, cts.Token, req.EstimatedSizeBytes);
+                                        bool isAudio = targetExt is ".mp3" or ".m4a";
+
+                                        if (isAudio)
+                                        {
+                                            state.Status = "Extracting High-Quality Audio Track...";
+                                            state.IsMerging = true;
+                                            var tempVideo = Path.Combine(tempDirectory, "full_temp.ts");
+                                            var mSw = Stopwatch.StartNew();
+                                            if (await SegmentMerger.MergeSegmentsAsync(downloaded, tempVideo, tempDirectory, false) && File.Exists(tempVideo))
+                                            {
+                                                await MediaHelper.ExtractAudioAsync(tempVideo, tempMergedFile, "320k");
+                                                mSw.Stop();
+                                                state.MergeSeconds = mSw.Elapsed.TotalSeconds;
+                                            }
+                                        }
+                                        else
+                                        {
+                                            state.Status = "Merging Segments into MP4...";
+                                            state.IsMerging = true;
+                                            var mSw = Stopwatch.StartNew();
+                                            bool merged = await SegmentMerger.MergeSegmentsAsync(downloaded, tempMergedFile, tempDirectory, false);
+                                            mSw.Stop();
+                                            state.MergeSeconds = mSw.Elapsed.TotalSeconds;
+
+                                            if (!merged || !File.Exists(tempMergedFile))
+                                            {
+                                                finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to assemble video segments into valid MP4." };
+                                                break;
+                                            }
                                         }
                                     }
                                 }
@@ -471,6 +606,28 @@ public static class DownloadEndpoints
                     state.Status = "Download Failed/Corrupted – Please Redownload";
                     if (historyService != null) try { await historyService.MarkFailedAsync(taskId, ex.Message); } catch { }
                     try { if (Directory.Exists(tempDirectory)) Directory.Delete(tempDirectory, true); } catch { }
+                }
+                finally
+                {
+                    if (!state.IsCompleted && historyService != null)
+                    {
+                        try
+                        {
+                            if (cts.IsCancellationRequested || state.IsPaused)
+                            {
+                                await historyService.MarkCancelledAsync(taskId);
+                            }
+                            else if (state.IsError)
+                            {
+                                await historyService.MarkFailedAsync(taskId, state.ErrorMessage ?? "Download terminated unexpectedly");
+                            }
+                            else
+                            {
+                                await historyService.MarkCancelledAsync(taskId);
+                            }
+                        }
+                        catch { }
+                    }
                 }
             });
 

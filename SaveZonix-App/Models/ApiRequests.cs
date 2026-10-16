@@ -92,6 +92,7 @@ public class DownloadRequest
     public string? DestinationFolder { get; set; }
     public string? UserEmail { get; set; }
     public string? UserId { get; set; }
+    public string? TaskId { get; set; }
 }
 
 public class RegisterRequest

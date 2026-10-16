@@ -773,7 +773,7 @@ public class AccountController : Controller
         var activeJobs = _queueManager.GetActiveJobs();
         try
         {
-            var activeTaskIds = SaveZonix.Program.GetActiveTaskIds();
+            var activeTaskIds = SaveZonix.Core.DownloadTaskManager.GetActiveTaskIds();
             if (activeJobs != null)
             {
                 foreach (var job in activeJobs)

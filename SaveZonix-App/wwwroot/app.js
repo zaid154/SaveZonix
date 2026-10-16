@@ -827,10 +827,13 @@ btnStartDownload.addEventListener('click', async () => {
             cloudUser = JSON.parse(localStorage.getItem('savezonix_cloud_user') || '{}');
         } catch { }
 
+        const uniqueTaskId = 'dl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+
         const response = await fetch('/api/download', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                taskId: uniqueTaskId,
                 streamUrl: selectedUrl,
                 audioUrl: audioUrl,
                 originalPageUrl: streamUrlInput.value.trim(),

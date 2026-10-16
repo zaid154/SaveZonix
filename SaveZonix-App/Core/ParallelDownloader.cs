@@ -247,10 +247,22 @@ public class ParallelDownloader
         try
         {
             using var rangeReq = new HttpRequestMessage(HttpMethod.Get, fileUrl);
-            rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            if (fileUrl.Contains("googlevideo", StringComparison.OrdinalIgnoreCase) || fileUrl.Contains("youtube", StringComparison.OrdinalIgnoreCase))
+            {
+                rangeReq.Version = System.Net.HttpVersion.Version11;
+                rangeReq.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
+                rangeReq.Headers.TryAddWithoutValidation("Referer", "https://www.youtube.com/");
+                rangeReq.Headers.TryAddWithoutValidation("Accept", "*/*");
+                rangeReq.Headers.TryAddWithoutValidation("Accept-Encoding", "identity");
+            }
+            else
+            {
+                rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+            }
             rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
             var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(fileUrl));
-            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0])) rangeReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
+            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0]) && !rangeReq.Headers.Contains("Referer")) rangeReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
 
             using var rangeRes = await _httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (rangeRes.StatusCode == HttpStatusCode.PartialContent)
@@ -546,17 +558,28 @@ public class ParallelDownloader
                 attemptCts.CancelAfter(TimeSpan.FromSeconds(45)); // 45s socket/read timeout for heavy CDNs
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, chunk.Url);
-                request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(rangeReqStart, rangeReqEnd);
-
-                if (!string.IsNullOrEmpty(referer))
+                if (uri.Host.Contains("googlevideo", StringComparison.OrdinalIgnoreCase) || uri.Host.Contains("youtube", StringComparison.OrdinalIgnoreCase))
                 {
-                    request.Headers.TryAddWithoutValidation("Referer", referer);
-                    if (Uri.TryCreate(referer, UriKind.Absolute, out var rUri))
+                    request.Version = System.Net.HttpVersion.Version11;
+                    request.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                    request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
+                    request.Headers.TryAddWithoutValidation("Referer", "https://www.youtube.com/");
+                    request.Headers.TryAddWithoutValidation("Accept", "*/*");
+                    request.Headers.TryAddWithoutValidation("Accept-Encoding", "identity");
+                }
+                else
+                {
+                    request.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                    if (!string.IsNullOrEmpty(referer))
                     {
-                        request.Headers.TryAddWithoutValidation("Origin", $"{rUri.Scheme}://{rUri.Host}");
+                        request.Headers.TryAddWithoutValidation("Referer", referer);
+                        if (Uri.TryCreate(referer, UriKind.Absolute, out var rUri))
+                        {
+                            request.Headers.TryAddWithoutValidation("Origin", $"{rUri.Scheme}://{rUri.Host}");
+                        }
                     }
                 }
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(rangeReqStart, rangeReqEnd);
 
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, attemptCts.Token);
                 response.EnsureSuccessStatusCode();
@@ -802,7 +825,7 @@ public class ParallelDownloader
 
     public int StrictCdnMaxThreads { get; set; } = 8;
     public int OpenCdnMaxThreads { get; set; } = 256;
-    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo";
+    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo,googlevideo,youtube";
 
     private int GetOptimizedConcurrency(string? sampleUrl, int requestedConcurrency)
     {

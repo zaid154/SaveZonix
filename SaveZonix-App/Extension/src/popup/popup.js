@@ -89,7 +89,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const currentSiteName = resolveSiteName();
-    const stableDeterministicId = `vid_${tab.id}_${currentSiteName.toLowerCase()}`;
+    function generateUniqueTaskId(prefix = 'dl') {
+        return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    }
 
     function parseDurationSeconds(durStr) {
         if (!durStr) return 0;
@@ -388,7 +390,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (videos.length === 0) {
             const initialTitle = (livePageMetadata?.title && livePageMetadata.title.length > 3) ? livePageMetadata.title : fallbackTitle;
             videos = [{
-                id: stableDeterministicId,
+                id: generateUniqueTaskId(`vid_${tab.id}`),
                 url: '',
                 title: initialTitle,
                 showName: livePageMetadata?.showName || initialTitle,
@@ -426,7 +428,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         videos.forEach(v => {
             v.platform = currentSiteName;
-            if (!v.id) v.id = stableDeterministicId;
+            if (!v.id) v.id = generateUniqueTaskId(`vid_${tab.id}`);
             v.title = effectiveTitle;
             v.showName = effectiveShow;
             v.subtitle = effectiveSubtitle;

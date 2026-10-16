@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Web;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using SaveZonix.Core;
 using SaveZonix.Models;
 using StreamHelper.Data;
 
@@ -109,10 +110,25 @@ public class DownloadHistoryService : IDownloadHistoryService
                     var items = JsonSerializer.Deserialize<List<DownloadHistory>>(json);
                     if (items != null)
                     {
+                        bool anyFixed = false;
                         foreach (var it in items)
                         {
                             if (!string.IsNullOrEmpty(it.Id))
+                            {
+                                if (it.Status is DownloadStatus.Downloading or DownloadStatus.Retrying or DownloadStatus.Resolving)
+                                {
+                                    it.Status = DownloadStatus.Cancelled;
+                                    it.ErrorReason = "Session interrupted on application restart";
+                                    it.CompletionTime = DateTime.UtcNow;
+                                    it.UpdatedAt = DateTime.UtcNow;
+                                    anyFixed = true;
+                                }
                                 _localStore[it.Id] = it;
+                            }
+                        }
+                        if (anyFixed)
+                        {
+                            SaveLocalStore();
                         }
                     }
                 }
@@ -530,23 +546,24 @@ public class DownloadHistoryService : IDownloadHistoryService
     {
         EnsureInitialized();
         int updated = 0;
-        DateTime threshold = DateTime.UtcNow.AddMinutes(-5);
+        DateTime threshold = DateTime.UtcNow.AddMinutes(-2);
 
         foreach (var kvp in _localStore)
         {
             var item = kvp.Value;
             if (item.Status is DownloadStatus.Downloading or DownloadStatus.Retrying or DownloadStatus.Resolving)
             {
-                if (activeTaskIds == null || !activeTaskIds.Contains(item.Id))
+                bool isOrphaned = activeTaskIds != null
+                    ? !activeTaskIds.Contains(item.Id)
+                    : (item.UpdatedAt < threshold || item.UpdatedAt == DateTime.MinValue);
+
+                if (isOrphaned)
                 {
-                    if (item.UpdatedAt < threshold || item.UpdatedAt == DateTime.MinValue)
-                    {
-                        item.Status = DownloadStatus.Cancelled;
-                        item.ErrorReason = "Download session ended or was interrupted";
-                        item.CompletionTime = DateTime.UtcNow;
-                        item.UpdatedAt = DateTime.UtcNow;
-                        updated++;
-                    }
+                    item.Status = DownloadStatus.Cancelled;
+                    item.ErrorReason = "Download session ended or was interrupted";
+                    item.CompletionTime = DateTime.UtcNow;
+                    item.UpdatedAt = DateTime.UtcNow;
+                    updated++;
                 }
             }
         }
@@ -555,9 +572,39 @@ public class DownloadHistoryService : IDownloadHistoryService
         return Task.FromResult(updated);
     }
 
+    private void ReconcileStaleInMemoryTasks()
+    {
+        try
+        {
+            var activeIds = DownloadTaskManager.GetActiveTaskIds();
+            DateTime threshold = DateTime.UtcNow.AddMinutes(-2);
+            bool anyUpdated = false;
+
+            foreach (var kvp in _localStore)
+            {
+                var item = kvp.Value;
+                if (item.Status is DownloadStatus.Downloading or DownloadStatus.Retrying or DownloadStatus.Resolving)
+                {
+                    if (!activeIds.Contains(item.Id) && (item.UpdatedAt < threshold || item.UpdatedAt == DateTime.MinValue))
+                    {
+                        item.Status = DownloadStatus.Cancelled;
+                        item.ErrorReason = "Download session ended or was interrupted";
+                        item.CompletionTime = DateTime.UtcNow;
+                        item.UpdatedAt = DateTime.UtcNow;
+                        anyUpdated = true;
+                    }
+                }
+            }
+
+            if (anyUpdated) SaveLocalStore();
+        }
+        catch { }
+    }
+
     public Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform)
     {
         EnsureInitialized();
+        ReconcileStaleInMemoryTasks();
         var query = _localStore.Values.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(userId))
@@ -573,6 +620,7 @@ public class DownloadHistoryService : IDownloadHistoryService
     public Task<(List<DownloadHistory> Items, int TotalCount)> GetAllDownloadsAsync(int page, int pageSize, string? search, string? status, string? platform, string? userEmail)
     {
         EnsureInitialized();
+        ReconcileStaleInMemoryTasks();
         var query = _localStore.Values.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(userEmail))
