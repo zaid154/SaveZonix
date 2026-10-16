@@ -209,17 +209,13 @@ public static class MediaValidator
             int bytesRead = fs.Read(header, 0, header.Length);
 
             if (bytesRead < 32)
-            {
                 return (false, MediaIntegrityStatus.Truncated, "File is under 32 bytes.", "Unknown", false, false, "", "", 0, 0, 0);
-            }
 
             // A. Check for MPEG-TS stream (HLS Transport Stream, sync byte 0x47)
             for (int offset = 0; offset < Math.Min(header.Length - 376, 2048); offset++)
             {
                 if (header[offset] == 0x47 && header[offset + 188] == 0x47 && header[offset + 376] == 0x47)
-                {
                     return (true, MediaIntegrityStatus.Passed, "", "MPEG-TS (HLS)", true, true, "H.264 / AVC", "AAC", 0, 0, 0);
-                }
             }
 
             // B. Check for ISO Base Media File Format (MP4, M4A, MOV)
@@ -228,14 +224,9 @@ public static class MediaValidator
 
             if (isIso || filePath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) || filePath.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase))
             {
-                // Verify atoms in MP4 box tree
-                bool hasFtyp = false;
-                bool hasMoov = false;
-                bool hasMoof = false;
-                bool hasMdat = false;
+                bool hasMoov = false, hasMoof = false, hasMdat = false;
                 double durationSec = 0;
-                int width = 0;
-                int height = 0;
+                int width = 0, height = 0;
 
                 fs.Seek(0, SeekOrigin.Begin);
                 byte[] boxHeader = new byte[8];
@@ -245,22 +236,20 @@ public static class MediaValidator
                 while (currentPos + 8 <= fileSize && boxCount < 1000)
                 {
                     fs.Seek(currentPos, SeekOrigin.Begin);
-                    int r = fs.Read(boxHeader, 0, 8);
-                    if (r < 8) break;
+                    if (fs.Read(boxHeader, 0, 8) < 8) break;
 
                     uint boxSize = (uint)((boxHeader[0] << 24) | (boxHeader[1] << 16) | (boxHeader[2] << 8) | boxHeader[3]);
                     string boxType = Encoding.ASCII.GetString(boxHeader, 4, 4);
 
-                    if (boxType == "ftyp") hasFtyp = true;
                     if (boxType == "moov")
                     {
                         hasMoov = true;
-                        // Inspect mvhd inside moov if possible
                         if (boxSize > 8 && boxSize < 1048576)
                         {
-                            byte[] moovBytes = new byte[Math.Min((long)boxSize, fileSize - currentPos)];
+                            int readLen = (int)Math.Min((long)boxSize, fileSize - currentPos);
+                            byte[] moovBytes = new byte[readLen];
                             fs.Seek(currentPos, SeekOrigin.Begin);
-                            fs.Read(moovBytes, 0, moovBytes.Length);
+                            fs.ReadExactly(moovBytes, 0, readLen);
                             string moovStr = Encoding.ASCII.GetString(moovBytes);
                             int mvhdIdx = moovStr.IndexOf("mvhd");
                             if (mvhdIdx >= 0 && mvhdIdx + 28 <= moovBytes.Length)
@@ -276,87 +265,59 @@ public static class MediaValidator
                                                   (moovBytes[durationOffset + 4] << 24) | (moovBytes[durationOffset + 5] << 16) | (moovBytes[durationOffset + 6] << 8) | moovBytes[durationOffset + 7])
                                         : (uint)((moovBytes[durationOffset] << 24) | (moovBytes[durationOffset + 1] << 16) | (moovBytes[durationOffset + 2] << 8) | moovBytes[durationOffset + 3]);
                                     if (timeScale > 0)
-                                    {
                                         durationSec = (double)dur / timeScale;
-                                    }
                                 }
                             }
                         }
                     }
-                    if (boxType == "moof") hasMoof = true;
-                    if (boxType == "mdat") hasMdat = true;
+                    else if (boxType == "moof") hasMoof = true;
+                    else if (boxType == "mdat") hasMdat = true;
 
                     if (boxSize == 1)
                     {
-                        // 64-bit extended size
                         byte[] extSize = new byte[8];
-                        fs.Read(extSize, 0, 8);
+                        fs.ReadExactly(extSize, 0, 8);
                         ulong lSize = ((ulong)extSize[0] << 56) | ((ulong)extSize[1] << 48) | ((ulong)extSize[2] << 40) | ((ulong)extSize[3] << 32) |
                                       ((ulong)extSize[4] << 24) | ((ulong)extSize[5] << 16) | ((ulong)extSize[6] << 8) | extSize[7];
                         if (lSize <= 0) break;
                         currentPos += (long)lSize;
                     }
-                    else if (boxSize == 0)
-                    {
-                        // Box extends to EOF
-                        break;
-                    }
-                    else
-                    {
-                        currentPos += boxSize;
-                    }
+                    else if (boxSize == 0) break;
+                    else currentPos += boxSize;
+
                     boxCount++;
                 }
 
-                // If moov wasn't found at the beginning, check the last 2MB for faststart/web-optimized moov
                 if (!hasMoov && fileSize > 32)
                 {
                     long tailScan = Math.Min(fileSize, 2097152);
                     fs.Seek(fileSize - tailScan, SeekOrigin.Begin);
                     byte[] tailBytes = new byte[tailScan];
                     int tr = fs.Read(tailBytes, 0, tailBytes.Length);
-                    string tailStr = Encoding.ASCII.GetString(tailBytes, 0, tr);
-                    if (tailStr.Contains("moov"))
-                    {
+                    if (Encoding.ASCII.GetString(tailBytes, 0, tr).Contains("moov"))
                         hasMoov = true;
-                    }
                 }
 
-                // Fragmented MP4 (fMP4 / DASH) uses moof + mdat without traditional single moov
                 if (hasMoof && hasMdat)
-                {
                     return (true, MediaIntegrityStatus.Passed, "", "Fragmented MP4 (fMP4)", true, true, "H.264 / AV1", "AAC", durationSec, width, height);
-                }
 
                 if (hasMoov || hasMdat || isIso)
-                {
                     return (true, MediaIntegrityStatus.Passed, "", "MP4 ISO Container", true, true, "H.264 / AVC", "AAC", durationSec, width, height);
-                }
 
-                // If none of the atoms matched, file is likely truncated
-                if (!hasMoov && !hasMoof && !hasMdat && fileSize < 102400)
-                {
+                if (fileSize < 102400)
                     return (false, MediaIntegrityStatus.Corrupted, "MP4 container is missing required moov, moof, and mdat atoms. File is corrupted or truncated.", "MP4", false, false, "", "", 0, 0, 0);
-                }
             }
 
-            // C. Check for WebM / Matroska (EBML signature 0x1A 0x45 0xDF 0xA3)
+            // WebM / Matroska
             if (header[0] == 0x1A && header[1] == 0x45 && header[2] == 0xDF && header[3] == 0xA3)
-            {
                 return (true, MediaIntegrityStatus.Passed, "", "WebM / Matroska", true, true, "VP9 / VP8", "Opus / Vorbis", 0, 0, 0);
-            }
 
-            // D. Check for MP3 ID3 or MPEG Audio Frame Sync (0xFF 0xFB, 0xFF 0xF3, 0xFF 0xF2)
+            // MP3
             if ((header[0] == 0x49 && header[1] == 0x44 && header[2] == 0x33) || (header[0] == 0xFF && (header[1] & 0xE0) == 0xE0))
-            {
                 return (true, MediaIntegrityStatus.Passed, "", "MP3 Audio", false, true, "None", "MP3", 0, 0, 0);
-            }
 
-            // General payload with large size is considered binary media
             if (fileSize > 102400)
-            {
                 return (true, MediaIntegrityStatus.Passed, "", "Binary Media Container", true, true, "H.264 / AAC", "AAC", 0, 0, 0);
-            }
 
             return (false, MediaIntegrityStatus.FormatUnknown, "Unknown or corrupted file format header.", "Unknown", false, false, "", "", 0, 0, 0);
         }
@@ -366,17 +327,21 @@ public static class MediaValidator
         }
     }
 
+    private static string GetProbeToolPath(string tool)
+    {
+        string ffmpeg = SaveZonix.Core.MediaHelper.GetFfmpegPath();
+        if (tool.Equals("ffmpeg", StringComparison.OrdinalIgnoreCase)) return ffmpeg;
+        string probe = ffmpeg.Replace("ffmpeg", tool);
+        return File.Exists(probe) ? probe : tool;
+    }
+
     private static async Task<bool> TryProbeWithFFprobeAsync(string filePath, MediaValidationResult result)
     {
         try
         {
-            string ffprobePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffprobe.exe");
-            if (!File.Exists(ffprobePath)) ffprobePath = Path.Combine(Directory.GetCurrentDirectory(), "ffprobe.exe");
-            if (!File.Exists(ffprobePath)) ffprobePath = "ffprobe";
-
             var startInfo = new ProcessStartInfo
             {
-                FileName = ffprobePath,
+                FileName = GetProbeToolPath("ffprobe"),
                 Arguments = $"-v error -show_format -show_streams -print_format json \"{filePath}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -393,7 +358,7 @@ public static class MediaValidator
 
             await process.WaitForExitAsync(cts.Token);
             string jsonOutput = await outputTask;
-            string errors = await errorTask;
+            await errorTask;
 
             if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(jsonOutput))
             {
@@ -403,13 +368,9 @@ public static class MediaValidator
                 if (root.TryGetProperty("format", out var fmtEl))
                 {
                     if (fmtEl.TryGetProperty("format_name", out var fn))
-                    {
                         result.ContainerFormat = fn.GetString() ?? "MP4";
-                    }
                     if (fmtEl.TryGetProperty("duration", out var durEl) && double.TryParse(durEl.GetString(), out var dur))
-                    {
                         result.ProbedDurationSeconds = dur;
-                    }
                 }
 
                 if (root.TryGetProperty("streams", out var streamsEl) && streamsEl.ValueKind == JsonValueKind.Array)
@@ -442,20 +403,13 @@ public static class MediaValidator
         return false;
     }
 
-    // ffprobe is not bundled with the desktop build, while ffmpeg is.  Use
-    // ffmpeg's stream report as a reliable fallback so an audio-only MP4 can
-    // never be promoted as a completed video download.
     private static async Task<bool> TryProbeWithFfmpegAsync(string filePath, MediaValidationResult result)
     {
         try
         {
-            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
-
             var startInfo = new ProcessStartInfo
             {
-                FileName = ffmpegPath,
+                FileName = GetProbeToolPath("ffmpeg"),
                 Arguments = $"-hide_banner -i \"{filePath}\"",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -490,10 +444,10 @@ public static class MediaValidator
                     result.HasVideo = true;
                     result.VideoCodec = codec;
                     var dimensions = Regex.Match(stream.Value, @"\b(\d{2,5})x(\d{2,5})\b");
-                    if (dimensions.Success)
+                    if (dimensions.Success &&
+                        int.TryParse(dimensions.Groups[1].Value, out var width) &&
+                        int.TryParse(dimensions.Groups[2].Value, out var height))
                     {
-                        int.TryParse(dimensions.Groups[1].Value, out var width);
-                        int.TryParse(dimensions.Groups[2].Value, out var height);
                         result.Width = width;
                         result.Height = height;
                     }
@@ -517,13 +471,9 @@ public static class MediaValidator
     {
         try
         {
-            string ffmpegPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath)) ffmpegPath = Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe");
-            if (!File.Exists(ffmpegPath)) ffmpegPath = "ffmpeg";
-
             var startInfo = new ProcessStartInfo
             {
-                FileName = ffmpegPath,
+                FileName = GetProbeToolPath("ffmpeg"),
                 Arguments = $"-v error -i \"{filePath}\" -f null -",
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -538,14 +488,11 @@ public static class MediaValidator
             await process.WaitForExitAsync(cts.Token);
             string errors = await errTask;
 
-            // Only treat as fatal if FFmpeg itself failed with exit code != 0 or there are severe broken NAL units (> 5)
             if (errors.Contains("Invalid NAL unit size", StringComparison.OrdinalIgnoreCase))
             {
                 int nalCount = Regex.Matches(errors, "Invalid NAL unit size", RegexOptions.IgnoreCase).Count;
                 if (nalCount > 5)
-                {
                     return (false, $"Media stream has corrupted NAL units ({nalCount} framing errors).");
-                }
             }
 
             if (process.ExitCode != 0)
@@ -558,7 +505,7 @@ public static class MediaValidator
         }
         catch
         {
-            return (true, ""); // Allow benign bypass if ffmpeg probe process is busy or unavailable
+            return (true, "");
         }
     }
 }

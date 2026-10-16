@@ -151,28 +151,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
 
                     try
                     {
-                        int durationSec = (int)(video.Duration?.TotalSeconds ?? 0);
-                        string formattedDur = video.Duration.HasValue
-                            ? (video.Duration.Value.TotalHours >= 1
-                                ? video.Duration.Value.ToString(@"hh\:mm\:ss")
-                                : video.Duration.Value.ToString(@"mm\:ss"))
-                            : "00:00";
-
-                        string thumb = video.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{video.Id}/hqdefault.jpg";
-
-                        seedVideos.Add(new PlaylistVideoDto
-                        {
-                            VideoId = video.Id.Value,
-                            Index = skipCount + seedVideos.Count + 1,
-                            Title = video.Title,
-                            Author = video.Author?.ChannelTitle ?? "Unknown",
-                            DurationSeconds = durationSec,
-                            FormattedDuration = formattedDur,
-                            ThumbnailUrl = thumb,
-                            IsAvailable = true,
-                            AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
-                            AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
-                        });
+                        seedVideos.Add(CreateVideoDto(video, skipCount + seedVideos.Count + 1));
                     }
                     catch { }
                 }
@@ -310,30 +289,9 @@ public class YouTubePlaylistService : IYouTubePlaylistService
 
                 try
                 {
-                    int durationSec = (int)(video.Duration?.TotalSeconds ?? 0);
-                    totalSeconds += durationSec;
-
-                    string formattedDur = video.Duration.HasValue
-                        ? (video.Duration.Value.TotalHours >= 1 
-                            ? video.Duration.Value.ToString(@"hh\:mm\:ss") 
-                            : video.Duration.Value.ToString(@"mm\:ss"))
-                        : "00:00";
-
-                    string thumb = video.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{video.Id}/hqdefault.jpg";
-
-                    videos.Add(new PlaylistVideoDto
-                    {
-                        VideoId = video.Id.Value,
-                        Index = videos.Count + 1,
-                        Title = video.Title,
-                        Author = video.Author?.ChannelTitle ?? "Unknown",
-                        DurationSeconds = durationSec,
-                        FormattedDuration = formattedDur,
-                        ThumbnailUrl = thumb,
-                        IsAvailable = true,
-                        AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
-                        AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
-                    });
+                    var dto = CreateVideoDto(video, videos.Count + 1);
+                    totalSeconds += dto.DurationSeconds;
+                    videos.Add(dto);
                 }
                 catch (Exception ex)
                 {
@@ -504,5 +462,33 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         }
 
         return null;
+    }
+
+    private static string FormatDuration(TimeSpan? duration)
+    {
+        if (!duration.HasValue) return "00:00";
+        return duration.Value.TotalHours >= 1
+            ? duration.Value.ToString(@"hh\:mm\:ss")
+            : duration.Value.ToString(@"mm\:ss");
+    }
+
+    private static PlaylistVideoDto CreateVideoDto(YoutubeExplode.Playlists.PlaylistVideo video, int index)
+    {
+        int durationSec = (int)(video.Duration?.TotalSeconds ?? 0);
+        string thumb = video.Thumbnails.GetWithHighestResolution()?.Url ?? $"https://i.ytimg.com/vi/{video.Id}/hqdefault.jpg";
+
+        return new PlaylistVideoDto
+        {
+            VideoId = video.Id.Value,
+            Index = index,
+            Title = video.Title ?? "Untitled Video",
+            Author = video.Author?.ChannelTitle ?? "Unknown",
+            DurationSeconds = durationSec,
+            FormattedDuration = FormatDuration(video.Duration),
+            ThumbnailUrl = thumb,
+            IsAvailable = true,
+            AvailableQualities = new List<string> { "4K", "2K", "1080p", "720p", "480p", "MP3" },
+            AvailableFormats = new List<string> { "MP4", "WebM", "MP3", "M4A" }
+        };
     }
 }

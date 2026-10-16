@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using SaveZonix.Models;
@@ -17,22 +17,10 @@ namespace StreamHelper.Services;
 public interface IDownloadHistoryService
 {
     Task<DownloadHistory> CreateOrUpdateDownloadAsync(
-        string taskId,
-        string? userId,
-        string? userEmail,
-        string? userName,
-        string originalUrl,
-        string title,
-        string fileName,
-        string? thumbnailUrl,
-        string platform,
-        string mediaType,
-        string format,
-        string quality,
-        string? codec,
-        int durationSeconds,
-        long estimatedBytes,
-        int threads,
+        string taskId, string? userId, string? userEmail, string? userName,
+        string originalUrl, string title, string fileName, string? thumbnailUrl,
+        string platform, string mediaType, string format, string quality,
+        string? codec, int durationSeconds, long estimatedBytes, int threads,
         string strategy);
 
     Task UpdateProgressAsync(string taskId, DownloadStatus status, long downloadedBytes, double avgSpeed, double peakSpeed, double elapsedSeconds);
@@ -54,8 +42,8 @@ public interface IDownloadHistoryService
 public class DownloadHistoryService : IDownloadHistoryService
 {
     private static readonly ConcurrentDictionary<string, DownloadHistory> _localStore = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly object _fileLock = new();
-    private static readonly object _initLock = new();
+    private static readonly Lock _fileLock = new();
+    private static readonly Lock _initLock = new();
     private static bool _initialized = false;
     private static readonly string _localFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -64,7 +52,6 @@ public class DownloadHistoryService : IDownloadHistoryService
 
     private readonly IMongoDatabase? _mongoDb;
     private readonly IMongoCollection<BsonDocument>? _cloudHistoryCollection;
-    private readonly IMongoCollection<DownloadRecord>? _legacyDownloadsCollection;
     private readonly bool _isMongoConnected;
 
     public DownloadHistoryService(IMongoDatabase? mongoDb = null, Microsoft.Extensions.Configuration.IConfiguration? config = null)
@@ -75,7 +62,6 @@ public class DownloadHistoryService : IDownloadHistoryService
         {
             _mongoDb = mongoDb;
             _cloudHistoryCollection = _mongoDb.GetCollection<BsonDocument>("downloadhistories");
-            _legacyDownloadsCollection = _mongoDb.GetCollection<DownloadRecord>("downloads");
             _isMongoConnected = true;
         }
         else if (config != null)
@@ -93,18 +79,12 @@ public class DownloadHistoryService : IDownloadHistoryService
                     var client = new MongoClient(mongoSettings);
                     _mongoDb = client.GetDatabase(dbName);
                     _cloudHistoryCollection = _mongoDb.GetCollection<BsonDocument>("downloadhistories");
-                    _legacyDownloadsCollection = _mongoDb.GetCollection<DownloadRecord>("downloads");
                     _isMongoConnected = true;
-                }
-                else
-                {
-                    _isMongoConnected = false;
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[DownloadHistoryService Init Notice] {ex.Message}");
-                _isMongoConnected = false;
             }
         }
     }
@@ -121,9 +101,7 @@ public class DownloadHistoryService : IDownloadHistoryService
             {
                 var dir = Path.GetDirectoryName(_localFilePath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                {
                     Directory.CreateDirectory(dir);
-                }
 
                 if (File.Exists(_localFilePath))
                 {
@@ -134,9 +112,7 @@ public class DownloadHistoryService : IDownloadHistoryService
                         foreach (var it in items)
                         {
                             if (!string.IsNullOrEmpty(it.Id))
-                            {
                                 _localStore[it.Id] = it;
-                            }
                         }
                     }
                 }
@@ -158,9 +134,7 @@ public class DownloadHistoryService : IDownloadHistoryService
             {
                 var dir = Path.GetDirectoryName(_localFilePath);
                 if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                {
                     Directory.CreateDirectory(dir);
-                }
 
                 var list = _localStore.Values.OrderByDescending(x => x.CreatedAt).ToList();
                 var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
@@ -184,40 +158,29 @@ public class DownloadHistoryService : IDownloadHistoryService
 
             var supportedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mp3", ".m4a", ".webm", ".mkv" };
             var files = Directory.GetFiles(downloadsDir, "*.*", SearchOption.AllDirectories);
-
             bool addedAny = false;
             var existingNames = new HashSet<string>(_localStore.Values.Select(v => v.FileName), StringComparer.OrdinalIgnoreCase);
 
             foreach (var filePath in files)
             {
                 var fi = new FileInfo(filePath);
-                if (!supportedExts.Contains(fi.Extension) || fi.Length == 0) continue;
-
-                if (existingNames.Contains(fi.Name)) continue;
+                if (!supportedExts.Contains(fi.Extension) || fi.Length == 0 || existingNames.Contains(fi.Name)) continue;
 
                 string id = "local_" + Math.Abs(fi.FullName.GetHashCode()).ToString("X8") + "_" + fi.Length;
                 if (_localStore.ContainsKey(id)) continue;
 
                 string? parentDir = Path.GetDirectoryName(filePath);
                 string folderName = !string.IsNullOrEmpty(parentDir) ? Path.GetFileName(parentDir) : "";
-                string title = Path.GetFileNameWithoutExtension(fi.Name);
-
                 bool isAudio = fi.Extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) || fi.Extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase);
 
-                string strategy;
-                if (!string.IsNullOrEmpty(folderName) && !string.Equals(folderName, "SaveZonix", StringComparison.OrdinalIgnoreCase))
-                {
-                    strategy = $"Playlist: PL-01 • {folderName} • Local Import";
-                }
-                else
-                {
-                    strategy = "Adaptive Parallel";
-                }
+                string strategy = (!string.IsNullOrEmpty(folderName) && !string.Equals(folderName, "SaveZonix", StringComparison.OrdinalIgnoreCase))
+                    ? $"Playlist: PL-01 • {folderName} • Local Import"
+                    : "Adaptive Parallel";
 
                 var entry = new DownloadHistory
                 {
                     Id = id,
-                    Title = title,
+                    Title = Path.GetFileNameWithoutExtension(fi.Name),
                     FileName = fi.Name,
                     OriginalUrl = "",
                     Platform = isAudio ? "Music Stream" : "Web Stream",
@@ -241,10 +204,7 @@ public class DownloadHistoryService : IDownloadHistoryService
                 addedAny = true;
             }
 
-            if (addedAny)
-            {
-                SaveLocalStore();
-            }
+            if (addedAny) SaveLocalStore();
         }
         catch (Exception ex)
         {
@@ -259,46 +219,44 @@ public class DownloadHistoryService : IDownloadHistoryService
         {
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
-                var queryParams = System.Web.HttpUtility.ParseQueryString(uri.Query);
+                var queryParams = HttpUtility.ParseQueryString(uri.Query);
                 string[] sensitiveKeys = { "token", "sig", "signature", "key", "auth", "expire", "expires", "access_token", "secret", "session", "pass" };
 
                 foreach (var k in queryParams.AllKeys.Where(k => k != null))
                 {
                     if (sensitiveKeys.Any(s => k!.IndexOf(s, StringComparison.OrdinalIgnoreCase) >= 0))
-                    {
                         queryParams.Remove(k);
-                    }
                 }
 
-                var ub = new UriBuilder(uri)
-                {
-                    Query = queryParams.ToString()
-                };
+                var ub = new UriBuilder(uri) { Query = queryParams.ToString() };
                 return ub.Uri.ToString();
             }
         }
         catch { }
-
         return url;
     }
 
+    private void UpdateCloudHistoryBackground(string taskId, UpdateDefinition<BsonDocument> update)
+    {
+        if (!_isMongoConnected || _cloudHistoryCollection == null) return;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
+                await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
+            }
+            catch { }
+        });
+    }
+
     public Task<DownloadHistory> CreateOrUpdateDownloadAsync(
-        string taskId,
-        string? userId,
-        string? userEmail,
-        string? userName,
-        string originalUrl,
-        string title,
-        string fileName,
-        string? thumbnailUrl,
-        string platform,
-        string mediaType,
-        string format,
-        string quality,
-        string? codec,
-        int durationSeconds,
-        long estimatedBytes,
-        int threads,
+        string taskId, string? userId, string? userEmail, string? userName,
+        string originalUrl, string title, string fileName, string? thumbnailUrl,
+        string platform, string mediaType, string format, string quality,
+        string? codec, int durationSeconds, long estimatedBytes, int threads,
         string strategy)
     {
         EnsureInitialized();
@@ -342,9 +300,9 @@ public class DownloadHistoryService : IDownloadHistoryService
                 try
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    string dType = "guest";
-                    if (string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase)) dType = "admin";
-                    else if (!string.IsNullOrEmpty(userId) || (!string.IsNullOrEmpty(userEmail) && !userEmail.StartsWith("Guest", StringComparison.OrdinalIgnoreCase))) dType = "user";
+                    string dType = string.Equals(userEmail, "zaidm1323@gmail.com", StringComparison.OrdinalIgnoreCase) ? "admin"
+                        : (!string.IsNullOrEmpty(userId) || (!string.IsNullOrEmpty(userEmail) && !userEmail.StartsWith("Guest", StringComparison.OrdinalIgnoreCase))) ? "user"
+                        : "guest";
 
                     BsonValue bsonUserId = string.IsNullOrEmpty(userId) ? BsonNull.Value : (BsonValue)userId;
 
@@ -394,35 +352,20 @@ public class DownloadHistoryService : IDownloadHistoryService
             item.UpdatedAt = DateTime.UtcNow;
         }
 
-        if (_isMongoConnected && _cloudHistoryCollection != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                    var update = Builders<BsonDocument>.Update
-                        .Set("status", status.ToString())
-                        .Set("downloadedBytes", downloadedBytes)
-                        .Set("downloadSpeedMBps", avgSpeed)
-                        .Set("peakSpeedMBps", peakSpeed)
-                        .Set("downloadDurationSeconds", elapsedSeconds)
-                        .Set("updatedAt", DateTime.UtcNow);
+        var update = Builders<BsonDocument>.Update
+            .Set("status", status.ToString())
+            .Set("downloadedBytes", downloadedBytes)
+            .Set("downloadSpeedMBps", avgSpeed)
+            .Set("peakSpeedMBps", peakSpeed)
+            .Set("downloadDurationSeconds", elapsedSeconds)
+            .Set("updatedAt", DateTime.UtcNow);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
-                }
-                catch { }
-            });
-        }
-
+        UpdateCloudHistoryBackground(taskId, update);
         return Task.CompletedTask;
     }
 
-    public Task MarkCompletedAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds)
-    {
-        return MarkCompletedWithValidationAsync(taskId, finalSize, avgSpeed, peakSpeed, totalSeconds, "Passed", "Verified media structure", 0, "Standard Container");
-    }
+    public Task MarkCompletedAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds) =>
+        MarkCompletedWithValidationAsync(taskId, finalSize, avgSpeed, peakSpeed, totalSeconds, "Passed", "Verified media structure", 0, "Standard Container");
 
     public Task MarkCompletedWithValidationAsync(string taskId, long finalSize, double avgSpeed, double peakSpeed, double totalSeconds, string validationStatus, string validationDetails, double probedDuration, string audioVideoDetails)
     {
@@ -443,11 +386,10 @@ public class DownloadHistoryService : IDownloadHistoryService
             item.ProbedDurationSeconds = probedDuration;
             item.AudioVideoDetails = audioVideoDetails;
             item.UpdatedAt = now;
-            SaveLocalStore();
         }
         else
         {
-            var newItem = new DownloadHistory
+            _localStore[taskId] = new DownloadHistory
             {
                 Id = taskId,
                 FileSize = finalSize,
@@ -464,37 +406,23 @@ public class DownloadHistoryService : IDownloadHistoryService
                 CreatedAt = now,
                 UpdatedAt = now
             };
-            _localStore[taskId] = newItem;
-            SaveLocalStore();
         }
+        SaveLocalStore();
 
-        if (_isMongoConnected && _cloudHistoryCollection != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                    var update = Builders<BsonDocument>.Update
-                        .Set("status", "Completed")
-                        .Set("fileSize", finalSize)
-                        .Set("downloadedBytes", finalSize)
-                        .Set("downloadSpeedMBps", avgSpeed)
-                        .Set("peakSpeedMBps", peakSpeed)
-                        .Set("downloadDurationSeconds", totalSeconds)
-                        .Set("completionTime", now)
-                        .Set("validationStatus", validationStatus)
-                        .Set("validationDetails", validationDetails)
-                        .Set("audioVideoDetails", audioVideoDetails)
-                        .Set("updatedAt", now);
+        var update = Builders<BsonDocument>.Update
+            .Set("status", "Completed")
+            .Set("fileSize", finalSize)
+            .Set("downloadedBytes", finalSize)
+            .Set("downloadSpeedMBps", avgSpeed)
+            .Set("peakSpeedMBps", peakSpeed)
+            .Set("downloadDurationSeconds", totalSeconds)
+            .Set("completionTime", now)
+            .Set("validationStatus", validationStatus)
+            .Set("validationDetails", validationDetails)
+            .Set("audioVideoDetails", audioVideoDetails)
+            .Set("updatedAt", now);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
-                }
-                catch { }
-            });
-        }
-
+        UpdateCloudHistoryBackground(taskId, update);
         return Task.CompletedTask;
     }
 
@@ -514,29 +442,16 @@ public class DownloadHistoryService : IDownloadHistoryService
             SaveLocalStore();
         }
 
-        if (_isMongoConnected && _cloudHistoryCollection != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                    var update = Builders<BsonDocument>.Update
-                        .Set("status", "Corrupted")
-                        .Set("errorReason", errorReason)
-                        .Set("validationStatus", validationStatus)
-                        .Set("validationDetails", validationDetails)
-                        .Set("retryCount", retryCount)
-                        .Set("completionTime", now)
-                        .Set("updatedAt", now);
+        var update = Builders<BsonDocument>.Update
+            .Set("status", "Corrupted")
+            .Set("errorReason", errorReason)
+            .Set("validationStatus", validationStatus)
+            .Set("validationDetails", validationDetails)
+            .Set("retryCount", retryCount)
+            .Set("completionTime", now)
+            .Set("updatedAt", now);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
-                }
-                catch { }
-            });
-        }
-
+        UpdateCloudHistoryBackground(taskId, update);
         return Task.CompletedTask;
     }
 
@@ -553,26 +468,13 @@ public class DownloadHistoryService : IDownloadHistoryService
             SaveLocalStore();
         }
 
-        if (_isMongoConnected && _cloudHistoryCollection != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                    var update = Builders<BsonDocument>.Update
-                        .Set("status", "Retrying")
-                        .Set("retryCount", retryCount)
-                        .Set("errorReason", $"Retry {retryCount}: {retryReason}")
-                        .Set("updatedAt", now);
+        var update = Builders<BsonDocument>.Update
+            .Set("status", "Retrying")
+            .Set("retryCount", retryCount)
+            .Set("errorReason", $"Retry {retryCount}: {retryReason}")
+            .Set("updatedAt", now);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
-                }
-                catch { }
-            });
-        }
-
+        UpdateCloudHistoryBackground(taskId, update);
         return Task.CompletedTask;
     }
 
@@ -590,27 +492,14 @@ public class DownloadHistoryService : IDownloadHistoryService
             SaveLocalStore();
         }
 
-        if (_isMongoConnected && _cloudHistoryCollection != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                    var update = Builders<BsonDocument>.Update
-                        .Set("status", "Failed")
-                        .Set("errorReason", errorReason)
-                        .Set("validationStatus", "Failed")
-                        .Set("completionTime", now)
-                        .Set("updatedAt", now);
+        var update = Builders<BsonDocument>.Update
+            .Set("status", "Failed")
+            .Set("errorReason", errorReason)
+            .Set("validationStatus", "Failed")
+            .Set("completionTime", now)
+            .Set("updatedAt", now);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
-                }
-                catch { }
-            });
-        }
-
+        UpdateCloudHistoryBackground(taskId, update);
         return Task.CompletedTask;
     }
 
@@ -627,26 +516,13 @@ public class DownloadHistoryService : IDownloadHistoryService
             SaveLocalStore();
         }
 
-        if (_isMongoConnected && _cloudHistoryCollection != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                    var filter = Builders<BsonDocument>.Filter.Eq("taskId", taskId);
-                    var update = Builders<BsonDocument>.Update
-                        .Set("status", "Cancelled")
-                        .Set("errorReason", "Download cancelled by user")
-                        .Set("completionTime", now)
-                        .Set("updatedAt", now);
+        var update = Builders<BsonDocument>.Update
+            .Set("status", "Cancelled")
+            .Set("errorReason", "Download cancelled by user")
+            .Set("completionTime", now)
+            .Set("updatedAt", now);
 
-                    await _cloudHistoryCollection.UpdateOneAsync(filter, update, cancellationToken: cts.Token);
-                }
-                catch { }
-            });
-        }
-
+        UpdateCloudHistoryBackground(taskId, update);
         return Task.CompletedTask;
     }
 
@@ -659,7 +535,7 @@ public class DownloadHistoryService : IDownloadHistoryService
         foreach (var kvp in _localStore)
         {
             var item = kvp.Value;
-            if (item.Status == DownloadStatus.Downloading || item.Status == DownloadStatus.Retrying || item.Status == DownloadStatus.Resolving)
+            if (item.Status is DownloadStatus.Downloading or DownloadStatus.Retrying or DownloadStatus.Resolving)
             {
                 if (activeTaskIds == null || !activeTaskIds.Contains(item.Id))
                 {
@@ -675,65 +551,39 @@ public class DownloadHistoryService : IDownloadHistoryService
             }
         }
 
-        if (updated > 0)
-        {
-            SaveLocalStore();
-        }
-
+        if (updated > 0) SaveLocalStore();
         return Task.FromResult(updated);
     }
 
     public Task<(List<DownloadHistory> Items, int TotalCount)> GetUserDownloadsAsync(string userId, int page, int pageSize, string? search, string? status, string? platform)
     {
         EnsureInitialized();
-
         var query = _localStore.Values.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(userId))
         {
-            // Desktop user visibility: Show user's downloads or local downloads where userId is unset
             query = query.Where(d => string.Equals(d.UserId, userId, StringComparison.OrdinalIgnoreCase) ||
                                      string.Equals(d.UserEmail, userId, StringComparison.OrdinalIgnoreCase) ||
                                      string.IsNullOrEmpty(d.UserId));
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            string s = search.Trim();
-            query = query.Where(d =>
-                (d.Title != null && d.Title.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
-                (d.FileName != null && d.FileName.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
-                (d.OriginalUrl != null && d.OriginalUrl.Contains(s, StringComparison.OrdinalIgnoreCase)));
-        }
-
-        if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(d => string.Equals(d.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrWhiteSpace(platform) && !string.Equals(platform, "All", StringComparison.OrdinalIgnoreCase))
-        {
-            query = query.Where(d => d.Platform != null && d.Platform.Contains(platform, StringComparison.OrdinalIgnoreCase));
-        }
-
-        var ordered = query.OrderByDescending(d => d.CreatedAt).ToList();
-        int totalCount = ordered.Count;
-        var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
-        return Task.FromResult((paged, totalCount));
+        return Task.FromResult(FilterAndPaginate(query, search, status, platform, null, page, pageSize));
     }
 
     public Task<(List<DownloadHistory> Items, int TotalCount)> GetAllDownloadsAsync(int page, int pageSize, string? search, string? status, string? platform, string? userEmail)
     {
         EnsureInitialized();
-
         var query = _localStore.Values.AsEnumerable();
 
         if (!string.IsNullOrWhiteSpace(userEmail))
-        {
             query = query.Where(d => d.UserEmail != null && d.UserEmail.Contains(userEmail, StringComparison.OrdinalIgnoreCase));
-        }
 
+        return Task.FromResult(FilterAndPaginate(query, search, status, platform, userEmail, page, pageSize));
+    }
+
+    private static (List<DownloadHistory> Items, int TotalCount) FilterAndPaginate(
+        IEnumerable<DownloadHistory> query, string? search, string? status, string? platform, string? fallbackEmail, int page, int pageSize)
+    {
         if (!string.IsNullOrWhiteSpace(search))
         {
             string s = search.Trim();
@@ -741,24 +591,19 @@ public class DownloadHistoryService : IDownloadHistoryService
                 (d.Title != null && d.Title.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
                 (d.FileName != null && d.FileName.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
                 (d.OriginalUrl != null && d.OriginalUrl.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
-                (d.UserEmail != null && d.UserEmail.Contains(s, StringComparison.OrdinalIgnoreCase)));
+                (fallbackEmail != null && d.UserEmail != null && d.UserEmail.Contains(s, StringComparison.OrdinalIgnoreCase)));
         }
 
         if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
-        {
             query = query.Where(d => string.Equals(d.Status.ToString(), status, StringComparison.OrdinalIgnoreCase));
-        }
 
         if (!string.IsNullOrWhiteSpace(platform) && !string.Equals(platform, "All", StringComparison.OrdinalIgnoreCase))
-        {
             query = query.Where(d => d.Platform != null && d.Platform.Contains(platform, StringComparison.OrdinalIgnoreCase));
-        }
 
         var ordered = query.OrderByDescending(d => d.CreatedAt).ToList();
         int totalCount = ordered.Count;
         var paged = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-
-        return Task.FromResult((paged, totalCount));
+        return (paged, totalCount);
     }
 
     public Task<DownloadHistory?> GetDownloadByIdAsync(string id)
@@ -767,9 +612,7 @@ public class DownloadHistoryService : IDownloadHistoryService
         if (string.IsNullOrWhiteSpace(id)) return Task.FromResult<DownloadHistory?>(null);
 
         if (_localStore.TryGetValue(id, out var found))
-        {
             return Task.FromResult<DownloadHistory?>(found);
-        }
 
         var match = _localStore.Values.FirstOrDefault(d =>
             string.Equals(d.Id, id, StringComparison.OrdinalIgnoreCase) ||
@@ -784,28 +627,19 @@ public class DownloadHistoryService : IDownloadHistoryService
         EnsureInitialized();
         if (string.IsNullOrWhiteSpace(id)) return Task.FromResult(false);
 
-        bool removed = false;
-        if (_localStore.TryRemove(id, out _))
-        {
-            removed = true;
-        }
-        else
+        bool removed = _localStore.TryRemove(id, out _);
+        if (!removed)
         {
             var matchKey = _localStore.FirstOrDefault(kvp =>
                 string.Equals(kvp.Key, id, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(kvp.Value.FileName, id, StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(kvp.Value.Title, id, StringComparison.OrdinalIgnoreCase)).Key;
 
-            if (!string.IsNullOrEmpty(matchKey) && _localStore.TryRemove(matchKey, out _))
-            {
-                removed = true;
-            }
+            if (!string.IsNullOrEmpty(matchKey))
+                removed = _localStore.TryRemove(matchKey, out _);
         }
 
-        if (removed)
-        {
-            SaveLocalStore();
-        }
+        if (removed) SaveLocalStore();
 
         if (_isMongoConnected && _cloudHistoryCollection != null)
         {

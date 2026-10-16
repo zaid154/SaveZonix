@@ -387,7 +387,6 @@ public class AccountController : Controller
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/send-reset-otp", "https://save-zonix.vercel.app/api/auth/send-reset-otp" };
 
-            bool sent = false;
             foreach (var url in cloudApiUrls)
             {
                 try
@@ -399,7 +398,6 @@ public class AccountController : Controller
 
                     if (resp.IsSuccessStatusCode)
                     {
-                        sent = true;
                         Console.WriteLine($"[ForgotPassword] Cloud OTP dispatched successfully to: {cleanEmail} via {url}");
                         break;
                     }
@@ -838,31 +836,25 @@ public class AccountController : Controller
             {
                 string? ytId = ExtractYouTubeVideoId(d.OriginalUrl);
                 if (!string.IsNullOrWhiteSpace(ytId))
-                {
                     d.ThumbnailUrl = $"https://i.ytimg.com/vi/{ytId}/hqdefault.jpg";
-                }
             }
 
             string strategy = d.DownloadStrategy ?? "";
             bool isExplicitPlaylist = strategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase) ||
                                       strategy.Equals("Playlist Batch", StringComparison.OrdinalIgnoreCase);
-
             string seriesName = ExtractSeriesName(d.Title);
             bool isSeriesCandidate = !string.IsNullOrEmpty(seriesName) && seriesName.Length > 2;
 
             if (isExplicitPlaylist || isSeriesCandidate)
             {
-                string groupKey;
-                string playlistCode;
-                string playlistTitle;
+                string groupKey, playlistCode, playlistTitle;
 
                 if (strategy.StartsWith("Playlist: PL-", StringComparison.OrdinalIgnoreCase))
                 {
-                    var parts = strategy.Substring("Playlist:".Length).Split('•');
+                    var parts = strategy["Playlist:".Length..].Split('•');
                     playlistCode = parts[0].Trim();
                     playlistTitle = parts.Length > 1 ? parts[1].Trim() : (!string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist");
                     string cleanTitleSlug = Regex.Replace(playlistTitle, @"[^a-zA-Z0-9]", "_").Trim('_');
-                    // Group by playlistCode, title and date so distinct downloads on different days do not merge
                     groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd}";
                 }
                 else if (!string.IsNullOrEmpty(seriesName))
@@ -874,13 +866,11 @@ public class AccountController : Controller
                 }
                 else
                 {
-                    string dateKey = d.CreatedAt.ToString("yyyyMMdd");
-                    groupKey = $"PL_BATCH_{dateKey}";
+                    groupKey = $"PL_BATCH_{d.CreatedAt:yyyyMMdd}";
                     playlistCode = "PL-01";
                     playlistTitle = "YouTube Playlist Collection";
                 }
 
-                // Check if this specific item is part of an active running job
                 string? matchingJobId = activeJobs?.FirstOrDefault(j =>
                     j.Items != null && j.Items.Any(item => string.Equals(item.TaskId, d.Id, StringComparison.OrdinalIgnoreCase)))?.JobId;
 
@@ -896,10 +886,6 @@ public class AccountController : Controller
                         Platform = d.Platform,
                         ThumbnailUrl = d.ThumbnailUrl,
                         CreatedAt = d.CreatedAt,
-                        TotalBytes = 0,
-                        TotalVideos = 0,
-                        CompletedCount = 0,
-                        FailedCount = 0,
                         SubItems = new List<StreamHelper.Data.DownloadHistory>()
                     };
                     playlistBuckets[groupKey] = group;
@@ -913,11 +899,9 @@ public class AccountController : Controller
                 group.TotalVideos++;
                 group.TotalBytes += d.FileSize > 0 ? d.FileSize : d.DownloadedBytes;
                 if (d.Status == StreamHelper.Data.DownloadStatus.Completed) group.CompletedCount++;
-                if (d.Status == StreamHelper.Data.DownloadStatus.Failed || d.Status == StreamHelper.Data.DownloadStatus.Cancelled) group.FailedCount++;
+                if (d.Status is StreamHelper.Data.DownloadStatus.Failed or StreamHelper.Data.DownloadStatus.Cancelled) group.FailedCount++;
                 if (string.IsNullOrEmpty(group.ThumbnailUrl) && !string.IsNullOrEmpty(d.ThumbnailUrl))
-                {
                     group.ThumbnailUrl = d.ThumbnailUrl;
-                }
             }
             else
             {
@@ -932,7 +916,7 @@ public class AccountController : Controller
                     TotalBytes = d.FileSize > 0 ? d.FileSize : d.DownloadedBytes,
                     TotalVideos = 1,
                     CompletedCount = d.Status == StreamHelper.Data.DownloadStatus.Completed ? 1 : 0,
-                    FailedCount = d.Status == StreamHelper.Data.DownloadStatus.Failed || d.Status == StreamHelper.Data.DownloadStatus.Cancelled ? 1 : 0,
+                    FailedCount = d.Status is StreamHelper.Data.DownloadStatus.Failed or StreamHelper.Data.DownloadStatus.Cancelled ? 1 : 0,
                     SingleItem = d
                 });
             }
@@ -954,92 +938,63 @@ public class AccountController : Controller
                     TotalBytes = single.FileSize > 0 ? single.FileSize : single.DownloadedBytes,
                     TotalVideos = 1,
                     CompletedCount = single.Status == StreamHelper.Data.DownloadStatus.Completed ? 1 : 0,
-                    FailedCount = single.Status == StreamHelper.Data.DownloadStatus.Failed || single.Status == StreamHelper.Data.DownloadStatus.Cancelled ? 1 : 0,
+                    FailedCount = single.Status is StreamHelper.Data.DownloadStatus.Failed or StreamHelper.Data.DownloadStatus.Cancelled ? 1 : 0,
                     SingleItem = single
                 });
             }
             else
             {
-                group.SubItems = group.SubItems
-                    .OrderBy(s => ExtractIndexNumber(s))
-                    .ThenBy(s => s.CreatedAt)
-                    .ToList();
-
-                if (string.IsNullOrEmpty(group.ThumbnailUrl) || group.ThumbnailUrl.Contains("placeholder"))
-                {
-                    var validThumb = group.SubItems.FirstOrDefault(s => !string.IsNullOrEmpty(s.ThumbnailUrl))?.ThumbnailUrl;
-                    if (!string.IsNullOrEmpty(validThumb)) group.ThumbnailUrl = validThumb;
-                }
+                group.SubItems = group.SubItems.OrderBy(ExtractIndexNumber).ThenBy(s => s.CreatedAt).ToList();
+                var validThumb = group.SubItems.FirstOrDefault(s => !string.IsNullOrEmpty(s.ThumbnailUrl))?.ThumbnailUrl;
+                if (!string.IsNullOrEmpty(validThumb) && (string.IsNullOrEmpty(group.ThumbnailUrl) || group.ThumbnailUrl.Contains("placeholder")))
+                    group.ThumbnailUrl = validThumb;
 
                 var matchingJob = activeJobs?.FirstOrDefault(j =>
                     (!string.IsNullOrEmpty(group.JobId) && group.JobId != group.GroupKey && string.Equals(j.JobId, group.JobId, StringComparison.OrdinalIgnoreCase)) ||
                     (j.Items != null && j.Items.Any(item => group.SubItems.Any(sub => string.Equals(sub.Id, item.TaskId, StringComparison.OrdinalIgnoreCase)))));
 
-                if (matchingJob != null)
+                if (matchingJob != null && (matchingJob.Status is "Running" or "Downloading" or "Queued" || matchingJob.ActiveCount > 0 || matchingJob.QueuedCount > 0))
                 {
-                    bool isJobActive = matchingJob.Status == "Running" || matchingJob.Status == "Downloading" || matchingJob.Status == "Queued" ||
-                                       matchingJob.ActiveCount > 0 || matchingJob.QueuedCount > 0;
-
-                    if (isJobActive)
-                    {
-                        group.IsActive = true;
-                        group.JobId = matchingJob.JobId;
-                        group.TotalVideos = Math.Max(group.TotalVideos, matchingJob.TotalVideos);
-                        group.CompletedCount = matchingJob.CompletedCount;
-                        group.FailedCount = matchingJob.FailedCount;
-                    }
+                    group.IsActive = true;
+                    group.JobId = matchingJob.JobId;
+                    group.TotalVideos = Math.Max(group.TotalVideos, matchingJob.TotalVideos);
+                    group.CompletedCount = matchingJob.CompletedCount;
+                    group.FailedCount = matchingJob.FailedCount;
                 }
 
-                var latestDate = group.SubItems.Max(s => s.CreatedAt);
-                group.CreatedAt = latestDate;
-
+                group.CreatedAt = group.SubItems.Max(s => s.CreatedAt);
                 finalEntries.Add(group);
             }
         }
 
         var sortedEntries = finalEntries.OrderByDescending(g => g.CreatedAt).ToList();
         int plSeq = 1;
-        foreach (var entry in sortedEntries)
-        {
-            if (entry.IsPlaylistGroup)
-            {
-                entry.PlaylistCode = $"PL-{plSeq:D2}";
-                plSeq++;
-            }
-        }
+        foreach (var entry in sortedEntries.Where(e => e.IsPlaylistGroup))
+            entry.PlaylistCode = $"PL-{plSeq++:D2}";
 
         return sortedEntries;
     }
 
     private static int ExtractIndexNumber(StreamHelper.Data.DownloadHistory item)
     {
-        string check = (item.ValidationDetails ?? "") + " " + (item.AudioVideoDetails ?? "");
+        string check = $"{item.ValidationDetails} {item.AudioVideoDetails}";
         int hashIdx = check.IndexOf('#');
-        if (hashIdx >= 0 && hashIdx + 3 <= check.Length)
+        if (hashIdx >= 0 && hashIdx + 1 < check.Length)
         {
-            string numPart = new string(check.Substring(hashIdx + 1).TakeWhile(char.IsDigit).ToArray());
+            string numPart = new string(check[(hashIdx + 1)..].TakeWhile(char.IsDigit).ToArray());
             if (int.TryParse(numPart, out int parsed)) return parsed;
         }
 
         if (!string.IsNullOrEmpty(item.Title))
         {
-            var match = Regex.Match(
-                item.Title, 
-                @"(?:Episode|Ep\.?|Part|Pt\.?)\s*(\d+)", 
-                RegexOptions.IgnoreCase);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int epNum))
-            {
-                return epNum;
-            }
+            var match = Regex.Match(item.Title, @"(?:Episode|Ep\.?|Part|Pt\.?)\s*(\d+)", RegexOptions.IgnoreCase);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int epNum)) return epNum;
         }
 
         if (!string.IsNullOrEmpty(item.FileName))
         {
             var match = Regex.Match(item.FileName, @"^(\d{1,4})\s*[-_.]\s*");
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int fnNum))
-            {
-                return fnNum;
-            }
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int fnNum)) return fnNum;
         }
 
         return int.MaxValue;
@@ -1048,39 +1003,23 @@ public class AccountController : Controller
     private static string ExtractSeriesName(string? title)
     {
         if (string.IsNullOrWhiteSpace(title)) return "";
-
-        var match = Regex.Match(
-            title, 
-            @"^(.*?)(?:\s*[-–|:]\s*)?(?:Episode|Ep\.?|Part|Pt\.?|Vol\.?|Season\s*\d+\s*Episode)\s*\d+", 
-            RegexOptions.IgnoreCase);
-
+        var match = Regex.Match(title, @"^(.*?)(?:\s*[-–|:]\s*)?(?:Episode|Ep\.?|Part|Pt\.?|Vol\.?|Season\s*\d+\s*Episode)\s*\d+", RegexOptions.IgnoreCase);
         if (match.Success && match.Groups[1].Value.Trim().Length > 2)
-        {
             return match.Groups[1].Value.Trim(' ', '-', '|', ':', '_');
+
+        foreach (var prefix in new[] { "Episode", "Ep ", "Part " })
+        {
+            int idx = title.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+            if (idx > 2) return title[..idx].Trim(' ', '-', '|', ':', '_');
         }
-
-        int epIdx = title.IndexOf("Episode", StringComparison.OrdinalIgnoreCase);
-        if (epIdx > 2) return title.Substring(0, epIdx).Trim(' ', '-', '|', ':', '_');
-
-        int epShortIdx = title.IndexOf("Ep ", StringComparison.OrdinalIgnoreCase);
-        if (epShortIdx > 2) return title.Substring(0, epShortIdx).Trim(' ', '-', '|', ':', '_');
-
-        int partIdx = title.IndexOf("Part ", StringComparison.OrdinalIgnoreCase);
-        if (partIdx > 2) return title.Substring(0, partIdx).Trim(' ', '-', '|', ':', '_');
-
         return "";
     }
 
     private static string? ExtractYouTubeVideoId(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
-        try
-        {
-            var match = Regex.Match(url, @"(?:youtu\.be\/|v=|\/embed\/|\/v\/|\/shorts\/)([a-zA-Z0-9_-]{11})");
-            if (match.Success) return match.Groups[1].Value;
-        }
-        catch { }
-        return null;
+        var match = Regex.Match(url, @"(?:youtu\.be\/|v=|\/embed\/|\/v\/|\/shorts\/)([a-zA-Z0-9_-]{11})");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     [HttpPost]

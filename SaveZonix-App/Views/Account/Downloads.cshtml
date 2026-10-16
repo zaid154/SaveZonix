@@ -5,80 +5,45 @@
     string CleanQuality(string? raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "1080p Full HD";
-        var q = raw.Trim();
-        // Remove parenthetical descriptions such as (Instagram Reel), (Direct Stream), (HLS Stream), (Desktop...), (Max Quality)
-        q = System.Text.RegularExpressions.Regex.Replace(q, @"\s*\([^)]*\)", "").Trim();
-        // Clean any extraneous separator characters or duplicate spaces
-        q = System.Text.RegularExpressions.Regex.Replace(q, @"\s+", " ").Trim('-', '•', '|', ' ');
-        if (string.IsNullOrWhiteSpace(q)) return "Original HD";
-        if (q.Equals("AudioOnly", StringComparison.OrdinalIgnoreCase) || q.Equals("Audio Only", StringComparison.OrdinalIgnoreCase))
-            return "Audio Only";
-        return q;
+        var q = System.Text.RegularExpressions.Regex.Replace(raw.Trim(), @"\s*\([^)]*\)", "").Trim('-', '•', '|', ' ');
+        return string.IsNullOrWhiteSpace(q) ? "Original HD" : (q.StartsWith("Audio", StringComparison.OrdinalIgnoreCase) ? "Audio Only" : q);
     }
 
-    string GetPlatformBadgeClass(string? platform)
+    string GetPlatformBadgeClass(string? p) => (p ?? "").ToLowerInvariant() switch
     {
-        var p = (platform ?? "").ToLowerInvariant();
-        if (p.Contains("youtube")) return "plat-youtube";
-        if (p.Contains("instagram")) return "plat-instagram";
-        if (p.Contains("facebook")) return "plat-facebook";
-        if (p.Contains("xhamster")) return "plat-xhamster";
-        if (p.Contains("mat6")) return "plat-mat6";
-        if (p.Contains("pixelflix")) return "plat-pixelflix";
-        return "plat-generic";
-    }
+        var s when s.Contains("youtube") => "plat-youtube",
+        var s when s.Contains("instagram") => "plat-instagram",
+        var s when s.Contains("facebook") => "plat-facebook",
+        var s when s.Contains("xhamster") => "plat-xhamster",
+        var s when s.Contains("mat6") => "plat-mat6",
+        var s when s.Contains("pixelflix") => "plat-pixelflix",
+        _ => "plat-generic"
+    };
 
-    string GetPlatformIcon(string? platform)
+    string GetPlatformIcon(string? p) => (p ?? "").ToLowerInvariant() switch
     {
-        var p = (platform ?? "").ToLowerInvariant();
-        if (p.Contains("youtube")) return "YT";
-        if (p.Contains("instagram")) return "IG";
-        if (p.Contains("facebook")) return "FB";
-        if (p.Contains("xhamster")) return "XH";
-        if (p.Contains("mat6")) return "M6";
-        if (p.Contains("pixelflix")) return "PX";
-        return "WEB";
-    }
+        var s when s.Contains("youtube") => "YT",
+        var s when s.Contains("instagram") => "IG",
+        var s when s.Contains("facebook") => "FB",
+        var s when s.Contains("xhamster") => "XH",
+        var s when s.Contains("mat6") => "M6",
+        var s when s.Contains("pixelflix") => "PX",
+        _ => "WEB"
+    };
 
-    string CleanPlatformName(string? platform)
-    {
-        if (string.IsNullOrWhiteSpace(platform)) return "Web Stream";
-        var p = platform;
-        if (p.Contains("•")) p = p.Split('•')[0].Trim();
-        return p.ToUpperInvariant();
-    }
+    string CleanPlatformName(string? p) => string.IsNullOrWhiteSpace(p) ? "Web Stream" : (p.Contains('•') ? p.Split('•')[0].Trim() : p).ToUpperInvariant();
 
     TimeZoneInfo GetIndiaTimeZone()
     {
         try { return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time"); } catch { }
         try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata"); } catch { }
-        try { return TimeZoneInfo.FindSystemTimeZoneById("Asia/Calcutta"); } catch { }
         return TimeZoneInfo.CreateCustomTimeZone("IST", TimeSpan.FromHours(5.5), "India Standard Time", "IST");
     }
 
     var indiaTz = GetIndiaTimeZone();
-
-    DateTime ToIndiaTime(DateTime dt)
-    {
-        if (dt == DateTime.MinValue || dt == DateTime.MaxValue) return dt;
-        DateTime utc = dt.Kind == DateTimeKind.Utc 
-            ? dt 
-            : (dt.Kind == DateTimeKind.Local ? dt.ToUniversalTime() : DateTime.SpecifyKind(dt, DateTimeKind.Utc));
-        return TimeZoneInfo.ConvertTimeFromUtc(utc, indiaTz);
-    }
-
-    string FormatIndianTime(DateTime dt, bool withSeconds = false)
-    {
-        var ist = ToIndiaTime(dt);
-        return withSeconds 
-            ? ist.ToString("hh:mm:ss tt", System.Globalization.CultureInfo.InvariantCulture) 
-            : ist.ToString("hh:mm tt", System.Globalization.CultureInfo.InvariantCulture);
-    }
-
-    string FormatIndianDate(DateTime dt)
-    {
-        return ToIndiaTime(dt).ToString("MMM dd, yyyy", System.Globalization.CultureInfo.InvariantCulture);
-    }
+    DateTime ToIndiaTime(DateTime dt) => dt == DateTime.MinValue || dt == DateTime.MaxValue ? dt : TimeZoneInfo.ConvertTimeFromUtc(dt.Kind == DateTimeKind.Utc ? dt : dt.ToUniversalTime(), indiaTz);
+    string FormatIndianTime(DateTime dt, bool withSeconds = false) => ToIndiaTime(dt).ToString(withSeconds ? "hh:mm:ss tt" : "hh:mm tt", System.Globalization.CultureInfo.InvariantCulture);
+    string FormatIndianDate(DateTime dt) => ToIndiaTime(dt).ToString("MMM dd, yyyy", System.Globalization.CultureInfo.InvariantCulture);
 }
 
 <div class="account-page">

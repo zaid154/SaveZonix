@@ -87,16 +87,40 @@ public static class MediaHelper
         return false;
     }
 
-    public static async Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k")
+    public static async Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k", string format = "mp3")
     {
         string ffmpegPath = GetFfmpegPath();
 
         try
         {
+            if (format.Equals("m4a", StringComparison.OrdinalIgnoreCase))
+            {
+                var psiCopy = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{inputVideoPath}\" -vn -c:a copy \"{outputAudioPath}\" -y",
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var procCopy = Process.Start(psiCopy);
+                if (procCopy != null)
+                {
+                    await procCopy.WaitForExitAsync();
+                    if (procCopy.ExitCode == 0 && File.Exists(outputAudioPath) && new FileInfo(outputAudioPath).Length > 1024)
+                        return true;
+                }
+            }
+
+            string codecArgs = format.Equals("m4a", StringComparison.OrdinalIgnoreCase)
+                ? $"-c:a aac -b:a {bitrate} -ar 48000"
+                : $"-c:a libmp3lame -b:a {bitrate} -ar 44100 -id3v2_version 3 -preset ultrafast";
+
             var psi = new ProcessStartInfo
             {
                 FileName = ffmpegPath,
-                Arguments = $"-i \"{inputVideoPath}\" -vn -b:a {bitrate} \"{outputAudioPath}\" -y",
+                Arguments = $"-i \"{inputVideoPath}\" -vn {codecArgs} -threads 2 \"{outputAudioPath}\" -y",
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
                 UseShellExecute = false,

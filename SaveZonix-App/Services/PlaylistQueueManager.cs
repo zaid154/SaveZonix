@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using SaveZonix.Core;
 using SaveZonix.Models;
 using YoutubeExplode;
 using YoutubeExplode.Common;
@@ -248,104 +249,10 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         if (record == null) return false;
 
-        string targetVid = videoId;
-        if (string.IsNullOrEmpty(targetVid) && !string.IsNullOrEmpty(record.OriginalUrl))
-        {
-            try
-            {
-                var uri = new Uri(record.OriginalUrl);
-                var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-                targetVid = query["v"] ?? "";
-            }
-            catch { }
-        }
-        if (string.IsNullOrEmpty(targetVid)) targetVid = record.Id;
+        var singleBatch = CreateBatchJobFromHistories(new List<StreamHelper.Data.DownloadHistory> { record }, "PL-01", "Playlist Video");
+        var retryItemState = singleBatch.Items[0];
+        _jobs[singleBatch.JobId] = singleBatch;
 
-        string singleJobId = Guid.NewGuid().ToString("N");
-        string parsedCode = "PL-01";
-        string parsedTitle = "Playlist Video";
-        if (!string.IsNullOrEmpty(record.DownloadStrategy) && record.DownloadStrategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
-        {
-            var parts = record.DownloadStrategy.Substring("Playlist:".Length).Split('•');
-            if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0])) parsedCode = parts[0].Trim();
-            if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])) parsedTitle = parts[1].Trim();
-        }
-
-        string thumb = !string.IsNullOrEmpty(record.ThumbnailUrl)
-            ? record.ThumbnailUrl
-            : $"https://i.ytimg.com/vi/{targetVid}/hqdefault.jpg";
-
-        int parsedIndex = 1;
-        string parsedSubId = $"{parsedCode} #01";
-        bool hasPrefix = false;
-        if (!string.IsNullOrEmpty(record.FileName))
-        {
-            var m = System.Text.RegularExpressions.Regex.Match(record.FileName, @"^(\d{1,3})\s*-\s*");
-            if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
-            {
-                parsedIndex = idxVal;
-                parsedSubId = $"{parsedCode} #{parsedIndex:D2}";
-                hasPrefix = true;
-            }
-        }
-        if (!hasPrefix && !string.IsNullOrEmpty(record.ValidationDetails))
-        {
-            var m = System.Text.RegularExpressions.Regex.Match(record.ValidationDetails, @"#(\d{1,3})");
-            if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
-            {
-                parsedIndex = idxVal;
-                parsedSubId = $"{parsedCode} #{parsedIndex:D2}";
-                hasPrefix = true;
-            }
-        }
-
-        string baseDownloads = GetDownloadsDirectory();
-        string safeFolderTitle = SanitizeFileName(parsedTitle);
-        string retryFolder = Path.Combine(baseDownloads, safeFolderTitle);
-        string legacyBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        string legacyFolder = Path.Combine(legacyBase, safeFolderTitle);
-        if (!Directory.Exists(retryFolder) && Directory.Exists(legacyFolder))
-        {
-            retryFolder = legacyFolder;
-        }
-        else if (!Directory.Exists(retryFolder))
-        {
-            try { Directory.CreateDirectory(retryFolder); } catch { }
-        }
-
-        var retryItemState = new PlaylistItemDownloadState
-        {
-            TaskId = record.Id, // REUSE EXISTING DATABASE ID - DO NOT DUPLICATE
-            VideoId = targetVid,
-            Index = parsedIndex,
-            SubId = parsedSubId,
-            Title = record.Title,
-            ThumbnailUrl = thumb,
-            Quality = record.Quality,
-            Format = record.Format,
-            NumberPrefix = hasPrefix,
-            Status = "Pending",
-            RetryCount = record.RetryCount + 1,
-            Cts = new CancellationTokenSource()
-        };
-
-        var singleBatch = new PlaylistBatchJobState
-        {
-            JobId = singleJobId,
-            PlaylistCode = parsedCode,
-            PlaylistTitle = parsedTitle,
-            UserId = record.UserId,
-            UserEmail = record.UserEmail,
-            UserName = record.UserName,
-            TotalVideos = 1,
-            QueuedCount = 1,
-            Status = "Downloading",
-            OutputFolder = retryFolder,
-            Cts = new CancellationTokenSource(),
-            Items = new List<PlaylistItemDownloadState> { retryItemState }
-        };
-
-        _jobs[singleJobId] = singleBatch;
         try { await dbHistory.MarkRetryingAsync(record.Id, retryItemState.RetryCount, "User retried download"); } catch { }
 
         _ = Task.Run(async () =>
@@ -542,99 +449,10 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         if (failedHistories.Count == 0) return false;
 
-        // Create a new batch job on the fly for these failed items!
-        string newJobId = Guid.NewGuid().ToString("N");
-        string resolvedCode = !string.IsNullOrEmpty(playlistCode) ? playlistCode : "PL-RETRY";
-        string title = failedHistories.First().DownloadStrategy?.Replace("Playlist:", "").Trim() ?? "Retry Playlist Items";
-        if (title.Contains("•"))
-        {
-            var titleParts = title.Split('•');
-            if (titleParts.Length > 1 && !string.IsNullOrWhiteSpace(titleParts[1])) title = titleParts[1].Trim();
-        }
-
-        string baseDownloads = GetDownloadsDirectory();
-        string safeFolderTitle = SanitizeFileName(title);
-        string retryFolder = Path.Combine(baseDownloads, safeFolderTitle);
-        string legacyBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
-        string legacyFolder = Path.Combine(legacyBase, safeFolderTitle);
-        if (!Directory.Exists(retryFolder) && Directory.Exists(legacyFolder))
-        {
-            retryFolder = legacyFolder;
-        }
-        else if (!Directory.Exists(retryFolder))
-        {
-            try { Directory.CreateDirectory(retryFolder); } catch { }
-        }
-
-        var newJob = new PlaylistBatchJobState
-        {
-            JobId = newJobId,
-            PlaylistCode = resolvedCode,
-            PlaylistTitle = title,
-            UserId = failedHistories.First().UserId,
-            UserEmail = failedHistories.First().UserEmail,
-            UserName = failedHistories.First().UserName,
-            TotalVideos = failedHistories.Count,
-            QueuedCount = failedHistories.Count,
-            Status = "Downloading",
-            OutputFolder = retryFolder,
-            Cts = new CancellationTokenSource(),
-            Items = failedHistories.Select((h, idx) =>
-            {
-                string vid = "";
-                try
-                {
-                    var uri = new Uri(h.OriginalUrl);
-                    var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
-                    vid = query["v"] ?? "";
-                }
-                catch { }
-                if (string.IsNullOrEmpty(vid)) vid = h.Id;
-
-                string thumb = !string.IsNullOrEmpty(h.ThumbnailUrl)
-                    ? h.ThumbnailUrl
-                    : $"https://i.ytimg.com/vi/{vid}/hqdefault.jpg";
-
-                int parsedIndex = idx + 1;
-                bool hasPrefix = false;
-                if (!string.IsNullOrEmpty(h.FileName))
-                {
-                    var m = System.Text.RegularExpressions.Regex.Match(h.FileName, @"^(\d{1,3})\s*-\s*");
-                    if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
-                    {
-                        parsedIndex = idxVal;
-                        hasPrefix = true;
-                    }
-                }
-                if (!hasPrefix && !string.IsNullOrEmpty(h.ValidationDetails))
-                {
-                    var m = System.Text.RegularExpressions.Regex.Match(h.ValidationDetails, @"#(\d{1,3})");
-                    if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
-                    {
-                        parsedIndex = idxVal;
-                        hasPrefix = true;
-                    }
-                }
-
-                return new PlaylistItemDownloadState
-                {
-                    TaskId = h.Id, // REUSE EXISTING DATABASE ID - NO DUPLICATES!
-                    VideoId = vid,
-                    Index = parsedIndex,
-                    SubId = $"{resolvedCode} #{parsedIndex:D2}",
-                    Title = h.Title,
-                    ThumbnailUrl = thumb,
-                    Quality = h.Quality,
-                    Format = h.Format,
-                    NumberPrefix = hasPrefix,
-                    Status = "Pending",
-                    RetryCount = h.RetryCount + 1,
-                    Cts = new CancellationTokenSource()
-                };
-            }).ToList()
-        };
-
-        _jobs[newJobId] = newJob;
+        string defaultCode = !string.IsNullOrEmpty(playlistCode) ? playlistCode : "PL-RETRY";
+        string defaultTitle = failedHistories.First().DownloadStrategy?.Replace("Playlist:", "").Trim() ?? "Retry Playlist Items";
+        var newJob = CreateBatchJobFromHistories(failedHistories, defaultCode, defaultTitle);
+        _jobs[newJob.JobId] = newJob;
 
         // Mark items as retrying in database immediately
         foreach (var item in newJob.Items)
@@ -671,6 +489,105 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         });
 
         return true;
+    }
+
+    private PlaylistBatchJobState CreateBatchJobFromHistories(
+        List<StreamHelper.Data.DownloadHistory> histories,
+        string defaultCode,
+        string defaultTitle)
+    {
+        string newJobId = Guid.NewGuid().ToString("N");
+        string resolvedCode = defaultCode;
+        string title = defaultTitle;
+
+        var first = histories.First();
+        if (!string.IsNullOrEmpty(first.DownloadStrategy) && first.DownloadStrategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = first.DownloadStrategy.Substring("Playlist:".Length).Split('•');
+            if (parts.Length > 0 && !string.IsNullOrWhiteSpace(parts[0])) resolvedCode = parts[0].Trim();
+            if (parts.Length > 1 && !string.IsNullOrWhiteSpace(parts[1])) title = parts[1].Trim();
+        }
+        else if (title.Contains('•'))
+        {
+            var titleParts = title.Split('•');
+            if (titleParts.Length > 1 && !string.IsNullOrWhiteSpace(titleParts[1])) title = titleParts[1].Trim();
+        }
+
+        string baseDownloads = GetDownloadsDirectory();
+        string safeFolderTitle = SanitizeFileName(title);
+        string retryFolder = Path.Combine(baseDownloads, safeFolderTitle);
+        string legacyBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+        string legacyFolder = Path.Combine(legacyBase, safeFolderTitle);
+        if (!Directory.Exists(retryFolder) && Directory.Exists(legacyFolder))
+            retryFolder = legacyFolder;
+        else if (!Directory.Exists(retryFolder))
+            try { Directory.CreateDirectory(retryFolder); } catch { }
+
+        return new PlaylistBatchJobState
+        {
+            JobId = newJobId,
+            PlaylistCode = resolvedCode,
+            PlaylistTitle = title,
+            UserId = first.UserId,
+            UserEmail = first.UserEmail,
+            UserName = first.UserName,
+            TotalVideos = histories.Count,
+            QueuedCount = histories.Count,
+            Status = "Downloading",
+            OutputFolder = retryFolder,
+            Cts = new CancellationTokenSource(),
+            Items = histories.Select((h, idx) =>
+            {
+                string vid = "";
+                try
+                {
+                    if (!string.IsNullOrEmpty(h.OriginalUrl))
+                    {
+                        var uri = new Uri(h.OriginalUrl);
+                        vid = System.Web.HttpUtility.ParseQueryString(uri.Query)["v"] ?? "";
+                    }
+                }
+                catch { }
+                if (string.IsNullOrEmpty(vid)) vid = h.Id;
+
+                int parsedIndex = idx + 1;
+                bool hasPrefix = false;
+                if (!string.IsNullOrEmpty(h.FileName))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(h.FileName, @"^(\d{1,3})\s*-\s*");
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
+                    {
+                        parsedIndex = idxVal;
+                        hasPrefix = true;
+                    }
+                }
+                if (!hasPrefix && !string.IsNullOrEmpty(h.ValidationDetails))
+                {
+                    var m = System.Text.RegularExpressions.Regex.Match(h.ValidationDetails, @"#(\d{1,3})");
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out int idxVal))
+                    {
+                        parsedIndex = idxVal;
+                        hasPrefix = true;
+                    }
+                }
+
+                return new PlaylistItemDownloadState
+                {
+                    TaskId = h.Id,
+                    VideoId = vid,
+                    Index = parsedIndex,
+                    SubId = $"{resolvedCode} #{parsedIndex:D2}",
+                    Title = h.Title,
+                    ThumbnailUrl = !string.IsNullOrEmpty(h.ThumbnailUrl) ? h.ThumbnailUrl : $"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                    Quality = h.Quality,
+                    Format = h.Format,
+                    NumberPrefix = hasPrefix,
+                    Status = "Pending",
+                    RetryCount = h.RetryCount + 1,
+                    Cts = new CancellationTokenSource()
+                };
+            }).ToList()
+        };
     }
 
     public async Task<PlaylistBatchJobState> StartBatchDownloadAsync(PlaylistBatchDownloadRequest request, string? userId = null, string? userEmail = null, string? userName = null, CancellationToken cancellationToken = default)
@@ -1290,58 +1207,17 @@ public class PlaylistQueueManager : IPlaylistQueueManager
     // ─────────────────────────────────────────────────────────────
     // Self-Contained Helper Utilities
     // ─────────────────────────────────────────────────────────────
-    private static string GetDownloadsDirectory()
-    {
-        string userDownloads = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "SaveZonix");
-        if (!Directory.Exists(userDownloads))
-        {
-            try { Directory.CreateDirectory(userDownloads); } catch { }
-        }
-        if (Directory.Exists(userDownloads)) return userDownloads;
-
-        string localDownloads = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Downloads", "SaveZonix");
-        if (!Directory.Exists(localDownloads))
-        {
-            try { Directory.CreateDirectory(localDownloads); } catch { }
-        }
-        return localDownloads;
-    }
+    private static string GetDownloadsDirectory() => MediaHelper.GetDownloadsDirectory();
 
     private static string SanitizeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "video";
-        // Strip leading browser tab notification count like "(15) Video Title" -> "Video Title"
         name = System.Text.RegularExpressions.Regex.Replace(name.Trim(), @"^\(\d+\)\s*", "");
-        var invalid = new HashSet<char>(Path.GetInvalidFileNameChars()) { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
-        var sb = new System.Text.StringBuilder();
-        foreach (var c in name)
-        {
-            if (c == '|' || c == '/' || c == '\\' || c == ':')
-            {
-                sb.Append(' ');
-            }
-            else if (!invalid.Contains(c))
-            {
-                sb.Append(c);
-            }
-        }
-        string clean = System.Text.RegularExpressions.Regex.Replace(sb.ToString(), @"\s+", " ").Trim(' ', '.');
-        return string.IsNullOrWhiteSpace(clean) ? "video" : clean;
+        return MediaHelper.SanitizeFileName(name);
     }
 
-    private static string GetAvailableUniqueFilePath(string folder, string fileName)
-    {
-        string path = Path.Combine(folder, fileName);
-        if (!File.Exists(path)) return path;
-        string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-        string ext = Path.GetExtension(fileName);
-        for (int i = 1; i <= 500; i++)
-        {
-            string candidate = Path.Combine(folder, $"{nameWithoutExt} ({i}){ext}");
-            if (!File.Exists(candidate)) return candidate;
-        }
-        return Path.Combine(folder, $"{nameWithoutExt}_{DateTime.UtcNow.Ticks.ToString().Substring(10)}{ext}");
-    }
+    private static string GetAvailableUniqueFilePath(string folder, string fileName) =>
+        MediaHelper.GetAvailableUniqueFilePath(folder, fileName);
 
     private async Task DownloadStreamToDiskAsync(IStreamInfo streamInfo, string targetPath, IProgress<long>? progress, CancellationToken ct)
     {
@@ -1532,143 +1408,13 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         }
     }
 
-    private static string GetFfmpegPath()
-    {
-        string[] candidates = new[]
-        {
-            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe"),
-            Path.Combine(Directory.GetCurrentDirectory(), "ffmpeg.exe"),
-            Path.Combine(Directory.GetCurrentDirectory(), "SaveZonix-App", "ffmpeg.exe"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "ffmpeg.exe"),
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "ffmpeg.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "SaveZonix", "ffmpeg.exe")
-        };
+    private static string GetFfmpegPath() => MediaHelper.GetFfmpegPath();
 
-        foreach (var path in candidates)
-        {
-            try
-            {
-                if (File.Exists(path)) return Path.GetFullPath(path);
-            }
-            catch { }
-        }
+    private static Task<bool> MuxVideoAndAudioAsync(string videoPath, string audioPath, string outputPath) =>
+        MediaHelper.MuxVideoAndAudioAsync(videoPath, audioPath, outputPath);
 
-        return "ffmpeg";
-    }
-
-    private static async Task<bool> MuxVideoAndAudioAsync(string videoPath, string audioPath, string outputPath)
-    {
-        // 1. Try instant lossless stream copy first (-c copy) - takes < 1 second!
-        try
-        {
-            var psiFast = new ProcessStartInfo
-            {
-                FileName = GetFfmpegPath(),
-                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c copy -map 0:v:0 -map 1:a:0? -threads 0 \"{outputPath}\" -y",
-                RedirectStandardOutput = false,
-                RedirectStandardError = false,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var procFast = Process.Start(psiFast);
-            if (procFast != null)
-            {
-                await procFast.WaitForExitAsync();
-                if (procFast.ExitCode == 0 && File.Exists(outputPath) && new FileInfo(outputPath).Length > 1024)
-                {
-                    return true;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[FFmpeg Fast Mux] {ex.Message}");
-        }
-
-        // 2. Fallback: AAC encode if audio codec was incompatible with MP4 container
-        try
-        {
-            if (File.Exists(outputPath)) File.Delete(outputPath);
-            var psiFallback = new ProcessStartInfo
-            {
-                FileName = GetFfmpegPath(),
-                Arguments = $"-i \"{videoPath}\" -i \"{audioPath}\" -c:v copy -c:a aac -b:a 192k -threads 2 -preset ultrafast -map 0:v:0 -map 1:a:0? \"{outputPath}\" -y",
-                RedirectStandardOutput = false,
-                RedirectStandardError = false,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var procFallback = Process.Start(psiFallback);
-            if (procFallback != null)
-            {
-                await procFallback.WaitForExitAsync();
-                return procFallback.ExitCode == 0 && File.Exists(outputPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[FFmpeg Fallback Mux] {ex.Message}");
-        }
-        return false;
-    }
-
-    private static async Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k", string format = "mp3")
-    {
-        try
-        {
-            // If output format is M4A, attempt instant lossless stream copy first (-c:a copy)
-            if (format.Equals("m4a", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    var psiCopy = new ProcessStartInfo
-                    {
-                        FileName = GetFfmpegPath(),
-                        Arguments = $"-i \"{inputVideoPath}\" -vn -c:a copy \"{outputAudioPath}\" -y",
-                        RedirectStandardOutput = false,
-                        RedirectStandardError = false,
-                        UseShellExecute = false,
-                        CreateNoWindow = true
-                    };
-                    using var procCopy = Process.Start(psiCopy);
-                    if (procCopy != null)
-                    {
-                        await procCopy.WaitForExitAsync();
-                        if (procCopy.ExitCode == 0 && File.Exists(outputAudioPath) && new FileInfo(outputAudioPath).Length > 1024)
-                        {
-                            return true;
-                        }
-                    }
-                }
-                catch { }
-            }
-
-            string audioCodecArgs = format.Equals("m4a", StringComparison.OrdinalIgnoreCase)
-                ? $"-c:a aac -b:a {bitrate} -ar 48000"
-                : $"-c:a libmp3lame -b:a {bitrate} -ar 44100 -id3v2_version 3 -preset ultrafast";
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = GetFfmpegPath(),
-                Arguments = $"-i \"{inputVideoPath}\" -vn {audioCodecArgs} -threads 2 \"{outputAudioPath}\" -y",
-                RedirectStandardOutput = false,
-                RedirectStandardError = false,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            using var proc = Process.Start(psi);
-            if (proc != null)
-            {
-                await proc.WaitForExitAsync();
-                return proc.ExitCode == 0 && File.Exists(outputAudioPath);
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[FFmpeg Audio Extract] {ex.Message}");
-        }
-        return false;
-    }
+    private static Task<bool> ExtractAudioAsync(string inputVideoPath, string outputAudioPath, string bitrate = "320k", string format = "mp3") =>
+        MediaHelper.ExtractAudioAsync(inputVideoPath, outputAudioPath, bitrate, format);
 
     private async Task<YoutubeExplode.Videos.Video> GetVideoMetadataWithRetryAsync(string videoId, CancellationToken ct, int maxRetries = 4)
     {

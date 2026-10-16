@@ -9,33 +9,7 @@ public class ParallelDownloader
 
     public ParallelDownloader(HttpClient? httpClient = null)
     {
-        if (httpClient != null)
-        {
-            _httpClient = httpClient;
-        }
-        else
-        {
-            var handler = new SocketsHttpHandler
-            {
-                SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-                {
-                    RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
-                    EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
-                },
-                AutomaticDecompression = DecompressionMethods.All,
-                UseCookies = false,
-                MaxConnectionsPerServer = 500,
-                EnableMultipleHttp2Connections = true,
-                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2),
-                ConnectTimeout = TimeSpan.FromSeconds(10)
-            };
-
-            _httpClient = new HttpClient(handler)
-            {
-                Timeout = TimeSpan.FromSeconds(45)
-            };
-        }
+        _httpClient = httpClient ?? SaveZonix.Core.MediaHelper.CreateConfiguredHttpClient();
     }
 
     public async Task<List<SegmentItem>> DownloadSegmentsAsync(
