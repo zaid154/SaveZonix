@@ -15,9 +15,11 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddSaveZonixServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 1. MongoDB Atlas Driver (Singleton Client & Database) - Optional, zero hardcoded credentials
+        // 1. MongoDB Atlas Driver (Singleton Client & Database) - Zero hardcoded credentials
         string? mongoConnStr = configuration["MongoDb:ConnectionString"]
-            ?? configuration.GetConnectionString("MongoDb");
+            ?? configuration.GetConnectionString("MongoDb")
+            ?? Environment.GetEnvironmentVariable("MONGO_URI")
+            ?? Environment.GetEnvironmentVariable("MONGODB_URI");
         string mongoDbName = configuration["MongoDb:DatabaseName"] ?? "SaveZonixDb";
 
         if (!string.IsNullOrWhiteSpace(mongoConnStr))
@@ -25,8 +27,8 @@ public static class ServiceCollectionExtensions
             try
             {
                 var mongoSettings = MongoClientSettings.FromConnectionString(mongoConnStr);
-                mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
-                mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(2);
+                mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(8);
+                mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(8);
 
                 var mongoClient = new MongoClient(mongoSettings);
                 var mongoDb = mongoClient.GetDatabase(mongoDbName);

@@ -29,7 +29,9 @@ public class MongoDbAnalyticsService : IDownloadAnalyticsService
         _logger = logger;
 
         string? connStr = config["MongoDb:ConnectionString"] 
-            ?? config.GetConnectionString("MongoDb");
+            ?? config.GetConnectionString("MongoDb")
+            ?? Environment.GetEnvironmentVariable("MONGO_URI")
+            ?? Environment.GetEnvironmentVariable("MONGODB_URI");
 
         if (!string.IsNullOrWhiteSpace(connStr))
         {
@@ -38,8 +40,8 @@ public class MongoDbAnalyticsService : IDownloadAnalyticsService
                 string dbName = config["MongoDb:DatabaseName"] ?? "SaveZonixDb";
 
                 var mongoSettings = MongoClientSettings.FromConnectionString(connStr);
-                mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(2);
-                mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(2);
+                mongoSettings.ServerSelectionTimeout = TimeSpan.FromSeconds(8);
+                mongoSettings.ConnectTimeout = TimeSpan.FromSeconds(8);
 
                 var client = new MongoClient(mongoSettings);
                 _database = client.GetDatabase(dbName);

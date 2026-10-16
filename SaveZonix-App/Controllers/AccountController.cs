@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -11,6 +14,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using SaveZonix.Core;
 using SaveZonix.Models;
 using SaveZonix.Services;
 using StreamHelper.Data;
@@ -169,6 +173,97 @@ public class AccountController : Controller
         return View(new LoginViewModel { ReturnUrl = returnUrl });
     }
 
+    private static readonly HttpClient _authClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+    private async Task<(bool Success, string? ErrorMessage, BsonDocument? UserDoc)> TryCloudLoginAsync(string email, string password)
+    {
+        var cloudUrls = new[]
+        {
+            "https://save-zonix.vercel.app/api/auth/login",
+            "https://savezonix.onrender.com/api/auth/login"
+        };
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            email = email.Trim().ToLowerInvariant(),
+            password = password
+        });
+
+        foreach (var url in cloudUrls)
+        {
+            try
+            {
+                using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(7));
+                var resp = await _authClient.PostAsync(url, content, cts.Token);
+                var json = await resp.Content.ReadAsStringAsync(cts.Token);
+
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (resp.IsSuccessStatusCode && root.TryGetProperty("success", out var s) && s.GetBoolean())
+                {
+                    if (root.TryGetProperty("user", out var u))
+                    {
+                        string id = u.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                        string name = u.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
+                        string uEmail = u.TryGetProperty("email", out var eProp) ? eProp.GetString() ?? "" : email;
+                        string role = u.TryGetProperty("role", out var rProp) ? rProp.GetString() ?? "User" : "User";
+                        bool isVip = u.TryGetProperty("isVip", out var vProp) && vProp.GetBoolean();
+
+                        var userDoc = new BsonDocument
+                        {
+                            { "_id", !string.IsNullOrEmpty(id) ? id : Guid.NewGuid().ToString("N") },
+                            { "name", name },
+                            { "FullName", name },
+                            { "email", uEmail },
+                            { "Email", uEmail },
+                            { "role", role },
+                            { "Role", role },
+                            { "isVip", isVip },
+                            { "isActive", true },
+                            { "IsActive", true },
+                            { "emailConfirmed", true }
+                        };
+
+                        // Cache user locally for offline access
+                        try
+                        {
+                            await _analyticsService.CreateOrUpdateUserAsync(new SaveZonixUser
+                            {
+                                Id = id,
+                                FullName = name,
+                                Email = uEmail,
+                                Role = role,
+                                IsVip = isVip,
+                                IsActive = true,
+                                PasswordHash = MediaHelper.HashPassword(password)
+                            });
+                        }
+                        catch { }
+
+                        return (true, null, userDoc);
+                    }
+                }
+                else if (resp.StatusCode == System.Net.HttpStatusCode.BadRequest || resp.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    string errMsg = "Invalid email or password.";
+                    if (root.TryGetProperty("error", out var errProp))
+                    {
+                        errMsg = errProp.GetString() ?? errMsg;
+                    }
+                    return (false, errMsg, null);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AccountController] Cloud auth attempt at {url} failed: {ex.Message}");
+            }
+        }
+
+        return (false, null, null);
+    }
+
     [HttpPost]
     [AllowAnonymous]
     [ValidateAntiForgeryToken]
@@ -179,7 +274,19 @@ public class AccountController : Controller
         var user = await FindUserByEmailAsync(model.Email);
         if (user == null)
         {
-            ModelState.AddModelError(string.Empty, "Invalid email or password.");
+            // Authenticate securely via Cloud API (Vercel / Render)
+            var (cloudOk, cloudError, cloudUser) = await TryCloudLoginAsync(model.Email, model.Password);
+            if (cloudOk && cloudUser != null)
+            {
+                await SignInUserAsync(cloudUser, model.RememberMe);
+                if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
+                {
+                    return Redirect(model.ReturnUrl);
+                }
+                return RedirectToAction("Index", "Home");
+            }
+
+            ModelState.AddModelError(string.Empty, cloudError ?? "Invalid email or password.");
             return View(model);
         }
 
@@ -204,11 +311,23 @@ public class AccountController : Controller
 
         if (!VerifyUserPassword(model.Password, storedHash))
         {
-            ModelState.AddModelError(string.Empty, "Invalid email or password.");
+            // Local check failed or hash updated on cloud: verify against Cloud API
+            var (cloudOk, cloudError, cloudUser) = await TryCloudLoginAsync(model.Email, model.Password);
+            if (cloudOk && cloudUser != null)
+            {
+                await SignInUserAsync(cloudUser, model.RememberMe);
+                if (!string.IsNullOrEmpty(model.ReturnUrl) && Url.IsLocalUrl(model.ReturnUrl))
+                {
+                    return Redirect(model.ReturnUrl);
+                }
+                return RedirectToAction("Index", "Home");
+            }
+
+            ModelState.AddModelError(string.Empty, cloudError ?? "Invalid email or password.");
             return View(model);
         }
 
-        // Update last login in MongoDB
+        // Update last login in MongoDB if connected
         if (_usersCollection != null)
         {
             try

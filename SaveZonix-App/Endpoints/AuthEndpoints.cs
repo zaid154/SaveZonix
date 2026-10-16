@@ -172,7 +172,51 @@ public static class AuthEndpoints
             var user = await analytics.FindUserByEmailAsync(req.Email);
             if (user == null || string.IsNullOrEmpty(user.PasswordHash) || !MediaHelper.VerifyPassword(req.Password, user.PasswordHash))
             {
-                return Results.BadRequest(new { success = false, message = "Invalid email or password." });
+                var cloudUrls = new[] { "https://save-zonix.vercel.app/api/auth/login", "https://savezonix.onrender.com/api/auth/login" };
+                var payload = System.Text.Json.JsonSerializer.Serialize(new { email = req.Email.Trim().ToLowerInvariant(), password = req.Password });
+                using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(7) };
+                bool cloudSuccess = false;
+
+                foreach (var url in cloudUrls)
+                {
+                    try
+                    {
+                        using var content = new System.Net.Http.StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+                        var resp = await client.PostAsync(url, content);
+                        var json = await resp.Content.ReadAsStringAsync();
+                        using var doc = System.Text.Json.JsonDocument.Parse(json);
+                        var root = doc.RootElement;
+
+                        if (resp.IsSuccessStatusCode && root.TryGetProperty("success", out var s) && s.GetBoolean() && root.TryGetProperty("user", out var u))
+                        {
+                            string id = u.TryGetProperty("id", out var idProp) ? idProp.GetString() ?? "" : "";
+                            string name = u.TryGetProperty("name", out var nProp) ? nProp.GetString() ?? "" : "";
+                            string uEmail = u.TryGetProperty("email", out var eProp) ? eProp.GetString() ?? "" : req.Email;
+                            string role = u.TryGetProperty("role", out var rProp) ? rProp.GetString() ?? "User" : "User";
+                            bool isVipCloud = u.TryGetProperty("isVip", out var vProp) && vProp.GetBoolean();
+
+                            user = new SaveZonixUser
+                            {
+                                Id = id,
+                                FullName = name,
+                                Email = uEmail,
+                                Role = role,
+                                IsVip = isVipCloud,
+                                IsActive = true,
+                                PasswordHash = MediaHelper.HashPassword(req.Password)
+                            };
+                            await analytics.CreateOrUpdateUserAsync(user);
+                            cloudSuccess = true;
+                            break;
+                        }
+                    }
+                    catch { }
+                }
+
+                if (!cloudSuccess || user == null)
+                {
+                    return Results.BadRequest(new { success = false, message = "Invalid email or password." });
+                }
             }
 
             bool isAdmin = string.Equals(user.Role, "Admin", StringComparison.OrdinalIgnoreCase) ||
