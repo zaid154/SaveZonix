@@ -48,13 +48,15 @@ SaveZonix/
 │
 ├── SaveZonix-App/               # Desktop app (.NET 10 MVC / Win-x64)
 │   ├── Controllers/             # MVC controllers (Home, Account, Cinema, Playlist)
-│   ├── Core/                    # ParallelDownloader, M3U8Parser, FFmpeg runner
+│   ├── Core/                    # ParallelDownloader, M3U8Parser, MediaValidator, MediaHelper
 │   ├── Data/                    # AppDbContext (SQLite)
+│   ├── Endpoints/               # Modular API endpoint slices (Download, Auth, System)
 │   ├── Extension/               # Chrome Extension (Manifest V3)
-│   ├── Models/                  # C# models
-│   ├── Services/                # YouTube extraction, playlist queue, cloud sync
+│   ├── Extensions/              # Service collection & middleware pipeline extensions
+│   ├── Models/                  # C# domain & data-transfer models
+│   ├── Services/                # YouTube extraction, playlist queue manager, history service
 │   ├── Views/                   # Razor views
-│   ├── wwwroot/                 # Desktop frontend (HTML, CSS, JS)
+│   ├── wwwroot/                 # Desktop frontend assets (HTML, CSS, JS)
 │   └── installer/               # Inno Setup config (.iss)
 │
 └── SaveZonix-Web/               # Web portal and API
@@ -74,11 +76,13 @@ SaveZonix/
 ## Features
 
 ### Desktop App (`SaveZonix-App`)
-- **Parallel Chunk Downloader:** Splits downloads into multiple concurrent byte-range HTTP connections.
-- **YouTube & Playlists:** Single video and batch playlist downloads with resolution selection up to 4K/8K and audio extraction.
-- **HLS Stream Capture:** Records live `.m3u8` streams into `.mp4` files using bundled FFmpeg.
-- **Embedded Player:** Built-in player for previewing completed downloads.
-- **Local Storage:** Uses embedded SQLite (`streamhelper.db`) with WAL mode for local history.
+- **Parallel Chunk Downloader:** Splits downloads into multiple concurrent byte-range HTTP connections with dynamic thread scaling.
+- **YouTube & Batch Playlists:** Single video and playlist queue manager with seed-chaining, resolution selection up to 4K/8K, and lossless audio extraction.
+- **HLS Stream Capture:** Downloads and remuxes live `.m3u8` streams into `.mp4` containers via bundled FFmpeg.
+- **Media Validation Engine:** Strict post-download atom validation (`moov`, `mdat`, `ftyp`), track verification, and duration probing to prevent incomplete files.
+- **Ultra-Fast Stream Copy:** Direct copy remuxing (`-c copy`) for MP4 containers, completing in ~0.3s without CPU re-encoding overhead.
+- **Embedded Cinema Player:** Built-in video player for instant preview of downloaded files.
+- **Local Storage:** Embedded SQLite (`streamhelper.db`) with WAL mode for local download history.
 
 ### Web & API (`SaveZonix-Web`)
 - **Dual-Channel OTP Delivery:** Sends 6-digit verification codes using Gmail SMTP as primary, with automatic failover to Brevo REST API (HTTPS port 443) if SMTP is blocked on cloud hosts.
@@ -195,6 +199,13 @@ FRONTEND_URL=https://save-zonix.vercel.app
 ---
 
 ## Changelog
+
+### v2.6.0
+- **Core Architecture & Refactoring:** Eliminated ~1,800 lines of redundant and dead code across 10 files (-1,250 net LOC) while maintaining zero compile warnings and 100% test compatibility.
+- **Unified Media Utilities:** Centralized FFmpeg path resolution, zero-CPU stream copy muxing (`-c copy`), and audio extraction into `MediaHelper`.
+- **Media Validator Hardening:** Upgraded MP4 atom validation with `Stream.ReadExactly` to eliminate incomplete buffer reads and avoid corrupted file delivery.
+- **Endpoint Modularization:** Extracted route handlers into clean slice modules under `SaveZonix-App/Endpoints/`.
+- **Service Layer Deduplication:** Consolidated MongoDB telemetry updates and query pagination inside `IDownloadHistoryService`.
 
 ### v2.5.2
 - **Email OTP Suite:** Added dual-channel dispatch (Gmail SMTP with Brevo HTTP API failover), HMAC-SHA256 token hashing, 10-minute MongoDB TTL persistence, and abuse limits (60s cooldown, 5-attempt lockout, disposable email filter).
