@@ -340,6 +340,138 @@ public static class MediaHelper
         return $"{(bytes / (1024.0 * 1024.0 * 1024.0)):F2} GB";
     }
 
+    public static string? GetExtensionDirectory()
+    {
+        string[] candidates = new[]
+        {
+            // 1. Installed location (Inno Setup: %LOCALAPPDATA%\Programs\SaveZonix\Extension)
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "SaveZonix", "Extension"),
+            // 2. Project source directory relative to bin/Debug or bin/Release
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "Extension"),
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SaveZonix-App", "Extension"),
+            // 3. Current Working Directory and common subpaths
+            Path.Combine(Directory.GetCurrentDirectory(), "SaveZonix-App", "Extension"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Extension"),
+            // 4. Output folder beside Zonix.exe
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Extension"),
+            Path.Combine(AppContext.BaseDirectory, "Extension")
+        };
+
+        // First pass: find a candidate that has manifest.json AND the src folder
+        foreach (var rawPath in candidates)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(rawPath)) continue;
+                var full = Path.GetFullPath(rawPath);
+                if (Directory.Exists(full) &&
+                    File.Exists(Path.Combine(full, "manifest.json")) &&
+                    Directory.Exists(Path.Combine(full, "src")))
+                {
+                    return full;
+                }
+            }
+            catch { }
+        }
+
+        // Second pass: if any source folder has src and manifest, synchronize to target output
+        string? completeSource = candidates
+            .Select(c => { try { return Path.GetFullPath(c); } catch { return null; } })
+            .FirstOrDefault(p => !string.IsNullOrEmpty(p) && Directory.Exists(p) && File.Exists(Path.Combine(p, "manifest.json")) && Directory.Exists(Path.Combine(p, "src")));
+
+        if (!string.IsNullOrEmpty(completeSource))
+        {
+            try
+            {
+                var targetDir = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Extension"));
+                CopyDirectoryRecursive(completeSource, targetDir);
+                if (File.Exists(Path.Combine(targetDir, "manifest.json")) && Directory.Exists(Path.Combine(targetDir, "src")))
+                {
+                    return targetDir;
+                }
+            }
+            catch { }
+
+            return completeSource;
+        }
+
+        // Fallback to any directory that exists with manifest.json
+        foreach (var rawPath in candidates)
+        {
+            try
+            {
+                var full = Path.GetFullPath(rawPath);
+                if (Directory.Exists(full) && File.Exists(Path.Combine(full, "manifest.json")))
+                {
+                    return full;
+                }
+            }
+            catch { }
+        }
+
+        return null;
+    }
+
+    public static string? EnsureExtensionZipExists()
+    {
+        try
+        {
+            string? extDir = GetExtensionDirectory();
+            if (string.IsNullOrEmpty(extDir)) return null;
+
+            string wwwrootDir = Path.Combine(FindRootWithWwwroot(), "wwwroot");
+            if (!Directory.Exists(wwwrootDir))
+            {
+                wwwrootDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
+            }
+            if (!Directory.Exists(wwwrootDir)) Directory.CreateDirectory(wwwrootDir);
+
+            string zipPath = Path.Combine(wwwrootDir, "SaveZonix-Extension.zip");
+
+            // Also check SaveZonix-Web for pre-existing zip
+            string webZip = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SaveZonix-Web", "SaveZonix-Extension.zip"));
+            try
+            {
+                if (File.Exists(webZip) && (!File.Exists(zipPath) || new FileInfo(zipPath).Length == 0))
+                {
+                    File.Copy(webZip, zipPath, true);
+                    return zipPath;
+                }
+            }
+            catch { }
+
+            if (!File.Exists(zipPath) || new FileInfo(zipPath).Length == 0)
+            {
+                System.IO.Compression.ZipFile.CreateFromDirectory(extDir, zipPath, System.IO.Compression.CompressionLevel.Fastest, false);
+            }
+
+            return zipPath;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Zip Notice] {ex.Message}");
+            return null;
+        }
+    }
+
+    private static void CopyDirectoryRecursive(string sourceDir, string targetDir)
+    {
+        Directory.CreateDirectory(targetDir);
+        foreach (var file in Directory.GetFiles(sourceDir))
+        {
+            var dest = Path.Combine(targetDir, Path.GetFileName(file));
+            if (!File.Exists(dest) || File.GetLastWriteTimeUtc(file) > File.GetLastWriteTimeUtc(dest))
+            {
+                File.Copy(file, dest, true);
+            }
+        }
+        foreach (var dir in Directory.GetDirectories(sourceDir))
+        {
+            var subDest = Path.Combine(targetDir, Path.GetFileName(dir));
+            CopyDirectoryRecursive(dir, subDest);
+        }
+    }
+
     public static void OpenBrowser(string url)
     {
         try
@@ -360,3 +492,4 @@ public static class MediaHelper
         }
     }
 }
+

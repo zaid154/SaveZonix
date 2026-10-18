@@ -97,27 +97,16 @@ public static class ExtensionEndpoints
         });
 
         // ─────────────────────────────────────────────────────────────
-        // Extension 1-Click Browser Loader & Open Folder
+        // Extension 1-Click Browser Loader, Open Folder & ZIP Download
         // ─────────────────────────────────────────────────────────────
         app.MapPost("/api/extension/install-browser", () =>
         {
             try
             {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string extensionPath = Path.Combine(baseDir, "Extension");
-                if (!Directory.Exists(extensionPath))
+                string? extensionPath = MediaHelper.GetExtensionDirectory();
+                if (string.IsNullOrEmpty(extensionPath) || !Directory.Exists(extensionPath))
                 {
-                    extensionPath = Path.Combine(Directory.GetCurrentDirectory(), "Extension");
-                }
-                if (!Directory.Exists(extensionPath))
-                {
-                    var parent = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName;
-                    if (parent != null) extensionPath = Path.Combine(parent, "SaveZonix-App", "Extension");
-                }
-
-                if (!Directory.Exists(extensionPath))
-                {
-                    return Results.NotFound(new { success = false, message = $"Extension folder not found at: {extensionPath}" });
+                    return Results.NotFound(new { success = false, message = "SaveZonix Extension folder could not be located." });
                 }
 
                 // Check popular browser executable paths on Windows
@@ -159,21 +148,15 @@ public static class ExtensionEndpoints
         {
             try
             {
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string extensionPath = Path.Combine(baseDir, "Extension");
-                if (!Directory.Exists(extensionPath))
+                string? extensionPath = MediaHelper.GetExtensionDirectory();
+                if (!string.IsNullOrEmpty(extensionPath) && Directory.Exists(extensionPath))
                 {
-                    extensionPath = Path.Combine(Directory.GetCurrentDirectory(), "Extension");
-                }
-                if (!Directory.Exists(extensionPath))
-                {
-                    var parent = Directory.GetParent(Directory.GetCurrentDirectory())?.FullName;
-                    if (parent != null) extensionPath = Path.Combine(parent, "SaveZonix-App", "Extension");
-                }
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{extensionPath}\"") { UseShellExecute = true });
+                    }
+                    catch { }
 
-                if (Directory.Exists(extensionPath))
-                {
-                    Process.Start(new ProcessStartInfo("explorer.exe", $"\"{extensionPath}\"") { UseShellExecute = true });
                     return Results.Ok(new { success = true, path = extensionPath });
                 }
                 return Results.NotFound(new { success = false, message = "Extension folder not found." });
@@ -181,6 +164,23 @@ public static class ExtensionEndpoints
             catch (Exception ex)
             {
                 return Results.BadRequest(new { success = false, message = ex.Message });
+            }
+        });
+
+        app.MapGet("/api/extension/download-zip", () =>
+        {
+            try
+            {
+                string? zipFile = MediaHelper.EnsureExtensionZipExists();
+                if (!string.IsNullOrEmpty(zipFile) && File.Exists(zipFile))
+                {
+                    return Results.File(zipFile, "application/zip", "SaveZonix-Extension.zip");
+                }
+                return Results.NotFound(new { success = false, message = "Extension archive could not be generated." });
+            }
+            catch (Exception ex)
+            {
+                return Results.Problem(detail: ex.Message, title: "Failed to download extension archive");
             }
         });
 
