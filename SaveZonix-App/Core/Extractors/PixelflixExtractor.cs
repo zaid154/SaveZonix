@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using SaveZonix.Core;
 
 namespace Zonix.Core.Extractors;
 
@@ -41,11 +42,15 @@ public class PixelflixExtractor : IVideoExtractor
             string html = resp.IsSuccessStatusCode ? await resp.Content.ReadAsStringAsync() : string.Empty;
 
             // 1. Extract Title
+            string rawTitle = "Pixelflix Video Stream";
             var titleMatch = Regex.Match(html, @"<title>([^<]+)</title>", RegexOptions.IgnoreCase);
             if (titleMatch.Success)
             {
-                result.Title = titleMatch.Groups[1].Value.Replace(" - Pixelflix", "").Trim();
+                rawTitle = titleMatch.Groups[1].Value.Replace(" - Pixelflix", "").Replace(" — PixelFlix", "").Trim();
             }
+
+            // Smart Season & Episode formatting (e.g. "My Girlfriend is an Alien - S02E01")
+            result.Title = MediaHelper.FormatEpisodeTitle(rawTitle, url);
 
             // 2. Extract Thumbnail
             var thumbMatch = Regex.Match(html, @"(?:poster|thumbnail|image)[""']?\s*[:=]\s*[""']([^""']+)[""']", RegexOptions.IgnoreCase);
@@ -63,15 +68,23 @@ public class PixelflixExtractor : IVideoExtractor
 
                 var uriObj = new Uri(url);
                 var queryParams = System.Web.HttpUtility.ParseQueryString(uriObj.Query);
-                string season = queryParams["season"] ?? "1";
-                string episode = queryParams["episode"] ?? "1";
+                string season = queryParams["season"] ?? queryParams["s"] ?? "1";
+                string episode = queryParams["episode"] ?? queryParams["ep"] ?? queryParams["e"] ?? "1";
+
+                int sNum = int.TryParse(season, out int sVal) ? sVal : 1;
+                int eNum = int.TryParse(episode, out int eVal) ? eVal : 1;
+
+                if (type == "tv")
+                {
+                    result.Description = $"Season {sNum}, Episode {eNum}";
+                }
 
                 var extractApis = new[]
                 {
-                    $"https://embed.reelsdownload.online/api/redflix-extract?type={type}&tmdb_id={tmdbId}&season={season}&episode={episode}",
-                    $"https://embed.reelsdownload.online/api/vidxgo-extract?type={type}&tmdb_id={tmdbId}&season={season}&episode={episode}",
-                    $"https://embed.reelsdownload.online/api/cinemaos-extract?type={type}&tmdb_id={tmdbId}&season={season}&episode={episode}",
-                    $"https://embed.reelsdownload.online/api/rive-extract?type={type}&tmdb_id={tmdbId}&season={season}&episode={episode}"
+                    $"https://embed.reelsdownload.online/api/redflix-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                    $"https://embed.reelsdownload.online/api/vidxgo-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                    $"https://embed.reelsdownload.online/api/cinemaos-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                    $"https://embed.reelsdownload.online/api/rive-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}"
                 };
 
                 foreach (var api in extractApis)
@@ -79,7 +92,7 @@ public class PixelflixExtractor : IVideoExtractor
                     try
                     {
                         using var apiReq = new HttpRequestMessage(HttpMethod.Get, api);
-                        apiReq.Headers.TryAddWithoutValidation("Referer", $"https://embed.reelsdownload.online/player/{tmdbId}/{season}/{episode}?key=k_5661ac637169a1733857dc50");
+                        apiReq.Headers.TryAddWithoutValidation("Referer", $"https://embed.reelsdownload.online/player/{tmdbId}/{sNum}/{eNum}?key=k_5661ac637169a1733857dc50");
                         apiReq.Headers.TryAddWithoutValidation("Origin", "https://embed.reelsdownload.online");
                         apiReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
 

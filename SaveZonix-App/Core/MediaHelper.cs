@@ -153,6 +153,80 @@ public static class MediaHelper
         return HashPassword(password) == storedHash;
     }
 
+    public static (int? Season, int? Episode, string? EpisodeTag) ExtractSeasonAndEpisode(string? urlOrText)
+    {
+        if (string.IsNullOrWhiteSpace(urlOrText)) return (null, null, null);
+
+        // 1. Check Query String params: season=2&episode=1 or s=2&e=1
+        var matchBoth = Regex.Match(urlOrText, @"[?&](?:season|s)=(\d+).*?[?&](?:episode|e|ep)=(\d+)", RegexOptions.IgnoreCase);
+        if (!matchBoth.Success)
+        {
+            matchBoth = Regex.Match(urlOrText, @"[?&](?:episode|e|ep)=(\d+).*?[?&](?:season|s)=(\d+)", RegexOptions.IgnoreCase);
+            if (matchBoth.Success)
+            {
+                int ep = int.Parse(matchBoth.Groups[1].Value);
+                int sea = int.Parse(matchBoth.Groups[2].Value);
+                return (sea, ep, $"S{sea:D2}E{ep:D2}");
+            }
+        }
+        else
+        {
+            int sea = int.Parse(matchBoth.Groups[1].Value);
+            int ep = int.Parse(matchBoth.Groups[2].Value);
+            return (sea, ep, $"S{sea:D2}E{ep:D2}");
+        }
+
+        // 2. Check path patterns like /season/2/episode/1 or /s02e01 or /s2/e1
+        var pathMatch = Regex.Match(urlOrText, @"(?:\b|[/-])(?:season|s)[_-]?(\d+)[/-](?:episode|e|ep)[_-]?(\d+)\b", RegexOptions.IgnoreCase);
+        if (pathMatch.Success)
+        {
+            int sea = int.Parse(pathMatch.Groups[1].Value);
+            int ep = int.Parse(pathMatch.Groups[2].Value);
+            return (sea, ep, $"S{sea:D2}E{ep:D2}");
+        }
+
+        var sXeMatch = Regex.Match(urlOrText, @"\b[sS](\d+)[eE](\d+)\b", RegexOptions.IgnoreCase);
+        if (sXeMatch.Success)
+        {
+            int sea = int.Parse(sXeMatch.Groups[1].Value);
+            int ep = int.Parse(sXeMatch.Groups[2].Value);
+            return (sea, ep, $"S{sea:D2}E{ep:D2}");
+        }
+
+        // 3. Check single episode param: ?episode=5 or ?ep=5 or /episode/5 or /ep-5
+        var singleEpMatch = Regex.Match(urlOrText, @"[?&](?:episode|ep|e)=(\d+)", RegexOptions.IgnoreCase);
+        if (!singleEpMatch.Success)
+        {
+            singleEpMatch = Regex.Match(urlOrText, @"(?:\b|[/-])(?:episode|ep)[_-]?(\d+)\b", RegexOptions.IgnoreCase);
+        }
+        if (singleEpMatch.Success)
+        {
+            int ep = int.Parse(singleEpMatch.Groups[1].Value);
+            return (null, ep, $"E{ep:D2}");
+        }
+
+        return (null, null, null);
+    }
+
+    public static string FormatEpisodeTitle(string baseTitle, string? urlOrText)
+    {
+        if (string.IsNullOrWhiteSpace(baseTitle)) baseTitle = "Video";
+        string cleanBase = Regex.Replace(baseTitle, @"^Watch\s+", "", RegexOptions.IgnoreCase);
+        cleanBase = Regex.Replace(cleanBase, @"\s*[-–—|•/]\s*(?:PixelFlix|Watch Free|Free HD|CleanStream).*$", "", RegexOptions.IgnoreCase).Trim();
+        if (string.IsNullOrWhiteSpace(cleanBase)) cleanBase = "Video";
+
+        var (season, episode, epTag) = ExtractSeasonAndEpisode(urlOrText);
+        if (!string.IsNullOrEmpty(epTag))
+        {
+            if (!cleanBase.Contains(epTag, StringComparison.OrdinalIgnoreCase) &&
+                !(season.HasValue && episode.HasValue && cleanBase.Contains($"S{season.Value}", StringComparison.OrdinalIgnoreCase) && cleanBase.Contains($"E{episode.Value}", StringComparison.OrdinalIgnoreCase)))
+            {
+                return $"{cleanBase} - {epTag}";
+            }
+        }
+        return cleanBase;
+    }
+
     public static string SanitizeFileName(string name)
     {
         if (string.IsNullOrWhiteSpace(name)) return "video.mp4";

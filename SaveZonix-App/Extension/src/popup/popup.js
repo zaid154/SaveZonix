@@ -998,10 +998,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // 2. All Other Sites (pron.click, PixelFlix, Instagram, Web Streams):
             // ALWAYS redirect to SaveZonix Localhost (http://localhost:5000)
+            const epTag = (function(textOrUrl) {
+                if (!textOrUrl) return '';
+                const m = textOrUrl.match(/(?:[?&]|\b)(?:season|s)=(\d+)[^&]*&(?:episode|ep|e)=(\d+)/i) 
+                       || textOrUrl.match(/(?:\b|[/-])(?:season|s)[_-]?(\d+)[/-](?:episode|e|ep)[_-]?(\d+)\b/i)
+                       || textOrUrl.match(/\b[sS](\d+)[eE](\d+)\b/i);
+                if (m) return `S${String(m[1]).padStart(2, '0')}E${String(m[2]).padStart(2, '0')}`;
+                const single = textOrUrl.match(/[?&](?:episode|ep|e)=(\d+)/i) || textOrUrl.match(/(?:\b|[/-])(?:episode|ep)[_-]?(\d+)\b/i);
+                if (single) return `E${String(single[1]).padStart(2, '0')}`;
+                return '';
+            })(currentTabUrl || video.url || '');
+
+            let effectiveTitle = video.title || video.showName || currentTabTitle || 'Video';
+            if (epTag && !effectiveTitle.toLowerCase().includes(epTag.toLowerCase())) {
+                effectiveTitle = `${effectiveTitle} - ${epTag}`;
+            }
+
             const finalDownloadUrl = (targetUrl && targetUrl.startsWith('http')) ? targetUrl : currentTabUrl;
             if (finalDownloadUrl && finalDownloadUrl.startsWith('http')) {
                 chrome.tabs.create({
-                    url: `http://localhost:5000/?url=${encodeURIComponent(finalDownloadUrl)}&autoDownload=1`
+                    url: `http://localhost:5000/?url=${encodeURIComponent(finalDownloadUrl)}&title=${encodeURIComponent(effectiveTitle)}&originalUrl=${encodeURIComponent(currentTabUrl)}&autoDownload=1`
                 });
                 window.close();
                 return;
@@ -1009,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // A webpage fallback remains useful for sites where no direct stream was detected yet.
             if (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome')) {
-                chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(currentTabUrl)}&autoDownload=1` });
+                chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(currentTabUrl)}&title=${encodeURIComponent(effectiveTitle)}&autoDownload=1` });
                 window.close();
             }
         });

@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
@@ -158,14 +159,32 @@ public static class DownloadEndpoints
 
             string pageUrl = !string.IsNullOrEmpty(req.OriginalPageUrl) ? req.OriginalPageUrl : req.StreamUrl;
             string videoTitle = !string.IsNullOrEmpty(req.Title) ? req.Title : (!string.IsNullOrEmpty(req.FileName) ? req.FileName : "High-Definition Video Stream");
+            videoTitle = MediaHelper.FormatEpisodeTitle(videoTitle, pageUrl);
             string platform = !string.IsNullOrEmpty(req.Platform) ? req.Platform : "Web Stream";
             string quality = !string.IsNullOrEmpty(req.Quality) ? req.Quality : "1080p Full HD";
+
+            string safeBaseName = MediaHelper.SanitizeFileName(req.FileName);
+            var (sea, ep, epTag) = MediaHelper.ExtractSeasonAndEpisode(pageUrl);
+            if (!string.IsNullOrEmpty(epTag) && !safeBaseName.Contains(epTag, StringComparison.OrdinalIgnoreCase))
+            {
+                string ext = Path.GetExtension(safeBaseName);
+                string baseNoExt = Path.GetFileNameWithoutExtension(safeBaseName);
+                var qMatch = Regex.Match(baseNoExt, @"(?<name>.+?)(?<qual>_\d+p(?:_[\w]+)?)$", RegexOptions.IgnoreCase);
+                if (qMatch.Success)
+                {
+                    safeBaseName = $"{qMatch.Groups["name"].Value}_{epTag}{qMatch.Groups["qual"].Value}{ext}";
+                }
+                else
+                {
+                    safeBaseName = $"{baseNoExt}_{epTag}{ext}";
+                }
+            }
 
             var state = new DownloadTaskState
             {
                 TaskId = taskId,
                 UserId = currentUserId,
-                FileName = req.FileName,
+                FileName = safeBaseName,
                 Title = videoTitle,
                 ThumbnailUrl = req.ThumbnailUrl ?? "",
                 Platform = platform,
@@ -206,7 +225,6 @@ public static class DownloadEndpoints
                         : MediaHelper.GetDownloadsDirectory();
                     if (!Directory.Exists(downloadsFolder)) Directory.CreateDirectory(downloadsFolder);
 
-                    string safeBaseName = MediaHelper.SanitizeFileName(req.FileName);
                     string targetExt = (req.Format?.Equals("MP3", StringComparison.OrdinalIgnoreCase) == true || safeBaseName.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)) ? ".mp3"
                         : safeBaseName.EndsWith(".m4a", StringComparison.OrdinalIgnoreCase) ? ".m4a"
                         : ".mp4";
@@ -216,6 +234,7 @@ public static class DownloadEndpoints
                     else if (!safeBaseName.EndsWith(targetExt, StringComparison.OrdinalIgnoreCase))
                         safeBaseName = Path.GetFileNameWithoutExtension(safeBaseName) + targetExt;
 
+                    state.FileName = safeBaseName;
                     string outputFilePath = MediaHelper.GetAvailableUniqueFilePath(downloadsFolder, safeBaseName);
                     string tempMergedFile = Path.Combine(tempDirectory, "merged_" + Guid.NewGuid().ToString("N") + targetExt);
 

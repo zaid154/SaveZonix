@@ -106,6 +106,12 @@ const btnReset = document.getElementById('btnReset');
 window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
     const paramStreamUrl = urlParams.get('streamUrl') || urlParams.get('url');
+    const paramTitle = urlParams.get('title');
+    const paramOrigUrl = urlParams.get('originalUrl');
+
+    if (paramTitle) window.initialQueryTitle = decodeURIComponent(paramTitle);
+    if (paramOrigUrl) window.initialQueryOriginalUrl = decodeURIComponent(paramOrigUrl);
+
     if (urlParams.get('autoDownload') === '1' || urlParams.get('auto') === '1') {
         autoStartDownload = true;
     }
@@ -608,7 +614,35 @@ function renderVideoQualities() {
     updateSelectedQualitySpecs();
 }
 
+function extractSeasonEpisode(textOrUrl) {
+    if (!textOrUrl) return null;
+    const sAndE = textOrUrl.match(/(?:[?&]|\b)(?:season|s)=(\d+)[^&]*&(?:episode|ep|e)=(\d+)/i) 
+               || textOrUrl.match(/(?:\b|[/-])(?:season|s)[_-]?(\d+)[/-](?:episode|e|ep)[_-]?(\d+)\b/i)
+               || textOrUrl.match(/\b[sS](\d+)[eE](\d+)\b/i);
+    if (sAndE) {
+        const s = parseInt(sAndE[1], 10);
+        const e = parseInt(sAndE[2], 10);
+        return `S${s < 10 ? '0' + s : s}E${e < 10 ? '0' + e : e}`;
+    }
+    const singleEp = textOrUrl.match(/[?&](?:episode|ep|e)=(\d+)/i) || textOrUrl.match(/(?:\b|[/-])(?:episode|ep)[_-]?(\d+)\b/i);
+    if (singleEp) {
+        const e = parseInt(singleEp[1], 10);
+        return `E${e < 10 ? '0' + e : e}`;
+    }
+    return null;
+}
+
 function renderStreamDetails(data) {
+    if (window.initialQueryTitle && (!data?.title || data.title === 'High-Definition Video Stream' || data.title.endsWith('Video Stream') || data.title === 'Pixelflix Video Stream')) {
+        data.title = window.initialQueryTitle;
+    }
+
+    const currentInputUrl = (window.initialQueryOriginalUrl || streamUrlInput?.value || window.location.href || '');
+    const epTag = extractSeasonEpisode(currentInputUrl) || extractSeasonEpisode(data?.title);
+    if (epTag && data?.title && !data.title.toLowerCase().includes(epTag.toLowerCase())) {
+        data.title = `${data.title} - ${epTag}`;
+    }
+
     videoTitleDisplay.textContent = data.title || 'High-Definition Video Stream';
     badgePlatform.textContent = data.platform || 'Web Stream';
 
@@ -721,9 +755,17 @@ function updateSelectedQualitySpecs() {
         }
     }
 
+    const currentInputUrl = (streamUrlInput?.value || window.location.href || '');
+    const epTag = extractSeasonEpisode(currentInputUrl) || extractSeasonEpisode(streamData?.title);
+
     let cleanTitle = (streamData?.title || 'Video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_').trim();
-    cleanTitle = cleanTitle.replace(/^_+|_+$/g, '').slice(0, 60);
+    cleanTitle = cleanTitle.replace(/^_+|_+$/g, '');
     if (!cleanTitle) cleanTitle = 'Video';
+
+    if (epTag && !cleanTitle.toLowerCase().includes(epTag.toLowerCase())) {
+        cleanTitle = `${cleanTitle}_${epTag}`;
+    }
+    if (cleanTitle.length > 80) cleanTitle = cleanTitle.slice(0, 80);
 
     let qualityTag = '';
     if (res && res !== 'Unknown') {
@@ -836,7 +878,7 @@ btnStartDownload.addEventListener('click', async () => {
                 taskId: uniqueTaskId,
                 streamUrl: selectedUrl,
                 audioUrl: audioUrl,
-                originalPageUrl: streamUrlInput.value.trim(),
+                originalPageUrl: window.initialQueryOriginalUrl || streamUrlInput.value.trim(),
                 title: streamData.title || fileName,
                 thumbnailUrl: streamData.thumbnailUrl || '',
                 platform: streamData.platform || 'Web Stream',

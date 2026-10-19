@@ -2,6 +2,7 @@ using System.Net;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using SaveZonix.Core;
 using Zonix.Core.Extractors;
 
 namespace Zonix.Core;
@@ -28,7 +29,12 @@ public class M3U8Parser
 
     public async Task<StreamAnalysisResult> ParseAsync(string url, int retryCount = 0)
     {
-        return await _dispatcher.DispatchAsync(url, retryCount);
+        var res = await _dispatcher.DispatchAsync(url, retryCount);
+        if (res != null && !string.IsNullOrWhiteSpace(res.Title))
+        {
+            res.Title = MediaHelper.FormatEpisodeTitle(res.Title, url);
+        }
+        return res!;
     }
 
     public async Task<StreamAnalysisResult> ParseInternalAsync(string url, int retryCount = 0)
@@ -769,12 +775,16 @@ public class M3U8Parser
         {
             string type = pfMatch.Groups[1].Value.ToLower();
             string tmdbId = pfMatch.Groups[2].Value;
+            var (sea, ep, _) = MediaHelper.ExtractSeasonAndEpisode(baseUri.ToString());
+            int sNum = sea ?? 1;
+            int eNum = ep ?? 1;
+
             var extractApis = new[]
             {
-                $"https://embed.reelsdownload.online/api/redflix-extract?type={type}&tmdb_id={tmdbId}&season=1&episode=1",
-                $"https://embed.reelsdownload.online/api/vidxgo-extract?type={type}&tmdb_id={tmdbId}&season=1&episode=1",
-                $"https://embed.reelsdownload.online/api/cinemaos-extract?type={type}&tmdb_id={tmdbId}&season=1&episode=1",
-                $"https://embed.reelsdownload.online/api/rive-extract?type={type}&tmdb_id={tmdbId}&season=1&episode=1"
+                $"https://embed.reelsdownload.online/api/redflix-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                $"https://embed.reelsdownload.online/api/vidxgo-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                $"https://embed.reelsdownload.online/api/cinemaos-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                $"https://embed.reelsdownload.online/api/rive-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}"
             };
 
             foreach (var api in extractApis)
@@ -782,7 +792,7 @@ public class M3U8Parser
                 try
                 {
                     using var apiReq = new HttpRequestMessage(HttpMethod.Get, api);
-                    apiReq.Headers.TryAddWithoutValidation("Referer", $"https://embed.reelsdownload.online/player/{tmdbId}/1/1?key=k_5661ac637169a1733857dc50");
+                    apiReq.Headers.TryAddWithoutValidation("Referer", $"https://embed.reelsdownload.online/player/{tmdbId}/{sNum}/{eNum}?key=k_5661ac637169a1733857dc50");
                     apiReq.Headers.TryAddWithoutValidation("Origin", "https://embed.reelsdownload.online");
                     apiReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
 
