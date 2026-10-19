@@ -505,6 +505,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Download Pipeline
     async function startDownloadPipeline() {
         isCompleted = false;
+        currentTaskId = 'ext_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
         const activeConcurrency = parseInt(elSelThreads?.value, 10) || 64;
         processor.setConcurrency(activeConcurrency);
 

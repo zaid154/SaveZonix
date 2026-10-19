@@ -974,19 +974,26 @@ public class AccountController : Controller
                     playlistCode = parts[0].Trim();
                     playlistTitle = parts.Length > 1 ? parts[1].Trim() : (!string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist");
                     string cleanTitleSlug = Regex.Replace(playlistTitle, @"[^a-zA-Z0-9]", "_").Trim('_');
-                    groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd}";
+                    if (playlistCode.Equals("PL-01", StringComparison.OrdinalIgnoreCase) || playlistCode.Equals("PL-BATCH", StringComparison.OrdinalIgnoreCase))
+                    {
+                        groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd_HH}";
+                    }
+                    else
+                    {
+                        groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd}";
+                    }
                 }
                 else if (!string.IsNullOrEmpty(seriesName))
                 {
                     string cleanSlug = Regex.Replace(seriesName, @"[^a-zA-Z0-9_]", "_").Trim('_');
-                    groupKey = $"PL_SERIES_{cleanSlug}_{d.CreatedAt:yyyyMMdd}";
+                    groupKey = $"PL_SERIES_{cleanSlug}_{d.CreatedAt:yyyyMMdd_HH}";
                     playlistCode = "PL-SERIES";
                     playlistTitle = seriesName;
                 }
                 else
                 {
-                    groupKey = $"PL_BATCH_{d.CreatedAt:yyyyMMdd}";
-                    playlistCode = "PL-01";
+                    groupKey = $"PL_BATCH_{d.CreatedAt:yyyyMMdd_HHmmss}";
+                    playlistCode = "PL-BATCH";
                     playlistTitle = "YouTube Playlist Collection";
                 }
 

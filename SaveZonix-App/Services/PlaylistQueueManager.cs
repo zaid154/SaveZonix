@@ -26,7 +26,11 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
     private readonly ConcurrentDictionary<string, PlaylistBatchJobState> _jobs = new();
     private readonly YoutubeClient _youtubeClient = Zonix.Core.YouTubeClientFactory.SharedClient;
-    private static int _playlistCounter = 0;
+    public static string GenerateUniquePlaylistCode()
+    {
+        string codeHex = Guid.NewGuid().ToString("N")[..4].ToUpperInvariant();
+        return $"PL-{DateTime.UtcNow:MMdd}-{codeHex}";
+    }
 
     private static string FormatFriendlyError(string? rawError)
     {
@@ -249,7 +253,10 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         if (record == null) return false;
 
-        var singleBatch = CreateBatchJobFromHistories(new List<StreamHelper.Data.DownloadHistory> { record }, "PL-01", "Playlist Video");
+        string retryCode = !string.IsNullOrEmpty(record.DownloadStrategy) && record.DownloadStrategy.Contains("PL-")
+            ? record.DownloadStrategy.Split('•')[0].Replace("Playlist:", "").Trim()
+            : GenerateUniquePlaylistCode();
+        var singleBatch = CreateBatchJobFromHistories(new List<StreamHelper.Data.DownloadHistory> { record }, retryCode, "Playlist Video");
         var retryItemState = singleBatch.Items[0];
         _jobs[singleBatch.JobId] = singleBatch;
 
@@ -449,7 +456,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         if (failedHistories.Count == 0) return false;
 
-        string defaultCode = !string.IsNullOrEmpty(playlistCode) ? playlistCode : "PL-RETRY";
+        string defaultCode = !string.IsNullOrEmpty(playlistCode) ? playlistCode : GenerateUniquePlaylistCode();
         string defaultTitle = failedHistories.First().DownloadStrategy?.Replace("Playlist:", "").Trim() ?? "Retry Playlist Items";
         var newJob = CreateBatchJobFromHistories(failedHistories, defaultCode, defaultTitle);
         _jobs[newJob.JobId] = newJob;
@@ -496,7 +503,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         string defaultCode,
         string defaultTitle)
     {
-        string newJobId = Guid.NewGuid().ToString("N");
+        string newJobId = "job_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + Guid.NewGuid().ToString("N")[..8];
         string resolvedCode = defaultCode;
         string title = defaultTitle;
 
@@ -592,8 +599,8 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
     public async Task<PlaylistBatchJobState> StartBatchDownloadAsync(PlaylistBatchDownloadRequest request, string? userId = null, string? userEmail = null, string? userName = null, CancellationToken cancellationToken = default)
     {
-        string jobId = Guid.NewGuid().ToString("N");
-        string playlistCode = $"PL-{Interlocked.Increment(ref _playlistCounter):D2}";
+        string jobId = "job_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + Guid.NewGuid().ToString("N")[..8];
+        string playlistCode = GenerateUniquePlaylistCode();
 
         string baseDownloads = !string.IsNullOrWhiteSpace(request.OutputFolder) && Directory.Exists(request.OutputFolder)
             ? request.OutputFolder
@@ -620,7 +627,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
                 items.Add(new PlaylistItemDownloadState
                 {
-                    TaskId = Guid.NewGuid().ToString("N"),
+                    TaskId = "pl_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + Guid.NewGuid().ToString("N")[..8],
                     VideoId = v.VideoId,
                     Index = v.Index,
                     SubId = $"{playlistCode} #{v.Index:D2}",
@@ -642,7 +649,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             {
                 items.Add(new PlaylistItemDownloadState
                 {
-                    TaskId = Guid.NewGuid().ToString("N"),
+                    TaskId = "pl_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + Guid.NewGuid().ToString("N")[..8],
                     VideoId = vid,
                     Index = index,
                     SubId = $"{playlistCode} #{index++:D2}",

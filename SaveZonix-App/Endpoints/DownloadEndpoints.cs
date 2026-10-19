@@ -118,7 +118,28 @@ public static class DownloadEndpoints
                 }
             }
 
-            var taskId = !string.IsNullOrWhiteSpace(req.TaskId) ? req.TaskId.Trim() : ("dl_" + Guid.NewGuid().ToString("N"));
+            string clientTaskId = req.TaskId?.Trim() ?? "";
+            string taskId;
+            using (var preScope = scopeFactory.CreateScope())
+            {
+                var preHistory = preScope.ServiceProvider.GetService<IDownloadHistoryService>();
+                bool exists = false;
+                if (!string.IsNullOrWhiteSpace(clientTaskId))
+                {
+                    if (DownloadTaskManager.GetTask(clientTaskId) != null)
+                    {
+                        exists = true;
+                    }
+                    else if (preHistory != null)
+                    {
+                        try { exists = (await preHistory.GetDownloadByIdAsync(clientTaskId)) != null; } catch { }
+                    }
+                }
+
+                taskId = (!string.IsNullOrWhiteSpace(clientTaskId) && !exists)
+                    ? clientTaskId
+                    : ("dl_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + Guid.NewGuid().ToString("N")[..8]);
+            }
             int concurrency = Math.Clamp(req.Concurrency, 1, 256);
             var cts = new CancellationTokenSource();
 
