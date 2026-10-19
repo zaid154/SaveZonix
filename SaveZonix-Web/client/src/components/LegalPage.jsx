@@ -60,38 +60,45 @@ export default function LegalPage({ type = 'privacy', onNavigate }) {
     terms: {
       title: 'Terms of Service',
       tag: 'TERMS & CONDITIONS',
-      date: 'September 13, 2026',
+      date: 'October 19, 2026',
       content: (
         <>
-          <p className="legal-lead">Please review these Terms of Service carefully before utilizing SaveZonix software, desktop applications, or browser companions.
+          <p className="legal-lead">Please review these Terms of Service carefully before utilizing SaveZonix software, desktop applications, or browser companions. By installing or using the software, you enter into a legally binding agreement.
           </p>
 
           <section className="legal-block">
-            <h3>1. Agreement to Terms</h3>
-            <p>By accessing our website, installing the SaveZonix desktop client, or using the extension, you agree to comply with and be bound by these terms. If you disagree with any part, you must refrain from using the software.
+            <h3>1. Neutral Client-Side Technical Utility (Betamax Doctrine)</h3>
+            <p>SaveZonix is an independent, general-purpose media transport protocol inspector and client-side stream remuxing tool. Under the established legal doctrine of <em>Sony Corp. of America v. Universal City Studios, Inc. (464 U.S. 417)</em>, technology capable of substantial, lawful, non-infringing uses does not constitute contributory copyright infringement. SaveZonix is engineered strictly for authorized personal archiving, public domain preservation, Creative Commons media, and lawful fair use (17 U.S.C. § 107).
             </p>
           </section>
 
           <section className="legal-block">
-            <h3>2. Permitted Personal &amp; Archival Use</h3>
-            <p>SaveZonix is engineered as a productivity utility for personal offline archiving, fair use analysis, and educational research. You agree:
-            </p>
-            <ul>
-              <li>To download only media that you hold the legal authority, intellectual rights, or explicit permission to access offline.</li>
-              <li>Not to commercially redistribute, broadcast, or resell proprietary content obtained via the software.</li>
-              <li>To comply with all relevant copyright legislation applicable in your home territory.</li>
-            </ul>
-          </section>
-
-          <section className="legal-block">
-            <h3>3. VIP Pro Subscriptions</h3>
-            <p>VIP Pro memberships unlock uncapped concurrency (up to 256 connections), unrestricted 4K HDR stream parsing, and priority assistance. Subscriptions are billed at ₹99/month and may be managed or cancelled at any time through your account portal.
+            <h3>2. User Sole Responsibility &amp; Warranty</h3>
+            <p>You exclusively initiate, configure, and control every media download request. You warrant and represent that you possess all legal permissions, ownership rights, or statutory exemptions to download any media URL you submit. SaveZonix developers exercise zero oversight, verification, or control over the content you process.
             </p>
           </section>
 
           <section className="legal-block">
-            <h3>4. Warranty &amp; Service Availability</h3>
-            <p>SaveZonix is provided on an "AS IS" and "AS AVAILABLE" basis. As third-party platforms update their streaming architectures, we strive to update our parsers promptly, but do not warrant perpetual compatibility with every external media provider.
+            <h3>3. Strict Anti-Piracy &amp; Anti-DRM Circumvention (DMCA § 1201)</h3>
+            <p>SaveZonix strictly does NOT decrypt, defeat, tamper with, or circumvent any Digital Rights Management (DRM) technologies or Technological Protection Measures (TPMs), including Google Widevine, Apple FairPlay, Microsoft PlayReady, or encrypted HDCP. Commercial streams protected by hardware or software DRM cannot and will not be decrypted. Commercial piracy and unauthorized redistribution are strictly prohibited.
+            </p>
+          </section>
+
+          <section className="legal-block">
+            <h3>4. Zero Media Hosting &amp; Client-Side Isolation</h3>
+            <p>The developers and operators of SaveZonix do NOT host, mirror, store, cache, relay, or broadcast any video or audio files. All downloads occur directly between your personal device and the remote third-party server hosting the stream. No media data passes through any central server operated by SaveZonix.
+            </p>
+          </section>
+
+          <section className="legal-block">
+            <h3>5. User Indemnification &amp; Hold Harmless</h3>
+            <p>You agree to defend, indemnify, and hold harmless SaveZonix, its developers, authors, contributors, and hosting providers from and against any and all claims, lawsuits, liabilities, damages, losses, costs, and expenses (including reasonable attorney's fees) arising out of or related to your use of the software, your violation of these terms, or your infringement of any third-party intellectual property rights.
+            </p>
+          </section>
+
+          <section className="legal-block">
+            <h3>6. Absolute Limitation of Liability &amp; "AS IS" Warranty</h3>
+            <p>SaveZonix is provided strictly "AS IS" and "AS AVAILABLE" without warranties of any kind. Under no circumstances shall the authors or maintainers be liable for any direct, indirect, incidental, or consequential damages. In all cases, our total aggregate liability is strictly capped at zero dollars ($0.00 USD).
             </p>
           </section>
         </>
@@ -100,40 +107,42 @@ export default function LegalPage({ type = 'privacy', onNavigate }) {
     dmca: {
       title: 'DMCA & Copyright Policy',
       tag: 'INTELLECTUAL PROPERTY',
-      date: 'September 13, 2026',
+      date: 'October 19, 2026',
       content: (
         <>
-          <p className="legal-lead">SaveZonix respects the intellectual property rights of content creators, rights holders, and digital artists. We maintain a strict notice-and-takedown protocol in accordance with the Digital Millennium Copyright Act (DMCA).
+          <p className="legal-lead">SaveZonix respects the intellectual property rights of content creators, rights holders, and digital artists. We maintain a strict notice-and-takedown protocol in accordance with 17 U.S.C. § 512.
           </p>
 
           <section className="legal-block">
-            <h3>1. Pure Client-Side Architecture</h3>
-            <p>SaveZonix is a software utility and stream analyzer, not a hosting provider. We do not maintain, host, upload, re-encode, or cache any video or audio files on our servers. The software operates entirely on the end-user's local computer.
+            <h3>1. Pure Client-Side Architecture (No Hosting)</h3>
+            <p>SaveZonix is a client-side stream inspector, not a hosting provider. We do not maintain, host, upload, re-encode, or cache any video or audio files on our servers. The software operates entirely on the end-user's local computer.
             </p>
           </section>
 
           <section className="legal-block">
-            <h3>2. Submitting a Takedown Notice</h3>
-            <p>If you represent an intellectual property owner and believe that material accessible via our platform infringes your copyrights, please send a written notification containing:
+            <h3>2. Submitting a Legally Valid Takedown Notice</h3>
+            <p>If you represent an intellectual property owner and believe that documentation or technical references on our site infringe your copyrights, please send a written notification containing:
             </p>
             <ul>
               <li>A physical or electronic signature of a person authorized to act on behalf of the copyright owner.</li>
               <li>Identification of the copyrighted work claimed to have been infringed.</li>
-              <li>Specific identification of the URL or technical stream details.</li>
-              <li>Your contact information including full name, address, telephone number, and official email.</li>
+              <li>Specific identification of the URL, documentation link, or technical reference.</li>
+              <li>Your contact information including legal name, address, telephone number, and official corporate email.</li>
               <li>A statement affirming your good-faith belief that the use of the material is unauthorized.</li>
-              <li>A statement that the information provided in the notice is accurate under penalty of perjury.</li>
+              <li>A statement under penalty of perjury that the information provided in the notice is accurate.</li>
             </ul>
           </section>
 
           <section className="legal-block">
-            <h3>3. Designated Copyright Contact</h3>
+            <h3>3. Designated Copyright Agent</h3>
             <p>All infringement notifications must be directed to our designated compliance contact:
             </p>
             <div className="legal-contact-card">
               <span>DMCA Agent:</span>
               <a href="mailto:savezonix@gmail.com">savezonix@gmail.com</a>
             </div>
+            <p style={{ marginTop: '10px', fontSize: '12px', color: '#64748b' }}>Response time: Within 24–48 business hours. We maintain a strict repeat infringer termination policy pursuant to 17 U.S.C. § 512(i).
+            </p>
           </section>
         </>
       )
@@ -141,29 +150,29 @@ export default function LegalPage({ type = 'privacy', onNavigate }) {
     disclaimer: {
       title: 'Legal Disclaimer',
       tag: 'FAIR USE & LEGAL STATUS',
-      date: 'September 13, 2026',
+      date: 'October 19, 2026',
       content: (
         <>
-          <p className="legal-lead">This disclaimer clarifies the legal status, brand affiliations, and research &amp; educational focus of the SaveZonix project.
+          <p className="legal-lead">This disclaimer clarifies the legal status, brand affiliations, and neutral technical protocol focus of SaveZonix.
           </p>
 
           <section className="legal-block">
-            <h3>1. Non-Affiliation Statement</h3>
-            <p>SaveZonix is an independent software application developed with Microsoft .NET and standard web technologies. SaveZonix is not affiliated, associated, authorized, endorsed by, or in any way officially connected with YouTube, Google LLC, Meta Platforms (Instagram/Facebook), ByteDance (TikTok), X Corp (Twitter), Vimeo, or any of their subsidiaries or affiliates.
+            <h3>1. Non-Affiliation Statement &amp; Nominative Fair Use</h3>
+            <p>SaveZonix is an independent software application. SaveZonix is not affiliated, associated, authorized, endorsed by, or in any way officially connected with YouTube, Google LLC, Meta Platforms (Instagram/Facebook), ByteDance (TikTok), X Corp (Twitter), Vimeo, PixelFlix, Netflix, or any of their subsidiaries or affiliates.
             </p>
-            <p>All product names, logos, and brands are the property of their respective owners. Their mention does not imply endorsement or partnership.
-            </p>
-          </section>
-
-          <section className="legal-block">
-            <h3>2. Research &amp; Development (R&amp;D) and Educational Purpose</h3>
-            <p>SaveZonix is strictly a Research &amp; Development (R&amp;D) and educational project engineered for academic learning into high-throughput network streaming, HTTP Range requests, multi-threaded TCP socket multiplexing, and FFmpeg workflows. It is NOT intended or licensed for commercial enterprise or professional business use. While the software is closed-source/proprietary personal work of the authors, all builds are distributed solely for educational exploration and personal non-commercial study. Unauthorized resale or commercial exploitation is strictly prohibited.
+            <p>All product names, logos, and brands are the property of their respective owners. Mention of third-party platforms is made strictly under the doctrine of nominative fair use for descriptive technical compatibility.
             </p>
           </section>
 
           <section className="legal-block">
-            <h3>3. End-User Compliance</h3>
-            <p>Users must ensure that their use of SaveZonix complies with all local laws, regulations, and third-party terms of service applicable in their region.
+            <h3>2. Neutral Technical Protocol Tool</h3>
+            <p>SaveZonix is engineered strictly as a neutral client-side technical utility for HTTP Range request analysis, stream remuxing, and authorized personal archiving. It does not provide any public catalog, torrent index, or library of copyrighted commercial media.
+            </p>
+          </section>
+
+          <section className="legal-block">
+            <h3>3. End-User Compliance &amp; Safe Harbor</h3>
+            <p>Users must ensure that their use of SaveZonix complies with all local laws, regulations, and third-party terms of service applicable in their region. The authors disclaim all liability for any unauthorized or infringing use.
             </p>
           </section>
         </>

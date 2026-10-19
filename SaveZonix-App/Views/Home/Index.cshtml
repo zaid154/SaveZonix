@@ -15,28 +15,19 @@
             </p>
         </div>
 
-        <!-- Super-Engine Immunity & Power Status Bar -->
-        <div class="engine-status-bar" style="display: flex; justify-content: center; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
-            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 20px; font-size: 11.5px; color: #10b981; font-weight: 600;">
-                <span style="width: 7px; height: 7px; background: #10b981; border-radius: 50%; box-shadow: 0 0 6px #10b981;"></span>
-                CrashGuard Shield Active
-            </div>
-            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 20px; font-size: 11.5px; color: #38bdf8; font-weight: 600;">
-                <span style="width: 7px; height: 7px; background: #38bdf8; border-radius: 50%; box-shadow: 0 0 6px #38bdf8;"></span>
-                Turbo ArrayPool (Zero-GC)
-            </div>
-            <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 20px; font-size: 11.5px; color: #c084fc; font-weight: 600;">
-                <span style="width: 7px; height: 7px; background: #c084fc; border-radius: 50%; box-shadow: 0 0 6px #c084fc;"></span>
-                Transcoder Super-Engine Online
-            </div>
-            <button type="button" id="btnOpenBulkModal" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: linear-gradient(135deg, rgba(236,72,153,0.15), rgba(99,102,241,0.15)); border: 1px solid rgba(236,72,153,0.4); border-radius: 20px; font-size: 11.5px; color: #f472b6; font-weight: 700; cursor: pointer; transition: all 0.2s ease;">
-                📋 Bulk Batch (Paste 100 Links)
+        <!-- Clean Utility Actions Bar -->
+        <div class="quick-tools-bar" style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <button type="button" id="btnOpenBulkModal" class="btn-quick-tool" style="display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; font-size: 12px; color: #cbd5e1; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                <span>Batch Download</span>
             </button>
-            <button type="button" id="btnOpenMobileConnect" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.3); border-radius: 20px; font-size: 11.5px; color: #38bdf8; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
-                📱 Connect iPhone / Mac
+            <button type="button" id="btnOpenMobileConnect" class="btn-quick-tool" style="display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; font-size: 12px; color: #cbd5e1; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect><line x1="12" y1="18" x2="12.01" y2="18"></line></svg>
+                <span>Mobile Connect</span>
             </button>
-            <button type="button" id="btnOpenCookieModal" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(234,179,8,0.12); border: 1px solid rgba(234,179,8,0.3); border-radius: 20px; font-size: 11.5px; color: #facc15; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
-                🍪 Cookie Vault (1080p Premium)
+            <button type="button" id="btnOpenCookieModal" class="btn-quick-tool" style="display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; font-size: 12px; color: #cbd5e1; font-weight: 500; cursor: pointer; transition: all 0.2s ease;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="10" r="1.5"></circle><circle cx="8" cy="14" r="1.5"></circle><circle cx="15" cy="15" r="1.5"></circle></svg>
+                <span>Cookie Manager</span>
             </button>
         </div>
 
@@ -643,15 +634,15 @@
     </div>
 </div>
 
-<!-- Cookie Vault Modal (1080p Premium & Age-Restricted Unlock) -->
+<!-- Session Cookie Manager Modal -->
 <div id="cookieVaultModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); z-index: 99999; justify-content: center; align-items: center; padding: 20px;">
     <div style="background: #111827; border: 1px solid #374151; border-radius: 16px; width: 100%; max-width: 600px; padding: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); position: relative;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 24px;">🍪</span>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="10" r="1.5"></circle><circle cx="8" cy="14" r="1.5"></circle><circle cx="15" cy="15" r="1.5"></circle></svg>
                 <div>
-                    <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #f9fafb;">Browser Cookie Vault</h3>
-                    <p style="margin: 2px 0 0 0; font-size: 12px; color: #9ca3af;">Unlock YouTube 1080p Premium high-bitrate &amp; age-restricted videos</p>
+                    <h3 style="margin: 0; font-size: 17px; font-weight: 700; color: #f9fafb;">Session Cookie Manager</h3>
+                    <p style="margin: 2px 0 0 0; font-size: 12px; color: #9ca3af;">Import session cookies for authenticated, member-only, or age-verified media</p>
                 </div>
             </div>
             <button type="button" id="btnCloseCookieModal" style="background: transparent; border: none; color: #9ca3af; font-size: 24px; cursor: pointer; padding: 4px 8px; line-height: 1;">&times;</button>
@@ -663,13 +654,13 @@
         </div>
 
         <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 12px; font-weight: 600; color: #d1d5db; margin-bottom: 6px;">Paste Netscape / JSON Cookies (from Chrome, Edge or Safari):</label>
+            <label style="display: block; font-size: 12px; font-weight: 600; color: #d1d5db; margin-bottom: 6px;">Paste Netscape / JSON Cookies (from browser export):</label>
             <textarea id="cookiePasteInput" rows="6" placeholder="# Netscape HTTP Cookie File&#10;.youtube.com&#9;TRUE&#9;/&#9;TRUE&#9;...&#9;LOGIN_INFO&#9;...&#10;or [ { &quot;name&quot;: &quot;LOGIN_INFO&quot;, &quot;value&quot;: &quot;...&quot; } ]" style="width: 100%; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-family: monospace; font-size: 12px; padding: 10px; resize: vertical; box-sizing: border-box;"></textarea>
         </div>
 
         <div style="display: flex; justify-content: flex-end; gap: 10px;">
             <button type="button" id="btnCloseCookieModalBtn" style="padding: 9px 16px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: #d1d5db; font-size: 13px; font-weight: 600; cursor: pointer;">Close</button>
-            <button type="button" id="btnSaveCookies" style="padding: 9px 20px; background: linear-gradient(135deg, #eab308, #ca8a04); border: none; border-radius: 8px; color: #000; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(234, 179, 8, 0.3);">💾 Save &amp; Activate Cookies</button>
+            <button type="button" id="btnSaveCookies" style="padding: 9px 20px; background: #0284c7; border: none; border-radius: 8px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer;">Save Session Cookies</button>
         </div>
     </div>
 </div>

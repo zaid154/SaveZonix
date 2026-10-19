@@ -7,45 +7,56 @@
         <partial name="_LegalNav" model='(string)"Privacy"' />
 
         <div class="legal-header">
-            <h1 class="legal-title">Privacy Policy</h1>
+            <h1 class="legal-title">Privacy Policy &amp; Zero-Telemetry Notice</h1>
             <div class="legal-meta">
                 <span>Effective Date: January 1, 2026</span>
-                <span>Last Updated: September 15, 2026</span>
-                <span>Zero-Telemetry Standards</span>
+                <span>Last Updated: October 19, 2026</span>
+                <span>GDPR &bull; CCPA Compliant &bull; Zero-Telemetry Standards</span>
             </div>
         </div>
 
         <div class="legal-content">
             <div class="highlight-box">
-                <strong>Executive Summary:</strong> SaveZonix is an independent Research &amp; Development (R&amp;D) software utility operating on a strict zero-telemetry and local-execution privacy model. We do not sell or monetize personal data, employ third-party advertising tracking networks, or perform device fingerprinting. All video stream analysis and chunk remuxing occur directly on your local device.
+                <strong>PRIVACY FIRST ARCHITECTURE:</strong> SaveZonix is an independent media analysis and stream utility engineered on a strict zero-telemetry and local-execution privacy model. We do not sell, rent, or monetize your personal information. We do not track the URLs you analyze, deploy third-party advertising tracking scripts, or build behavioral user profiles.
             </div>
 
-            <h2>1. Information We Collect</h2>
-            <p>We collect only the minimum technical information required to maintain account credentials, daily download quotas, and personal history:</p>
+            <h2>1. Client-Side Processing &amp; Zero Stream Interception</h2>
+            <p>Your media activities are private to your device. When you analyze a stream manifest or download video chunks, the software communicates directly between your local IP address and the remote content delivery network hosting the file. SaveZonix servers do <strong>NOT</strong> intercept, mirror, or log:</p>
             <ul>
-                <li><strong>Account Credentials:</strong> When you register, we store your full name, email address, password hash (salted via ASP.NET Core Identity PBKDF2), and registration timestamp. Passwords are never stored in plaintext.</li>
-                <li><strong>Personal Download History:</strong> When signed in, your download history stores the video title, source media stream URL, resolution, format, and file size in your personal database record. This data is private to your account and can be deleted at any time.</li>
-                <li><strong>Session &amp; Security Cookies:</strong> We utilize secure HTTP-only session cookies strictly for authentication integrity and anti-forgery (CSRF) protection.</li>
-                <li><strong>Guest Daily Quota:</strong> For unregistered guest users, daily usage counts are stored locally in your browser's <code>localStorage</code> to enforce the fair daily limit of 5 downloads.</li>
+                <li>The URLs, video links, or playlist manifests you submit;</li>
+                <li>The video titles, creator names, or metadata parsed;</li>
+                <li>The media files, video streams, or audio tracks downloaded onto your storage drive.</li>
             </ul>
 
-            <h2>2. Information We Do NOT Collect</h2>
+            <h2>2. Information We Collect (Minimal Essential Data Only)</h2>
+            <p>If you create an optional user account, we store only the minimal technical data necessary to provide authentication and maintain your quota:</p>
             <ul>
-                <li><strong>Zero Device Fingerprinting:</strong> We do not capture MAC addresses, hardware identifiers, WebGL/Canvas fingerprints, or unique device serial numbers.</li>
-                <li><strong>Zero Unrelated Browsing Tracking:</strong> The SaveZonix browser extension activates network request inspection exclusively on video playback pages where stream manifests (HLS/DASH) are present. It never harvests or logs your general browsing history.</li>
-                <li><strong>No Third-Party Advertising Trackers:</strong> There are no Google Analytics, Meta tracking pixels, or commercial telemetry beacons in SaveZonix.</li>
-                <li><strong>No Credential Leakage to Media CDNs:</strong> Your SaveZonix credentials are never transmitted to third-party content delivery networks.</li>
+                <li><strong>Account Credentials:</strong> Full name, email address, salted password hash (via ASP.NET Core Identity PBKDF2 cryptography), and account creation timestamp. Plaintext passwords are never saved.</li>
+                <li><strong>Personal Download History (User-Controlled):</strong> For registered users, download history records (video title, URL, size, timestamp) are stored in your personal database profile so you can manage your files. You can delete individual items or purge your entire history at any time.</li>
+                <li><strong>Session &amp; Security Cookies:</strong> Secure, HTTP-only authentication tokens used exclusively for CSRF protection and login state management.</li>
+                <li><strong>Guest Daily Quota:</strong> For unregistered guest users, daily usage counts are stored exclusively in your browser's local <code>localStorage</code> to maintain the fair daily limit.</li>
             </ul>
 
-            <h2>3. User Data Ownership &amp; Erasure</h2>
-            <p>You have full ownership of your data:</p>
+            <h2>3. Information We Absolutely Do NOT Collect</h2>
             <ul>
-                <li><strong>Download History Purge:</strong> You can clear individual download logs or wipe your entire download history at any time from your <a asp-controller="Account" asp-action="Downloads" class="auth-link">Downloads Dashboard</a>.</li>
-                <li><strong>Account Deletion:</strong> You may request full account deletion and data erasure by contacting our compliance desk at <a href="mailto:savezonix@gmail.com" class="auth-link">savezonix@gmail.com</a>.</li>
+                <li><strong>Zero Device Fingerprinting:</strong> We do not capture MAC addresses, hardware serial numbers, IMEI codes, or Canvas/WebGL device fingerprints.</li>
+                <li><strong>Zero General Browsing Surveillance:</strong> The SaveZonix browser extension activates network inspection exclusively on pages where video manifests (HLS/DASH) are present. It never monitors, intercepts, or logs unrelated web browsing.</li>
+                <li><strong>Zero Third-Party Marketing Trackers:</strong> We deploy no Google Analytics, Meta Pixel, or third-party behavioral tracking SDKs.</li>
             </ul>
 
-            <h2>4. Security &amp; Encryption</h2>
-            <p>All network communications between the browser, local application engine, and cloud authentication servers utilize TLS 1.3 encryption. Passwords and sensitive session tokens are protected against eavesdropping.</p>
+            <h2>4. User Rights (GDPR &amp; CCPA Compliance)</h2>
+            <p>Under international privacy regulations (including GDPR and CCPA), you possess the following rights:</p>
+            <ul>
+                <li><strong>Right to Erasure (Right to be Forgotten):</strong> You may permanently delete your account and all associated download logs directly from your account portal or by emailing <a href="mailto:savezonix@gmail.com" class="auth-link">savezonix@gmail.com</a>.</li>
+                <li><strong>Right to Rectification:</strong> You can update your profile details and credentials at any time in your profile settings.</li>
+                <li><strong>Right to Data Portability:</strong> You may export your personal download history upon request.</li>
+            </ul>
+
+            <h2>5. Data Security</h2>
+            <p>All network communications between your browser, desktop engine, and authentication endpoints utilize industry-standard TLS 1.3 encryption. Passwords and session keys are protected with salted cryptographic hashing.</p>
+
+            <h2>6. Contact the Privacy Team</h2>
+            <p>For inquiries regarding our privacy standards or data protection compliance, contact our privacy desk at <a href="mailto:savezonix@gmail.com" class="auth-link">savezonix@gmail.com</a>.</p>
         </div>
     </div>
 </section>
