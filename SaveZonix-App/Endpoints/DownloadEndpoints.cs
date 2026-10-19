@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -266,6 +267,29 @@ public static class DownloadEndpoints
                         catch { }
                     }
 
+                    // Automatic Pixelflix Page URL Resolver Fallback:
+                    // If a Pixelflix webpage URL was passed as StreamUrl, resolve it to the underlying DASH / direct stream
+                    if (req.StreamUrl.Contains("pixelflix.cc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            var pfParser = new M3U8Parser(httpClient);
+                            var pfRes = await pfParser.ParseAsync(req.StreamUrl);
+                            if (pfRes != null && pfRes.Qualities.Count > 0 && !pfRes.RequiresBrowserContext)
+                            {
+                                var matchedQuality = pfRes.Qualities.FirstOrDefault(q => !string.IsNullOrEmpty(req.Quality) && q.Resolution.Contains(req.Quality, StringComparison.OrdinalIgnoreCase))
+                                                     ?? pfRes.Qualities[0];
+                                req.StreamUrl = matchedQuality.Url;
+                                req.IsDirectFile = matchedQuality.IsDirectFile;
+                                if (req.DurationSeconds == 0 && pfRes.DurationSeconds > 0)
+                                    req.DurationSeconds = pfRes.DurationSeconds;
+                                if (string.IsNullOrEmpty(req.ThumbnailUrl) && !string.IsNullOrEmpty(pfRes.ThumbnailUrl))
+                                    req.ThumbnailUrl = pfRes.ThumbnailUrl;
+                            }
+                        }
+                        catch { }
+                    }
+
                     int maxValidationRetries = 2;
                     int currentAttempt = 0;
                     MediaValidationResult? finalValidation = null;
@@ -486,7 +510,7 @@ public static class DownloadEndpoints
                             }
                             else
                             {
-                                bool isDirect = req.IsDirectFile && !req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase);
+                                bool isDirect = req.IsDirectFile && !req.StreamUrl.Contains(".m3u8", StringComparison.OrdinalIgnoreCase) && !req.StreamUrl.Contains(".mpd", StringComparison.OrdinalIgnoreCase);
                                 if (isDirect) isDirect = await CheckIsDirectStreamAsync(httpClient, req.StreamUrl);
 
                                 if (isDirect)
@@ -497,6 +521,77 @@ public static class DownloadEndpoints
                                     {
                                         finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Direct media stream failed to download completely." };
                                         break;
+                                    }
+                                }
+                                else if (req.StreamUrl.Contains(".mpd", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    state.Status = "Streaming Adaptive DASH Container via FFmpeg...";
+                                    state.IsMerging = true;
+
+                                    string mapArg = "-map 0:v:0? -map 0:a:0?";
+                                    if (!string.IsNullOrEmpty(req.Quality) && req.Quality.Contains("720", StringComparison.OrdinalIgnoreCase))
+                                        mapArg = "-map 0:v:1? -map 0:a:0?";
+                                    else if (!string.IsNullOrEmpty(req.Quality) && req.Quality.Contains("480", StringComparison.OrdinalIgnoreCase))
+                                        mapArg = "-map 0:v:2? -map 0:a:0?";
+                                    else if (!string.IsNullOrEmpty(req.Quality) && req.Quality.Contains("360", StringComparison.OrdinalIgnoreCase))
+                                        mapArg = "-map 0:v:3? -map 0:a:0?";
+
+                                    string ffmpegArgs = $"-user_agent \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36\" -referer \"https://embed.reelsdownload.online/\" -i \"{req.StreamUrl.Trim()}\" {mapArg} -c copy -movflags +faststart \"{tempMergedFile}\" -y";
+
+                                    var psi = new ProcessStartInfo
+                                    {
+                                        FileName = MediaHelper.GetFfmpegPath(),
+                                        Arguments = ffmpegArgs,
+                                        RedirectStandardError = true,
+                                        UseShellExecute = false,
+                                        CreateNoWindow = true
+                                    };
+
+                                    using var proc = Process.Start(psi);
+                                    if (proc != null)
+                                    {
+                                        string? lastErrLine = null;
+                                        var stderrTask = Task.Run(async () =>
+                                        {
+                                            try
+                                            {
+                                                using var reader = proc.StandardError;
+                                                string? errLine;
+                                                while ((errLine = await reader.ReadLineAsync()) != null)
+                                                {
+                                                    lastErrLine = errLine;
+                                                    var tMatch = Regex.Match(errLine, @"time=(\d+):(\d+):(\d+\.\d+)");
+                                                    if (tMatch.Success)
+                                                    {
+                                                        double hours = double.Parse(tMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                                                        double mins = double.Parse(tMatch.Groups[2].Value, CultureInfo.InvariantCulture);
+                                                        double secs = double.Parse(tMatch.Groups[3].Value, CultureInfo.InvariantCulture);
+                                                        double currentSeconds = hours * 3600 + mins * 60 + secs;
+
+                                                        double totalSeconds = req.DurationSeconds > 0 ? req.DurationSeconds : 7200;
+                                                        double pct = Math.Min(99.0, Math.Round((currentSeconds / totalSeconds) * 100.0, 1));
+                                                        state.Percentage = Math.Max(state.Percentage, pct);
+                                                        state.ElapsedSeconds = sw.Elapsed.TotalSeconds;
+                                                        state.Status = $"Downloading DASH Stream ({state.Percentage}%)...";
+                                                    }
+                                                }
+                                            }
+                                            catch { }
+                                        });
+
+                                        await proc.WaitForExitAsync(cts.Token);
+                                        await stderrTask;
+
+                                        if (proc.ExitCode == 0 && File.Exists(tempMergedFile) && new FileInfo(tempMergedFile).Length > 1024)
+                                        {
+                                            state.Percentage = 100.0;
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"[FFmpeg DASH Error] ExitCode: {proc.ExitCode}, LastErr: {lastErrLine}");
+                                            finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = $"Failed to assemble DASH video stream into valid MP4. ({lastErrLine ?? "FFmpeg exit " + proc.ExitCode})" };
+                                            break;
+                                        }
                                     }
                                 }
                                 else

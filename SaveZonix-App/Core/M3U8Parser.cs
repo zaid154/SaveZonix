@@ -779,53 +779,145 @@ public class M3U8Parser
             int sNum = sea ?? 1;
             int eNum = ep ?? 1;
 
-            var extractApis = new[]
-            {
-                $"https://embed.reelsdownload.online/api/redflix-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
-                $"https://embed.reelsdownload.online/api/vidxgo-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
-                $"https://embed.reelsdownload.online/api/cinemaos-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
-                $"https://embed.reelsdownload.online/api/rive-extract?type={type}&tmdb_id={tmdbId}&season={sNum}&episode={eNum}"
-            };
+            var extractApis = type == "tv"
+                ? new[]
+                {
+                    $"https://embed.reelsdownload.online/api/cinemaos-extract?type=tv&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                    $"https://embed.reelsdownload.online/api/redflix-extract?type=tv&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                    $"https://embed.reelsdownload.online/api/vidxgo-extract?type=tv&tmdb_id={tmdbId}&season={sNum}&episode={eNum}",
+                    $"https://embed.reelsdownload.online/api/rive-extract?type=tv&tmdb_id={tmdbId}&season={sNum}&episode={eNum}"
+                }
+                : new[]
+                {
+                    $"https://embed.reelsdownload.online/api/cinemaos-extract?type=movie&tmdb_id={tmdbId}",
+                    $"https://embed.reelsdownload.online/api/redflix-extract?type=movie&tmdb_id={tmdbId}",
+                    $"https://embed.reelsdownload.online/api/vidxgo-extract?type=movie&tmdb_id={tmdbId}",
+                    $"https://embed.reelsdownload.online/api/rive-extract?type=movie&tmdb_id={tmdbId}"
+                };
+
+            string referer = type == "tv"
+                ? $"https://embed.reelsdownload.online/player/{tmdbId}/{sNum}/{eNum}?key=k_5661ac637169a1733857dc50"
+                : $"https://embed.reelsdownload.online/player/{tmdbId}?key=k_5661ac637169a1733857dc50";
 
             foreach (var api in extractApis)
             {
                 try
                 {
                     using var apiReq = new HttpRequestMessage(HttpMethod.Get, api);
-                    apiReq.Headers.TryAddWithoutValidation("Referer", $"https://embed.reelsdownload.online/player/{tmdbId}/{sNum}/{eNum}?key=k_5661ac637169a1733857dc50");
+                    apiReq.Headers.TryAddWithoutValidation("Referer", referer);
                     apiReq.Headers.TryAddWithoutValidation("Origin", "https://embed.reelsdownload.online");
                     apiReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
 
-                    using var apiRes = await _httpClient.SendAsync(apiReq);
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                    using var apiRes = await _httpClient.SendAsync(apiReq, cts.Token);
                     if (apiRes.IsSuccessStatusCode)
                     {
-                        var jsonDoc = await apiRes.Content.ReadAsStringAsync();
-                        using var doc = JsonDocument.Parse(jsonDoc);
-                        string? streamSrc = null;
+                        var jsonContent = await apiRes.Content.ReadAsStringAsync();
+                        if (string.IsNullOrWhiteSpace(jsonContent)) continue;
 
-                        if (doc.RootElement.TryGetProperty("sources", out var sourcesEl) && sourcesEl.GetArrayLength() > 0)
+                        var lines = jsonContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        var extractedStreams = new List<(string url, string quality, string type, string label)>();
+
+                        foreach (var line in lines)
                         {
-                            foreach (var s in sourcesEl.EnumerateArray())
+                            try
                             {
-                                if (s.TryGetProperty("url", out var u))
+                                using var doc = JsonDocument.Parse(line.Trim());
+                                var root = doc.RootElement;
+
+                                if (root.TryGetProperty("source", out var srcEl) && srcEl.ValueKind == JsonValueKind.Object)
                                 {
-                                    streamSrc = u.GetString();
-                                    break;
+                                    string? u = srcEl.TryGetProperty("url", out var uProp) ? uProp.GetString() : null;
+                                    string q = srcEl.TryGetProperty("quality", out var qProp) ? (qProp.GetString() ?? "1080p") : "1080p";
+                                    string t = srcEl.TryGetProperty("type", out var tProp) ? (tProp.GetString() ?? "") : "";
+                                    string lbl = srcEl.TryGetProperty("label", out var lProp) ? (lProp.GetString() ?? "") : "";
+                                    if (!string.IsNullOrEmpty(u)) extractedStreams.Add((u, q, t, lbl));
+                                }
+                                else if (root.TryGetProperty("sources", out var sourcesEl) && sourcesEl.ValueKind == JsonValueKind.Array)
+                                {
+                                    foreach (var s in sourcesEl.EnumerateArray())
+                                    {
+                                        string? u = s.TryGetProperty("url", out var uProp) ? uProp.GetString() : null;
+                                        string q = s.TryGetProperty("quality", out var qProp) ? (qProp.GetString() ?? "1080p") : "1080p";
+                                        string t = s.TryGetProperty("type", out var tProp) ? (tProp.GetString() ?? "") : "";
+                                        string lbl = s.TryGetProperty("label", out var lProp) ? (lProp.GetString() ?? "") : "";
+                                        if (!string.IsNullOrEmpty(u)) extractedStreams.Add((u, q, t, lbl));
+                                    }
+                                }
+                                else if (root.TryGetProperty("url", out var directUrlProp) && directUrlProp.ValueKind == JsonValueKind.String)
+                                {
+                                    string? u = directUrlProp.GetString();
+                                    if (!string.IsNullOrEmpty(u)) extractedStreams.Add((u, "1080p", "direct", "Direct Stream"));
                                 }
                             }
-                        }
-                        else if (doc.RootElement.TryGetProperty("source", out var srcEl) && srcEl.TryGetProperty("url", out var su))
-                        {
-                            streamSrc = su.GetString();
-                        }
-                        else if (doc.RootElement.TryGetProperty("url", out var directUrl))
-                        {
-                            streamSrc = directUrl.GetString();
+                            catch { }
                         }
 
-                        if (!string.IsNullOrEmpty(streamSrc))
+                        if (extractedStreams.Count > 0)
                         {
-                            return (streamSrc, qualities);
+                            var dashStream = extractedStreams.FirstOrDefault(s => s.type.Equals("dash", StringComparison.OrdinalIgnoreCase) || s.url.Contains(".mpd", StringComparison.OrdinalIgnoreCase));
+                            var mp4Streams = extractedStreams.Where(s => s.url.Contains(".mp4", StringComparison.OrdinalIgnoreCase)).ToList();
+                            var hlsStreams = extractedStreams.Where(s => s.url.Contains(".m3u8", StringComparison.OrdinalIgnoreCase)).ToList();
+
+                            if (!string.IsNullOrEmpty(dashStream.url))
+                            {
+                                qualities.Add(new StreamQuality
+                                {
+                                    Resolution = "1080p Full HD (Adaptive Stream)",
+                                    Url = dashStream.url,
+                                    IsDirectFile = false,
+                                    Bandwidth = 4500000
+                                });
+                                qualities.Add(new StreamQuality
+                                {
+                                    Resolution = "720p HD (Adaptive Stream)",
+                                    Url = dashStream.url,
+                                    IsDirectFile = false,
+                                    Bandwidth = 2500000
+                                });
+                                qualities.Add(new StreamQuality
+                                {
+                                    Resolution = "480p SD (Adaptive Stream)",
+                                    Url = dashStream.url,
+                                    IsDirectFile = false,
+                                    Bandwidth = 1200000
+                                });
+                            }
+
+                            foreach (var hls in hlsStreams)
+                            {
+                                string resLabel = string.IsNullOrWhiteSpace(hls.quality) ? "1080p FHD (HLS)" : $"{hls.quality} (HLS)";
+                                if (!qualities.Any(q => q.Url == hls.url))
+                                {
+                                    qualities.Add(new StreamQuality
+                                    {
+                                        Resolution = resLabel,
+                                        Url = hls.url,
+                                        IsDirectFile = false,
+                                        Bandwidth = 3500000
+                                    });
+                                }
+                            }
+
+                            foreach (var mp4 in mp4Streams)
+                            {
+                                string resLabel = string.IsNullOrWhiteSpace(mp4.quality) ? "1080p (MP4)" : $"{mp4.quality} {mp4.label} (MP4)".Trim();
+                                if (!qualities.Any(q => q.Url == mp4.url))
+                                {
+                                    qualities.Add(new StreamQuality
+                                    {
+                                        Resolution = resLabel,
+                                        Url = mp4.url,
+                                        IsDirectFile = true,
+                                        Bandwidth = 4500000
+                                    });
+                                }
+                            }
+
+                            if (qualities.Count > 0)
+                            {
+                                return (qualities[0].Url, qualities);
+                            }
                         }
                     }
                 }
