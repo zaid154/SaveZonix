@@ -552,7 +552,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 cleanUrl = rawParamUrl;
             }
             showError(`YouTube uses adaptive DASH streams (separate 1080p/4K video & audio tracks).<br><br>
-                <a href="http://localhost:5000/?url=${encodeURIComponent(cleanUrl)}&autoDownload=1" target="_blank" style="display:inline-block; padding:8px 16px; background:#0284c7; color:#fff; border-radius:6px; font-weight:700; text-decoration:none; box-shadow:0 2px 8px rgba(2,132,199,0.4);">
+                <a href="http://localhost:50550/?url=${encodeURIComponent(cleanUrl)}&autoDownload=1" target="_blank" style="display:inline-block; padding:8px 16px; background:#0284c7; color:#fff; border-radius:6px; font-weight:700; text-decoration:none; box-shadow:0 2px 8px rgba(2,132,199,0.4);">
                     ð Download with Zonix Desktop (1080p / 4K)
                 </a>`);
             return;

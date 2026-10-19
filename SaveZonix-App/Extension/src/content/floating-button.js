@@ -67,8 +67,11 @@
 
             // Send download request directly to SaveZonix desktop or open local app
             const pageUrl = window.location.href;
-            const targetUrl = `http://localhost:5000/?url=${encodeURIComponent(pageUrl)}&quality=${encodeURIComponent(quality)}`;
-            window.open(targetUrl, '_blank');
+            chrome.storage.local.get(['savezonix_backend_url', 'savezonix_backend_port'], (res) => {
+                const baseUrl = res?.savezonix_backend_url || (res?.savezonix_backend_port ? `http://localhost:${res.savezonix_backend_port}` : 'http://localhost:50550');
+                const targetUrl = `${baseUrl}/?url=${encodeURIComponent(pageUrl)}&quality=${encodeURIComponent(quality)}`;
+                window.open(targetUrl, '_blank');
+            });
         });
 
         document.body.appendChild(wrap);

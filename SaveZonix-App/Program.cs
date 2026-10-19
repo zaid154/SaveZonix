@@ -16,27 +16,47 @@ using SaveZonix.Extensions;
 using SaveZonix.Models;
 using Zonix.Core.Engines;
 
-// 0. Single-Instance Guard & Process Shield
-var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+// 0. Smart Port Hunting & Single-Instance Guard (Dedicated base: 50550)
+int basePort = int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var envPort) ? envPort : 50550;
+int port = basePort;
 bool isAlreadyRunning = false;
 
-try
+using (var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(200) })
 {
-    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(350));
-    using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(350) };
-    var response = client.GetAsync($"http://127.0.0.1:{port}/api/system/health", cts.Token).GetAwaiter().GetResult();
-    if (response.IsSuccessStatusCode)
+    for (int p = basePort; p <= basePort + 9; p++)
     {
-        isAlreadyRunning = true;
+        try
+        {
+            var res = client.GetAsync($"http://127.0.0.1:{p}/api/system/health").GetAwaiter().GetResult();
+            if (res.IsSuccessStatusCode)
+            {
+                port = p;
+                isAlreadyRunning = true;
+                break;
+            }
+        }
+        catch { }
     }
 }
-catch { }
 
 if (isAlreadyRunning)
 {
-    // SaveZonix is already actively running and serving traffic! Focus/open browser and exit cleanly.
     MediaHelper.OpenBrowser($"http://localhost:{port}");
     return;
+}
+
+// Find first free port in range
+for (int p = basePort; p <= basePort + 9; p++)
+{
+    try
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, p);
+        listener.Start();
+        listener.Stop();
+        port = p;
+        break;
+    }
+    catch { }
 }
 
 CrashGuard.Initialize();

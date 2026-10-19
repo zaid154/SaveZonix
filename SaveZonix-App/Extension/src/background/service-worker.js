@@ -670,9 +670,12 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         if (req.tabId) p.set('tabId', String(req.tabId));
 
         const target = req.url || '';
-        const localUrl = target ? `http://localhost:5000/?url=${encodeURIComponent(target)}&autoDownload=1` : 'http://localhost:5000';
-        chrome.tabs.create({ url: localUrl });
-        sendResponse({ success: true });
+        chrome.storage.local.get(['savezonix_backend_url', 'savezonix_backend_port'], (res) => {
+            const baseUrl = res?.savezonix_backend_url || (res?.savezonix_backend_port ? `http://localhost:${res.savezonix_backend_port}` : 'http://localhost:50550');
+            const localUrl = target ? `${baseUrl}/?url=${encodeURIComponent(target)}&autoDownload=1` : baseUrl;
+            chrome.tabs.create({ url: localUrl });
+            sendResponse({ success: true });
+        });
     } else if (req.action === 'resolveInstagramForDashboard') {
         resolveInstagramForDashboard(req.url)
             .then(sendResponse)

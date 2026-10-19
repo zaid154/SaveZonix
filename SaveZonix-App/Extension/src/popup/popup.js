@@ -23,34 +23,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     const enginePulseDot = document.getElementById('enginePulseDot');
     const engineStatusText = document.getElementById('engineStatusText');
 
-    // Live Engine Handshake & Health Monitor
+    let backendBaseUrl = 'http://localhost:50550';
+
+    // Live Engine Handshake & Smart Auto-Port Discovery
     async function checkEngineHealth() {
         if (!engineStatusPill) return;
-        try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 2000);
-            const res = await fetch('http://localhost:5000/api/system/health', { signal: controller.signal });
-            clearTimeout(timeout);
-            if (res.ok) {
-                const data = await res.json();
-                engineStatusPill.style.background = 'rgba(16, 185, 129, 0.15)';
-                engineStatusPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
-                engineStatusPill.style.color = '#34d399';
-                if (enginePulseDot) enginePulseDot.style.background = '#10b981';
-                if (engineStatusText) engineStatusText.textContent = `Engine Active (v${data.version || '2.5.0'})`;
-                engineStatusPill.title = 'SaveZonix Desktop Turbo Engine is connected & ready';
-            } else {
-                throw new Error('Engine not ready');
-            }
-        } catch {
+        const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
+        let connected = false;
+
+        for (const p of candidatePorts) {
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 200);
+                const res = await fetch(`http://localhost:${p}/api/system/health`, { signal: controller.signal });
+                clearTimeout(timeout);
+                if (res.ok) {
+                    const data = await res.json();
+                    backendBaseUrl = `http://localhost:${p}`;
+                    chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: p });
+                    engineStatusPill.style.background = 'rgba(16, 185, 129, 0.15)';
+                    engineStatusPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+                    engineStatusPill.style.color = '#34d399';
+                    if (enginePulseDot) enginePulseDot.style.background = '#10b981';
+                    if (engineStatusText) engineStatusText.textContent = `Engine Active (v${data.version || '2.5.4'})`;
+                    engineStatusPill.title = `SaveZonix Desktop Turbo Engine is connected & ready (Port ${p})`;
+                    connected = true;
+                    break;
+                }
+            } catch { }
+        }
+
+        if (!connected) {
             engineStatusPill.style.background = 'rgba(245, 158, 11, 0.15)';
             engineStatusPill.style.borderColor = 'rgba(245, 158, 11, 0.35)';
             engineStatusPill.style.color = '#fbbf24';
             if (enginePulseDot) enginePulseDot.style.background = '#f59e0b';
             if (engineStatusText) engineStatusText.textContent = 'App Sleeping (Launch)';
-            engineStatusPill.title = 'SaveZonix Desktop App is not running. Click to launch or open http://localhost:5000';
+            engineStatusPill.title = `SaveZonix Desktop App is not running. Click to launch or open ${backendBaseUrl}`;
             engineStatusPill.onclick = () => {
-                chrome.tabs.create({ url: 'http://localhost:5000' });
+                chrome.tabs.create({ url: backendBaseUrl });
             };
         }
     }
@@ -303,7 +314,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         let completed = (tabData && tabData.completed) ? tabData.completed : [];
 
         // Sync recent downloads asynchronously in background without blocking video cards
-        fetch('http://localhost:5000/api/extension/recent-downloads', {
+        fetch(`${backendBaseUrl}/api/extension/recent-downloads`, {
             signal: AbortSignal.timeout(1200)
         }).then(async syncResp => {
             if (syncResp.ok) {
@@ -858,7 +869,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
                     const chosenQuality = getSelectedQuality();
                     chrome.tabs.create({
-                        url: `http://localhost:5000/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}`
+                        url: `${backendBaseUrl}/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}`
                     });
                     window.close();
                 });
@@ -887,7 +898,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const target = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
                     const chosenQuality = getSelectedQuality();
                     chrome.tabs.create({
-                        url: `http://localhost:5000/?url=${encodeURIComponent(target)}&quality=${encodeURIComponent(chosenQuality)}`
+                        url: `${backendBaseUrl}/?url=${encodeURIComponent(target)}&quality=${encodeURIComponent(chosenQuality)}`
                     });
                     window.close();
                 });
@@ -902,7 +913,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 e.stopPropagation();
                 const watchUrl = video.url || currentTabUrl;
                 const watchTitle = video.title || video.showName || currentTabTitle || 'Stream';
-                const cinemaLink = `http://localhost:5000/cinema?url=${encodeURIComponent(watchUrl)}&title=${encodeURIComponent(watchTitle)}&site=${encodeURIComponent(currentSiteName)}&quality=1080p`;
+                const cinemaLink = `${backendBaseUrl}/cinema?url=${encodeURIComponent(watchUrl)}&title=${encodeURIComponent(watchTitle)}&site=${encodeURIComponent(currentSiteName)}&quality=1080p`;
                 chrome.tabs.create({ url: cinemaLink });
                 window.close();
             });
@@ -983,21 +994,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 if (ytDetails && ytDetails.isPlaylistPage) {
-                    chrome.tabs.create({ url: `http://localhost:5000/playlist?url=${encodeURIComponent(currentTabUrl)}` });
+                    chrome.tabs.create({ url: `${backendBaseUrl}/playlist?url=${encodeURIComponent(currentTabUrl)}` });
                     window.close();
                     return;
                 }
                 const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
                 const chosenQuality = getSelectedQuality();
                 chrome.tabs.create({
-                    url: `http://localhost:5000/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}&autoDownload=1`
+                    url: `${backendBaseUrl}/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}&autoDownload=1`
                 });
                 window.close();
                 return;
             }
 
             // 2. All Other Sites (pron.click, PixelFlix, Instagram, Web Streams):
-            // ALWAYS redirect to SaveZonix Localhost (http://localhost:5000)
+            // ALWAYS redirect to SaveZonix Localhost
             const epTag = (function(textOrUrl) {
                 if (!textOrUrl) return '';
                 const m = textOrUrl.match(/(?:[?&]|\b)(?:season|s)=(\d+)[^&]*&(?:episode|ep|e)=(\d+)/i) 
@@ -1017,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const finalDownloadUrl = (targetUrl && targetUrl.startsWith('http')) ? targetUrl : currentTabUrl;
             if (finalDownloadUrl && finalDownloadUrl.startsWith('http')) {
                 chrome.tabs.create({
-                    url: `http://localhost:5000/?url=${encodeURIComponent(finalDownloadUrl)}&title=${encodeURIComponent(effectiveTitle)}&originalUrl=${encodeURIComponent(currentTabUrl)}&autoDownload=1`
+                    url: `${backendBaseUrl}/?url=${encodeURIComponent(finalDownloadUrl)}&title=${encodeURIComponent(effectiveTitle)}&originalUrl=${encodeURIComponent(currentTabUrl)}&autoDownload=1`
                 });
                 window.close();
                 return;
@@ -1025,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // A webpage fallback remains useful for sites where no direct stream was detected yet.
             if (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome')) {
-                chrome.tabs.create({ url: `http://localhost:5000/?url=${encodeURIComponent(currentTabUrl)}&title=${encodeURIComponent(effectiveTitle)}&autoDownload=1` });
+                chrome.tabs.create({ url: `${backendBaseUrl}/?url=${encodeURIComponent(currentTabUrl)}&title=${encodeURIComponent(effectiveTitle)}&autoDownload=1` });
                 window.close();
             }
         });
@@ -1066,7 +1077,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch { }
 
                 try {
-                    await fetch('http://localhost:5000/api/extension/clear-history', { method: 'POST' });
+                    await fetch(`${backendBaseUrl}/api/extension/clear-history`, { method: 'POST' });
                 } catch { }
             });
         }
@@ -1135,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch { }
 
                     try {
-                        await fetch(`http://localhost:5000/api/extension/history/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
+                        await fetch(`${backendBaseUrl}/api/extension/history/${encodeURIComponent(targetId)}`, { method: 'DELETE' });
                     } catch { }
                 });
             }
