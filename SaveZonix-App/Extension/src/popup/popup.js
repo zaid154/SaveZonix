@@ -1291,7 +1291,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        validItems.slice(0, 15).forEach(item => {
+        const hasActive = videoList && videoList.children.length > 0;
+        validItems.slice(0, hasActive ? 2 : 4).forEach(item => {
             const rawTitle = (item.title && item.title.toLowerCase() !== 'video.mp4' && item.title.toLowerCase() !== 'video')
                 ? item.title
                 : ((item.filename && item.filename.toLowerCase() !== 'video.mp4') ? item.filename.replace(/\.[^/.]+$/, "") : 'Media Download');
