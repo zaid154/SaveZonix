@@ -939,13 +939,15 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
                 if (videoStream == null)
                 {
+                    videoStream = manifest.GetMuxedStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                }
+
+                if (videoStream == null)
+                {
                     throw new Exception("No suitable video stream found.");
                 }
 
-                var allAudioStreams = manifest.GetAudioOnlyStreams().ToList();
-                var audioStream = allAudioStreams.Where(s => s.Container == Container.Mp4).GetWithHighestBitrate()
-                    ?? allAudioStreams.GetWithHighestBitrate();
-
+                // If stream is already muxed (audio + video interleaved together, e.g. 360p legacy videos like Ep 1):
                 if (videoStream is MuxedStreamInfo muxed)
                 {
                     item.Status = $"Downloading {videoStream.VideoQuality.Label} Stream...";
@@ -973,6 +975,13 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 }
                 else
                 {
+                    // Resolve audio safely without throwing 'Input stream collection is empty'
+                    var allAudioStreams = manifest.GetAudioOnlyStreams().ToList();
+                    var audioStream = allAudioStreams.Where(s => s.Container == Container.Mp4)
+                                                     .OrderByDescending(s => s.Bitrate)
+                                                     .FirstOrDefault()
+                                   ?? allAudioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
+
                     string tempVideoRaw = Path.Combine(tempDirectory, "video_track.mp4");
                     string tempAudioRaw = Path.Combine(tempDirectory, "audio_track.mp4");
 
