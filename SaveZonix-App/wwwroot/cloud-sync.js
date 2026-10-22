@@ -495,13 +495,21 @@
     // 4. Download Gatekeeper (Guest & Free Quotas, 4K VIP Lock)
     // ─────────────────────────────────────────────────────────────
     window.checkDownloadPermission = function (selectedResolution) {
-        // Check Maintenance Mode First!
+        // 1. If user is logged in (via ASP.NET Core Identity in navbar or saved user), grant immediate unrestricted access!
+        const isServerUser = !!document.getElementById('userMenuBtn') 
+                          || !!document.querySelector('.user-dropdown-container')
+                          || (currentUser && (currentUser.name || currentUser.email));
+        if (isServerUser) {
+            return { allowed: true };
+        }
+
+        // 2. Check Maintenance Mode First!
         if (cloudConfig?.maintenanceMode === true) {
             showMaintenanceModal();
             return { allowed: false, reason: cloudConfig?.maintenanceMessage || 'Fleet engines are undergoing scheduled maintenance. Please check back shortly.' };
         }
 
-        // Check Force Update first
+        // 3. Check Force Update first
         if (cloudConfig?.forceUpdate === true || compareVersions(CURRENT_VERSION, cloudConfig?.minAllowedVersion) < 0) {
             showForceUpdateModal();
             return { allowed: false, reason: 'Please update your application to continue.' };
@@ -509,19 +517,13 @@
 
         const is4K = typeof selectedResolution === 'string' && (selectedResolution.includes('2160') || selectedResolution.includes('4K') || selectedResolution.includes('1440'));
 
-        // Check 4K Lock for VIP
+        // 4. Check 4K Lock for VIP (Guests must sign in to unlock 4K)
         if (is4K && cloudConfig?.lock4KForVip === true) {
             if (!currentUser || currentUser.isVip !== true) {
                 openAuthModal('signIn');
-                showAuthMessage(' 4K Ultra-HD is reserved for VIP members. Please sign in or select 1080p.', 'error');
+                showAuthMessage('4K Ultra-HD is reserved for registered members. Please sign in or select 1080p.', 'error');
                 return { allowed: false, reason: '4K VIP Restricted' };
             }
-        }
-
-        // If logged in via ASP.NET Core Identity
-        const isServerUser = !!document.getElementById('userMenuBtn') || !!document.querySelector('.user-dropdown-container');
-        if (isServerUser) {
-            return { allowed: true };
         }
 
         // If user is logged in

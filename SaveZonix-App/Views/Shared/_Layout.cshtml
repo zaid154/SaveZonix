@@ -248,7 +248,8 @@
                     const currentUser = {
                         name: '@User.Identity.Name',
                         email: userEmail,
-                        id: '@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")'
+                        id: '@(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "")',
+                        isVip: true
                     };
                     localStorage.setItem('savezonix_cloud_user', JSON.stringify(currentUser));
                 } catch { }
