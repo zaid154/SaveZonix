@@ -86,7 +86,7 @@ public class YouTubePlaylistService : IYouTubePlaylistService
         bool loadAll = (limit.HasValue && limit.Value == 0);
         int targetLimit = (limit.HasValue && limit.Value > 0) 
             ? limit.Value 
-            : (loadAll ? 500 : (isMix ? 25 : 100));
+            : (loadAll ? (isMix ? 400 : 5000) : (isMix ? 25 : 100));
 
         int skipCount = (offset.HasValue && offset.Value > 0) ? offset.Value : 0;
 
@@ -320,8 +320,23 @@ public class YouTubePlaylistService : IYouTubePlaylistService
                 ? $"{(int)ts.TotalHours}h {ts.Minutes}m"
                 : $"{ts.Minutes}m {ts.Seconds}s";
 
-            // If we loaded a large or complete batch, update cache
-            if (skipCount == 0)
+            // Update or merge into cache
+            if (_cache.TryGetValue(playlistId, out var cachedEntry))
+            {
+                var existingSet = new HashSet<string>(cachedEntry.Result.Videos.Select(v => v.VideoId));
+                foreach (var v in videos)
+                {
+                    if (existingSet.Add(v.VideoId))
+                    {
+                        cachedEntry.Result.Videos.Add(v);
+                    }
+                }
+                cachedEntry.Result.VideoCount = cachedEntry.Result.Videos.Count;
+                cachedEntry.Result.TotalKnownVideos = hasMore ? (isMix ? 400 : (cachedEntry.Result.Videos.Count + 50)) : cachedEntry.Result.Videos.Count;
+                cachedEntry.Result.HasMore = hasMore;
+                _cache[playlistId] = (DateTime.UtcNow, cachedEntry.Result);
+            }
+            else if (skipCount == 0)
             {
                 _cache[playlistId] = (DateTime.UtcNow, result);
             }
