@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Configuration;
@@ -116,8 +117,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<BulkBatchEngine>();
         services.AddSingleton<CookieVaultEngine>();
 
-        // 7. MVC Controllers & Views
-        services.AddControllersWithViews();
+        // 7. MVC Controllers & Views (Configured with safe JSON number handling)
+        services.AddControllersWithViews()
+            .AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
+            });
+
+        services.ConfigureHttpJsonOptions(options =>
+        {
+            options.SerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
+        });
 
         return services;
     }

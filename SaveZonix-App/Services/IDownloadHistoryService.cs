@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -107,7 +108,12 @@ public class DownloadHistoryService : IDownloadHistoryService
                 if (File.Exists(_localFilePath))
                 {
                     string json = File.ReadAllText(_localFilePath);
-                    var items = JsonSerializer.Deserialize<List<DownloadHistory>>(json);
+                    var loadOptions = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
+                    };
+                    var items = JsonSerializer.Deserialize<List<DownloadHistory>>(json, loadOptions);
                     if (items != null)
                     {
                         bool anyFixed = false;
@@ -115,6 +121,16 @@ public class DownloadHistoryService : IDownloadHistoryService
                         {
                             if (!string.IsNullOrEmpty(it.Id))
                             {
+                                if (double.IsNaN(it.AverageSpeedMBps) || double.IsInfinity(it.AverageSpeedMBps) || it.AverageSpeedMBps < 0)
+                                {
+                                    it.AverageSpeedMBps = 0;
+                                    anyFixed = true;
+                                }
+                                if (double.IsNaN(it.PeakSpeedMBps) || double.IsInfinity(it.PeakSpeedMBps) || it.PeakSpeedMBps < 0)
+                                {
+                                    it.PeakSpeedMBps = 0;
+                                    anyFixed = true;
+                                }
                                 if (it.Status is DownloadStatus.Downloading or DownloadStatus.Retrying or DownloadStatus.Resolving)
                                 {
                                     it.Status = DownloadStatus.Cancelled;
@@ -153,7 +169,19 @@ public class DownloadHistoryService : IDownloadHistoryService
                     Directory.CreateDirectory(dir);
 
                 var list = _localStore.Values.OrderByDescending(x => x.CreatedAt).ToList();
-                var json = JsonSerializer.Serialize(list, new JsonSerializerOptions { WriteIndented = true });
+                foreach (var it in list)
+                {
+                    if (double.IsNaN(it.AverageSpeedMBps) || double.IsInfinity(it.AverageSpeedMBps) || it.AverageSpeedMBps < 0)
+                        it.AverageSpeedMBps = 0;
+                    if (double.IsNaN(it.PeakSpeedMBps) || double.IsInfinity(it.PeakSpeedMBps) || it.PeakSpeedMBps < 0)
+                        it.PeakSpeedMBps = 0;
+                }
+                var saveOptions = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals
+                };
+                var json = JsonSerializer.Serialize(list, saveOptions);
                 string tempFile = _localFilePath + ".tmp";
                 File.WriteAllText(tempFile, json);
                 File.Move(tempFile, _localFilePath, true);

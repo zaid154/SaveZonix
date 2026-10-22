@@ -197,6 +197,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             item.Status = "Pending";
             item.Percentage = 0;
             item.SpeedMBps = 0;
+            item.PeakSpeedMBps = 0;
             item.BytesDownloaded = 0;
             item.ErrorMessage = null;
             item.RetryCount++;
@@ -306,6 +307,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             item.Status = "Pending";
             item.Percentage = 0;
             item.SpeedMBps = 0;
+            item.PeakSpeedMBps = 0;
             item.BytesDownloaded = 0;
             item.ErrorMessage = null;
             item.RetryCount++;
@@ -329,7 +331,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
         _ = Task.Run(async () =>
         {
-            using var semaphore = new SemaphoreSlim(Math.Clamp(job.Items.Count > 2 ? 4 : 2, 1, 6));
+            using var semaphore = new SemaphoreSlim(Math.Clamp(job.Items.Count > 2 ? 3 : 2, 1, 3));
             var tasks = failedItems.Select(async (item, idx) =>
             {
                 // Stagger starts by 250ms to protect local DNS/sockets
@@ -614,7 +616,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         }
 
         var cts = new CancellationTokenSource();
-        int concurrency = Math.Clamp(request.Concurrency, 1, 12);
+        int concurrency = Math.Clamp(request.Concurrency > 0 ? request.Concurrency : 3, 1, 3);
 
         var items = new List<PlaylistItemDownloadState>();
         if (request.Videos != null && request.Videos.Count > 0)
@@ -853,240 +855,296 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 }
             }
 
-            var manifest = await GetStreamManifestWithRetryAsync(item.VideoId, ct);
-
-            string tempOutput = Path.Combine(tempDirectory, "out" + ext);
-
-            sw.Restart();
-            long lastBytes = 0;
-            double lastSeconds = 0;
-
-            if (isAudioOnly)
+            const int maxDownloadAttempts = 3;
+            for (int downloadAttempt = 1; downloadAttempt <= maxDownloadAttempts; downloadAttempt++)
             {
-                item.Status = "⚡ Turbo Downloading Audio Track...";
-                var audioStreams = manifest.GetAudioOnlyStreams().ToList();
-                IStreamInfo? audioStream = null;
-                if (item.Format.Equals("M4A", StringComparison.OrdinalIgnoreCase))
+                try
                 {
-                    audioStream = audioStreams.FirstOrDefault(s => s.Container == YoutubeExplode.Videos.Streams.Container.Mp4);
-                }
-                audioStream ??= audioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
-                if (audioStream == null)
-                {
-                    throw new Exception("No audio stream available for this video.");
-                }
+                    var manifest = await GetStreamManifestWithRetryAsync(item.VideoId, ct);
 
-                item.TotalBytes = audioStream.Size.Bytes;
-                string tempAudioRaw = Path.Combine(tempDirectory, "audio_raw.bin");
+                    string tempOutput = Path.Combine(tempDirectory, "out" + ext);
 
-                var audioProgress = new Progress<long>(readBytes =>
-                {
-                    item.BytesDownloaded = readBytes;
-                    if (audioStream.Size.Bytes > 0)
+                    sw.Restart();
+                    long lastBytes = 0;
+                    double lastSeconds = 0;
+                    object progressLock = new();
+
+                    if (isAudioOnly)
                     {
-                        item.Percentage = Math.Min(88.0, Math.Round((double)readBytes / audioStream.Size.Bytes * 85.0, 1));
-                    }
-                    double elapsed = sw.Elapsed.TotalSeconds;
-                    if (elapsed - lastSeconds >= 0.4)
-                    {
-                        double diffMb = (item.BytesDownloaded - lastBytes) / (1024.0 * 1024.0);
-                        item.SpeedMBps = Math.Max(0.1, Math.Round(diffMb / (elapsed - lastSeconds), 1));
-                        if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
-                        lastSeconds = elapsed;
-                        lastBytes = item.BytesDownloaded;
-                    }
-                });
-
-                await DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 6);
-
-                if (item.Format.Equals("MP3", StringComparison.OrdinalIgnoreCase))
-                {
-                    item.Status = "Converting to Studio-Quality MP3 (320 kbps)...";
-                    item.Percentage = 90;
-                    bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "320k", "mp3");
-                    if (!converted || !File.Exists(tempOutput))
-                    {
-                        File.Move(tempAudioRaw, tempOutput, true);
-                    }
-                }
-                else
-                {
-                    item.Status = "Finalizing High-Quality M4A (256 kbps AAC)...";
-                    item.Percentage = 90;
-                    bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "256k", "m4a");
-                    if (!converted || !File.Exists(tempOutput))
-                    {
-                        File.Move(tempAudioRaw, tempOutput, true);
-                    }
-                }
-            }
-            else
-            {
-                IVideoStreamInfo? videoStream = null;
-                var allVideoStreams = manifest.GetVideoStreams().ToList();
-
-                if (item.Quality.Equals("Best", StringComparison.OrdinalIgnoreCase))
-                {
-                    videoStream = manifest.GetVideoStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                }
-                else
-                {
-                    string targetLabel = item.Quality.ToLowerInvariant().Replace("p", "");
-                    videoStream = allVideoStreams
-                        .FirstOrDefault(s => s.VideoQuality.Label.StartsWith(targetLabel, StringComparison.OrdinalIgnoreCase))
-                        ?? manifest.GetVideoStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                }
-
-                if (videoStream == null)
-                {
-                    videoStream = manifest.GetMuxedStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                }
-
-                if (videoStream == null)
-                {
-                    throw new Exception("No suitable video stream found.");
-                }
-
-                // If stream is already muxed (audio + video interleaved together, e.g. 360p legacy videos like Ep 1):
-                if (videoStream is MuxedStreamInfo muxed)
-                {
-                    item.Status = $"Downloading {videoStream.VideoQuality.Label} Stream...";
-                    item.TotalBytes = muxed.Size.Bytes;
-
-                    var muxProgress = new Progress<long>(readBytes =>
-                    {
-                        item.BytesDownloaded = readBytes;
-                        if (muxed.Size.Bytes > 0)
+                        item.Status = "⚡ Turbo Downloading Audio Track...";
+                        var audioStreams = manifest.GetAudioOnlyStreams().ToList();
+                        IStreamInfo? audioStream = null;
+                        if (item.Format.Equals("M4A", StringComparison.OrdinalIgnoreCase))
                         {
-                            item.Percentage = Math.Min(95.0, Math.Round((double)readBytes / muxed.Size.Bytes * 95.0, 1));
+                            audioStream = audioStreams.FirstOrDefault(s => s.Container == YoutubeExplode.Videos.Streams.Container.Mp4);
                         }
-                        double elapsed = sw.Elapsed.TotalSeconds;
-                        if (elapsed - lastSeconds >= 0.4)
+                        audioStream ??= audioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
+                        if (audioStream == null)
                         {
-                            double diffMb = (item.BytesDownloaded - lastBytes) / (1024.0 * 1024.0);
-                            item.SpeedMBps = Math.Max(0.1, Math.Round(diffMb / (elapsed - lastSeconds), 1));
-                            if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
-                            lastSeconds = elapsed;
-                            lastBytes = item.BytesDownloaded;
+                            throw new Exception("No audio stream available for this video.");
                         }
-                    });
 
-                    await DownloadStreamParallelAsync(muxed, tempOutput, muxProgress, ct, turboChunks: 16);
-                }
-                else
-                {
-                    // Resolve audio safely without throwing 'Input stream collection is empty'
-                    var allAudioStreams = manifest.GetAudioOnlyStreams().ToList();
-                    var audioStream = allAudioStreams.Where(s => s.Container == Container.Mp4)
-                                                     .OrderByDescending(s => s.Bitrate)
-                                                     .FirstOrDefault()
-                                   ?? allAudioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
+                        item.TotalBytes = audioStream.Size.Bytes;
+                        string tempAudioRaw = Path.Combine(tempDirectory, "audio_raw.bin");
 
-                    string tempVideoRaw = Path.Combine(tempDirectory, "video_track.mp4");
-                    string tempAudioRaw = Path.Combine(tempDirectory, "audio_track.mp4");
-
-                    long totalExpected = videoStream.Size.Bytes + (audioStream?.Size.Bytes ?? 0);
-                    item.TotalBytes = totalExpected;
-
-                    long videoRead = 0;
-                    long audioRead = 0;
-
-                    void UpdateCombinedProgress()
-                    {
-                        long current = Interlocked.Read(ref videoRead) + Interlocked.Read(ref audioRead);
-                        item.BytesDownloaded = current;
-                        if (totalExpected > 0)
+                        var audioProgress = new Progress<long>(readBytes =>
                         {
-                            item.Percentage = Math.Min(92.0, Math.Round((double)current / totalExpected * 90.0, 1));
+                            lock (progressLock)
+                            {
+                                item.BytesDownloaded = readBytes;
+                                if (audioStream.Size.Bytes > 0)
+                                {
+                                    double pct = Math.Min(88.0, Math.Round((double)readBytes / audioStream.Size.Bytes * 85.0, 1));
+                                    if (!double.IsNaN(pct) && !double.IsInfinity(pct)) item.Percentage = pct;
+                                }
+                                double elapsed = sw.Elapsed.TotalSeconds;
+                                double deltaSec = elapsed - lastSeconds;
+                                if (deltaSec >= 0.4)
+                                {
+                                    double diffMb = (item.BytesDownloaded - lastBytes) / (1024.0 * 1024.0);
+                                    double spd = diffMb / deltaSec;
+                                    if (double.IsNaN(spd) || double.IsInfinity(spd) || spd < 0) spd = 0;
+                                    else if (spd > 500) spd = 500;
+
+                                    item.SpeedMBps = Math.Round(spd, 1);
+                                    if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
+                                    lastSeconds = elapsed;
+                                    lastBytes = item.BytesDownloaded;
+                                }
+                            }
+                        });
+
+                        await DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 4);
+
+                        if (item.Format.Equals("MP3", StringComparison.OrdinalIgnoreCase))
+                        {
+                            item.Status = "Converting to Studio-Quality MP3 (320 kbps)...";
+                            item.Percentage = 90;
+                            bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "320k", "mp3");
+                            if (!converted || !File.Exists(tempOutput))
+                            {
+                                File.Move(tempAudioRaw, tempOutput, true);
+                            }
                         }
-                        double elapsed = sw.Elapsed.TotalSeconds;
-                        if (elapsed - lastSeconds >= 0.4)
+                        else
                         {
-                            double diffMb = (current - lastBytes) / (1024.0 * 1024.0);
-                            item.SpeedMBps = Math.Max(0.1, Math.Round(diffMb / (elapsed - lastSeconds), 1));
-                            if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
-                            lastSeconds = elapsed;
-                            lastBytes = current;
-                        }
-                    }
-
-                    var videoProgress = new Progress<long>(b =>
-                    {
-                        Interlocked.Exchange(ref videoRead, b);
-                        UpdateCombinedProgress();
-                    });
-
-                    var audioProgress = new Progress<long>(b =>
-                    {
-                        Interlocked.Exchange(ref audioRead, b);
-                        UpdateCombinedProgress();
-                    });
-
-                    item.Status = $"⚡ Turbo Downloading {videoStream.VideoQuality.Label} + Audio (Parallel Chunks)...";
-
-                    var videoTask = DownloadStreamParallelAsync(videoStream, tempVideoRaw, videoProgress, ct, turboChunks: 16);
-                    var audioTask = audioStream != null
-                        ? DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 4)
-                        : Task.CompletedTask;
-
-                    await Task.WhenAll(videoTask, audioTask);
-
-                    if (audioStream != null)
-                    {
-                        item.Status = "⚡ Combining Video + Audio (Instant Stream Copy)...";
-                        item.Percentage = 93;
-
-                        bool muxSuccess = await MuxVideoAndAudioAsync(tempVideoRaw, tempAudioRaw, tempOutput);
-                        if (!muxSuccess || !File.Exists(tempOutput))
-                        {
-                            File.Move(tempVideoRaw, tempOutput, true);
+                            item.Status = "Finalizing High-Quality M4A (256 kbps AAC)...";
+                            item.Percentage = 90;
+                            bool converted = await ExtractAudioAsync(tempAudioRaw, tempOutput, "256k", "m4a");
+                            if (!converted || !File.Exists(tempOutput))
+                            {
+                                File.Move(tempAudioRaw, tempOutput, true);
+                            }
                         }
                     }
                     else
                     {
-                        File.Move(tempVideoRaw, tempOutput, true);
+                        IVideoStreamInfo? videoStream = null;
+                        var allVideoStreams = manifest.GetVideoStreams().ToList();
+
+                        if (item.Quality.Equals("Best", StringComparison.OrdinalIgnoreCase))
+                        {
+                            videoStream = manifest.GetVideoStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                        }
+                        else
+                        {
+                            string targetLabel = item.Quality.ToLowerInvariant().Replace("p", "");
+                            videoStream = allVideoStreams
+                                .FirstOrDefault(s => s.VideoQuality.Label.StartsWith(targetLabel, StringComparison.OrdinalIgnoreCase))
+                                ?? manifest.GetVideoStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                        }
+
+                        if (videoStream == null)
+                        {
+                            videoStream = manifest.GetMuxedStreams().OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                        }
+
+                        if (videoStream == null)
+                        {
+                            throw new Exception("No suitable video stream found.");
+                        }
+
+                        // If stream is already muxed (audio + video interleaved together, e.g. 360p legacy videos like Ep 1):
+                        if (videoStream is MuxedStreamInfo muxed)
+                        {
+                            item.Status = $"Downloading {videoStream.VideoQuality.Label} Stream...";
+                            item.TotalBytes = muxed.Size.Bytes;
+
+                            var muxProgress = new Progress<long>(readBytes =>
+                            {
+                                lock (progressLock)
+                                {
+                                    item.BytesDownloaded = readBytes;
+                                    if (muxed.Size.Bytes > 0)
+                                    {
+                                        double pct = Math.Min(95.0, Math.Round((double)readBytes / muxed.Size.Bytes * 95.0, 1));
+                                        if (!double.IsNaN(pct) && !double.IsInfinity(pct)) item.Percentage = pct;
+                                    }
+                                    double elapsed = sw.Elapsed.TotalSeconds;
+                                    double deltaSec = elapsed - lastSeconds;
+                                    if (deltaSec >= 0.4)
+                                    {
+                                        double diffMb = (item.BytesDownloaded - lastBytes) / (1024.0 * 1024.0);
+                                        double spd = diffMb / deltaSec;
+                                        if (double.IsNaN(spd) || double.IsInfinity(spd) || spd < 0) spd = 0;
+                                        else if (spd > 500) spd = 500;
+
+                                        item.SpeedMBps = Math.Round(spd, 1);
+                                        if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
+                                        lastSeconds = elapsed;
+                                        lastBytes = item.BytesDownloaded;
+                                    }
+                                }
+                            });
+
+                            await DownloadStreamParallelAsync(muxed, tempOutput, muxProgress, ct, turboChunks: 6);
+                        }
+                        else
+                        {
+                            // Resolve audio safely without throwing 'Input stream collection is empty'
+                            var allAudioStreams = manifest.GetAudioOnlyStreams().ToList();
+                            var audioStream = allAudioStreams.Where(s => s.Container == Container.Mp4)
+                                                             .OrderByDescending(s => s.Bitrate)
+                                                             .FirstOrDefault()
+                                           ?? allAudioStreams.OrderByDescending(s => s.Bitrate).FirstOrDefault();
+
+                            string tempVideoRaw = Path.Combine(tempDirectory, "video_track.mp4");
+                            string tempAudioRaw = Path.Combine(tempDirectory, "audio_track.mp4");
+
+                            long totalExpected = videoStream.Size.Bytes + (audioStream?.Size.Bytes ?? 0);
+                            item.TotalBytes = totalExpected;
+
+                            long videoRead = 0;
+                            long audioRead = 0;
+
+                            void UpdateCombinedProgress()
+                            {
+                                lock (progressLock)
+                                {
+                                    long current = Interlocked.Read(ref videoRead) + Interlocked.Read(ref audioRead);
+                                    item.BytesDownloaded = current;
+                                    if (totalExpected > 0)
+                                    {
+                                        double pct = Math.Min(92.0, Math.Round((double)current / totalExpected * 90.0, 1));
+                                        if (!double.IsNaN(pct) && !double.IsInfinity(pct)) item.Percentage = pct;
+                                    }
+                                    double elapsed = sw.Elapsed.TotalSeconds;
+                                    double deltaSec = elapsed - lastSeconds;
+                                    if (deltaSec >= 0.4)
+                                    {
+                                        double diffMb = (current - lastBytes) / (1024.0 * 1024.0);
+                                        double spd = diffMb / deltaSec;
+                                        if (double.IsNaN(spd) || double.IsInfinity(spd) || spd < 0) spd = 0;
+                                        else if (spd > 500) spd = 500;
+
+                                        item.SpeedMBps = Math.Round(spd, 1);
+                                        if (item.SpeedMBps > item.PeakSpeedMBps) item.PeakSpeedMBps = item.SpeedMBps;
+                                        lastSeconds = elapsed;
+                                        lastBytes = current;
+                                    }
+                                }
+                            }
+
+                            var videoProgress = new Progress<long>(b =>
+                            {
+                                Interlocked.Exchange(ref videoRead, b);
+                                UpdateCombinedProgress();
+                            });
+
+                            var audioProgress = new Progress<long>(b =>
+                            {
+                                Interlocked.Exchange(ref audioRead, b);
+                                UpdateCombinedProgress();
+                            });
+
+                            item.Status = $"⚡ Turbo Downloading {videoStream.VideoQuality.Label} + Audio (Parallel Chunks)...";
+
+                            var videoTask = DownloadStreamParallelAsync(videoStream, tempVideoRaw, videoProgress, ct, turboChunks: 6);
+                            var audioTask = audioStream != null
+                                ? DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 2)
+                                : Task.CompletedTask;
+
+                            await Task.WhenAll(videoTask, audioTask);
+
+                            if (audioStream != null)
+                            {
+                                item.Status = "⚡ Combining Video + Audio (Instant Stream Copy)...";
+                                item.Percentage = 93;
+
+                                bool muxSuccess = await MuxVideoAndAudioAsync(tempVideoRaw, tempAudioRaw, tempOutput);
+                                if (!muxSuccess || !File.Exists(tempOutput))
+                                {
+                                    File.Move(tempVideoRaw, tempOutput, true);
+                                }
+                            }
+                            else
+                            {
+                                File.Move(tempVideoRaw, tempOutput, true);
+                            }
+                        }
                     }
+
+                    item.Status = "Validating File Integrity...";
+                    item.Percentage = 98;
+
+                    if (!File.Exists(tempOutput) || new FileInfo(tempOutput).Length < 1024)
+                    {
+                        throw new IOException("Generated output file is missing or corrupted (0 bytes).");
+                    }
+
+                    string finalDestination = GetAvailableUniqueFilePath(targetFolder, outFileName);
+                    File.Move(tempOutput, finalDestination, true);
+
+                    item.OutputPath = finalDestination;
+                    item.Percentage = 100;
+                    item.Status = "Completed";
+                    item.SpeedMBps = 0;
+                    item.EndTime = DateTime.UtcNow;
+
+                    long finalSize = File.Exists(finalDestination) ? new FileInfo(finalDestination).Length : item.TotalBytes;
+                    if (finalSize > 0)
+                    {
+                        item.BytesDownloaded = finalSize;
+                        item.TotalBytes = finalSize;
+                    }
+                    double totalSeconds = sw.Elapsed.TotalSeconds;
+                    double avgSpeed = totalSeconds > 0 ? Math.Round((finalSize / (1024.0 * 1024.0)) / totalSeconds, 2) : 0;
+                    if (double.IsNaN(avgSpeed) || double.IsInfinity(avgSpeed) || avgSpeed < 0) avgSpeed = 0;
+                    else if (avgSpeed > 500) avgSpeed = 500;
+                    item.DurationSecondsTaken = Math.Round(totalSeconds, 1);
+                    item.AverageSpeedMBps = avgSpeed;
+
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
+                        if (historyService != null)
+                        {
+                            try
+                            {
+                                await historyService.MarkCompletedWithValidationAsync(
+                                    item.TaskId, finalSize, avgSpeed, item.PeakSpeedMBps > 0 ? item.PeakSpeedMBps : avgSpeed, totalSeconds,
+                                    "Passed", $"{item.SubId} saved and verified on disk", item.DurationSeconds, $"{item.SubId} • {item.Quality} • {item.Format}");
+                            }
+                            catch { }
+                        }
+                    }
+
+                    break; // Download succeeded!
                 }
-            }
-
-            item.Status = "Validating File Integrity...";
-            item.Percentage = 98;
-
-            if (!File.Exists(tempOutput) || new FileInfo(tempOutput).Length < 1024)
-            {
-                throw new IOException("Generated output file is missing or corrupted (0 bytes).");
-            }
-
-            string finalDestination = GetAvailableUniqueFilePath(targetFolder, outFileName);
-            File.Move(tempOutput, finalDestination, true);
-
-            item.OutputPath = finalDestination;
-            item.Percentage = 100;
-            item.Status = "Completed";
-            item.SpeedMBps = 0;
-            item.EndTime = DateTime.UtcNow;
-
-            long finalSize = File.Exists(finalDestination) ? new FileInfo(finalDestination).Length : item.TotalBytes;
-            if (finalSize > 0)
-            {
-                item.BytesDownloaded = finalSize;
-                item.TotalBytes = finalSize;
-            }
-            double totalSeconds = sw.Elapsed.TotalSeconds;
-            double avgSpeed = totalSeconds > 0 ? Math.Round((finalSize / (1024.0 * 1024.0)) / totalSeconds, 2) : 0;
-            item.DurationSecondsTaken = Math.Round(totalSeconds, 1);
-            item.AverageSpeedMBps = avgSpeed;
-
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var historyService = scope.ServiceProvider.GetService<StreamHelper.Services.IDownloadHistoryService>();
-                if (historyService != null)
+                catch (Exception ex) when (downloadAttempt < maxDownloadAttempts && !ct.IsCancellationRequested && !batchToken.IsCancellationRequested && item.Cts?.IsCancellationRequested != true)
                 {
+                    item.Status = $"Retrying after network blip ({downloadAttempt}/{maxDownloadAttempts})...";
+                    Console.WriteLine($"[Playlist Download Retry] {item.SubId} ({item.VideoId}): attempt {downloadAttempt} failed ({ex.Message}). Retrying in {downloadAttempt * 2}s...");
+                    await Task.Delay(TimeSpan.FromSeconds(downloadAttempt * 2), ct);
                     try
                     {
-                        await historyService.MarkCompletedWithValidationAsync(
-                            item.TaskId, finalSize, avgSpeed, item.PeakSpeedMBps > 0 ? item.PeakSpeedMBps : avgSpeed, totalSeconds,
-                            "Passed", $"{item.SubId} saved and verified on disk", item.DurationSeconds, $"{item.SubId} • {item.Quality} • {item.Format}");
+                        if (Directory.Exists(tempDirectory))
+                        {
+                            foreach (var f in Directory.GetFiles(tempDirectory))
+                            {
+                                try { File.Delete(f); } catch { }
+                            }
+                        }
                     }
                     catch { }
                 }
@@ -1169,10 +1227,14 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         job.QueuedCount = queued;
 
         double sumPercent = job.Items.Sum(i => i.Percentage);
-        job.OverallPercentage = total > 0 ? Math.Round(sumPercent / total, 1) : 0;
+        double overallPct = total > 0 ? Math.Round(sumPercent / total, 1) : 0;
+        if (double.IsNaN(overallPct) || double.IsInfinity(overallPct) || overallPct < 0) overallPct = 0;
+        job.OverallPercentage = overallPct;
 
         // Instantaneous sum of active items currently downloading chunks
-        double sumInstantSpeed = job.Items.Where(i => i.SpeedMBps > 0).Sum(i => i.SpeedMBps);
+        double sumInstantSpeed = job.Items
+            .Where(i => i.SpeedMBps > 0 && !double.IsNaN(i.SpeedMBps) && !double.IsInfinity(i.SpeedMBps))
+            .Sum(i => i.SpeedMBps);
 
         // Continuous rolling batch throughput tracking (delta bytes / delta time)
         long nowTicks = Stopwatch.GetTimestamp();
@@ -1187,6 +1249,9 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 if (deltaBytes > 0)
                 {
                     double measuredSpeed = (deltaBytes / (1024.0 * 1024.0)) / elapsedSec;
+                    if (double.IsNaN(measuredSpeed) || double.IsInfinity(measuredSpeed) || measuredSpeed < 0) measuredSpeed = 0;
+                    else if (measuredSpeed > 500) measuredSpeed = 500;
+
                     if (measuredSpeed > 0.05)
                     {
                         job.SmoothedSpeedMBps = job.SmoothedSpeedMBps > 0
@@ -1199,6 +1264,11 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                     // Gentle decay if network paused / conversion happening
                     job.SmoothedSpeedMBps = Math.Max(0, Math.Round(job.SmoothedSpeedMBps * 0.6, 1));
                 }
+
+                if (double.IsNaN(job.SmoothedSpeedMBps) || double.IsInfinity(job.SmoothedSpeedMBps) || job.SmoothedSpeedMBps < 0)
+                    job.SmoothedSpeedMBps = 0;
+                else if (job.SmoothedSpeedMBps > 500)
+                    job.SmoothedSpeedMBps = 500;
 
                 job.LastSampleTicks = nowTicks;
                 job.LastSampleTotalBytes = currentTotalBytes;
@@ -1216,8 +1286,13 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             displaySpeed = job.SmoothedSpeedMBps;
         }
 
+        if (double.IsNaN(displaySpeed) || double.IsInfinity(displaySpeed) || displaySpeed < 0) displaySpeed = 0;
+        else if (displaySpeed > 500) displaySpeed = 500;
+
         job.OverallSpeedMBps = Math.Round(displaySpeed, 1);
         if (job.OverallSpeedMBps > job.PeakSpeedMBps) job.PeakSpeedMBps = job.OverallSpeedMBps;
+        if (double.IsNaN(job.PeakSpeedMBps) || double.IsInfinity(job.PeakSpeedMBps) || job.PeakSpeedMBps < 0) job.PeakSpeedMBps = 0;
+        else if (job.PeakSpeedMBps > 500) job.PeakSpeedMBps = 500;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -1328,7 +1403,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
             long totalBytesDownloaded = 0;
             // Multi-socket HTTP/1.1 burst workers (up to 16 parallel connections) fully saturates 300+ Mbps connections
-            int workerCount = Math.Clamp(turboChunks, 6, 16);
+            int workerCount = Math.Clamp(turboChunks, 2, 8);
             var workers = new List<Task>();
 
             for (int w = 0; w < workerCount; w++)
@@ -1376,7 +1451,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(25)); // 25s timeout is plenty for 4MB
+                cts.CancelAfter(TimeSpan.FromSeconds(60)); // 60s timeout for steady streaming
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Version = System.Net.HttpVersion.Version11;
@@ -1419,7 +1494,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                 {
                     onBytesRead((int)-writtenThisAttempt);
                 }
-                await Task.Delay(200 * attempt, ct);
+                await Task.Delay(1000 * attempt, ct);
             }
         }
     }
