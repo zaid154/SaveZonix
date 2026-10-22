@@ -297,7 +297,7 @@
                                         </div>
                                     </td>
                                     <td class="col-action actions-td" style="text-align: right; white-space: nowrap;">
-                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 5px; white-space: nowrap; width: 100%;">
+                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; white-space: nowrap; width: 100%;">
                                             @if (hasFailures)
                                             {
                                                 <button type="button" class="btn-pl-retry-all-main" onclick="retryPlaylistGroup(this, '@(entry.JobId ?? entry.GroupKey)', '@entry.GroupKey')" title="Retry all @entry.FailedCount failed video(s)" style="padding: 4px 8px; font-size: 11px;">
@@ -642,7 +642,7 @@
                                         </div>
                                     </td>
                                     <td class="col-action actions-td" style="text-align: right; white-space: nowrap;">
-                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 5px; white-space: nowrap; width: 100%;">
+                                        <div class="actions-cell" style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; white-space: nowrap; width: 100%;">
                                             @if (!string.IsNullOrEmpty(item.OriginalUrl))
                                             {
                                                 @if (item.Status == StreamHelper.Data.DownloadStatus.Failed || item.Status == StreamHelper.Data.DownloadStatus.Cancelled)
@@ -858,33 +858,33 @@
         /* ─── Strict Column Width Balancing (Zero Overlap Guarantee) ─── */
         .modern-table th.col-media,
         .modern-table td.col-media {
-            width: 86px !important;
-            min-width: 86px !important;
-            max-width: 86px !important;
-            padding-left: 12px !important;
+            width: 76px !important;
+            min-width: 76px !important;
+            max-width: 76px !important;
+            padding-left: 10px !important;
             padding-right: 6px !important;
             text-align: center !important;
         }
 
         .media-thumb-container {
-            width: 68px !important;
-            height: 44px !important;
-            min-width: 68px !important;
-            max-width: 68px !important;
+            width: 62px !important;
+            height: 40px !important;
+            min-width: 62px !important;
+            max-width: 62px !important;
             margin: 0 auto !important;
         }
 
         .modern-table th.col-title,
         .modern-table td.col-title {
             width: auto !important;
-            min-width: 240px !important;
+            min-width: 200px !important;
         }
 
         .modern-table th.col-quality,
         .modern-table td.col-quality {
-            width: 140px !important;
-            min-width: 140px !important;
-            max-width: 140px !important;
+            width: 130px !important;
+            min-width: 130px !important;
+            max-width: 130px !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
@@ -892,25 +892,6 @@
 
         .modern-table th.col-size,
         .modern-table td.col-size {
-            width: 110px !important;
-            min-width: 110px !important;
-            max-width: 110px !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-
-        .modern-table th.col-status,
-        .modern-table td.col-status {
-            width: 120px !important;
-            min-width: 120px !important;
-            max-width: 120px !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-        }
-
-        .modern-table th.col-date,
-        .modern-table td.col-date {
             width: 105px !important;
             min-width: 105px !important;
             max-width: 105px !important;
@@ -919,13 +900,36 @@
             text-overflow: ellipsis !important;
         }
 
+        .modern-table th.col-status,
+        .modern-table td.col-status {
+            width: 110px !important;
+            min-width: 110px !important;
+            max-width: 110px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+        }
+
+        .modern-table th.col-date,
+        .modern-table td.col-date {
+            width: 115px !important;
+            min-width: 115px !important;
+            max-width: 115px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            padding-left: 6px !important;
+            padding-right: 8px !important;
+            text-align: left !important;
+        }
+
         .modern-table th.col-action,
         .modern-table td.col-action {
-            width: 175px !important;
-            min-width: 175px !important;
-            max-width: 175px !important;
+            width: 220px !important;
+            min-width: 220px !important;
+            max-width: 220px !important;
             text-align: right !important;
-            padding-right: 14px !important;
+            padding-right: 12px !important;
+            padding-left: 6px !important;
             white-space: nowrap !important;
             overflow: visible !important;
         }
@@ -1059,20 +1063,21 @@
             white-space: nowrap !important;
         }
         td.actions-td, th.col-action, td.col-action {
-            width: 175px !important;
-            min-width: 175px !important;
-            max-width: 175px !important;
+            width: 220px !important;
+            min-width: 220px !important;
+            max-width: 220px !important;
             white-space: nowrap !important;
             text-align: right !important;
-            padding-right: 14px !important;
+            padding-right: 12px !important;
+            padding-left: 6px !important;
             overflow: visible !important;
         }
         .actions-cell {
             white-space: nowrap !important;
-            display: flex !important;
+            display: inline-flex !important;
             align-items: center !important;
             justify-content: flex-end !important;
-            gap: 5px !important;
+            gap: 4px !important;
             width: 100% !important;
             overflow: visible !important;
         }
@@ -1083,10 +1088,10 @@
             align-items: center !important;
         }
         .action-btn {
-            width: 30px !important;
-            height: 30px !important;
-            min-width: 30px !important;
-            border-radius: 7px !important;
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            border-radius: 6px !important;
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
