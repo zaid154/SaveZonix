@@ -30,11 +30,13 @@ WizardStyle=modern
 DisableReadyPage=yes
 PrivilegesRequired=lowest
 CloseApplications=yes
-CloseApplicationsFilter=Zonix.exe
+CloseApplicationsFilter=Zonix.exe,SaveZonixHost.exe
 RestartApplications=no
 
 [InstallDelete]
 Type: files; Name: "{app}\Zonix.exe"
+Type: files; Name: "{app}\SaveZonixHost.exe"
+Type: files; Name: "{app}\com.savezonix.launcher.json"
 Type: files; Name: "{app}\wwwroot\favicon.ico.gz"
 Type: files; Name: "{app}\wwwroot\favicon.ico.br"
 Type: files; Name: "{app}\wwwroot\app.ico.gz"
@@ -62,7 +64,8 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
 begin
-  // Cleanly kill any running Zonix processes without user prompts
+  // Cleanly kill any running SaveZonix processes without user prompts
+  Exec('taskkill.exe', '/F /IM SaveZonixHost.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec('taskkill.exe', '/F /IM Zonix.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Result := '';
 end;
@@ -88,10 +91,19 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\bin\Release\net10.0\win-x64\publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "*.pdb"
 Source: "..\Extension\*"; DestDir: "{app}\Extension"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\savezonix"; ValueType: string; ValueName: ""; ValueData: "URL:SaveZonix Protocol"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\savezonix"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\savezonix\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\wwwroot\app.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; IconFilename: "{app}\wwwroot\app.ico"
 
 [Run]
+Filename: "{app}\SaveZonixHost.exe"; Parameters: "--register"; Flags: runhidden; StatusMsg: "Configuring Chrome Extension integration..."
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{app}\SaveZonixHost.exe"; Parameters: "--unregister"; Flags: runhidden

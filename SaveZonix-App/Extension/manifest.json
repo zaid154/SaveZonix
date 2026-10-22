@@ -10,6 +10,7 @@
   },
   "update_url": "https://save-zonix.vercel.app/api/extension-updates.xml",
   "permissions": [
+    "nativeMessaging",
     "webRequest",
     "declarativeNetRequest",
     "storage",

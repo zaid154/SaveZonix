@@ -22,7 +22,7 @@ if exist "%~dp0SaveZonix-App\wwwroot\app.ico" (
 )
 echo.
 
-echo [1/2] Publishing C# App (win-x64, optimized)...
+echo [1/3] Publishing C# App (win-x64, optimized)...
 dotnet publish "%~dp0SaveZonix-App\Zonix.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "%~dp0SaveZonix-App\bin\Release\net10.0\win-x64\publish"
 if %ERRORLEVEL% neq 0 (
     color 0C
@@ -33,8 +33,20 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [2/2] Compiling Setup EXE with Inno Setup...
+echo [2/3] Publishing SaveZonix Native Host Launcher (win-x64)...
+dotnet publish "%~dp0SaveZonixHost\SaveZonixHost.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:DebugType=None -p:DebugSymbols=false -o "%~dp0SaveZonix-App\bin\Release\net10.0\win-x64\publish"
+if %ERRORLEVEL% neq 0 (
+    color 0C
+    echo.
+    echo [ERROR] SaveZonixHost publish failed!
+    pause
+    exit /b %ERRORLEVEL%
+)
+
+echo.
+echo [3/3] Compiling Setup EXE with Inno Setup...
 taskkill /F /IM SaveZonix-Setup* /T >nul 2>&1
+taskkill /F /IM SaveZonixHost.exe /T >nul 2>&1
 taskkill /F /IM Zonix.exe /T >nul 2>&1
 taskkill /F /IM ISCC.exe /T >nul 2>&1
 timeout /t 1 /nobreak >nul

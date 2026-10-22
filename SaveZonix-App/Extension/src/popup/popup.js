@@ -24,47 +24,167 @@ document.addEventListener('DOMContentLoaded', async () => {
     const engineStatusText = document.getElementById('engineStatusText');
 
     let backendBaseUrl = 'http://localhost:50550';
+    let isLaunchingBackend = false;
 
-    // Live Engine Handshake & Smart Auto-Port Discovery
-    async function checkEngineHealth() {
+    // Load cached port/url if available
+    try {
+        chrome.storage.local.get(['savezonix_backend_url', 'savezonix_backend_port'], (res) => {
+            if (res && res.savezonix_backend_url) {
+                backendBaseUrl = res.savezonix_backend_url;
+            }
+        });
+    } catch { }
+
+    function updateEngineUI(isActive, port = 50550, version = '2.5.4', isStarting = false) {
         if (!engineStatusPill) return;
-        const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
-        let connected = false;
-
-        for (const p of candidatePorts) {
-            try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 200);
-                const res = await fetch(`http://localhost:${p}/api/system/health`, { signal: controller.signal });
-                clearTimeout(timeout);
-                if (res.ok) {
-                    const data = await res.json();
-                    backendBaseUrl = `http://localhost:${p}`;
-                    chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: p });
-                    engineStatusPill.style.background = 'rgba(16, 185, 129, 0.15)';
-                    engineStatusPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
-                    engineStatusPill.style.color = '#34d399';
-                    if (enginePulseDot) enginePulseDot.style.background = '#10b981';
-                    if (engineStatusText) engineStatusText.textContent = `Engine Active (v${data.version || '2.5.4'})`;
-                    engineStatusPill.title = `SaveZonix Desktop Turbo Engine is connected & ready (Port ${p})`;
-                    connected = true;
-                    break;
-                }
-            } catch { }
+        if (isStarting) {
+            engineStatusPill.style.background = 'rgba(56, 189, 248, 0.15)';
+            engineStatusPill.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+            engineStatusPill.style.color = '#38bdf8';
+            if (enginePulseDot) enginePulseDot.style.background = '#38bdf8';
+            if (engineStatusText) engineStatusText.textContent = 'Starting Engine...';
+            engineStatusPill.title = 'SaveZonix Desktop Engine is starting up...';
+            return;
         }
 
-        if (!connected) {
+        if (isActive) {
+            engineStatusPill.style.background = 'rgba(16, 185, 129, 0.15)';
+            engineStatusPill.style.borderColor = 'rgba(16, 185, 129, 0.35)';
+            engineStatusPill.style.color = '#34d399';
+            if (enginePulseDot) enginePulseDot.style.background = '#10b981';
+            if (engineStatusText) engineStatusText.textContent = `Engine Active (v${version})`;
+            engineStatusPill.title = `SaveZonix Desktop Turbo Engine is connected & ready (Port ${port})`;
+            engineStatusPill.onclick = () => {
+                chrome.tabs.create({ url: backendBaseUrl });
+            };
+        } else {
             engineStatusPill.style.background = 'rgba(245, 158, 11, 0.15)';
             engineStatusPill.style.borderColor = 'rgba(245, 158, 11, 0.35)';
             engineStatusPill.style.color = '#fbbf24';
             if (enginePulseDot) enginePulseDot.style.background = '#f59e0b';
             if (engineStatusText) engineStatusText.textContent = 'App Sleeping (Launch)';
-            engineStatusPill.title = `SaveZonix Desktop App is not running. Click to launch or open ${backendBaseUrl}`;
-            engineStatusPill.onclick = () => {
-                chrome.tabs.create({ url: backendBaseUrl });
+            engineStatusPill.title = 'SaveZonix Desktop App is not running. Click to launch automatically.';
+            engineStatusPill.onclick = async () => {
+                try {
+                    await ensureDesktopBackendRunning((msg) => {
+                        if (engineStatusText) engineStatusText.textContent = msg;
+                    });
+                    chrome.tabs.create({ url: backendBaseUrl });
+                } catch (err) {
+                    alert(err.message || 'Could not start SaveZonix desktop application.');
+                }
             };
         }
     }
+
+    async function pingBackend(port) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 250);
+            const res = await fetch(`http://localhost:${port}/api/system/health`, { signal: controller.signal });
+            clearTimeout(timeout);
+            if (res.ok) {
+                const data = await res.json();
+                return { ok: true, port, data };
+            }
+        } catch { }
+        return { ok: false };
+    }
+
+    // Live Engine Handshake & Smart Auto-Port Discovery
+    async function checkEngineHealth() {
+        const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
+        for (const p of candidatePorts) {
+            const res = await pingBackend(p);
+            if (res.ok) {
+                backendBaseUrl = `http://localhost:${p}`;
+                chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: p });
+                updateEngineUI(true, p, res.data?.version || '2.5.4');
+                return backendBaseUrl;
+            }
+        }
+        updateEngineUI(false);
+        return null;
+    }
+
+    async function triggerNativeLaunch() {
+        return new Promise((resolve) => {
+            try {
+                chrome.runtime.sendNativeMessage('com.savezonix.launcher', { action: 'start' }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        console.warn('[SaveZonix] Native messaging host not available:', chrome.runtime.lastError.message);
+                        triggerProtocolLaunch();
+                        resolve({ success: false, error: chrome.runtime.lastError.message });
+                    } else {
+                        console.log('[SaveZonix] Native messaging launch response:', response);
+                        resolve({ success: true, response });
+                    }
+                });
+            } catch (ex) {
+                console.warn('[SaveZonix] sendNativeMessage error:', ex);
+                triggerProtocolLaunch();
+                resolve({ success: false, error: ex.message });
+            }
+        });
+    }
+
+    function triggerProtocolLaunch(customUrl = '') {
+        try {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = customUrl ? `savezonix://download?url=${encodeURIComponent(customUrl)}` : 'savezonix://launch';
+            document.body.appendChild(iframe);
+            setTimeout(() => {
+                try { iframe.remove(); } catch { }
+            }, 2000);
+        } catch { }
+    }
+
+    async function ensureDesktopBackendRunning(onProgress) {
+        if (onProgress) onProgress('Checking desktop app...');
+
+        // 1. Fast check if already running
+        const activeUrl = await checkEngineHealth();
+        if (activeUrl) {
+            return activeUrl;
+        }
+
+        // Prevent parallel launch races
+        if (isLaunchingBackend) {
+            if (onProgress) onProgress('Starting SaveZonix...');
+        } else {
+            isLaunchingBackend = true;
+            updateEngineUI(false, 50550, '2.5.4', true);
+            if (onProgress) onProgress('Starting SaveZonix...');
+            await triggerNativeLaunch();
+        }
+
+        if (onProgress) onProgress('Connecting to download engine...');
+
+        // 2. Bounded polling for backend readiness (up to 15 seconds)
+        const startTime = Date.now();
+        const timeoutMs = 15000;
+        while (Date.now() - startTime < timeoutMs) {
+            await new Promise(r => setTimeout(r, 300));
+            const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
+            for (const p of candidatePorts) {
+                const res = await pingBackend(p);
+                if (res.ok) {
+                    isLaunchingBackend = false;
+                    backendBaseUrl = `http://localhost:${p}`;
+                    chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: p });
+                    updateEngineUI(true, p, res.data?.version || '2.5.4');
+                    if (onProgress) onProgress('Connected.');
+                    return backendBaseUrl;
+                }
+            }
+        }
+
+        isLaunchingBackend = false;
+        updateEngineUI(false);
+        throw new Error('SaveZonix desktop application is not installed or could not be started. Please run SaveZonix Setup.');
+    }
+
     checkEngineHealth();
 
     let livePageMetadata = null;
@@ -172,15 +292,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
     if (btnYtModalSingle) {
-        btnYtModalSingle.addEventListener('click', () => {
+        btnYtModalSingle.addEventListener('click', async () => {
             const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
-            chrome.tabs.create({
-                url: `http://localhost:5000/?url=${encodeURIComponent(singleUrl)}`
-            });
-            window.close();
+            const btnSpan = btnYtModalSingle.querySelector('.modal-btn-text strong') || btnYtModalSingle;
+            const originalText = btnSpan.textContent;
+            btnYtModalSingle.disabled = true;
+
+            try {
+                const readyBase = await ensureDesktopBackendRunning((msg) => {
+                    btnSpan.textContent = msg;
+                });
+                btnSpan.textContent = 'Download started.';
+                chrome.tabs.create({
+                    url: `${readyBase}/?url=${encodeURIComponent(singleUrl)}&autoDownload=1`
+                });
+                window.close();
+            } catch (err) {
+                alert(err.message || 'Failed to start SaveZonix.');
+                btnSpan.textContent = originalText;
+                btnYtModalSingle.disabled = false;
+            }
         });
     }
     async function handlePlaylistDownload(plUrl) {
+        try {
+            await ensureDesktopBackendRunning();
+        } catch (err) {
+            alert(err.message || 'Failed to start SaveZonix.');
+            return;
+        }
+
         // 1. Try to extract exact live queue from active YouTube tab
         try {
             const queueRes = await new Promise(resolve => {
@@ -195,7 +336,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (queueRes && queueRes.success && Array.isArray(queueRes.queue) && queueRes.queue.length > 0) {
                 // Post exact active tab queue to SaveZonix backend
                 try {
-                    const postResp = await fetch('http://localhost:5000/api/playlist/import-tab-queue', {
+                    const postResp = await fetch(`${backendBaseUrl}/api/playlist/import-tab-queue`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -210,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const postData = await postResp.json();
                         if (postData.queueKey) {
                             chrome.tabs.create({
-                                url: `http://localhost:5000/playlist?queueKey=${postData.queueKey}&url=${encodeURIComponent(plUrl)}`
+                                url: `${backendBaseUrl}/playlist?queueKey=${postData.queueKey}&url=${encodeURIComponent(plUrl)}`
                             });
                             window.close();
                             return;
@@ -224,7 +365,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Fallback: regular URL load
         chrome.tabs.create({
-            url: `http://localhost:5000/playlist?url=${encodeURIComponent(plUrl)}`
+            url: `${backendBaseUrl}/playlist?url=${encodeURIComponent(plUrl)}`
         });
         window.close();
     }
@@ -778,7 +919,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const singleVideoUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
             if (singleVideoUrl && !card.dataset.backendProbed) {
                 card.dataset.backendProbed = 'true';
-                fetch('http://localhost:5000/api/analyze', {
+                fetch(`${backendBaseUrl}/api/analyze`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: singleVideoUrl })
@@ -864,19 +1005,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnYtPlaylist = card.querySelector(`#btn_yt_playlist_${video.id}`);
 
             if (btnYtSingle) {
-                btnYtSingle.addEventListener('click', (e) => {
+                btnYtSingle.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
                     const chosenQuality = getSelectedQuality();
-                    chrome.tabs.create({
-                        url: `${backendBaseUrl}/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}`
-                    });
-                    window.close();
+                    const bSpan = btnYtSingle.querySelector('span') || btnYtSingle;
+                    const originalText = bSpan.textContent;
+                    btnYtSingle.disabled = true;
+
+                    try {
+                        const readyBase = await ensureDesktopBackendRunning((msg) => {
+                            bSpan.textContent = msg;
+                        });
+                        bSpan.textContent = 'Download started.';
+                        chrome.tabs.create({
+                            url: `${readyBase}/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}&autoDownload=1`
+                        });
+                        window.close();
+                    } catch (err) {
+                        alert(err.message || 'Failed to start SaveZonix.');
+                        bSpan.textContent = originalText;
+                        btnYtSingle.disabled = false;
+                    }
                 });
             }
 
             if (btnYtPlaylist) {
-                btnYtPlaylist.addEventListener('click', (e) => {
+                btnYtPlaylist.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     const plUrl = (ytDetails && ytDetails.playlistUrl) || currentTabUrl;
                     handlePlaylistDownload(plUrl);
@@ -885,7 +1040,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (dlBtn) {
                 dlBtn.disabled = false;
-                dlBtn.addEventListener('click', (e) => {
+                dlBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
                     if (ytDetails && ytDetails.hasPlaylist && ytDetails.videoId) {
                         if (ytChoiceModal) ytChoiceModal.classList.remove('hidden');
@@ -897,10 +1052,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     const target = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
                     const chosenQuality = getSelectedQuality();
-                    chrome.tabs.create({
-                        url: `${backendBaseUrl}/?url=${encodeURIComponent(target)}&quality=${encodeURIComponent(chosenQuality)}`
-                    });
-                    window.close();
+                    const dlSpan = dlBtn.querySelector('span') || dlBtn;
+                    const originalText = dlSpan.textContent;
+                    dlBtn.disabled = true;
+
+                    try {
+                        const readyBase = await ensureDesktopBackendRunning((msg) => {
+                            dlSpan.textContent = msg;
+                        });
+                        dlSpan.textContent = 'Download started.';
+                        chrome.tabs.create({
+                            url: `${readyBase}/?url=${encodeURIComponent(target)}&quality=${encodeURIComponent(chosenQuality)}&autoDownload=1`
+                        });
+                        window.close();
+                    } catch (err) {
+                        alert(err.message || 'Failed to start SaveZonix.');
+                        dlSpan.textContent = originalText;
+                        dlBtn.disabled = false;
+                    }
                 });
             }
             return;
@@ -909,13 +1078,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Cinema (Ad-Free Watch) button handler
         const cinemaBtn = card.querySelector(`#btn_cinema_${video.id}`);
         if (cinemaBtn) {
-            cinemaBtn.addEventListener('click', (e) => {
+            cinemaBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const watchUrl = video.url || currentTabUrl;
                 const watchTitle = video.title || video.showName || currentTabTitle || 'Stream';
-                const cinemaLink = `${backendBaseUrl}/cinema?url=${encodeURIComponent(watchUrl)}&title=${encodeURIComponent(watchTitle)}&site=${encodeURIComponent(currentSiteName)}&quality=1080p`;
-                chrome.tabs.create({ url: cinemaLink });
-                window.close();
+                const originalText = cinemaBtn.textContent;
+                cinemaBtn.disabled = true;
+
+                try {
+                    const readyBase = await ensureDesktopBackendRunning((msg) => {
+                        cinemaBtn.textContent = msg;
+                    });
+                    const cinemaLink = `${readyBase}/cinema?url=${encodeURIComponent(watchUrl)}&title=${encodeURIComponent(watchTitle)}&site=${encodeURIComponent(currentSiteName)}&quality=1080p`;
+                    chrome.tabs.create({ url: cinemaLink });
+                    window.close();
+                } catch (err) {
+                    alert(err.message || 'Failed to start SaveZonix.');
+                    cinemaBtn.textContent = originalText;
+                    cinemaBtn.disabled = false;
+                }
             });
         }
 
@@ -994,16 +1175,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 if (ytDetails && ytDetails.isPlaylistPage) {
-                    chrome.tabs.create({ url: `${backendBaseUrl}/playlist?url=${encodeURIComponent(currentTabUrl)}` });
-                    window.close();
+                    handlePlaylistDownload(currentTabUrl);
                     return;
                 }
                 const singleUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
                 const chosenQuality = getSelectedQuality();
-                chrome.tabs.create({
-                    url: `${backendBaseUrl}/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}&autoDownload=1`
-                });
-                window.close();
+
+                const dlSpan = dlBtn.querySelector('span') || dlBtn;
+                const originalText = dlSpan.textContent;
+                dlBtn.disabled = true;
+
+                try {
+                    const readyBase = await ensureDesktopBackendRunning((msg) => {
+                        dlSpan.textContent = msg;
+                    });
+                    dlSpan.textContent = 'Download started.';
+                    chrome.tabs.create({
+                        url: `${readyBase}/?url=${encodeURIComponent(singleUrl)}&quality=${encodeURIComponent(chosenQuality)}&autoDownload=1`
+                    });
+                    window.close();
+                } catch (err) {
+                    alert(err.message || 'Failed to start SaveZonix.');
+                    dlSpan.textContent = originalText;
+                    dlBtn.disabled = false;
+                }
                 return;
             }
 
@@ -1026,18 +1221,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             const finalDownloadUrl = (targetUrl && targetUrl.startsWith('http')) ? targetUrl : currentTabUrl;
-            if (finalDownloadUrl && finalDownloadUrl.startsWith('http')) {
-                chrome.tabs.create({
-                    url: `${backendBaseUrl}/?url=${encodeURIComponent(finalDownloadUrl)}&title=${encodeURIComponent(effectiveTitle)}&originalUrl=${encodeURIComponent(currentTabUrl)}&autoDownload=1`
-                });
-                window.close();
-                return;
-            }
+            const dlSpan = dlBtn.querySelector('span') || dlBtn;
+            const originalText = dlSpan.textContent;
+            dlBtn.disabled = true;
 
-            // A webpage fallback remains useful for sites where no direct stream was detected yet.
-            if (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome')) {
-                chrome.tabs.create({ url: `${backendBaseUrl}/?url=${encodeURIComponent(currentTabUrl)}&title=${encodeURIComponent(effectiveTitle)}&autoDownload=1` });
-                window.close();
+            try {
+                const readyBase = await ensureDesktopBackendRunning((msg) => {
+                    dlSpan.textContent = msg;
+                });
+                dlSpan.textContent = 'Download started.';
+
+                if (finalDownloadUrl && finalDownloadUrl.startsWith('http')) {
+                    chrome.tabs.create({
+                        url: `${readyBase}/?url=${encodeURIComponent(finalDownloadUrl)}&title=${encodeURIComponent(effectiveTitle)}&originalUrl=${encodeURIComponent(currentTabUrl)}&autoDownload=1`
+                    });
+                    window.close();
+                    return;
+                }
+
+                if (currentTabUrl && currentTabUrl.startsWith('http') && !currentTabUrl.startsWith('chrome')) {
+                    chrome.tabs.create({ url: `${readyBase}/?url=${encodeURIComponent(currentTabUrl)}&title=${encodeURIComponent(effectiveTitle)}&autoDownload=1` });
+                    window.close();
+                }
+            } catch (err) {
+                alert(err.message || 'Failed to start SaveZonix.');
+                dlSpan.textContent = originalText;
+                dlBtn.disabled = false;
             }
         });
     }

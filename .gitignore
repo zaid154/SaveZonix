@@ -1,6 +1,8 @@
 # ─── .NET / C# (SaveZonix-App) ───
 SaveZonix-App/bin/
 SaveZonix-App/obj/
+SaveZonixHost/bin/
+SaveZonixHost/obj/
 SaveZonix-App/.vs/
 SaveZonix-App/publish/
 SaveZonix-App/*.db*

@@ -21,6 +21,10 @@ int basePort = int.TryParse(Environment.GetEnvironmentVariable("PORT"), out var 
 int port = basePort;
 bool isAlreadyRunning = false;
 
+bool fromExtension = args.Any(a => a.Equals("--from-extension", StringComparison.OrdinalIgnoreCase) 
+                                || a.Equals("--silent", StringComparison.OrdinalIgnoreCase));
+string? protocolArg = args.FirstOrDefault(a => a.StartsWith("savezonix:", StringComparison.OrdinalIgnoreCase));
+
 using (var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(200) })
 {
     for (int p = basePort; p <= basePort + 9; p++)
@@ -41,7 +45,27 @@ using (var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(200) })
 
 if (isAlreadyRunning)
 {
-    MediaHelper.OpenBrowser($"http://localhost:{port}");
+    // If invoked via custom protocol with target URL, open directly to download
+    if (!string.IsNullOrEmpty(protocolArg))
+    {
+        try
+        {
+            var uri = new Uri(protocolArg);
+            var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+            if (query.TryGetValue("url", out var targetUrl) && !string.IsNullOrEmpty(targetUrl))
+            {
+                MediaHelper.OpenBrowser($"http://localhost:{port}/?url={Uri.EscapeDataString(targetUrl!)}&autoDownload=1");
+                return;
+            }
+        }
+        catch { }
+    }
+
+    // Only open browser if not initiated silently or from extension
+    if (!fromExtension && string.IsNullOrEmpty(protocolArg))
+    {
+        MediaHelper.OpenBrowser($"http://localhost:{port}");
+    }
     return;
 }
 
@@ -107,7 +131,25 @@ app.Lifetime.ApplicationStarted.Register(() =>
         try
         {
             await Task.Delay(250);
-            MediaHelper.OpenBrowser($"http://localhost:{port}");
+            if (!string.IsNullOrEmpty(protocolArg))
+            {
+                try
+                {
+                    var uri = new Uri(protocolArg);
+                    var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+                    if (query.TryGetValue("url", out var targetUrl) && !string.IsNullOrEmpty(targetUrl))
+                    {
+                        MediaHelper.OpenBrowser($"http://localhost:{port}/?url={Uri.EscapeDataString(targetUrl!)}&autoDownload=1");
+                        return;
+                    }
+                }
+                catch { }
+            }
+
+            if (!fromExtension && string.IsNullOrEmpty(protocolArg))
+            {
+                MediaHelper.OpenBrowser($"http://localhost:{port}");
+            }
         }
         catch { }
     });
