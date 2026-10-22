@@ -968,31 +968,24 @@ public class AccountController : Controller
             {
                 string groupKey, playlistCode, playlistTitle;
 
-                if (strategy.StartsWith("Playlist: PL-", StringComparison.OrdinalIgnoreCase))
+                if (strategy.StartsWith("Playlist:", StringComparison.OrdinalIgnoreCase))
                 {
                     var parts = strategy["Playlist:".Length..].Split('•');
                     playlistCode = parts[0].Trim();
                     playlistTitle = parts.Length > 1 ? parts[1].Trim() : (!string.IsNullOrEmpty(seriesName) ? seriesName : "YouTube Playlist");
                     string cleanTitleSlug = Regex.Replace(playlistTitle, @"[^a-zA-Z0-9]", "_").Trim('_');
-                    if (playlistCode.Equals("PL-01", StringComparison.OrdinalIgnoreCase) || playlistCode.Equals("PL-BATCH", StringComparison.OrdinalIgnoreCase))
-                    {
-                        groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd_HH}";
-                    }
-                    else
-                    {
-                        groupKey = $"{playlistCode}_{cleanTitleSlug}_{d.CreatedAt:yyyyMMdd}";
-                    }
+                    groupKey = $"PL_{cleanTitleSlug}";
                 }
                 else if (!string.IsNullOrEmpty(seriesName))
                 {
                     string cleanSlug = Regex.Replace(seriesName, @"[^a-zA-Z0-9_]", "_").Trim('_');
-                    groupKey = $"PL_SERIES_{cleanSlug}_{d.CreatedAt:yyyyMMdd_HH}";
+                    groupKey = $"PL_{cleanSlug}";
                     playlistCode = "PL-SERIES";
                     playlistTitle = seriesName;
                 }
                 else
                 {
-                    groupKey = $"PL_BATCH_{d.CreatedAt:yyyyMMdd_HHmmss}";
+                    groupKey = $"PL_BATCH_{d.CreatedAt:yyyyMMdd}";
                     playlistCode = "PL-BATCH";
                     playlistTitle = "YouTube Playlist Collection";
                 }
@@ -1021,11 +1014,30 @@ public class AccountController : Controller
                     group.JobId = matchingJobId;
                 }
 
-                group.SubItems.Add(d);
-                group.TotalVideos++;
-                group.TotalBytes += d.FileSize > 0 ? d.FileSize : d.DownloadedBytes;
-                if (d.Status == StreamHelper.Data.DownloadStatus.Completed) group.CompletedCount++;
-                if (d.Status is StreamHelper.Data.DownloadStatus.Failed or StreamHelper.Data.DownloadStatus.Cancelled) group.FailedCount++;
+                // Deduplicate sub-items: prefer Completed state over Failed/Cancelled
+                string subItemKey = !string.IsNullOrWhiteSpace(d.FileName) ? d.FileName.Trim() : d.Title.Trim();
+                var existingSub = group.SubItems.FirstOrDefault(s =>
+                    string.Equals(!string.IsNullOrWhiteSpace(s.FileName) ? s.FileName.Trim() : s.Title.Trim(), subItemKey, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(s.OriginalUrl) && !string.IsNullOrWhiteSpace(d.OriginalUrl) && string.Equals(s.OriginalUrl, d.OriginalUrl, StringComparison.OrdinalIgnoreCase)));
+
+                if (existingSub == null)
+                {
+                    group.SubItems.Add(d);
+                }
+                else
+                {
+                    if (existingSub.Status != StreamHelper.Data.DownloadStatus.Completed && d.Status == StreamHelper.Data.DownloadStatus.Completed)
+                    {
+                        int idx = group.SubItems.IndexOf(existingSub);
+                        group.SubItems[idx] = d;
+                    }
+                    else if (d.UpdatedAt > existingSub.UpdatedAt && d.Status == existingSub.Status)
+                    {
+                        int idx = group.SubItems.IndexOf(existingSub);
+                        group.SubItems[idx] = d;
+                    }
+                }
+
                 if (string.IsNullOrEmpty(group.ThumbnailUrl) && !string.IsNullOrEmpty(d.ThumbnailUrl))
                     group.ThumbnailUrl = d.ThumbnailUrl;
             }
@@ -1071,6 +1083,11 @@ public class AccountController : Controller
             else
             {
                 group.SubItems = group.SubItems.OrderBy(ExtractIndexNumber).ThenBy(s => s.CreatedAt).ToList();
+                group.TotalVideos = group.SubItems.Count;
+                group.TotalBytes = group.SubItems.Sum(s => s.FileSize > 0 ? s.FileSize : s.DownloadedBytes);
+                group.CompletedCount = group.SubItems.Count(s => s.Status == StreamHelper.Data.DownloadStatus.Completed);
+                group.FailedCount = group.SubItems.Count(s => s.Status is StreamHelper.Data.DownloadStatus.Failed or StreamHelper.Data.DownloadStatus.Cancelled);
+
                 var validThumb = group.SubItems.FirstOrDefault(s => !string.IsNullOrEmpty(s.ThumbnailUrl))?.ThumbnailUrl;
                 if (!string.IsNullOrEmpty(validThumb) && (string.IsNullOrEmpty(group.ThumbnailUrl) || group.ThumbnailUrl.Contains("placeholder")))
                     group.ThumbnailUrl = validThumb;

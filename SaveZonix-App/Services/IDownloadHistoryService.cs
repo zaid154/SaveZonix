@@ -203,12 +203,27 @@ public class DownloadHistoryService : IDownloadHistoryService
             var supportedExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".mp4", ".mp3", ".m4a", ".webm", ".mkv" };
             var files = Directory.GetFiles(downloadsDir, "*.*", SearchOption.AllDirectories);
             bool addedAny = false;
-            var existingNames = new HashSet<string>(_localStore.Values.Select(v => v.FileName), StringComparer.OrdinalIgnoreCase);
-
             foreach (var filePath in files)
             {
                 var fi = new FileInfo(filePath);
-                if (!supportedExts.Contains(fi.Extension) || fi.Length == 0 || existingNames.Contains(fi.Name)) continue;
+                if (!supportedExts.Contains(fi.Extension) || fi.Length == 0) continue;
+
+                var existingItem = _localStore.Values.FirstOrDefault(v => string.Equals(v.FileName, fi.Name, StringComparison.OrdinalIgnoreCase));
+                if (existingItem != null)
+                {
+                    if (existingItem.Status != DownloadStatus.Completed && fi.Length > 1024)
+                    {
+                        existingItem.Status = DownloadStatus.Completed;
+                        existingItem.FileSize = fi.Length;
+                        existingItem.DownloadedBytes = fi.Length;
+                        existingItem.ValidationStatus = "Passed";
+                        existingItem.ValidationDetails = "Verified media file on disk";
+                        existingItem.CompletionTime = fi.LastWriteTimeUtc;
+                        existingItem.UpdatedAt = DateTime.UtcNow;
+                        addedAny = true;
+                    }
+                    continue;
+                }
 
                 string id = "local_" + Math.Abs(fi.FullName.GetHashCode()).ToString("X8") + "_" + fi.Length;
                 if (_localStore.ContainsKey(id)) continue;
@@ -244,7 +259,6 @@ public class DownloadHistoryService : IDownloadHistoryService
                 };
 
                 _localStore[id] = entry;
-                existingNames.Add(fi.Name);
                 addedAny = true;
             }
 
