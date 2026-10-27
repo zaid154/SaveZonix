@@ -179,7 +179,7 @@ public class AccountController : Controller
     {
         var cloudUrls = new[]
         {
-            "https://save-zonix.vercel.app/api/auth/login",
+            "https://savezonix-pro.vercel.app/api/auth/login",
             "https://savezonix.onrender.com/api/auth/login"
         };
 
@@ -504,7 +504,7 @@ public class AccountController : Controller
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/send-reset-otp", "https://save-zonix.vercel.app/api/auth/send-reset-otp" };
+            var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/send-reset-otp", "https://savezonix-pro.vercel.app/api/auth/send-reset-otp" };
 
             foreach (var url in cloudApiUrls)
             {
@@ -563,7 +563,7 @@ public class AccountController : Controller
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/verify-reset-otp", "https://save-zonix.vercel.app/api/auth/verify-reset-otp" };
+            var cloudApiUrls = new[] { "https://savezonix.onrender.com/api/auth/verify-reset-otp", "https://savezonix-pro.vercel.app/api/auth/verify-reset-otp" };
 
             foreach (var url in cloudApiUrls)
             {

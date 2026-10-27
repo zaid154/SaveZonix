@@ -1787,7 +1787,7 @@
                         ${message || 'Batch Playlist Studio is an exclusive VIP PRO feature. Please upgrade to unlock unlimited 4K batch playlist downloads.'}
                     </p>
                     <div style="display:flex; flex-direction:column; gap:10px;">
-                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" style="display:inline-block; padding:12px 24px; background:linear-gradient(135deg, #eab308 0%, #ca8a04 100%); color:#000; font-weight:700; border-radius:10px; text-decoration:none; font-size:14px; transition:transform 0.2s;">
+                        <a href="https://savezonix-pro.vercel.app/#pricing" target="_blank" style="display:inline-block; padding:12px 24px; background:linear-gradient(135deg, #eab308 0%, #ca8a04 100%); color:#000; font-weight:700; border-radius:10px; text-decoration:none; font-size:14px; transition:transform 0.2s;">
                             Upgrade to VIP PRO
                         </a>
                         <button type="button" id="btnClosePlaylistVipModal" style="padding:10px; background:transparent; border:1px solid rgba(255,255,255,0.15); color:#94a3b8; border-radius:10px; cursor:pointer; font-size:13px;">

@@ -80,7 +80,7 @@ function getFrontendUrl(req) {
     return origin.replace(/\/+$/, '');
   }
 
-  return 'https://save-zonix.vercel.app';
+  return 'https://savezonix-pro.vercel.app';
 }
 
 // ─────────────────────────────────────────────────────────────

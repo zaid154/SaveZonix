@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Live Telemetry: Track Extension Download Started
         try {
-            fetch('https://save-zonix.vercel.app/api/downloads/record', {
+            fetch('https://savezonix-pro.vercel.app/api/downloads/record', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-client-source': 'extension' },
                 body: JSON.stringify({
@@ -794,7 +794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Sync completion telemetry to SaveZonix Cloud API (Extension Source)
             try {
-                fetch('https://save-zonix.vercel.app/api/downloads/record', {
+                fetch('https://savezonix-pro.vercel.app/api/downloads/record', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-client-source': 'extension' },
                     body: JSON.stringify({

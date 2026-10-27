@@ -445,7 +445,7 @@
                             ${isVip ? 'Unlimited 4K Downloads' : `${Math.max(0, dailyLimit - used)} free downloads left today`}
                         </div>
                         ${!isVip ? `
-                        <a href="https://save-zonix.vercel.app/#pricing" target="_blank" style="display: block; width: 100%; padding: 6px; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 6px; box-sizing: border-box;">Upgrade to VIP Pro
+                        <a href="https://savezonix-pro.vercel.app/#pricing" target="_blank" style="display: block; width: 100%; padding: 6px; background: rgba(245,158,11,0.15); border: 1px solid #f59e0b; color: #fbbf24; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600; text-align: center; text-decoration: none; margin-bottom: 6px; box-sizing: border-box;">Upgrade to VIP Pro
                         </a>
                         ` : ''}
                         <button id="btnCloudLogout" style="width: 100%; padding: 6px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;">Sign Out

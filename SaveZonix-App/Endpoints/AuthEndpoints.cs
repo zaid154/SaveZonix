@@ -172,7 +172,7 @@ public static class AuthEndpoints
             var user = await analytics.FindUserByEmailAsync(req.Email);
             if (user == null || string.IsNullOrEmpty(user.PasswordHash) || !MediaHelper.VerifyPassword(req.Password, user.PasswordHash))
             {
-                var cloudUrls = new[] { "https://save-zonix.vercel.app/api/auth/login", "https://savezonix.onrender.com/api/auth/login" };
+                var cloudUrls = new[] { "https://savezonix-pro.vercel.app/api/auth/login", "https://savezonix.onrender.com/api/auth/login" };
                 var payload = System.Text.Json.JsonSerializer.Serialize(new { email = req.Email.Trim().ToLowerInvariant(), password = req.Password });
                 using var client = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(7) };
                 bool cloudSuccess = false;

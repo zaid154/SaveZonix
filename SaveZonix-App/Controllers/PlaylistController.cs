@@ -261,7 +261,7 @@ public class PlaylistController : Controller
                 success = false,
                 isVipRequired = true,
                 message = "Batch Playlist Studio is an exclusive VIP PRO feature. Please upgrade to unlock unlimited 4K batch playlist downloads.",
-                upgradeUrl = "https://save-zonix.vercel.app/#pricing"
+                upgradeUrl = "https://savezonix-pro.vercel.app/#pricing"
             });
         }
 

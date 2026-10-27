@@ -3,7 +3,7 @@
 // Automatically open feedback survey on live Vercel site when extension is uninstalled
 try {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.setUninstallURL) {
-        chrome.runtime.setUninstallURL('https://save-zonix.vercel.app/feedback?source=extension');
+        chrome.runtime.setUninstallURL('https://savezonix-pro.vercel.app/feedback?source=extension');
     }
 } catch (e) {
     console.warn('[SaveZonix] Failed to configure uninstall feedback URL:', e);

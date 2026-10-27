@@ -36,7 +36,7 @@ const AppConfigSchema = new mongoose.Schema({
   },
   extensionDownloadUrl: {
     type: String,
-    default: 'https://save-zonix.vercel.app/SaveZonix-Extension.zip'
+    default: 'https://savezonix-pro.vercel.app/SaveZonix-Extension.zip'
   },
 
   // Monetization & Quotas

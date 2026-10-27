@@ -8,7 +8,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "update_url": "https://save-zonix.vercel.app/api/extension-updates.xml",
+  "update_url": "https://savezonix-pro.vercel.app/api/extension-updates.xml",
   "permissions": [
     "nativeMessaging",
     "webRequest",

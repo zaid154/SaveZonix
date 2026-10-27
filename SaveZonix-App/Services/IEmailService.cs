@@ -141,7 +141,7 @@ public class EmailService : IEmailService
                                         Your SaveZonix account is now active. You have full access to high-speed multi-threaded downloads, complete playlist extraction, and personal library sync.
                                     </p>
                                     <div style=""margin: 24px 0;"">
-                                        <a href=""https://save-zonix.vercel.app"" style=""background-color: #0284c7; color: #ffffff; padding: 12px 26px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;"">Explore Features</a>
+                                        <a href=""https://savezonix-pro.vercel.app"" style=""background-color: #0284c7; color: #ffffff; padding: 12px 26px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;"">Explore Features</a>
                                     </div>
                                     <div style=""margin-top: 24px; padding-top: 18px; border-top: 1px solid #f1f5f9; font-size: 12.5px; color: #64748b;"">
                                         Need help getting started? Visit our documentation or reach out anytime.

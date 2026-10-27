@@ -2,7 +2,7 @@
 #define MyAppName "SaveZonix"
 #define MyAppVersion "2.5.4"
 #define MyAppPublisher "SaveZonix Inc."
-#define MyAppURL "https://save-zonix.vercel.app"
+#define MyAppURL "https://savezonix-pro.vercel.app"
 #define MyAppExeName "Zonix.exe"
 
 [Setup]
@@ -77,7 +77,7 @@ var
 begin
   if CurUninstallStep = usPostUninstall then
   begin
-    ShellExec('open', 'https://save-zonix.vercel.app/feedback?source=desktop', '', '', SW_SHOW, ewNoWait, ErrorCode);
+    ShellExec('open', 'https://savezonix-pro.vercel.app/feedback?source=desktop', '', '', SW_SHOW, ewNoWait, ErrorCode);
   end;
 end;
 

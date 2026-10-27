@@ -8,8 +8,8 @@ Windows desktop media downloader built with .NET 10, accompanied by a React web 
 
 | Component | Host | URL |
 | :--- | :--- | :--- |
-| **Web Portal** | Vercel | [https://save-zonix.vercel.app](https://save-zonix.vercel.app) |
-| **Admin Dashboard** | Vercel | [https://save-zonix.vercel.app/admin/overview](https://save-zonix.vercel.app/admin/overview) |
+| **Web Portal** | Vercel | [https://savezonix-pro.vercel.app](https://savezonix-pro.vercel.app) |
+| **Admin Dashboard** | Vercel | [https://savezonix-pro.vercel.app/admin/overview](https://savezonix-pro.vercel.app/admin/overview) |
 | **Backend API** | Render | [https://savezonix.onrender.com](https://savezonix.onrender.com) |
 | **Desktop Installer** | Windows x64 | Built with Inno Setup (`build-installer.bat`) |
 
@@ -193,7 +193,7 @@ BREVO_API_KEY=xkeysib-your_brevo_api_key
 
 # Security & Frontend
 OTP_SECRET=your_hmac_secret_pepper
-FRONTEND_URL=https://save-zonix.vercel.app
+FRONTEND_URL=https://savezonix-pro.vercel.app
 ```
 
 ---
