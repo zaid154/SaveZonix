@@ -37,20 +37,40 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content/page-shield.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/page-shield.js"
+      ],
       "all_frames": true,
       "run_at": "document_start",
       "world": "MAIN"
     },
     {
-      "matches": ["<all_urls>"],
-      "js": ["src/content/shield.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/all-scam-patterns.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "src/content/shield.js"
+      ],
       "all_frames": true,
       "run_at": "document_start"
     },
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "<all_urls>"
+      ],
       "js": [
         "src/utils/helpers.js",
         "src/utils/thumbnail.js",
@@ -68,8 +88,14 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/**/*", "icons/*", "assets/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "src/**/*",
+        "icons/*",
+        "assets/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "action": {

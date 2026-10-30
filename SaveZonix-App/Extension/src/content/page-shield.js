@@ -230,9 +230,20 @@
                 );
 
                 if (!isThisVideoAd && playerWrapper) {
-                    const adTimerWidget = playerWrapper.querySelector('[class*="ad-timer"], [class*="ad_countdown"], [class*="ad-counter"], [class*="preroll-timer"]');
-                    const sponsorLink = playerWrapper.querySelector('a[target="_blank"], a[data-role="player-sponsor-link"], a[href*="bonus"], a[href*="bet"], a[href*="parimatch"]');
-                    if ((adTimerWidget || sponsorLink) && video.duration && video.duration > 0 && video.duration < 120) {
+                    const adTimerWidget = playerWrapper.querySelector('[class*="ad-timer"], [class*="ad_countdown"], [class*="ad-counter"], [class*="preroll"], [class*="time-remaining"]');
+                    const sponsorLink = playerWrapper.querySelector('a[target="_blank"], a[data-role="player-sponsor-link"], a[href*="bonus"], a[href*="bet"], a[href*="parimatch"], a[href*="1xbet"], a[href*="stake"], a[class*="sponsor"]');
+
+                    let hasPromoMarker = false;
+                    const promoCandidates = playerWrapper.querySelectorAll('button, a, div[role="button"], span');
+                    for (const pb of promoCandidates) {
+                        const pt = (pb.innerText || pb.textContent || '').trim().toLowerCase();
+                        if (pt.includes('win now') || pt.includes('bet now') || pt.includes('cash out') || pt.includes('play now') || pt.includes('claim bonus') || /^00:\d\d$/.test(pt)) {
+                            hasPromoMarker = true;
+                            break;
+                        }
+                    }
+
+                    if ((adTimerWidget || sponsorLink || hasPromoMarker) && video.duration && video.duration > 0 && video.duration < 180) {
                         isThisVideoAd = true;
                     }
                 }
@@ -313,16 +324,35 @@
         });
 
         // C. Universal "Close ad" & Interstitial Modal Defuser (e.g. AI Girlfriend popup)
-        const closeAdBtns = document.querySelectorAll('button, div[role="button"], a[role="button"], span');
+        const closeAdBtns = document.querySelectorAll(
+            'button, a, div[role="button"], span, [class*="close-ad"], [class*="ad-close"], [id*="close-ad"]'
+        );
         for (const btn of closeAdBtns) {
             const txt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-            if (txt === 'close ad' || txt === 'close advertisement') {
+            if (txt === 'close ad' || txt === 'close advertisement' || txt.startsWith('close ad')) {
                 try { btn.click(); } catch { }
-                const modal = btn.closest('div[style*="position: fixed"], div[style*="position: absolute"], [class*="modal"], [class*="interstitial"], dialog');
-                if (modal) modal.remove();
-                document.querySelectorAll('div[class*="backdrop"]').forEach(bd => {
+                let topContainer = btn;
+                let curr = btn;
+                while (curr && curr !== document.body && curr !== document.documentElement) {
+                    const pos = curr.style.position || (window.getComputedStyle(curr).position);
+                    if (pos === 'fixed' || pos === 'absolute') {
+                        topContainer = curr;
+                    }
+                    curr = curr.parentElement;
+                }
+                if (topContainer && topContainer !== document.body && topContainer !== document.documentElement) {
+                    topContainer.remove();
+                }
+                document.querySelectorAll('div[class*="backdrop"], div[class*="dimmer"]').forEach(bd => {
                     if (!bd.closest('#player, .video-player')) bd.remove();
                 });
+                if (document.body) {
+                    document.body.style.removeProperty('overflow');
+                    document.body.style.removeProperty('position');
+                }
+                if (document.documentElement) {
+                    document.documentElement.style.removeProperty('overflow');
+                }
                 break;
             }
         }
