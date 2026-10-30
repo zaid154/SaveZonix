@@ -1043,3 +1043,39 @@ body::-webkit-scrollbar-thumb:hover {
     box-shadow: 0 4px 14px rgba(56, 189, 248, 0.18);
     transform: translateY(-1px);
 }
+
+/* SaveZonix Universal Shield Switch */
+.switch-toggle input:checked + .switch-slider {
+    background-color: #10b981 !important;
+}
+.switch-toggle input:not(:checked) + .switch-slider {
+    background-color: #475569 !important;
+}
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: .25s ease;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.switch-toggle input:checked + .switch-slider:before {
+    transform: translateX(18px);
+}
+.shield-card.paused {
+    background: rgba(148, 163, 184, 0.08) !important;
+    border-color: rgba(148, 163, 184, 0.2) !important;
+}
+.shield-card.paused #shieldIconWrap {
+    background: rgba(148, 163, 184, 0.15) !important;
+    color: #94a3b8 !important;
+}
+.shield-card.paused #shieldActiveBadge {
+    background: #64748b !important;
+    color: #f8fafc !important;
+}
+

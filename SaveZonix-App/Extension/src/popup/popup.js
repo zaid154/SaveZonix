@@ -22,6 +22,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     const engineStatusPill = document.getElementById('engineStatusPill');
     const enginePulseDot = document.getElementById('enginePulseDot');
     const engineStatusText = document.getElementById('engineStatusText');
+    const shieldCard = document.getElementById('shieldCard');
+    const toggleShieldSwitch = document.getElementById('toggleShieldSwitch');
+    const shieldActiveBadge = document.getElementById('shieldActiveBadge');
+    const shieldBlockCountNum = document.getElementById('shieldBlockCountNum');
+
+    // ─────────────────────────────────────────────────────────────
+    // SaveZonix Universal Ad & Pop-up Shield Controller
+    // ─────────────────────────────────────────────────────────────
+    function initShieldUI() {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const activeTab = tabs && tabs[0];
+            const activeTabId = activeTab ? activeTab.id : -1;
+
+            chrome.runtime.sendMessage({ action: 'getShieldStats', tabId: activeTabId }, (res) => {
+                if (res) {
+                    updateShieldUIState(res.enabled, res.blockedCount || 0);
+                }
+            });
+
+            if (toggleShieldSwitch) {
+                toggleShieldSwitch.addEventListener('change', (e) => {
+                    const isEnabled = e.target.checked;
+                    chrome.runtime.sendMessage({ action: 'toggleShield', enabled: isEnabled }, (res) => {
+                        updateShieldUIState(isEnabled, res?.blockedCount || 0);
+                    });
+                });
+            }
+        });
+    }
+
+    function updateShieldUIState(isEnabled, count = 0) {
+        if (toggleShieldSwitch) toggleShieldSwitch.checked = isEnabled;
+        if (shieldBlockCountNum) shieldBlockCountNum.textContent = String(count);
+
+        if (isEnabled) {
+            shieldCard?.classList.remove('paused');
+            if (shieldActiveBadge) {
+                shieldActiveBadge.textContent = 'ON';
+                shieldActiveBadge.style.background = '#10b981';
+                shieldActiveBadge.style.color = '#022c22';
+            }
+            if (shieldCard) {
+                shieldCard.style.borderColor = 'rgba(16, 185, 129, 0.25)';
+                shieldCard.style.background = 'rgba(16, 185, 129, 0.08)';
+            }
+        } else {
+            shieldCard?.classList.add('paused');
+            if (shieldActiveBadge) {
+                shieldActiveBadge.textContent = 'PAUSED';
+                shieldActiveBadge.style.background = '#64748b';
+                shieldActiveBadge.style.color = '#f8fafc';
+            }
+            if (shieldCard) {
+                shieldCard.style.borderColor = 'rgba(148, 163, 184, 0.2)';
+                shieldCard.style.background = 'rgba(148, 163, 184, 0.06)';
+            }
+        }
+    }
+
+    initShieldUI();
 
     let backendBaseUrl = 'http://localhost:50550';
     let isLaunchingBackend = false;

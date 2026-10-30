@@ -310,6 +310,7 @@ function isSegmentOrInvalid(url) {
 const tabTitles = {};
 const tabThumbnails = {};
 const activeDownloads = {};
+const tabBlockedAdCounts = {};
 
 async function addDetectedVideo(tabId, videoData) {
     if (!videoData || !videoData.url) return;
@@ -684,6 +685,65 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         resolvePageForDashboard(req.url)
             .then(sendResponse)
             .catch(() => sendResponse({ success: false, message: 'Unable to read the open video tab.' }));
+    } else if (req.action === 'shieldBlockedItem') {
+        if (tabId > 0) {
+            tabBlockedAdCounts[tabId] = (tabBlockedAdCounts[tabId] || 0) + 1;
+            try {
+                chrome.action.setBadgeText({ tabId, text: String(tabBlockedAdCounts[tabId]) });
+                chrome.action.setBadgeBackgroundColor({ tabId, color: '#10b981' });
+            } catch { }
+        }
+        sendResponse({ success: true, count: tabBlockedAdCounts[tabId] || 0 });
+    } else if (req.action === 'getShieldStats') {
+        const queryTabId = req.tabId || tabId;
+        chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
+            const enabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
+            const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
+            sendResponse({
+                success: true,
+                enabled,
+                whitelist,
+                blockedCount: tabBlockedAdCounts[queryTabId] || 0
+            });
+        });
+    } else if (req.action === 'toggleShield') {
+        const targetState = Boolean(req.enabled);
+        chrome.storage.local.set({ savezonix_shield_enabled: targetState }, () => {
+            if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateEnabledRulesets) {
+                chrome.declarativeNetRequest.updateEnabledRulesets({
+                    enableRulesetIds: targetState ? ['adblock_rules'] : [],
+                    disableRulesetIds: targetState ? [] : ['adblock_rules']
+                }).catch(err => console.warn('[Shield] Failed to update ruleset:', err));
+            }
+            chrome.tabs.query({}, (tabs) => {
+                tabs.forEach(t => {
+                    if (t.id) {
+                        chrome.tabs.sendMessage(t.id, { action: 'updateShieldStatus', enabled: targetState }).catch(() => { });
+                        if (!targetState) {
+                            try { chrome.action.setBadgeText({ tabId: t.id, text: '' }); } catch { }
+                        }
+                    }
+                });
+            });
+            sendResponse({ success: true, enabled: targetState });
+        });
+    } else if (req.action === 'toggleWhitelistSite') {
+        const site = (req.hostname || '').toLowerCase();
+        chrome.storage.local.get(['savezonix_shield_whitelist'], (res) => {
+            let list = Array.isArray(res?.savezonix_shield_whitelist) ? [...res.savezonix_shield_whitelist] : [];
+            const idx = list.indexOf(site);
+            let isWhitelisted = false;
+            if (idx > -1) {
+                list.splice(idx, 1);
+                isWhitelisted = false;
+            } else {
+                list.push(site);
+                isWhitelisted = true;
+            }
+            chrome.storage.local.set({ savezonix_shield_whitelist: list }, () => {
+                sendResponse({ success: true, isWhitelisted, whitelist: list });
+            });
+        });
     }
     return true;
 });
