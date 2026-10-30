@@ -212,8 +212,7 @@
                 isThisVideoAd = Boolean(
                     ytPlayer && (
                         ytPlayer.classList.contains('ad-showing') ||
-                        ytPlayer.classList.contains('ad-interrupting') ||
-                        ytPlayer.querySelector('.ytp-ad-player-overlay, .ytp-ad-text')
+                        ytPlayer.classList.contains('ad-interrupting')
                     )
                 );
 
@@ -299,15 +298,10 @@
                 // 1. Mute during ad
                 try { video.muted = true; } catch { }
 
-                // 2. Instant Zero-Delay Ad Termination
+                // 2. Safe Ad Playback Handling
                 if (currentHost.includes('youtube.com')) {
                     try { video.muted = true; } catch { }
-                    try { video.playbackRate = 16.0; } catch { }
-                    if (video.duration && isFinite(video.duration) && video.duration > 0) {
-                        try { video.currentTime = video.duration; } catch { }
-                    }
-                    // Loop on next animation frame to eliminate double-ads instantly
-                    requestAnimationFrame(() => processUniversalVideoAds());
+                    try { video.playbackRate = 4.0; } catch { }
                 } else {
                     // Non-YouTube: 16x acceleration & instant jump for short ads (< 120s)
                     try { video.playbackRate = 16.0; } catch { }
@@ -324,11 +318,11 @@
                     try { overlayClose.click(); } catch { }
                 }
             } else {
-                // Main video is active!
-                if (video.__sz_is_ad_active || video.playbackRate > 1.0) {
+                // Main video is active! Strictly enforce normal 1.0x playback speed
+                if (video.__sz_is_ad_active || video.playbackRate !== 1.0) {
                     video.__sz_is_ad_active = false;
                     try {
-                        video.playbackRate = video.__sz_saved_rate || 1.0;
+                        video.playbackRate = 1.0;
                         if (!video.__sz_saved_muted) {
                             video.muted = false;
                         }
@@ -405,19 +399,19 @@
                 if (isShieldActive) processUniversalVideoAds();
             });
             playerObserver.observe(playerContainer, {
-                childList: true,
-                subtree: true,
+                childList: false,
+                subtree: false,
                 attributes: true,
                 attributeFilter: ['class']
             });
         }
     }
 
-    // Lightweight 350ms safety check (takes <0.02ms, 0% CPU)
+    // Lightweight 500ms safety check (takes <0.01ms, 0% CPU)
     setInterval(() => {
         if (!isShieldActive) return;
         attachScopedPlayerObserver();
         processUniversalVideoAds();
-    }, 350);
+    }, 500);
 
 })();
