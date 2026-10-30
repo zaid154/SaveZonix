@@ -178,51 +178,6 @@
     ].join(', ');
 
     function processUniversalVideoAds() {
-        // A. 1. Click native player API if present (e.g. YouTube movie_player.skipAd())
-        try {
-            const ytPlayer = document.getElementById('movie_player');
-            if (ytPlayer && typeof ytPlayer.skipAd === 'function') {
-                const isYtAd = ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting');
-                if (isYtAd) {
-                    ytPlayer.skipAd();
-                    notifyBlocked('youtube_ad_skipped');
-                }
-            }
-        } catch { }
-
-        // A. 2. Auto-click visible Skip Ad buttons inside/near video players
-        const skipElements = document.querySelectorAll(SKIP_BUTTON_SELECTORS);
-        for (const el of skipElements) {
-            // Strictly ignore page accessibility links like "Skip navigation"
-            if (el.id === 'skip-navigation' || el.closest('#skip-navigation, #masthead-container, nav, header')) continue;
-            if (el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0) {
-                dispatchRealClick(el);
-                notifyBlocked('universal_video_ad_skipped');
-                break;
-            }
-        }
-
-        // A. 3. Text-based scan: strictly target ad skips, never accessibility "skip navigation"
-        const allPotentialButtons = document.querySelectorAll(
-            'button, div[role="button"], a[role="button"], span[role="button"], div[class*="skip"], span[class*="skip"], a[class*="skip"], div[class*="btn"]'
-        );
-        for (const btn of allPotentialButtons) {
-            if (btn.id === 'skip-navigation' || btn.closest('#skip-navigation, #masthead-container, nav, header')) continue;
-
-            const txt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-            if (txt.includes('navigation')) continue; // Never click "skip navigation"
-
-            const isAdSkip = /^(skip(\s+ad|\s+ads|\s+video|\s+advertisement|\s+commercial|\s+promo|\s*>|\s*>>)?\s*)$/i.test(txt) ||
-                txt.includes('skip ad') || txt.includes('skip advertisement') || txt.includes('skip video') || txt.includes('skip promo') || txt.includes('skip >');
-
-            if (isAdSkip && (btn.offsetParent !== null || btn.offsetWidth > 0)) {
-                dispatchRealClick(btn);
-                notifyBlocked('universal_video_ad_skipped');
-                break;
-            }
-        }
-
-        // B. In-Stream Ad Detection & 16x Muted Acceleration
         const videos = document.querySelectorAll('video');
         if (!videos.length) return;
 
@@ -237,13 +192,19 @@
 
             // 1. YouTube: Strictly check authoritative player classes (NEVER arbitrary text or times like 00:17)
             if (currentHost.includes('youtube.com')) {
+                const ytPlayer = document.getElementById('movie_player') || playerWrapper;
                 isThisVideoAd = Boolean(
-                    playerWrapper && (
-                        playerWrapper.classList.contains('ad-showing') ||
-                        playerWrapper.classList.contains('ad-interrupting') ||
-                        playerWrapper.querySelector('.ytp-ad-player-overlay, .ytp-ad-text')
+                    ytPlayer && (
+                        ytPlayer.classList.contains('ad-showing') ||
+                        ytPlayer.classList.contains('ad-interrupting') ||
+                        ytPlayer.querySelector('.ytp-ad-player-overlay, .ytp-ad-text')
                     )
                 );
+
+                // If YouTube is playing an ad, try native API first
+                if (isThisVideoAd && ytPlayer && typeof ytPlayer.skipAd === 'function') {
+                    try { ytPlayer.skipAd(); } catch { }
+                }
             } else {
                 // 2. Non-YouTube: Check ad overlays & specific ad countdown widgets
                 isThisVideoAd = pageHasAdOverlay && (
@@ -273,6 +234,29 @@
                     notifyBlocked('video_ad_accelerated');
                 }
 
+                // A. Look for Skip Ad button STRICTLY INSIDE the player wrapper during ad
+                const searchContainer = playerWrapper || video.parentElement;
+                if (searchContainer) {
+                    const skipBtn = searchContainer.querySelector(SKIP_BUTTON_SELECTORS);
+                    if (skipBtn && (skipBtn.offsetParent !== null || skipBtn.offsetWidth > 0)) {
+                        dispatchRealClick(skipBtn);
+                        notifyBlocked('universal_video_ad_skipped');
+                    } else {
+                        // Text scan strictly inside player
+                        const candidateButtons = searchContainer.querySelectorAll('button, div[role="button"], a[role="button"], [class*="skip"]');
+                        for (const b of candidateButtons) {
+                            const txt = (b.innerText || b.textContent || '').trim().toLowerCase();
+                            if (txt.includes('skip ad') || txt.includes('skip advertisement') || txt.includes('skip video') || txt.includes('skip >')) {
+                                if (b.offsetParent !== null || b.offsetWidth > 0) {
+                                    dispatchRealClick(b);
+                                    notifyBlocked('universal_video_ad_skipped');
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 1. Mute during ad
                 try { video.muted = true; } catch { }
 
@@ -293,19 +277,22 @@
                 if (overlayClose) {
                     try { overlayClose.click(); } catch { }
                 }
-            } else if (video.__sz_is_ad_active || video.playbackRate > 1.0) {
-                // Main video is active: FORCIBLY restore normal speed & audio immediately
-                video.__sz_is_ad_active = false;
-                try {
-                    video.playbackRate = video.__sz_saved_rate || 1.0;
-                    if (!video.__sz_saved_muted) {
-                        video.muted = false;
-                    }
-                } catch { }
+            } else {
+                // Main video is active!
+                // If it was just accelerated or muted by an ad, restore normal speed immediately!
+                if (video.__sz_is_ad_active || video.playbackRate > 1.0) {
+                    video.__sz_is_ad_active = false;
+                    try {
+                        video.playbackRate = video.__sz_saved_rate || 1.0;
+                        if (!video.__sz_saved_muted) {
+                            video.muted = false;
+                        }
+                    } catch { }
+                }
             }
         });
 
-        // C. Auto-dismiss top promo messages and banner strips
+        // Auto-dismiss top promo messages and banner strips
         const promoCloseBtn = document.querySelector(
             'div[data-role="promo-messages-wrapper"] button, div[class*="top-banner"] button, div[class*="promo-banner"] button, [class*="header-banner"] button, div[data-role="promo-messages-wrapper"] [class*="close"], div[data-role="promo-messages-wrapper"] svg'
         );
@@ -313,7 +300,7 @@
             try { promoCloseBtn.click(); } catch { }
         }
 
-        // D. Auto-dismiss anti-adblock modals (YouTube & Universal)
+        // Auto-dismiss anti-adblock modals (YouTube & Universal)
         const antiAdblockModal = document.querySelector(
             'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model), ytd-enforcement-message-view-model, [class*="anti-adblock"], [id*="adblock-dialog"]'
         );
@@ -325,8 +312,6 @@
                 antiAdblockModal.remove();
                 const backdrop = document.querySelector('tp-yt-iron-overlay-backdrop, .modal-backdrop');
                 if (backdrop) backdrop.remove();
-                const mainVid = document.querySelector('video');
-                if (mainVid && mainVid.paused) mainVid.play();
             }
         }
     }
