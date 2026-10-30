@@ -118,9 +118,8 @@
                 height: 0 !important;
             }
 
-            /* Explicit protection for YouTube Header & Search Bar */
+            /* Explicit protection for YouTube Header & Search Bar (Preserves native flexbox layout) */
             #masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, .mobile-topbar-header {
-                display: block !important;
                 visibility: visible !important;
                 pointer-events: auto !important;
                 opacity: 1 !important;
@@ -143,10 +142,8 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Layer 2: Deceptive Scam Modal & Clickjack Annihilator (DOM Engine)
+    // Layer 2: Deceptive Scam Modal & Clickjack Annihilator (Ultra-Fast DOM Engine)
     // ─────────────────────────────────────────────────────────────
-    // TARGETED SCAM PATTERNS: Only match known push-notification scams and fake browser alerts.
-    // NOTE: Legitimate 18+ age verification gateways are strictly preserved.
     const SCAM_PATTERNS = [
         // Fake Browser / Captcha Lures
         "one more step",
@@ -165,135 +162,120 @@
         "click allow to",
         "press allow to",
         "confirm you are not a robot",
-        "you received a message"
+        "you received a message",
+
+        // Interstitial Ad / Dating & AI Girlfriend Modals
+        "close ad",
+        "create your ai girlfriend",
+        "ai girlfriend",
+        "write prompt",
+        "trick or tease",
+        "play with real girls"
     ];
+
+    function broadcastShieldState(enabled) {
+        try {
+            window.postMessage({
+                source: 'savezonix-shield-config',
+                enabled: Boolean(enabled)
+            }, '*');
+        } catch { }
+    }
 
     function sweepDeceptiveModals() {
         if (!isShieldEnabled) return;
-        // Never run modal/link sweepers on YouTube (avoids removing <a id="thumbnail"> or player links)
         if (currentHost.includes('youtube.com')) return;
 
-        // 1. Sweep modals containing deceptive scam patterns
-        const allFloating = document.querySelectorAll('div, dialog, section, aside');
-        allFloating.forEach(el => {
-            const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
-            if (!style) return;
+        // 1. High-Performance Modal Sweep: strictly query modal/dialog containers (Zero Layout Thrashing)
+        const candidateModals = document.querySelectorAll(
+            'dialog, [class*="modal"], [id*="modal"], [class*="interstitial"], [id*="interstitial"], [class*="overlay"]:not(#player):not(.player):not(.video-player), [data-role="promo-messages-wrapper"]'
+        );
 
-            const isOverlay = style.position === 'fixed' || style.position === 'absolute';
-            const isHighZ = parseInt(style.zIndex, 10) >= 30;
-
-            if (isOverlay || isHighZ) {
-                const text = (el.innerText || el.textContent || '').toLowerCase();
-
-                // SAFEGUARD: Never delete legitimate navigation headers, search boxes, forms, login boxes, or authentic age verification gates
-                if (el.closest('#masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, header, nav')) {
-                    return;
-                }
-
-                const hasForm = el.querySelector('form') !== null;
-                const hasInputs = el.querySelector('input[type="password"], input[type="email"], input[name*="user"], input[type="radio"]') !== null;
-                const isAuthOrLogin = /login|signin|register|signup|auth|account/i.test(el.className + ' ' + el.id);
-
-                // Authentic Age Gate detection: real age gates give choice ("Enter" / "Exit" / "I am 18" / "Under 18")
-                // and do NOT ask to click browser notification "Allow" buttons.
-                const isAuthenticAgeGate = (
-                    (text.includes('18') || text.includes('age') || text.includes('disclaimer') || text.includes('terms')) &&
-                    (text.includes('enter') || text.includes('yes') || text.includes('agree') || text.includes('exit') || text.includes('leave') || text.includes('continue')) &&
-                    !text.includes('click "allow"') &&
-                    !text.includes('click \'allow\'') &&
-                    !text.includes('click allow') &&
-                    !text.includes('press allow')
-                );
-
-                if (hasForm || hasInputs || isAuthOrLogin || isAuthenticAgeGate) {
-                    return; // Preserve legitimate dialog/gateway intact
-                }
-
-                // Check against deceptive scam patterns
-                const matchedPattern = SCAM_PATTERNS.find(pat => text.includes(pat));
-
-                if (matchedPattern) {
-                    console.warn('[SaveZonix Shield] 🛡️ Neutralized deceptive scam modal (' + matchedPattern + '):', el);
-                    
-                    const modalParent = el.closest('div[style*="position: fixed"], div[style*="z-index"]') || el;
-                    modalParent.remove();
-                    reportBlocked('deceptive_modal_removed');
-
-                    // If body scroll was locked by the modal, restore it
-                    if (document.body && (document.body.style.overflow === 'hidden' || document.body.style.position === 'fixed')) {
-                        document.body.style.overflow = 'auto';
-                        document.body.style.position = 'static';
-                    }
-                    if (document.documentElement && document.documentElement.style.overflow === 'hidden') {
-                        document.documentElement.style.overflow = 'auto';
-                    }
-                }
-            }
-        });
-
-        // 2. Sweep full-page transparent clickjack link overlays
-        const allLinks = document.querySelectorAll('a');
-        allLinks.forEach(a => {
-            const style = window.getComputedStyle ? window.getComputedStyle(a) : null;
-            if (!style) return;
-
-            const isFixed = style.position === 'fixed' || style.position === 'absolute';
-            const isFullCover = (a.offsetWidth > window.innerWidth * 0.5 && a.offsetHeight > window.innerHeight * 0.5);
-            const isHighZ = parseInt(style.zIndex, 10) >= 100;
-            const isTransparent = style.opacity === '0' || style.backgroundColor.includes('rgba(0, 0, 0, 0)');
-
-            if (isFixed && (isFullCover || (isHighZ && isTransparent))) {
-                console.warn('[SaveZonix Shield] 🛡️ Removed full-page clickjack overlay link:', a);
-                a.remove();
-                reportBlocked('clickjack_overlay_removed');
-            }
-        });
-
-        // 3. Sweep floating outstream video ads (not genuine video players)
-        const floatingVideos = document.querySelectorAll('video');
-        floatingVideos.forEach(v => {
-            if (v.hasAttribute('controls') || v.closest('#player') || v.closest('.player') || v.closest('.video-container') || v.closest('main')) {
+        candidateModals.forEach(el => {
+            // SAFEGUARD: Never delete legitimate navigation headers, search boxes, forms, login boxes, or authentic age verification gates
+            if (el.closest('#masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, header, nav, #player, .video-player')) {
                 return;
             }
-            const container = v.closest('div[style*="position: fixed"], div[style*="position: absolute"]');
-            if (container) {
-                const rect = container.getBoundingClientRect();
-                if (rect.width < 450 && (rect.right >= window.innerWidth - 30 || rect.bottom >= window.innerHeight - 30)) {
-                    console.warn('[SaveZonix Shield] 🛡️ Removed floating outstream video ad:', container);
-                    container.remove();
-                    reportBlocked('outstream_video_ad_removed');
+
+            const hasForm = el.querySelector('form') !== null;
+            const hasInputs = el.querySelector('input[type="password"], input[type="email"], input[name*="user"], input[type="radio"]') !== null;
+            const isAuthOrLogin = /login|signin|register|signup|auth|account/i.test(el.className + ' ' + el.id);
+
+            const text = (el.innerText || el.textContent || '').toLowerCase();
+
+            // Authentic Age Gate detection: real age gates give choice ("Enter" / "Exit" / "I am 18" / "Under 18")
+            const isAuthenticAgeGate = (
+                (text.includes('18') || text.includes('age') || text.includes('disclaimer') || text.includes('terms')) &&
+                (text.includes('enter') || text.includes('yes') || text.includes('agree') || text.includes('exit') || text.includes('leave') || text.includes('continue')) &&
+                !text.includes('click "allow"') &&
+                !text.includes('click \'allow\'') &&
+                !text.includes('click allow')
+            );
+
+            if ((hasForm || hasInputs || isAuthOrLogin || isAuthenticAgeGate) && !text.includes('close ad') && !text.includes('ai girlfriend')) {
+                return; // Preserve legitimate dialog/gateway intact
+            }
+
+            // Check against deceptive scam patterns or interstitial ad cards
+            const matchedPattern = SCAM_PATTERNS.find(pat => text.includes(pat));
+            if (matchedPattern) {
+                console.warn('[SaveZonix Shield] 🛡️ Neutralized deceptive modal / interstitial (' + matchedPattern + '):', el);
+                
+                const modalParent = el.closest('div[style*="position: fixed"], div[style*="z-index"]') || el;
+                modalParent.remove();
+
+                // Remove dark background backdrops
+                document.querySelectorAll('div[class*="backdrop"], div[style*="rgba(0, 0, 0"]').forEach(bd => {
+                    if (!bd.closest('#player, .video-player')) bd.remove();
+                });
+
+                reportBlocked('deceptive_modal_removed');
+
+                if (document.body && (document.body.style.overflow === 'hidden' || document.body.style.position === 'fixed')) {
+                    document.body.style.overflow = 'auto';
+                    document.body.style.position = 'static';
+                }
+                if (document.documentElement && document.documentElement.style.overflow === 'hidden') {
+                    document.documentElement.style.overflow = 'auto';
                 }
             }
         });
 
-        // 4. Sweep floating sports/casino icons (e.g. bouncing basketball widget)
-        const floatingIcons = document.querySelectorAll('div[style*="position: fixed"] img, div[style*="position: absolute"] img');
-        floatingIcons.forEach(img => {
-            const src = (img.src || '').toLowerCase();
-            if (src.includes('basketball') || src.includes('bet') || src.includes('ball') || src.includes('coin')) {
-                const parent = img.closest('div[style*="position: fixed"], div[style*="position: absolute"]');
-                if (parent && parent.getBoundingClientRect().width < 100) {
-                    parent.remove();
-                    reportBlocked('floating_icon_ad_removed');
-                }
-            }
+        // 2. High-Performance Clickjack Purger (Targets invisible full-screen overlays without getComputedStyle loop)
+        const clickjacks = document.querySelectorAll(
+            'div[style*="position: fixed"][style*="opacity: 0"], div[style*="position: fixed"][style*="opacity:0"], a[style*="position: fixed"][style*="opacity: 0"], a[style*="position: fixed"][style*="opacity:0"], [class*="clickjack"]'
+        );
+        clickjacks.forEach(cj => {
+            if (cj.closest('#player, .video-player, nav, header')) return;
+            console.warn('[SaveZonix Shield] 🛡️ Removed clickjack overlay:', cj);
+            cj.remove();
+            reportBlocked('clickjack_overlay_removed');
+        });
+
+        // 3. Fast Outstream Video Ads Sweep
+        const floatingAdWidgets = document.querySelectorAll('div[class*="aniview"], div[class*="connatix"], div[class*="vdoai"]');
+        floatingAdWidgets.forEach(w => {
+            w.remove();
+            reportBlocked('outstream_video_ad_removed');
         });
     }
 
     function startDomDefense() {
         if (typeof document === 'undefined') return;
 
-        // Immediate initial sweep
+        // Immediate initial sweep & broadcast enabled status
+        broadcastShieldState(isShieldEnabled);
         sweepDeceptiveModals();
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
                 applyCosmeticShield();
                 sweepDeceptiveModals();
+                broadcastShieldState(isShieldEnabled);
             });
         }
 
-        // Real-time MutationObserver
+        // Lightweight debounced MutationObserver (250ms debounce prevents CPU freezing)
         let debounceTimer = null;
         const observer = new MutationObserver(() => {
             if (!isShieldEnabled) return;
@@ -301,7 +283,7 @@
                 debounceTimer = setTimeout(() => {
                     sweepDeceptiveModals();
                     debounceTimer = null;
-                }, 40);
+                }, 250);
             }
         });
 
@@ -310,16 +292,17 @@
             subtree: true
         });
 
-        // Periodic hygiene sweep
+        // Periodic low-frequency hygiene sweep (every 2.5 seconds, near zero CPU)
         setInterval(() => {
             if (isShieldEnabled) sweepDeceptiveModals();
-        }, 800);
+        }, 2500);
     }
 
     // Toggle message listener
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.action === 'updateShieldStatus') {
             isShieldEnabled = Boolean(msg.enabled);
+            broadcastShieldState(isShieldEnabled);
             const style = document.getElementById('savezonix-cosmetic-shield');
             if (isShieldEnabled) {
                 applyCosmeticShield();
