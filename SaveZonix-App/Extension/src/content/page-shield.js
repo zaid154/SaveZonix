@@ -206,31 +206,38 @@
 
             let isThisVideoAd = false;
 
-            // 1. YouTube: Strictly check authoritative player classes (NEVER arbitrary text or times like 00:17)
+            // 1. YouTube: Authoritative Ad Detection + Instant Skip Auto-Clicker
             if (currentHost.includes('youtube.com')) {
-                const ytPlayer = document.getElementById('movie_player') || playerWrapper;
+                const ytPlayer = document.getElementById('movie_player') || playerWrapper || document.querySelector('.html5-video-player');
+                const hasSkipBtn = Boolean(document.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button, button[aria-label^="Skip ad" i]'));
+                const hasAdBadge = Boolean(document.querySelector('.ytp-ad-badge, [class*="ytp-ad-badge"], .ytp-ad-hover-text-container'));
+                const hasAdOverlay = Boolean(document.querySelector('.ytp-ad-player-overlay, .ytp-ad-player-overlay-layout'));
+
                 isThisVideoAd = Boolean(
                     ytPlayer && (
                         ytPlayer.classList.contains('ad-showing') ||
-                        ytPlayer.classList.contains('ad-interrupting')
+                        ytPlayer.classList.contains('ad-interrupting') ||
+                        hasSkipBtn ||
+                        hasAdBadge ||
+                        hasAdOverlay
                     )
                 );
 
-                // If YouTube is playing an ad:
-                if (isThisVideoAd) {
-                    // 1. Call native skip API immediately
-                    if (ytPlayer && typeof ytPlayer.skipAd === 'function') {
-                        try { ytPlayer.skipAd(); } catch { }
+                // Standalone Instant Skip Clicker (Fires immediately whenever any skip button appears)
+                const ytSkipBtn = document.querySelector(
+                    '.ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button, .ytp-ad-skip-button-slot button, .ytp-ad-skip-button-container button, button.ytp-ad-skip-button-modern, button[class*="ytp-ad-skip-button"], div[class*="ytp-ad-skip-button"], button[class*="skip-button"], button[aria-label^="Skip ad" i]'
+                );
+                if (ytSkipBtn && ytSkipBtn.id !== 'skip-navigation') {
+                    try { ytSkipBtn.click(); } catch { }
+                    try { dispatchRealClick(ytSkipBtn); } catch { }
+                    if (ytSkipBtn.parentElement) {
+                        try { ytSkipBtn.parentElement.click(); } catch { }
                     }
+                }
 
-                    // 2. Click modern skip button immediately across shadow/light DOM
-                    const ytSkipBtn = document.querySelector(
-                        '.ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button, .ytp-ad-skip-button-slot button, .ytp-ad-skip-button-container button, button[class*="ytp-ad-skip-button"], div[class*="ytp-ad-skip-button"], button[class*="skip-button"]'
-                    );
-                    if (ytSkipBtn) {
-                        try { dispatchRealClick(ytSkipBtn); } catch { }
-                        try { ytSkipBtn.click(); } catch { }
-                    }
+                // If YouTube is playing an ad, call native skip API
+                if (isThisVideoAd && ytPlayer && typeof ytPlayer.skipAd === 'function') {
+                    try { ytPlayer.skipAd(); } catch { }
                 }
             } else {
                 // 2. Non-YouTube: Check ad overlays & specific ad countdown widgets
@@ -298,10 +305,15 @@
                 // 1. Mute during ad
                 try { video.muted = true; } catch { }
 
-                // 2. Safe Ad Playback Handling
+                // 2. Safe Ad Playback Acceleration
                 if (currentHost.includes('youtube.com')) {
                     try { video.muted = true; } catch { }
-                    try { video.playbackRate = 4.0; } catch { }
+                    // Accelerate ad so it finishes in milliseconds
+                    try { video.playbackRate = 16.0; } catch { }
+                    // For short ads (< 90s), safe seek to duration
+                    if (video.duration && isFinite(video.duration) && video.duration > 0 && video.duration < 90) {
+                        try { video.currentTime = video.duration - 0.05; } catch { }
+                    }
                 } else {
                     // Non-YouTube: 16x acceleration & instant jump for short ads (< 120s)
                     try { video.playbackRate = 16.0; } catch { }
@@ -391,27 +403,32 @@
 
     // Attach lightweight observer STRICTLY to active video container (Zero full-body observation lag)
     let playerObserver = null;
+    let observerThrottleTimer = null;
     function attachScopedPlayerObserver() {
         if (playerObserver) return;
         const playerContainer = document.getElementById('movie_player') || document.querySelector('.html5-video-player, .video-player, .player-container, #player');
         if (playerContainer) {
             playerObserver = new MutationObserver(() => {
-                if (isShieldActive) processUniversalVideoAds();
+                if (observerThrottleTimer) return;
+                observerThrottleTimer = setTimeout(() => {
+                    observerThrottleTimer = null;
+                    if (isShieldActive) processUniversalVideoAds();
+                }, 50); // 50ms throttle: 0% CPU, no recursive loop
             });
             playerObserver.observe(playerContainer, {
-                childList: false,
-                subtree: false,
+                childList: true,
+                subtree: true,
                 attributes: true,
                 attributeFilter: ['class']
             });
         }
     }
 
-    // Lightweight 500ms safety check (takes <0.01ms, 0% CPU)
+    // Safety fallback check (every 250ms, takes <0.01ms, 0% CPU)
     setInterval(() => {
         if (!isShieldActive) return;
         attachScopedPlayerObserver();
         processUniversalVideoAds();
-    }, 500);
+    }, 250);
 
 })();

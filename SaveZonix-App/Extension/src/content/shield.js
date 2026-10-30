@@ -852,12 +852,27 @@
             /* Fake push notification prompts */
             .push-optin, .onesignal-bell-launcher,
             /* Complete 0ms Visual Cloak: Hide all YouTube ad overlays, banners, and interstitials */
-            #movie_player.ad-showing video.html5-main-video {
+            .ad-showing video,
+            .ad-interrupting video,
+            #movie_player.ad-showing video {
                 opacity: 0 !important;
             }
 
-            #movie_player:not(.ad-showing) video.html5-main-video {
+            #movie_player:not(.ad-showing):not(.ad-interrupting) video {
                 opacity: 1 !important;
+            }
+
+            /* Ensure Skip Button is ALWAYS visible and clickable above any cloak */
+            .ytp-ad-skip-button-modern,
+            .ytp-skip-ad-button,
+            .ytp-ad-skip-button,
+            .ytp-ad-skip-button-slot,
+            .ytp-ad-skip-button-container {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+                z-index: 999999 !important;
             }
 
             #movie_player.ad-showing .ytp-ad-player-overlay,
