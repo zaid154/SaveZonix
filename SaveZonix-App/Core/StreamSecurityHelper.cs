@@ -85,6 +85,11 @@ public static class StreamSecurityHelper
             candidates.Add("https://www.freepornvideo.sex/");
             candidates.Add("https://freepornvideo.sex/");
         }
+        else if (host.Contains("area51") || full.Contains("area51"))
+        {
+            candidates.Add("https://area51.porn/");
+            candidates.Add("https://www.area51.porn/");
+        }
         else if (host.Contains("googlevideo"))
         {
             candidates.Add("https://www.youtube.com/");

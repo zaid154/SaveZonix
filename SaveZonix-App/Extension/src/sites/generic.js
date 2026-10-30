@@ -148,6 +148,7 @@
                         const candidates = [m720?.[1], mAlt?.[1], mAny?.[1]].filter(Boolean);
                         for (const raw of candidates) {
                             const cleanUrl = raw.replace(/\\\//g, '/').replace(/['"]/g, '');
+                            if (cleanUrl.includes('event_reporting') || cleanUrl.includes('stats.php') || cleanUrl.includes('_preview.mp4')) continue;
                             if (cleanUrl.startsWith('http') && isValidMediaStreamUrl(cleanUrl) && !seen.has(cleanUrl)) {
                                 seen.add(cleanUrl);
                                 // KVS serves signed MP4 files through `/get_file/`; however, okxxx1.com serves HLS from these URLs.

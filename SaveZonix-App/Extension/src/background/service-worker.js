@@ -272,6 +272,10 @@ function isSegmentOrInvalid(url) {
     // 3. Reject Ad Networks, Preroll Video Ads & Sponsored Clips
     if (lower.includes('trafficjunky') || 
         lower.includes('doubleclick.net') || 
+        lower.includes('event_reporting') || 
+        lower.includes('event_reporting2') || 
+        lower.includes('/player/stats.php') || 
+        lower.includes('stats.php') || 
         lower.includes('googlesyndication') || 
         lower.includes('exoclick') || 
         lower.includes('juicyads') || 
@@ -587,6 +591,7 @@ chrome.webRequest.onHeadersReceived.addListener(
             cType.includes('application/xml') || 
             cType.includes('text/html') || 
             cType.includes('application/json') ||
+            cType.includes('image/') ||
             cType.includes('video/mp2t')) { // video/mp2t is an internal .ts segment, not a master manifest
             return;
         }

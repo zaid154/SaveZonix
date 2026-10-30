@@ -58,6 +58,9 @@
             lower.includes('goadserver') ||
             lower.includes('adserver') ||
             lower.includes('doubleclick.net') || 
+            lower.includes('event_reporting') ||
+            lower.includes('event_reporting2') ||
+            lower.includes('stats.php') ||
             lower.includes('googlesyndication') || 
             lower.includes('exoclick') || 
             lower.includes('juicyads') || 
