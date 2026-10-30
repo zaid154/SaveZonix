@@ -1,5 +1,5 @@
 // src/content/shield.js — SaveZonix Universal Ad, Pop-up & Redirect Shield Engine
-// Runs at document_start in isolated world; coordinates badge counters, cosmetic DOM cleanups & fail-safe scriptlet injection.
+// Runs at document_start in isolated world; coordinates badge counters, cosmetic DOM cleanups & safe protective barriers.
 
 (function () {
     'use strict';
@@ -8,7 +8,7 @@
     let blockedCount = 0;
     const currentHost = (window.location.hostname || '').toLowerCase();
 
-    // 1. Storage Check
+    // 1. Storage & Whitelist Check
     try {
         chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
             if (res) {
@@ -16,13 +16,12 @@
                     isShieldEnabled = res.savezonix_shield_enabled;
                 }
                 if (Array.isArray(res.savezonix_shield_whitelist)) {
-                    if (res.savezonix_shield_whitelist.some(d => currentHost.includes(d.toLowerCase()))) {
+                    if (res.savezonix_shield_whitelist.some(d => d && currentHost.includes(d.toLowerCase()))) {
                         isShieldEnabled = false;
                     }
                 }
             }
             if (isShieldEnabled) {
-                injectMainWorldFailsafe();
                 applyCosmeticShield();
                 startDomDefense();
             }
@@ -42,18 +41,7 @@
         } catch { }
     }
 
-    // 2. Failsafe injection of page-shield.js into Main World
-    function injectMainWorldFailsafe() {
-        try {
-            const script = document.createElement('script');
-            script.src = chrome.runtime.getURL('src/content/page-shield.js');
-            script.async = false;
-            (document.head || document.documentElement).prepend(script);
-            script.onload = () => script.remove();
-        } catch { }
-    }
-
-    // 3. Listen to messages from page-shield.js (Main World)
+    // 2. Listen to messages from page-shield.js (Main World)
     window.addEventListener('message', (e) => {
         if (!isShieldEnabled) return;
         if (e.data && e.data.source === 'savezonix-shield-main') {
@@ -68,7 +56,7 @@
         if (document.getElementById('savezonix-cosmetic-shield')) return;
 
         const css = `
-            /* SaveZonix Universal Cosmetic Ad & Modal Shield */
+            /* SaveZonix Safe Cosmetic Ad Shield */
             [class*="ad-banner"], [id*="ad-banner"],
             [class*="popunder"], [id*="popunder"],
             [class*="banner-ad"], [id*="banner-ad"],
@@ -78,18 +66,12 @@
             div[class*="floating-ad"], div[id*="floating-ad"],
             div[class*="outstream"], div[id*="outstream"],
             div[class*="aniview"], div[class*="connatix"], div[class*="vdoai"],
-            /* Floating sports / casino / sticky banners / basketball widget */
-            div[style*="position: fixed"][style*="bottom: 0"][style*="z-index"]:has(a[target="_blank"]),
-            div[style*="position: fixed"][style*="right:"][style*="top:"]:has(img),
-            /* Floating side video ad with AI robot or sound controls */
+            /* Floating side video ad widget with AI robot or sound controls */
             div[style*="position: fixed"][style*="right: 0"]:has(video),
             div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
-            /* Fake notification / age / captcha prompts */
+            /* Fake push notification modals */
             div[class*="push-prompt"], div[id*="push-prompt"],
-            div[class*="notification-modal"], div[id*="notification-dialog"],
-            /* Fake Cloudflare / Browser captcha prompts */
-            div[style*="position: fixed"]:has(img[src*="browser"]),
-            div[style*="position: fixed"]:has(input[type="checkbox"][id*="captcha"]) {
+            div[class*="notification-modal"], div[id*="notification-dialog"] {
                 display: none !important;
                 visibility: hidden !important;
                 pointer-events: none !important;
@@ -115,38 +97,35 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // Layer 2: Deceptive Modal & Clickjack Annihilator (DOM Engine)
+    // Layer 2: Deceptive Scam Modal & Clickjack Annihilator (DOM Engine)
     // ─────────────────────────────────────────────────────────────
+    // TARGETED SCAM PATTERNS: Only match known push-notification scams and fake browser alerts.
+    // NOTE: Legitimate 18+ age verification gateways are strictly preserved.
     const SCAM_PATTERNS = [
-        // Fake Captcha & Browser Verification Prompts (Discovered in user screenshot)
+        // Fake Browser / Captcha Lures
         "one more step",
         "please go to captcha",
-        "verify you are human",
-        "is your browser",
         "choose your browser to continue",
+        "is your browser firefox",
+        "is your browser chrome",
         "captcha to access the site",
-
-        // Fake Push Notifications & Age Checks
-        "over 18",
-        "confirm that you're over",
-        "confirm that you are over",
-        "confirm you are not a robot",
-        "i'm not a robot",
-        "you received a message",
-        "click allow to view",
-        "click allow to verify",
-        "click \"allow\"",
-        "click 'allow'",
-        "press allow to continue",
         "your browser is outdated",
         "system has been infected",
-        "trade gold 24/7"
+        "trade gold 24/7",
+
+        // Fake Notification Scam Triggers (Never used by real age gates)
+        "click \"allow\"",
+        "click 'allow'",
+        "click allow to",
+        "press allow to",
+        "confirm you are not a robot",
+        "you received a message"
     ];
 
     function sweepDeceptiveModals() {
         if (!isShieldEnabled) return;
 
-        // 1. Sweep modals containing scam phrases
+        // 1. Sweep modals containing deceptive scam patterns
         const allFloating = document.querySelectorAll('div, dialog, section, aside');
         allFloating.forEach(el => {
             const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
@@ -157,17 +136,38 @@
 
             if (isOverlay || isHighZ) {
                 const text = (el.innerText || el.textContent || '').toLowerCase();
+
+                // SAFEGUARD: Never delete legitimate forms, login boxes, or authentic age verification gates
+                const hasForm = el.querySelector('form') !== null;
+                const hasInputs = el.querySelector('input[type="password"], input[type="email"], input[name*="user"], input[type="radio"]') !== null;
+                const isAuthOrLogin = /login|signin|register|signup|auth|account/i.test(el.className + ' ' + el.id);
+
+                // Authentic Age Gate detection: real age gates give choice ("Enter" / "Exit" / "I am 18" / "Under 18")
+                // and do NOT ask to click browser notification "Allow" buttons.
+                const isAuthenticAgeGate = (
+                    (text.includes('18') || text.includes('age') || text.includes('disclaimer') || text.includes('terms')) &&
+                    (text.includes('enter') || text.includes('yes') || text.includes('agree') || text.includes('exit') || text.includes('leave') || text.includes('continue')) &&
+                    !text.includes('click "allow"') &&
+                    !text.includes('click \'allow\'') &&
+                    !text.includes('click allow') &&
+                    !text.includes('press allow')
+                );
+
+                if (hasForm || hasInputs || isAuthOrLogin || isAuthenticAgeGate) {
+                    return; // Preserve legitimate dialog/gateway intact
+                }
+
+                // Check against deceptive scam patterns
                 const matchedPattern = SCAM_PATTERNS.find(pat => text.includes(pat));
 
                 if (matchedPattern) {
-                    console.warn('[SaveZonix Shield] 🛡️ Removed deceptive scam modal (' + matchedPattern + '):', el);
+                    console.warn('[SaveZonix Shield] 🛡️ Neutralized deceptive scam modal (' + matchedPattern + '):', el);
                     
-                    // If element has a parent modal container with position: fixed, remove the whole container
                     const modalParent = el.closest('div[style*="position: fixed"], div[style*="z-index"]') || el;
                     modalParent.remove();
                     reportBlocked('deceptive_modal_removed');
 
-                    // If body overflow was set to hidden by modal, restore it
+                    // If body scroll was locked by the modal, restore it
                     if (document.body && (document.body.style.overflow === 'hidden' || document.body.style.position === 'fixed')) {
                         document.body.style.overflow = 'auto';
                         document.body.style.position = 'static';
@@ -200,7 +200,7 @@
         // 3. Sweep floating outstream video ads (not genuine video players)
         const floatingVideos = document.querySelectorAll('video');
         floatingVideos.forEach(v => {
-            if (v.hasAttribute('controls') || v.closest('#player') || v.closest('.player') || v.closest('.video-container')) {
+            if (v.hasAttribute('controls') || v.closest('#player') || v.closest('.player') || v.closest('.video-container') || v.closest('main')) {
                 return;
             }
             const container = v.closest('div[style*="position: fixed"], div[style*="position: absolute"]');
@@ -214,7 +214,7 @@
             }
         });
 
-        // 4. Sweep floating sports/basketball icons
+        // 4. Sweep floating sports/casino icons (e.g. bouncing basketball widget)
         const floatingIcons = document.querySelectorAll('div[style*="position: fixed"] img, div[style*="position: absolute"] img');
         floatingIcons.forEach(img => {
             const src = (img.src || '').toLowerCase();
@@ -231,7 +231,7 @@
     function startDomDefense() {
         if (typeof document === 'undefined') return;
 
-        // Immediate initial sweeps
+        // Immediate initial sweep
         sweepDeceptiveModals();
 
         if (document.readyState === 'loading') {
@@ -258,7 +258,7 @@
             subtree: true
         });
 
-        // Periodic hygiene sweep for dynamically delayed scripts
+        // Periodic hygiene sweep
         setInterval(() => {
             if (isShieldEnabled) sweepDeceptiveModals();
         }, 800);

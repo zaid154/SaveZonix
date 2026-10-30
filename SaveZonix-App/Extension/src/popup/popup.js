@@ -26,18 +26,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const toggleShieldSwitch = document.getElementById('toggleShieldSwitch');
     const shieldActiveBadge = document.getElementById('shieldActiveBadge');
     const shieldBlockCountNum = document.getElementById('shieldBlockCountNum');
+    const shieldWhitelistBtn = document.getElementById('shieldWhitelistBtn');
 
     // ─────────────────────────────────────────────────────────────
     // SaveZonix Universal Ad & Pop-up Shield Controller
     // ─────────────────────────────────────────────────────────────
+    let currentTabHostname = '';
+
     function initShieldUI() {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
             const activeTab = tabs && tabs[0];
             const activeTabId = activeTab ? activeTab.id : -1;
 
+            if (activeTab && activeTab.url) {
+                try {
+                    currentTabHostname = new URL(activeTab.url).hostname.toLowerCase();
+                } catch { }
+            }
+
             chrome.runtime.sendMessage({ action: 'getShieldStats', tabId: activeTabId }, (res) => {
                 if (res) {
-                    updateShieldUIState(res.enabled, res.blockedCount || 0);
+                    const isSiteWhitelisted = Array.isArray(res.whitelist) && currentTabHostname && res.whitelist.includes(currentTabHostname);
+                    updateShieldUIState(res.enabled, res.blockedCount || 0, isSiteWhitelisted);
                 }
             });
 
@@ -49,14 +59,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 });
             }
+
+            if (shieldWhitelistBtn) {
+                shieldWhitelistBtn.addEventListener('click', () => {
+                    if (!currentTabHostname) return;
+                    chrome.runtime.sendMessage({ action: 'toggleWhitelistSite', hostname: currentTabHostname }, (res) => {
+                        const isWhitelisted = Boolean(res?.isWhitelisted);
+                        updateShieldUIState(toggleShieldSwitch ? toggleShieldSwitch.checked : true, 0, isWhitelisted);
+                        // Reload tab to immediately apply or disable shield
+                        if (activeTabId > 0) {
+                            try { chrome.tabs.reload(activeTabId); } catch { }
+                        }
+                    });
+                });
+            }
         });
     }
 
-    function updateShieldUIState(isEnabled, count = 0) {
-        if (toggleShieldSwitch) toggleShieldSwitch.checked = isEnabled;
+    function updateShieldUIState(isEnabled, count = 0, isSiteWhitelisted = false) {
+        if (toggleShieldSwitch) toggleShieldSwitch.checked = isEnabled && !isSiteWhitelisted;
         if (shieldBlockCountNum) shieldBlockCountNum.textContent = String(count);
 
-        if (isEnabled) {
+        if (shieldWhitelistBtn && currentTabHostname) {
+            if (isSiteWhitelisted) {
+                shieldWhitelistBtn.textContent = 'Site Exempted (Click to Protect)';
+                shieldWhitelistBtn.style.color = '#38bdf8';
+            } else {
+                shieldWhitelistBtn.textContent = 'Pause on this site';
+                shieldWhitelistBtn.style.color = '#94a3b8';
+            }
+        }
+
+        if (isEnabled && !isSiteWhitelisted) {
             shieldCard?.classList.remove('paused');
             if (shieldActiveBadge) {
                 shieldActiveBadge.textContent = 'ON';
@@ -70,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             shieldCard?.classList.add('paused');
             if (shieldActiveBadge) {
-                shieldActiveBadge.textContent = 'PAUSED';
+                shieldActiveBadge.textContent = isSiteWhitelisted ? 'OFF (SITE)' : 'PAUSED';
                 shieldActiveBadge.style.background = '#64748b';
                 shieldActiveBadge.style.color = '#f8fafc';
             }
