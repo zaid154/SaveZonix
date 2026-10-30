@@ -1641,6 +1641,9 @@
     },
     "condition": {
       "urlFilter": "||doubleclick.net",
+      "excludedInitiatorDomains": [
+        "youtube.com"
+      ],
       "resourceTypes": [
         "script",
         "xmlhttprequest",
@@ -1660,6 +1663,9 @@
     },
     "condition": {
       "urlFilter": "||googlesyndication.com",
+      "excludedInitiatorDomains": [
+        "youtube.com"
+      ],
       "resourceTypes": [
         "script",
         "xmlhttprequest",
@@ -1679,6 +1685,9 @@
     },
     "condition": {
       "urlFilter": "||googleadservices.com",
+      "excludedInitiatorDomains": [
+        "youtube.com"
+      ],
       "resourceTypes": [
         "script",
         "xmlhttprequest",

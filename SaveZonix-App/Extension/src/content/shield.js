@@ -146,6 +146,8 @@
 
     function sweepDeceptiveModals() {
         if (!isShieldEnabled) return;
+        // Never run modal/link sweepers on YouTube (avoids removing <a id="thumbnail"> or player links)
+        if (currentHost.includes('youtube.com')) return;
 
         // 1. Sweep modals containing deceptive scam patterns
         const allFloating = document.querySelectorAll('div, dialog, section, aside');
