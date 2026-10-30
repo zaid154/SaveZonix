@@ -51,6 +51,12 @@
       "matches": [
         "<all_urls>"
       ],
+      "exclude_matches": [
+        "*://*.youtube.com/*",
+        "*://youtube.com/*",
+        "*://*.google.com/*",
+        "*://*.google.co.in/*"
+      ],
       "js": [
         "src/content/all-scam-patterns.js"
       ],
