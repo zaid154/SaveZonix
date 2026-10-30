@@ -86,7 +86,10 @@
             div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
             /* Fake notification / age / captcha prompts */
             div[class*="push-prompt"], div[id*="push-prompt"],
-            div[class*="notification-modal"], div[id*="notification-dialog"] {
+            div[class*="notification-modal"], div[id*="notification-dialog"],
+            /* Fake Cloudflare / Browser captcha prompts */
+            div[style*="position: fixed"]:has(img[src*="browser"]),
+            div[style*="position: fixed"]:has(input[type="checkbox"][id*="captcha"]) {
                 display: none !important;
                 visibility: hidden !important;
                 pointer-events: none !important;
@@ -115,6 +118,15 @@
     // Layer 2: Deceptive Modal & Clickjack Annihilator (DOM Engine)
     // ─────────────────────────────────────────────────────────────
     const SCAM_PATTERNS = [
+        // Fake Captcha & Browser Verification Prompts (Discovered in user screenshot)
+        "one more step",
+        "please go to captcha",
+        "verify you are human",
+        "is your browser",
+        "choose your browser to continue",
+        "captcha to access the site",
+
+        // Fake Push Notifications & Age Checks
         "over 18",
         "confirm that you're over",
         "confirm that you are over",
@@ -137,12 +149,11 @@
         // 1. Sweep modals containing scam phrases
         const allFloating = document.querySelectorAll('div, dialog, section, aside');
         allFloating.forEach(el => {
-            // Check if element is positioned as an overlay
             const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
             if (!style) return;
 
             const isOverlay = style.position === 'fixed' || style.position === 'absolute';
-            const isHighZ = parseInt(style.zIndex, 10) >= 50;
+            const isHighZ = parseInt(style.zIndex, 10) >= 30;
 
             if (isOverlay || isHighZ) {
                 const text = (el.innerText || el.textContent || '').toLowerCase();
@@ -150,12 +161,16 @@
 
                 if (matchedPattern) {
                     console.warn('[SaveZonix Shield] 🛡️ Removed deceptive scam modal (' + matchedPattern + '):', el);
-                    el.remove();
+                    
+                    // If element has a parent modal container with position: fixed, remove the whole container
+                    const modalParent = el.closest('div[style*="position: fixed"], div[style*="z-index"]') || el;
+                    modalParent.remove();
                     reportBlocked('deceptive_modal_removed');
 
                     // If body overflow was set to hidden by modal, restore it
-                    if (document.body && document.body.style.overflow === 'hidden') {
+                    if (document.body && (document.body.style.overflow === 'hidden' || document.body.style.position === 'fixed')) {
                         document.body.style.overflow = 'auto';
+                        document.body.style.position = 'static';
                     }
                     if (document.documentElement && document.documentElement.style.overflow === 'hidden') {
                         document.documentElement.style.overflow = 'auto';
@@ -185,14 +200,12 @@
         // 3. Sweep floating outstream video ads (not genuine video players)
         const floatingVideos = document.querySelectorAll('video');
         floatingVideos.forEach(v => {
-            // Keep genuine media players with controls or inside main content
             if (v.hasAttribute('controls') || v.closest('#player') || v.closest('.player') || v.closest('.video-container')) {
                 return;
             }
             const container = v.closest('div[style*="position: fixed"], div[style*="position: absolute"]');
             if (container) {
                 const rect = container.getBoundingClientRect();
-                // If it is a small floating widget docked to screen edges
                 if (rect.width < 450 && (rect.right >= window.innerWidth - 30 || rect.bottom >= window.innerHeight - 30)) {
                     console.warn('[SaveZonix Shield] 🛡️ Removed floating outstream video ad:', container);
                     container.remove();
@@ -236,7 +249,7 @@
                 debounceTimer = setTimeout(() => {
                     sweepDeceptiveModals();
                     debounceTimer = null;
-                }, 50);
+                }, 40);
             }
         });
 
@@ -248,7 +261,7 @@
         // Periodic hygiene sweep for dynamically delayed scripts
         setInterval(() => {
             if (isShieldEnabled) sweepDeceptiveModals();
-        }, 1000);
+        }, 800);
     }
 
     // Toggle message listener

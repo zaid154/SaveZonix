@@ -1,5 +1,5 @@
 // src/content/page-shield.js — SaveZonix Main-World Scriptlet
-// Executes in "world": "MAIN" at document_start to directly control the webpage's JavaScript prototypes.
+// Executes in "world": "MAIN" at document_start to directly control the webpage's JavaScript execution context.
 
 (function () {
     'use strict';
@@ -21,7 +21,7 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 1. Direct window.open Pop-under & Redirect Defuser
+    // 1. Direct window.open Pop-under Defuser (Neutralizes h(e) in pixelflix)
     // ─────────────────────────────────────────────────────────────
     const rawWindowOpen = window.open;
     window.open = function (url, target, features) {
@@ -33,14 +33,14 @@
             urlStr.startsWith('/') ||
             (urlStr.startsWith('http') && urlStr.includes(currentHost));
 
-        const isAdDomainOrPattern = /imbutidi|monetag|adsterra|propeller|popads|popcash|exoclick|bet365|1xbet|forex|trade|gold|crypto|casino|bonus|affiliate|track|clickadu|deloton|onclkds|luglawhauls|whomeeno|gloaphoo|soodroab|vaheedra|poawoopt|propush|onclickalgo/i.test(urlStr);
+        const isAdDomainOrPattern = /footful|sisseth|thistly|enstatenewark|tumbekmetage|wyvercasus|chukchipias|imbutidi|monetag|adsterra|propeller|popads|popcash|exoclick|bet365|1xbet|forex|trade|gold|crypto|casino|bonus|affiliate|track|clickadu|deloton|onclkds|luglawhauls|whomeeno|gloaphoo|soodroab|vaheedra|poawoopt|propush|onclickalgo/i.test(urlStr);
 
-        // Check if event is genuine user interaction or hijacked
+        // Check if event is genuine direct user navigation vs script popunder
         const evt = window.event;
         const isTrustedEvent = Boolean(evt && evt.isTrusted);
-        const isSuspiciousTarget = (target === '_blank' && !isSameOrigin);
+        const isTargetBlank = (target === '_blank');
 
-        if (isAdDomainOrPattern || (isSuspiciousTarget && (!isTrustedEvent || isAdDomainOrPattern)) || (!isSameOrigin && !isTrustedEvent)) {
+        if (isAdDomainOrPattern || (isTargetBlank && !isSameOrigin) || (!isSameOrigin && !isTrustedEvent)) {
             console.warn('[SaveZonix Shield] 🛡️ Neutralized pop-under / unauthorized window.open:', url || '(blank popunder)');
             notifyBlocked('popunder_window_blocked', urlStr);
 
@@ -59,7 +59,64 @@
     };
 
     // ─────────────────────────────────────────────────────────────
-    // 2. Direct Notification.requestPermission Scam Trap Disarmer
+    // 2. Neutralize Site-level Ad Engine Fetches (/ads-config.json & /ad-manager.enc)
+    // ─────────────────────────────────────────────────────────────
+    const rawFetch = window.fetch;
+    window.fetch = function (input, init) {
+        const urlStr = String(typeof input === 'string' ? input : (input?.url || '')).toLowerCase();
+
+        if (urlStr.includes('ad-manager.enc') || urlStr.includes('api/ad-token') || urlStr.includes('ads-config.json')) {
+            console.warn('[SaveZonix Shield] 🛡️ Intercepted and neutralized ad engine fetch:', urlStr);
+            notifyBlocked('ad_engine_request_blocked', urlStr);
+
+            if (urlStr.includes('ads-config.json')) {
+                // Return disabled config so site's Next.js ad distributor sets ads: []
+                return Promise.resolve(new Response(JSON.stringify({
+                    enabled: false,
+                    visible: { enabled: false, breaks: [] },
+                    click: { enabled: false, ads: [] },
+                    antiInspect: { enabled: false }
+                }), {
+                    status: 200,
+                    headers: { 'Content-Type': 'application/json' }
+                }));
+            }
+
+            return Promise.reject(new TypeError('Ad engine blocked by SaveZonix Shield'));
+        }
+
+        return rawFetch.apply(this, arguments);
+    };
+
+    // Intercept XMLHttpRequest for the same ad endpoints
+    const rawXhrOpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function (method, url) {
+        const urlStr = String(url || '').toLowerCase();
+        if (urlStr.includes('ad-manager.enc') || urlStr.includes('api/ad-token') || urlStr.includes('ads-config.json')) {
+            console.warn('[SaveZonix Shield] 🛡️ Blocked XHR ad engine request:', urlStr);
+            notifyBlocked('ad_engine_xhr_blocked', urlStr);
+            return;
+        }
+        return rawXhrOpen.apply(this, arguments);
+    };
+
+    // Lock window.__ix so site cannot install decrypted ad manager
+    try {
+        Object.defineProperty(window, '__ix', {
+            get: function () {
+                return {
+                    install: function () { },
+                    setHeroAllowed: function () { },
+                    fire: function () { }
+                };
+            },
+            set: function () { },
+            configurable: false
+        });
+    } catch { }
+
+    // ─────────────────────────────────────────────────────────────
+    // 3. Direct Notification.requestPermission Scam Trap Disarmer
     // ─────────────────────────────────────────────────────────────
     if (typeof window.Notification !== 'undefined') {
         try {
@@ -88,7 +145,7 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 3. Dynamic Ad Script & Iframe Injection Blocker
+    // 4. Dynamic Ad Script & Iframe Injection Blocker
     // ─────────────────────────────────────────────────────────────
     const rawCreateElement = Document.prototype.createElement;
     Document.prototype.createElement = function (tagName, options) {
@@ -100,7 +157,7 @@
             el.setAttribute = function (name, value) {
                 if (String(name).toLowerCase() === 'src') {
                     const srcStr = String(value || '').toLowerCase();
-                    if (/imbutidi|monetag|adsterra|propeller|popads|popcash|deloton|onclkds|luglawhauls|whomeeno|gloaphoo|soodroab|connatix|aniview|vi\.ai|vdo\.ai|primis/i.test(srcStr)) {
+                    if (/footful|sisseth|thistly|enstatenewark|tumbekmetage|wyvercasus|chukchipias|imbutidi|monetag|adsterra|propeller|popads|popcash|deloton|onclkds|luglawhauls|whomeeno|gloaphoo|soodroab|connatix|aniview|vi\.ai|vdo\.ai|primis/i.test(srcStr)) {
                         console.warn('[SaveZonix Shield] 🛡️ Blocked dynamic ad script/iframe injection:', srcStr);
                         notifyBlocked('dynamic_ad_script_blocked', srcStr);
                         return; // Drop src!
@@ -115,7 +172,7 @@
                 get: function () { return currentSrc; },
                 set: function (val) {
                     const srcStr = String(val || '').toLowerCase();
-                    if (/imbutidi|monetag|adsterra|propeller|popads|popcash|deloton|onclkds|luglawhauls|whomeeno|gloaphoo|soodroab|connatix|aniview|vi\.ai|vdo\.ai|primis/i.test(srcStr)) {
+                    if (/footful|sisseth|thistly|enstatenewark|tumbekmetage|wyvercasus|chukchipias|imbutidi|monetag|adsterra|propeller|popads|popcash|deloton|onclkds|luglawhauls|whomeeno|gloaphoo|soodroab|connatix|aniview|vi\.ai|vdo\.ai|primis/i.test(srcStr)) {
                         console.warn('[SaveZonix Shield] 🛡️ Blocked direct src setter on ad element:', srcStr);
                         notifyBlocked('ad_src_property_blocked', srcStr);
                         currentSrc = '';
@@ -131,50 +188,13 @@
     };
 
     // ─────────────────────────────────────────────────────────────
-    // 4. Clickjack Overlay & Event Hijack Defuser
-    // ─────────────────────────────────────────────────────────────
-    const rawAddEventListener = EventTarget.prototype.addEventListener;
-    EventTarget.prototype.addEventListener = function (type, listener, options) {
-        if ((type === 'click' || type === 'pointerdown' || type === 'pointerup' || type === 'mousedown' || type === 'touchend') &&
-            (this === window || this === document || this === document.body)) {
-
-            const wrappedListener = function (e) {
-                const target = e && e.target;
-                if (target) {
-                    // Check if an anchor tag or clickjack overlay is being triggered
-                    const anchor = target.closest ? target.closest('a') : null;
-                    if (anchor) {
-                        const href = (anchor.getAttribute('href') || '').toLowerCase();
-                        const isFixed = window.getComputedStyle ? (window.getComputedStyle(anchor).position === 'fixed') : false;
-                        const isSuspicious = /imbutidi|onclick|pop|ad|affiliate|track/i.test(href);
-
-                        if (isSuspicious || (isFixed && anchor.target === '_blank')) {
-                            console.warn('[SaveZonix Shield] 🛡️ Intercepted clickjack overlay click:', href);
-                            e.preventDefault();
-                            e.stopImmediatePropagation();
-                            anchor.remove();
-                            notifyBlocked('clickjack_overlay_intercepted', href);
-                            return;
-                        }
-                    }
-                }
-                return listener.apply(this, arguments);
-            };
-
-            return rawAddEventListener.call(this, type, wrappedListener, options);
-        }
-
-        return rawAddEventListener.apply(this, arguments);
-    };
-
-    // ─────────────────────────────────────────────────────────────
     // 5. Intercept Programmatic Anchor Clicks (Hidden Redirect Links)
     // ─────────────────────────────────────────────────────────────
     const rawAnchorClick = HTMLAnchorElement.prototype.click;
     HTMLAnchorElement.prototype.click = function () {
         const href = (this.getAttribute('href') || '').toLowerCase();
         const isExternal = href.startsWith('http') && !href.includes(currentHost);
-        const isAd = /imbutidi|monetag|adsterra|propeller|popads|trade|gold|forex|casino|bet/i.test(href);
+        const isAd = /footful|sisseth|thistly|imbutidi|monetag|adsterra|propeller|popads|trade|gold|forex|casino|bet/i.test(href);
 
         if (isAd || (isExternal && this.target === '_blank' && !window.event?.isTrusted)) {
             console.warn('[SaveZonix Shield] 🛡️ Neutralized programmatic fake link click:', href);
