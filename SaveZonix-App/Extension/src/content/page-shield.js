@@ -81,4 +81,83 @@
         };
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // 3. YouTube In-Stream Video Ad & Anti-Adblock Defuser
+    // ─────────────────────────────────────────────────────────────
+    if (currentHost.includes('youtube.com')) {
+        let isAdFastForwarding = false;
+        let originalRate = 1;
+        let userWasMuted = false;
+
+        function defuseYouTubeAd() {
+            const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+            const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
+
+            const isAdShowing = Boolean(
+                player?.classList.contains('ad-showing') ||
+                player?.classList.contains('ad-interrupting') ||
+                document.querySelector('.ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-preview-container, .ytp-ad-skip-button-slot')
+            );
+
+            if (isAdShowing && video) {
+                // Try native player skip method if exposed by YouTube API
+                if (typeof player?.skipAd === 'function') {
+                    try { player.skipAd(); } catch { }
+                }
+
+                // If skip button is clickable, click it immediately
+                const skipButton = document.querySelector(
+                    '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button, button.ytp-ad-skip-button-text, .ytp-ad-overlay-close-button'
+                );
+                if (skipButton) {
+                    skipButton.click();
+                    notifyBlocked('youtube_ad_skipped');
+                    return;
+                }
+
+                // Fast-forward unskippable / countdown ad to the end at 16x speed
+                if (!isAdFastForwarding) {
+                    isAdFastForwarding = true;
+                    originalRate = (video.playbackRate > 0 && video.playbackRate <= 2) ? video.playbackRate : 1;
+                    userWasMuted = Boolean(video.muted);
+                }
+
+                try {
+                    video.muted = true;
+                    video.playbackRate = 16.0;
+                    if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.05) {
+                        video.currentTime = video.duration - 0.05;
+                    }
+                } catch { }
+
+                notifyBlocked('youtube_ad_fast_forwarded');
+            } else if (isAdFastForwarding && video) {
+                // Ad finished: restore original playback speed and audio
+                isAdFastForwarding = false;
+                try {
+                    video.playbackRate = originalRate || 1;
+                    if (!userWasMuted) {
+                        video.muted = false;
+                    }
+                } catch { }
+            }
+
+            // Auto-dismiss anti-adblock modal if YouTube displays it
+            const enforcementModal = document.querySelector('tp-yt-paper-dialog:has(ytd-enforcement-message-view-model), ytd-enforcement-message-view-model');
+            if (enforcementModal) {
+                const dismissBtn = enforcementModal.querySelector('#dismiss-button, button');
+                if (dismissBtn) {
+                    dismissBtn.click();
+                } else {
+                    enforcementModal.remove();
+                    const backdrop = document.querySelector('tp-yt-iron-overlay-backdrop');
+                    if (backdrop) backdrop.remove();
+                    if (video && video.paused) video.play();
+                }
+            }
+        }
+
+        setInterval(defuseYouTubeAd, 50);
+    }
+
 })();

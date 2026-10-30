@@ -71,7 +71,20 @@
             div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
             /* Fake push notification modals */
             div[class*="push-prompt"], div[id*="push-prompt"],
-            div[class*="notification-modal"], div[id*="notification-dialog"] {
+            div[class*="notification-modal"], div[id*="notification-dialog"],
+            /* YouTube In-Feed, Banner & Player Overlay Ads */
+            ytd-ad-slot-renderer,
+            ytd-rich-item-renderer:has(> #content > ytd-ad-slot-renderer),
+            ytd-in-feed-ad-layout-renderer,
+            ytd-banner-promo-renderer,
+            ytd-statement-banner-renderer,
+            ytd-action-companion-ad-renderer,
+            #masthead-ad,
+            #player-ads,
+            .ytd-merch-shelf-renderer,
+            .ytp-ad-overlay-container,
+            .ytp-ad-message-container,
+            tp-yt-paper-dialog:has(ytd-enforcement-message-view-model) {
                 display: none !important;
                 visibility: hidden !important;
                 pointer-events: none !important;
