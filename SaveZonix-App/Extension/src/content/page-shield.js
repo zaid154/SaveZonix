@@ -217,9 +217,21 @@
                     )
                 );
 
-                // If YouTube is playing an ad, try native API first
-                if (isThisVideoAd && ytPlayer && typeof ytPlayer.skipAd === 'function') {
-                    try { ytPlayer.skipAd(); } catch { }
+                // If YouTube is playing an ad:
+                if (isThisVideoAd) {
+                    // 1. Call native skip API immediately
+                    if (ytPlayer && typeof ytPlayer.skipAd === 'function') {
+                        try { ytPlayer.skipAd(); } catch { }
+                    }
+
+                    // 2. Click modern skip button immediately across shadow/light DOM
+                    const ytSkipBtn = document.querySelector(
+                        '.ytp-skip-ad-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button, .ytp-ad-skip-button-slot button, .ytp-ad-skip-button-container button, button[class*="ytp-ad-skip-button"], div[class*="ytp-ad-skip-button"], button[class*="skip-button"]'
+                    );
+                    if (ytSkipBtn) {
+                        try { dispatchRealClick(ytSkipBtn); } catch { }
+                        try { ytSkipBtn.click(); } catch { }
+                    }
                 }
             } else {
                 // 2. Non-YouTube: Check ad overlays & specific ad countdown widgets
@@ -287,13 +299,15 @@
                 // 1. Mute during ad
                 try { video.muted = true; } catch { }
 
-                // 2. Safe acceleration: only accelerate once initial buffer is ready to prevent 0:00 stalls!
+                // 2. Instant Zero-Delay Ad Termination
                 if (currentHost.includes('youtube.com')) {
-                    if (video.readyState >= 3 && video.currentTime > 0.2) {
-                        try { video.playbackRate = 8.0; } catch { }
-                    } else if (video.paused && video.currentTime === 0) {
-                        try { video.play(); } catch { }
+                    try { video.muted = true; } catch { }
+                    try { video.playbackRate = 16.0; } catch { }
+                    if (video.duration && isFinite(video.duration) && video.duration > 0) {
+                        try { video.currentTime = video.duration; } catch { }
                     }
+                    // Loop on next animation frame to eliminate double-ads instantly
+                    requestAnimationFrame(() => processUniversalVideoAds());
                 } else {
                     // Non-YouTube: 16x acceleration & instant jump for short ads (< 120s)
                     try { video.playbackRate = 16.0; } catch { }
@@ -392,6 +406,7 @@
             });
             playerObserver.observe(playerContainer, {
                 childList: true,
+                subtree: true,
                 attributes: true,
                 attributeFilter: ['class']
             });

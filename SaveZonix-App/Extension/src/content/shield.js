@@ -851,13 +851,41 @@
             div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
             /* Fake push notification prompts */
             .push-optin, .onesignal-bell-launcher,
-            /* YouTube Player In-Video Ad Overlays */
-            .ytp-ad-overlay-container,
-            .ytp-ad-message-container,
-            .ytp-ad-text-overlay,
+            /* Complete 0ms Visual Cloak: Hide all YouTube ad overlays, banners, and interstitials */
+            #movie_player.ad-showing video.html5-main-video {
+                opacity: 0 !important;
+            }
+
+            #movie_player:not(.ad-showing) video.html5-main-video {
+                opacity: 1 !important;
+            }
+
+            #movie_player.ad-showing .ytp-ad-player-overlay,
+            #movie_player.ad-showing .ytp-ad-player-overlay-layout,
+            #movie_player.ad-showing .ytp-ad-action-interstitial,
+            #movie_player.ad-showing .ytp-ad-player-overlay-instream-info,
+            #movie_player.ad-showing .ytp-ad-overlay-container,
+            #movie_player.ad-showing .ytp-ad-message-container,
+            #movie_player.ad-showing .ytp-ad-text-overlay,
+            #movie_player.ad-showing .ytp-ad-image-overlay,
+            #movie_player.ad-showing .ytp-ad-preview-container,
+            #movie_player.ad-showing .ytp-ad-duration-remaining,
+            .ytp-ad-action-interstitial,
+            .ytp-ad-action-interstitial-background,
+            .ytp-ad-player-overlay-instream-info,
+            .ytp-ad-image-overlay,
+            .ytp-ad-overlay-slot,
+            ytd-ad-slot-renderer,
+            ytd-in-feed-ad-layout-renderer,
+            ytd-banner-promo-renderer,
+            ytd-statement-banner-renderer,
+            ytd-action-companion-ad-renderer,
+            ytd-video-masthead-ad-v3-renderer,
+            ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
             #player-ads {
                 display: none !important;
                 visibility: hidden !important;
+                opacity: 0 !important;
                 pointer-events: none !important;
             }
 
