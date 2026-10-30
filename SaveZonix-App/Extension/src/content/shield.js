@@ -60,8 +60,10 @@
             [class*="ad-banner"], [id*="ad-banner"],
             [class*="popunder"], [id*="popunder"],
             [class*="banner-ad"], [id*="banner-ad"],
-            [class*="ad-wrapper"], [id*="ad-wrapper"],
-            [class*="ad-container"], [id*="ad-container"],
+            [class*="ad-wrapper"]:not(#masthead-container):not([id*="masthead"]),
+            [id*="ad-wrapper"]:not(#masthead-container):not([id*="masthead"]),
+            [class*="ad-container"]:not(#masthead-container):not([id*="masthead"]),
+            [id*="ad-container"]:not(#masthead-container):not([id*="masthead"]),
             [class*="sponsored-post"], [class*="native-ad"],
             div[class*="floating-ad"], div[id*="floating-ad"],
             div[class*="outstream"], div[id*="outstream"],
@@ -79,7 +81,6 @@
             ytd-banner-promo-renderer,
             ytd-statement-banner-renderer,
             ytd-action-companion-ad-renderer,
-            #masthead-ad,
             #player-ads,
             .ytd-merch-shelf-renderer,
             .ytp-ad-overlay-container,
@@ -91,6 +92,14 @@
                 opacity: 0 !important;
                 width: 0 !important;
                 height: 0 !important;
+            }
+
+            /* Explicit protection for YouTube Header & Search Bar */
+            #masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, .mobile-topbar-header {
+                display: block !important;
+                visibility: visible !important;
+                pointer-events: auto !important;
+                opacity: 1 !important;
             }
         `;
 
@@ -150,7 +159,11 @@
             if (isOverlay || isHighZ) {
                 const text = (el.innerText || el.textContent || '').toLowerCase();
 
-                // SAFEGUARD: Never delete legitimate forms, login boxes, or authentic age verification gates
+                // SAFEGUARD: Never delete legitimate navigation headers, search boxes, forms, login boxes, or authentic age verification gates
+                if (el.closest('#masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, header, nav')) {
+                    return;
+                }
+
                 const hasForm = el.querySelector('form') !== null;
                 const hasInputs = el.querySelector('input[type="password"], input[type="email"], input[name*="user"], input[type="radio"]') !== null;
                 const isAuthOrLogin = /login|signin|register|signup|auth|account/i.test(el.className + ' ' + el.id);
