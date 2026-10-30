@@ -82,10 +82,50 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 3. YouTube In-Stream Video Ad & Anti-Adblock Defuser
+    // 3. YouTube JSON Player Response Pruner & Safe Ad Defuser
     // ─────────────────────────────────────────────────────────────
     if (currentHost.includes('youtube.com')) {
-        let isAdFastForwarding = false;
+        function pruneAdData(target) {
+            if (!target || typeof target !== 'object') return target;
+            try {
+                if (target.adPlacements) delete target.adPlacements;
+                if (target.playerAds) delete target.playerAds;
+                if (target.adSlots) delete target.adSlots;
+                if (target.playerResponse) {
+                    pruneAdData(target.playerResponse);
+                }
+            } catch { }
+            return target;
+        }
+
+        // 1. Intercept JSON.parse to prune ad data from YouTube player responses
+        const rawJSONParse = JSON.parse;
+        JSON.parse = function () {
+            const result = rawJSONParse.apply(this, arguments);
+            return pruneAdData(result);
+        };
+
+        // 2. Intercept Fetch API Response.prototype.json
+        if (typeof Response !== 'undefined' && Response.prototype.json) {
+            const rawResponseJson = Response.prototype.json;
+            Response.prototype.json = function () {
+                return rawResponseJson.apply(this, arguments).then(data => pruneAdData(data));
+            };
+        }
+
+        // 3. Intercept window.ytInitialPlayerResponse
+        let initialPlayerResponse = window.ytInitialPlayerResponse;
+        if (initialPlayerResponse) pruneAdData(initialPlayerResponse);
+        try {
+            Object.defineProperty(window, 'ytInitialPlayerResponse', {
+                get: function () { return initialPlayerResponse; },
+                set: function (val) { initialPlayerResponse = pruneAdData(val); },
+                configurable: true
+            });
+        } catch { }
+
+        // 4. Safe Player Defuser — NEVER mutate video.currentTime (to prevent skipping playlist tracks)
+        let isAdSpeedUp = false;
         let originalRate = 1;
         let userWasMuted = false;
 
@@ -93,66 +133,33 @@
             const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
             const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
 
-            const adIndicators = [
-                '.ad-showing',
-                '.ad-interrupting',
-                '.ytp-ad-player-overlay',
-                '.ytp-ad-player-overlay-layout',
-                '.ytp-ad-text',
-                '.ytp-ad-preview-container',
-                '.ytp-ad-skip-button-slot',
-                '.ytp-skip-ad-button',
-                '.ytp-ad-skip-button',
-                '.ytp-ad-skip-button-modern',
-                'button[id^="skip-button"]',
-                '.video-ads:not(:empty)',
-                '.ytp-ad-module:not(:empty)',
-                'div[class*="ytp-ad"]',
-                'span[class*="ytp-ad"]'
-            ];
-
             const isAdShowing = Boolean(
                 player?.classList.contains('ad-showing') ||
-                player?.classList.contains('ad-interrupting') ||
-                document.querySelector(adIndicators.join(', '))
+                player?.classList.contains('ad-interrupting')
             );
 
             if (isAdShowing && video) {
-                // 1. Try native player skip method if exposed by YouTube API
+                // Try native player skip method if exposed
                 if (typeof player?.skipAd === 'function') {
                     try { player.skipAd(); } catch { }
                 }
 
-                // 2. Click any skip buttons with trusted-like pointer/mouse event emulation
-                const skipButtons = document.querySelectorAll(
-                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button, button[id^="skip-button"], button.ytp-ad-skip-button-text, .ytp-ad-overlay-close-button, button[aria-label*="Skip"], button[class*="skip"]'
+                // Click skip button immediately
+                const skipBtn = document.querySelector(
+                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, button[id^="skip-button"], button.ytp-ad-skip-button-text'
                 );
-                skipButtons.forEach(btn => {
+                if (skipBtn) {
                     try {
-                        btn.click();
-                        btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
-                        btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
-                        btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                        skipBtn.click();
+                        skipBtn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+                        skipBtn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
+                        skipBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                     } catch { }
-                });
+                }
 
-                // Also check any button inside player with 'skip' text
-                const playerButtons = (player || document).querySelectorAll('button');
-                playerButtons.forEach(btn => {
-                    const txt = (btn.innerText || btn.textContent || btn.getAttribute('aria-label') || '').toLowerCase();
-                    if (txt.includes('skip') || btn.className.includes('skip') || btn.id.includes('skip')) {
-                        try {
-                            btn.click();
-                            btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
-                            btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
-                            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                        } catch { }
-                    }
-                });
-
-                // 3. Fast-forward video ad to the end (CRITICAL for unskippable ads or ignored clicks)
-                if (!isAdFastForwarding) {
-                    isAdFastForwarding = true;
+                // Mute and speed up ad to 16x without jumping currentTime
+                if (!isAdSpeedUp) {
+                    isAdSpeedUp = true;
                     originalRate = (video.playbackRate > 0 && video.playbackRate <= 2) ? video.playbackRate : 1;
                     userWasMuted = Boolean(video.muted);
                 }
@@ -160,17 +167,12 @@
                 try {
                     video.muted = true;
                     video.playbackRate = 16.0;
-                    if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.1) {
-                        video.currentTime = video.duration - 0.05;
-                    }
-                    video.dispatchEvent(new Event('timeupdate', { bubbles: true }));
-                    video.play().catch(() => {});
                 } catch { }
 
                 notifyBlocked('youtube_ad_defused');
-            } else if (isAdFastForwarding && video) {
-                // Ad finished: restore original playback speed and audio
-                isAdFastForwarding = false;
+            } else if (isAdSpeedUp && video) {
+                // Ad ended: restore original playback speed and audio
+                isAdSpeedUp = false;
                 try {
                     video.playbackRate = originalRate || 1;
                     if (!userWasMuted) {

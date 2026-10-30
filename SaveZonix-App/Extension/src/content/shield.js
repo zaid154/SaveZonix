@@ -320,13 +320,10 @@
                         } catch { }
                     });
 
-                    // Fast-forward & mute
+                    // Safe Speedup & mute (Never mutate video.currentTime to avoid skipping playlist tracks)
                     try {
                         video.muted = true;
                         video.playbackRate = 16.0;
-                        if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.1) {
-                            video.currentTime = video.duration - 0.05;
-                        }
                     } catch { }
                 }
             }, 50);
