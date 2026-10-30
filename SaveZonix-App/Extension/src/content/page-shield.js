@@ -144,9 +144,9 @@
                     try { player.skipAd(); } catch { }
                 }
 
-                // Click skip button immediately
+                // Click true ad skip button (strictly scoped to ad classes or ad module)
                 const skipBtn = document.querySelector(
-                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, button[id^="skip-button"], button.ytp-ad-skip-button-text'
+                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button, .ytp-ad-module button'
                 );
                 if (skipBtn) {
                     try {
