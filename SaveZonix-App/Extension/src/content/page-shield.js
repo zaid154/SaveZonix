@@ -82,26 +82,55 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 3. YouTube Ad Auto-Skipper & Overlay Dismissal (100% Playlist-Safe)
+    // 3. YouTube Ad Auto-Skipper & 16x Instant Muted Fast-Forward
     // ─────────────────────────────────────────────────────────────
     if (currentHost.includes('youtube.com')) {
-        function autoSkipYouTubeAd() {
-            // Strictly target the ad skip button without touching video playback rate or timeline
-            const skipBtn = document.querySelector(
-                '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button'
-            );
-            if (skipBtn) {
-                try {
-                    skipBtn.click();
-                    notifyBlocked('youtube_ad_skipped');
-                } catch { }
-            }
+        let savedPlaybackRate = 1.0;
+        let userMuted = false;
 
-            // Dismiss overlay banners if present
-            const overlayClose = document.querySelector('.ytp-ad-overlay-close-button');
-            if (overlayClose) {
+        function updateAdState() {
+            const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+            const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
+            if (!player || !video) return;
+
+            const isAd = player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting');
+
+            if (isAd) {
+                // If ad is playing: save user preferences
+                if (video.playbackRate <= 2) {
+                    savedPlaybackRate = video.playbackRate || 1.0;
+                    userMuted = Boolean(video.muted);
+                }
+
+                // 1. Click skip button if available
+                const skipBtn = document.querySelector(
+                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button'
+                );
+                if (skipBtn) {
+                    try {
+                        skipBtn.click();
+                        notifyBlocked('youtube_ad_skipped');
+                    } catch { }
+                }
+
+                // 2. Accelerate unskippable/countdown ads at 16x speed and mute audio
                 try {
-                    overlayClose.click();
+                    video.muted = true;
+                    video.playbackRate = 16.0;
+                } catch { }
+
+                // 3. Dismiss overlay banners
+                const overlayClose = document.querySelector('.ytp-ad-overlay-close-button');
+                if (overlayClose) {
+                    try { overlayClose.click(); } catch { }
+                }
+            } else if (video.playbackRate > 2) {
+                // Main video restored: reset normal speed and sound immediately
+                try {
+                    video.playbackRate = savedPlaybackRate || 1.0;
+                    if (!userMuted) {
+                        video.muted = false;
+                    }
                 } catch { }
             }
 
@@ -115,13 +144,26 @@
                     enforcementModal.remove();
                     const backdrop = document.querySelector('tp-yt-iron-overlay-backdrop');
                     if (backdrop) backdrop.remove();
-                    const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
                     if (video && video.paused) video.play();
                 }
             }
         }
 
-        setInterval(autoSkipYouTubeAd, 300);
+        // Dual guard: Synchronous DOM MutationObserver on player class + fast 150ms check
+        let playerObserverAttached = false;
+        function attachObserver() {
+            const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+            if (player && !playerObserverAttached) {
+                playerObserverAttached = true;
+                const obs = new MutationObserver(() => updateAdState());
+                obs.observe(player, { attributes: true, attributeFilter: ['class'] });
+            }
+        }
+
+        setInterval(() => {
+            attachObserver();
+            updateAdState();
+        }, 150);
     }
 
 })();
