@@ -74,6 +74,17 @@
             /* Fake push notification modals */
             div[class*="push-prompt"], div[id*="push-prompt"],
             div[class*="notification-modal"], div[id*="notification-dialog"],
+            /* Top Promo Banner Strips & Video Platform Ad Bars */
+            div[class*="top-banner"], div[id*="top-banner"],
+            div[class*="header-banner"], div[id*="header-banner"],
+            div[class*="promo-banner"], div[id*="promo-banner"],
+            div[class*="banner-promo"], div[id*="banner-promo"],
+            div[class*="promo-strip"], div[id*="promo-strip"],
+            div[class*="top-promo"], div[id*="top-promo"],
+            div[class*="ad-header"], div[id*="ad-header"],
+            div[class*="ad-strip"], div[class*="ad_strip"],
+            /* Promoted sidebar / join boxes */
+            div[class*="promoted-box"], div[class*="sponsored-box"],
             /* YouTube In-Feed, Banner & Player Overlay Ads */
             ytd-ad-slot-renderer,
             ytd-rich-item-renderer:has(> #content > ytd-ad-slot-renderer),

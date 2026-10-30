@@ -166,4 +166,66 @@
         }, 150);
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // 4. Universal Video Player In-Stream Ad Auto-Skipper (All Video Sites)
+    // ─────────────────────────────────────────────────────────────
+    if (!currentHost.includes('youtube.com')) {
+        let isUniversalAdPlaying = false;
+        let universalOriginalRate = 1.0;
+        let universalUserMuted = false;
+
+        function defuseUniversalVideoAd() {
+            // 1. Locate any Skip Ad button / overlay inside or near video players
+            const allClickables = document.querySelectorAll(
+                'button, div[role="button"], a[role="button"], div[class*="skip"], span[class*="skip"], button[class*="skip"], .vast-skip-button, .ad-skip, [class*="skip-button"], [class*="skip_button"]'
+            );
+
+            for (const el of allClickables) {
+                const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+                if (txt.startsWith('skip') || txt.includes('skip ad') || txt.includes('skip advertisement')) {
+                    try {
+                        el.click();
+                        el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+                        el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
+                        el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                        notifyBlocked('universal_video_ad_skipped');
+                        break;
+                    } catch { }
+                }
+            }
+
+            // 2. Check if an in-stream ad overlay / countdown is present over the video
+            const adOverlay = document.querySelector(
+                '[class*="ad-container"], [class*="ad-overlay"], [class*="vast-"], [class*="video-ad"], .xplayer-ads, div[class*="ad-badge"], div[class*="ad-timer"], [class*="ad_countdown"]'
+            );
+
+            const video = document.querySelector('.player-container video, #player video, .video-player video, video');
+
+            if (adOverlay && video) {
+                if (!isUniversalAdPlaying) {
+                    isUniversalAdPlaying = true;
+                    universalOriginalRate = (video.playbackRate > 0 && video.playbackRate <= 2) ? video.playbackRate : 1.0;
+                    universalUserMuted = Boolean(video.muted);
+                }
+
+                // Speed up 16x and mute the ad
+                try {
+                    video.muted = true;
+                    video.playbackRate = 16.0;
+                } catch { }
+            } else if (isUniversalAdPlaying && video) {
+                // Ad ended: restore original video speed & audio
+                isUniversalAdPlaying = false;
+                try {
+                    video.playbackRate = universalOriginalRate || 1.0;
+                    if (!universalUserMuted) {
+                        video.muted = false;
+                    }
+                } catch { }
+            }
+        }
+
+        setInterval(defuseUniversalVideoAd, 200);
+    }
+
 })();
