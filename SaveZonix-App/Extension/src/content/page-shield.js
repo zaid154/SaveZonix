@@ -10,7 +10,13 @@
 
     const currentHost = (window.location.hostname || '').toLowerCase();
 
+    let lastAdBlockedNotificationTime = 0;
     function notifyBlocked(reason, url) {
+        const now = Date.now();
+        // Debounce notifications so high-frequency scanners do not explode badge count
+        if (now - lastAdBlockedNotificationTime < 2000) return;
+        lastAdBlockedNotificationTime = now;
+
         try {
             window.postMessage({
                 source: 'savezonix-shield-main',
@@ -179,13 +185,16 @@
                 const isYtAd = ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting');
                 if (isYtAd) {
                     ytPlayer.skipAd();
+                    notifyBlocked('youtube_ad_skipped');
                 }
             }
         } catch { }
 
-        // A. 2. Auto-click any visible Skip Ad buttons across ANY video player
+        // A. 2. Auto-click visible Skip Ad buttons inside/near video players
         const skipElements = document.querySelectorAll(SKIP_BUTTON_SELECTORS);
         for (const el of skipElements) {
+            // Strictly ignore page accessibility links like "Skip navigation"
+            if (el.id === 'skip-navigation' || el.closest('#skip-navigation, #masthead-container, nav, header')) continue;
             if (el.offsetParent !== null || el.offsetWidth > 0 || el.offsetHeight > 0) {
                 dispatchRealClick(el);
                 notifyBlocked('universal_video_ad_skipped');
@@ -193,18 +202,23 @@
             }
         }
 
-        // A. 3. Text-based scan: catch any custom button / div / a / span with text "Skip Ad" or "Skip"
+        // A. 3. Text-based scan: strictly target ad skips, never accessibility "skip navigation"
         const allPotentialButtons = document.querySelectorAll(
             'button, div[role="button"], a[role="button"], span[role="button"], div[class*="skip"], span[class*="skip"], a[class*="skip"], div[class*="btn"]'
         );
         for (const btn of allPotentialButtons) {
+            if (btn.id === 'skip-navigation' || btn.closest('#skip-navigation, #masthead-container, nav, header')) continue;
+
             const txt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
-            if (txt.includes('skip ad') || txt.includes('skip advertisement') || txt.includes('skip video') || txt.includes('skip promo') || txt.includes('skip >') || (txt.startsWith('skip') && txt.length <= 15)) {
-                if (btn.offsetParent !== null || btn.offsetWidth > 0) {
-                    dispatchRealClick(btn);
-                    notifyBlocked('universal_video_ad_skipped');
-                    break;
-                }
+            if (txt.includes('navigation')) continue; // Never click "skip navigation"
+
+            const isAdSkip = /^(skip(\s+ad|\s+ads|\s+video|\s+advertisement|\s+commercial|\s+promo|\s*>|\s*>>)?\s*)$/i.test(txt) ||
+                txt.includes('skip ad') || txt.includes('skip advertisement') || txt.includes('skip video') || txt.includes('skip promo') || txt.includes('skip >');
+
+            if (isAdSkip && (btn.offsetParent !== null || btn.offsetWidth > 0)) {
+                dispatchRealClick(btn);
+                notifyBlocked('universal_video_ad_skipped');
+                break;
             }
         }
 
@@ -219,31 +233,31 @@
                 '#movie_player, .html5-video-player, .video-player, .player-container, #player, .player, [class*="player"]'
             );
 
-            // 1. Check if wrapper or page contains ad overlay
-            let isThisVideoAd = pageHasAdOverlay && (
-                !playerWrapper ||
-                Boolean(playerWrapper.querySelector(AD_OVERLAY_SELECTORS)) ||
-                playerWrapper.classList.contains('ad-showing') ||
-                playerWrapper.classList.contains('ad-interrupting')
-            );
+            let isThisVideoAd = false;
 
-            // 2. Check for in-player countdown timers (e.g. "00:17", "00:05", "Ad 1 of 2", "Sponsored", "Win now")
-            if (!isThisVideoAd && playerWrapper) {
-                const textNodes = playerWrapper.querySelectorAll('div, span, p, a');
-                for (const node of textNodes) {
-                    const t = (node.innerText || node.textContent || '').trim().toLowerCase();
-                    if (/^00:\d\d$/.test(t) || /^ad\s*:\s*\d+/i.test(t) || /^ad\s+1\s+of/i.test(t) || t === 'sponsored' || t.includes('win now') || t.includes('claim your bonus')) {
+            // 1. YouTube: Strictly check authoritative player classes (NEVER arbitrary text or times like 00:17)
+            if (currentHost.includes('youtube.com')) {
+                isThisVideoAd = Boolean(
+                    playerWrapper && (
+                        playerWrapper.classList.contains('ad-showing') ||
+                        playerWrapper.classList.contains('ad-interrupting') ||
+                        playerWrapper.querySelector('.ytp-ad-player-overlay, .ytp-ad-text')
+                    )
+                );
+            } else {
+                // 2. Non-YouTube: Check ad overlays & specific ad countdown widgets
+                isThisVideoAd = pageHasAdOverlay && (
+                    !playerWrapper ||
+                    Boolean(playerWrapper.querySelector(AD_OVERLAY_SELECTORS)) ||
+                    playerWrapper.classList.contains('ad-showing')
+                );
+
+                if (!isThisVideoAd && playerWrapper) {
+                    const adTimerWidget = playerWrapper.querySelector('[class*="ad-timer"], [class*="ad_countdown"], [class*="ad-counter"], [class*="preroll-timer"]');
+                    const sponsorLink = playerWrapper.querySelector('a[target="_blank"], a[data-role="player-sponsor-link"], a[href*="bonus"], a[href*="bet"], a[href*="parimatch"]');
+                    if ((adTimerWidget || sponsorLink) && video.duration && video.duration > 0 && video.duration < 120) {
                         isThisVideoAd = true;
-                        break;
                     }
-                }
-            }
-
-            // 3. Check for external sponsor links inside player with short duration (< 120s)
-            if (!isThisVideoAd && playerWrapper) {
-                const sponsorLink = playerWrapper.querySelector('a[target="_blank"], a[data-role="player-sponsor-link"], a[href*="bonus"], a[href*="bet"], a[href*="parimatch"]');
-                if (sponsorLink && video.duration && video.duration > 0 && video.duration < 120) {
-                    isThisVideoAd = true;
                 }
             }
 
@@ -256,6 +270,7 @@
                         video.__sz_saved_rate = video.playbackRate;
                         video.__sz_saved_muted = Boolean(video.muted);
                     }
+                    notifyBlocked('video_ad_accelerated');
                 }
 
                 // 1. Mute during ad
@@ -265,7 +280,6 @@
                 try { video.playbackRate = 16.0; } catch { }
 
                 // 3. For ALL sites except YouTube: jump currentTime directly to end if short ad (< 120s)
-                // This burns the 15-20s ad in 0.01 seconds without breaking YouTube playlists!
                 if (!currentHost.includes('youtube.com')) {
                     try {
                         if (video.duration && !isNaN(video.duration) && video.duration > 0 && video.duration < 120) {
@@ -279,8 +293,8 @@
                 if (overlayClose) {
                     try { overlayClose.click(); } catch { }
                 }
-            } else if (video.__sz_is_ad_active || video.playbackRate > 2) {
-                // Ad has ended or main video started: IMMEDIATELY restore normal speed & audio
+            } else if (video.__sz_is_ad_active || video.playbackRate > 1.0) {
+                // Main video is active: FORCIBLY restore normal speed & audio immediately
                 video.__sz_is_ad_active = false;
                 try {
                     video.playbackRate = video.__sz_saved_rate || 1.0;
