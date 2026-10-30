@@ -3,366 +3,460 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaveZonix — The World's Fastest 64-Thread Video Downloader & Cinema</title>
-    <meta name="description" content="Download YouTube, Instagram, HLS Streams, fMP4, and 4K videos at up to 64x parallel speed. Lossless FFmpeg remuxing, zero popups, and built-in CleanStream Cinema player.">
+    <title>SaveZonix — High-Performance Video Downloader & Ad Shield</title>
+    <meta name="description" content="Download YouTube, HLS streams, fMP4, and web video at up to 64x parallel speed. Built-in uBlock-grade ad shield, lossless FFmpeg muxing, and CleanStream Cinema.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Background Glows -->
-    <div class="ambient-glow glow-1"></div>
-    <div class="ambient-glow glow-2"></div>
+    <!-- Top Global Banner -->
+    <div class="top-announcement">
+        <div class="announcement-content">
+            <span class="badge-new">NEW</span>
+            <span>SaveZonix v2.5.4 released with uBlock Origin stream shield &amp; 64-thread turbo engine</span>
+            <a href="#download" class="announcement-link">Get Update &rarr;</a>
+        </div>
+    </div>
 
-    <!-- Navigation -->
+    <!-- Navigation Header -->
     <header class="site-header">
         <div class="nav-container">
             <a href="#" class="brand-logo">
-                <span class="logo-icon">⚡</span>
-                <span class="logo-text">Save<span class="gradient-text">Zonix</span></span>
-                <span class="version-badge" id="navVersionBadge">v2.1.0</span>
+                <div class="brand-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                </div>
+                <span class="brand-name">Save<span class="brand-accent">Zonix</span></span>
+                <span class="version-tag" id="navVersionBadge">v2.5.4</span>
             </a>
 
             <nav class="nav-links">
                 <a href="#features">Features</a>
-                <a href="#speed">Speed Benchmark</a>
-                <a href="#cinema">Cinema Player</a>
+                <a href="#speed">Benchmark</a>
+                <a href="#shield">Ad Shield</a>
+                <a href="#cinema">Cinema</a>
                 <a href="#pricing">Pricing</a>
                 <a href="#faq">FAQ</a>
             </nav>
 
             <div class="nav-actions">
-                <a href="#download" class="btn-nav-download">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                <a href="./SaveZonix-Extension.zip" download="SaveZonix-Extension.zip" class="btn-nav-secondary">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                    <span>Extension (.zip)</span>
+                </a>
+                <a href="./downloads/SaveZonix-Setup.exe" download="SaveZonix-Setup.exe" class="btn-nav-primary">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                     <span>Download App</span>
                 </a>
             </div>
         </div>
     </header>
 
-    <!-- Hero Section -->
-    <section class="hero-section" id="hero">
-        <div class="hero-container">
-            <div class="hero-pill">
-                <span class="pill-dot"></span>
-                <span>Next-Gen Turbo Engine 2.5 • 64-Thread Acceleration Live</span>
-            </div>
-
-            <h1 class="hero-title">
-                The World's Fastest<br>
-                <span class="gradient-text-hero">Universal Video Downloader</span>
-            </h1>
-
-            <p class="hero-subtitle">
-                Engineered in high-performance C# .NET. Download YouTube, Instagram, HLS, Fragmented MP4, and Cinema streams at full bandwidth with zero quality loss.
-            </p>
-
-            <div class="hero-cta-group" id="download">
-                <a href="https://github.com/zaid154/SaveZonix/releases/latest/download/SaveZonix-Setup.exe" id="btnPrimaryDownload" class="btn-hero-primary">
-                    <div class="btn-icon-wrap">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    </div>
-                    <div class="btn-text-wrap">
-                        <span class="btn-main-label">Download for Windows</span>
-                        <span class="btn-sub-label">64-bit • Direct .EXE • Free Download</span>
-                    </div>
-                </a>
-
-                <a href="#features" class="btn-hero-secondary">
-                    <span>Explore Features</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                </a>
-            </div>
-
-            <div class="hero-trust-bar">
-                <div class="trust-item">
-                    <span class="trust-check">✓</span>
-                    <span>100% Free &amp; Clean</span>
+    <main>
+        <!-- Hero Section -->
+        <section class="hero-section" id="hero">
+            <div class="hero-container">
+                <div class="hero-pill">
+                    <span class="pill-dot"></span>
+                    <span>Engine v2.5.4 Live • uBlock Origin Ad Shield &amp; 64-Thread Slicing</span>
                 </div>
-                <div class="trust-item">
-                    <span class="trust-check">✓</span>
-                    <span>No Ads or Popups</span>
-                </div>
-                <div class="trust-item">
-                    <span class="trust-check">✓</span>
-                    <span>Windows 10 / 11 Compatible</span>
-                </div>
-                <div class="trust-item">
-                    <span class="trust-check">✓</span>
-                    <span>Chrome Extension Included</span>
-                </div>
-            </div>
 
-            <!-- Dashboard Preview Mockup -->
-            <div class="hero-preview-frame">
-                <div class="window-header">
-                    <div class="window-dots">
-                        <span class="dot dot-red"></span>
-                        <span class="dot dot-yellow"></span>
-                        <span class="dot dot-green"></span>
-                    </div>
-                    <div class="window-address">SaveZonix Desktop Pro v2.1.0 • Running on Localhost:5000</div>
-                    <div class="window-badge">⚡ 64 Active Threads</div>
-                </div>
-                <div class="window-content-preview">
-                    <div class="preview-metrics">
-                        <div class="preview-metric-card">
-                            <span class="pm-label">Peak Speed</span>
-                            <span class="pm-val text-cyan">48.6 MB/s</span>
+                <h1 class="hero-headline">
+                    High-Performance Video Acceleration<br>
+                    <span class="hero-gradient-text">Engineered for Pure Speed.</span>
+                </h1>
+
+                <p class="hero-subtext">
+                    Built with modern C# .NET. Download 4K YouTube videos, fragmented MP4, and adaptive HLS streams with zero ads, normal 1.0x playback speed, and lossless multi-stream assembly.
+                </p>
+
+                <!-- Hero Direct Download Buttons -->
+                <div class="hero-cta-group" id="download">
+                    <a href="./downloads/SaveZonix-Setup.exe" download="SaveZonix-Setup.exe" id="btnPrimaryDownload" class="btn-cta-primary">
+                        <div class="cta-icon">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                         </div>
-                        <div class="preview-metric-card">
-                            <span class="pm-label">Parallel Workers</span>
-                            <span class="pm-val text-emerald">64 Threads</span>
+                        <div class="cta-content">
+                            <span class="cta-title">Download for Windows</span>
+                            <span class="cta-meta">64-bit Standalone Installer • v2.5.4 (105 MB)</span>
                         </div>
-                        <div class="preview-metric-card">
-                            <span class="pm-label">Stream Remuxer</span>
-                            <span class="pm-val text-purple">0.3s Lossless</span>
+                    </a>
+
+                    <a href="./SaveZonix-Extension.zip" download="SaveZonix-Extension.zip" class="btn-cta-secondary">
+                        <div class="cta-icon">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
                         </div>
-                        <div class="preview-metric-card">
-                            <span class="pm-label">Integrity Status</span>
-                            <span class="pm-val text-emerald">100% Verified</span>
+                        <div class="cta-content">
+                            <span class="cta-title">Download Chrome Extension</span>
+                            <span class="cta-meta">Companion Shield &amp; Sniffer • (.zip 0.9 MB)</span>
+                        </div>
+                    </a>
+                </div>
+
+                <!-- Trust Bar -->
+                <div class="hero-trust-bar">
+                    <div class="trust-badge">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Direct Safe Download</span>
+                    </div>
+                    <div class="trust-badge">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Zero Buffer Lag</span>
+                    </div>
+                    <div class="trust-badge">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>uBlock-Grade Ad Shield</span>
+                    </div>
+                    <div class="trust-badge">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        <span>Windows 10 / 11 Compatible</span>
+                    </div>
+                </div>
+
+                <!-- Sleek Terminal / Dashboard Preview Mockup -->
+                <div class="dashboard-preview">
+                    <div class="dash-chrome">
+                        <div class="dash-traffic-lights">
+                            <span class="dot dot-close"></span>
+                            <span class="dot dot-min"></span>
+                            <span class="dot dot-max"></span>
+                        </div>
+                        <div class="dash-title-bar">SaveZonix Desktop Pro v2.5.4 — localhost:5000</div>
+                        <div class="dash-status-pill">
+                            <span class="status-indicator"></span> 64 Active Threads
                         </div>
                     </div>
-                    <div class="preview-progress-bar">
-                        <div class="preview-progress-fill" style="width: 88%;"></div>
+                    <div class="dash-body">
+                        <div class="dash-grid">
+                            <div class="dash-metric">
+                                <span class="metric-label">DOWNLOAD SPEED</span>
+                                <span class="metric-val text-cyan">68.4 MB/s</span>
+                                <span class="metric-sub">Line Saturation: 94.2%</span>
+                            </div>
+                            <div class="dash-metric">
+                                <span class="metric-label">PARALLEL CHUNKS</span>
+                                <span class="metric-val text-emerald">64 Workers</span>
+                                <span class="metric-sub">Auto Range-Lock Active</span>
+                            </div>
+                            <div class="dash-metric">
+                                <span class="metric-label">AD SHIELD STATUS</span>
+                                <span class="metric-val text-emerald">Protected</span>
+                                <span class="metric-sub">uBlock json-prune Active</span>
+                            </div>
+                            <div class="dash-metric">
+                                <span class="metric-label">FFMPEG REMUX</span>
+                                <span class="metric-val text-purple">0.28s</span>
+                                <span class="metric-sub">Zero-Copy Direct Atom Stitch</span>
+                            </div>
+                        </div>
+
+                        <div class="dash-progress-wrap">
+                            <div class="dash-progress-meta">
+                                <span>YouTube 4K (2160p60) • The Royals — 1.84 GB</span>
+                                <span class="text-emerald">91% • 4s remaining</span>
+                            </div>
+                            <div class="dash-progress-track">
+                                <div class="dash-progress-bar" style="width: 91%;"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Speed Benchmark Section -->
-    <section class="speed-section" id="speed">
-        <div class="section-container">
+        <!-- Speed Benchmark Section -->
+        <section class="section-container" id="speed">
             <div class="section-header">
-                <span class="section-tag">PERFORMANCE SHOWDOWN</span>
-                <h2 class="section-title">Engineered to Crush Bottlenecks</h2>
-                <p class="section-desc">Traditional downloaders use 1 to 8 sequential connections. SaveZonix connects up to 256 parallel chunk workers simultaneously.</p>
+                <span class="section-kicker">BENCHMARK LAB</span>
+                <h2 class="section-headline">Engineered to Maximize Bandwidth</h2>
+                <p class="section-paragraph">Standard downloaders use 1 to 8 single-threaded HTTP connections. SaveZonix divides files into 64 concurrent byte-ranges requested simultaneously.</p>
             </div>
 
             <div class="benchmark-grid">
-                <div class="benchmark-card leader">
-                    <div class="bm-badge">🏆 #1 Fastest</div>
-                    <h3 class="bm-title">SaveZonix Turbo Engine</h3>
-                    <div class="bm-speed">45 - 90 MB/s</div>
-                    <p class="bm-desc">64-256 Parallel TCP Streams + Dual Video/Audio Threading + Local FFmpeg Zero-Copy Muxing.</p>
-                    <ul class="bm-features">
-                        <li>⚡ 64x Multi-Chunk Acceleration</li>
-                        <li>⚡ Instant HLS &amp; fMP4 Reconstruction</li>
-                        <li>⚡ Concurrent Audio + Video Fetching</li>
+                <!-- SaveZonix Card -->
+                <div class="benchmark-card card-featured">
+                    <div class="bm-tag">FASTEST TESTED</div>
+                    <h3 class="bm-product">SaveZonix Turbo</h3>
+                    <div class="bm-speed text-cyan">45 – 90 MB/s</div>
+                    <p class="bm-description">64 concurrent micro-ranges with parallel audio/video pipelining and instant zero-copy assembly.</p>
+                    <ul class="bm-specs">
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> 64 Parallel Range Workers</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Instant M3U8 &amp; fMP4 Stitching</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Zero-Copy FFmpeg Audio Muxing</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Built-in Ad &amp; Scam Defuser</li>
                     </ul>
                 </div>
 
+                <!-- Legacy IDM Card -->
                 <div class="benchmark-card">
-                    <h3 class="bm-title">IDM / FDM</h3>
-                    <div class="bm-speed">12 - 20 MB/s</div>
-                    <p class="bm-desc">Standard 8-16 threads. Lacks modern fMP4 atom reconstruction and adaptive HLS bypass.</p>
-                    <ul class="bm-features">
-                        <li>Standard thread limit</li>
-                        <li>Fails on complex live playlists</li>
-                        <li>Dated 90s interface</li>
+                    <h3 class="bm-product">Legacy Downloaders</h3>
+                    <div class="bm-speed">10 – 18 MB/s</div>
+                    <p class="bm-description">Traditional 8-thread connection pools without adaptive fMP4 atom parsing or modern stream proxies.</p>
+                    <ul class="bm-specs text-muted">
+                        <li>Standard 8-thread limit</li>
+                        <li>High CPU usage during file reassembly</li>
+                        <li>Fails on encrypted adaptive streams</li>
+                        <li>No integrated ad protection</li>
                     </ul>
                 </div>
 
+                <!-- Browser Default Card -->
                 <div class="benchmark-card">
-                    <h3 class="bm-title">Browser Built-in (Chrome/Edge)</h3>
-                    <div class="bm-speed">4 - 8 MB/s</div>
-                    <p class="bm-desc">Single connection without parallel slicing. Stops completely on network jitter.</p>
-                    <ul class="bm-features">
-                        <li>1 Single thread</li>
-                        <li>No M3U8 or stream detection</li>
-                        <li>Frequently corrupts on interruption</li>
+                    <h3 class="bm-product">Browser Built-in (Chrome/Edge)</h3>
+                    <div class="bm-speed">4 – 8 MB/s</div>
+                    <p class="bm-description">Single sequential connection. Zero parallel chunking. Vulnerable to disconnects on large media.</p>
+                    <ul class="bm-specs text-muted">
+                        <li>1 Single sequential thread</li>
+                        <li>No M3U8 or stream sniffer</li>
+                        <li>Cannot download adaptive YouTube streams</li>
+                        <li>Restarts from zero on network drop</li>
                     </ul>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Features Grid Section -->
-    <section class="features-section" id="features">
-        <div class="section-container">
+        <!-- Ad Shield Architecture Section -->
+        <section class="section-container" id="shield">
+            <div class="feature-highlight-card">
+                <div class="highlight-info">
+                    <span class="section-kicker">UBLOCK ORIGIN ARCHITECTURE</span>
+                    <h2>Pre-Emptive Ad Neutralization</h2>
+                    <p>Instead of speeding up ads or touching playback buffers, SaveZonix adopts uBlock Origin's proven <code>json-prune</code> scriptlet. Ad keys are stripped directly at the network layer before YouTube player scripts ever initialize.</p>
+                    <div class="pill-group">
+                        <span class="feature-pill">Zero Playback Tampering</span>
+                        <span class="feature-pill">1.0x Normal Speed Always</span>
+                        <span class="feature-pill">No DASH Buffer Crashes</span>
+                        <span class="feature-pill">74,000+ Scam Keywords Matrix</span>
+                    </div>
+                </div>
+                <div class="highlight-code">
+                    <div class="code-header">
+                        <span class="code-dot"></span>
+                        <span class="code-title">SaveZonix uBlock Shield Architecture</span>
+                    </div>
+                    <pre><code>// Intercept &amp; Prune YouTube Ad Placements
+fetch('/youtubei/v1/player')
+  .then(res => res.json())
+  .then(json => {
+    delete json.adPlacements;
+    delete json.playerAds;
+    delete json.adSlots;
+    delete json.adPlacementConfig;
+    return json; // Clean Stream Delivered
+  });</code></pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Core Features Grid -->
+        <section class="section-container" id="features">
             <div class="section-header">
-                <span class="section-tag">UNMATCHED CAPABILITIES</span>
-                <h2 class="section-title">Everything You Need In One Engine</h2>
-                <p class="section-desc">From 4K YouTube playlists to live adaptive video streams, SaveZonix handles the hardest media tasks effortlessly.</p>
+                <span class="section-kicker">FEATURE SUITE</span>
+                <h2 class="section-headline">Everything Engineered Into One Suite</h2>
+                <p class="section-paragraph">From 4K multi-video batch downloads to ad-free web cinema streaming, SaveZonix handles demanding media workflows effortlessly.</p>
             </div>
 
             <div class="features-grid">
                 <div class="feature-card">
-                    <div class="feature-icon">⚡</div>
-                    <h3>64-Thread Acceleration</h3>
-                    <p>Splits direct MP4 files and adaptive HLS streams into 64 concurrent micro-ranges for maximum bandwidth saturation.</p>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                    <h3>64-Thread Turbo Engine</h3>
+                    <p>Divides direct media files and adaptive HLS streams into 64 concurrent micro-ranges for full bandwidth utilization.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎬</div>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                    <h3>uBlock-Style Ad Shield</h3>
+                    <p>Pre-emptively deletes ad placements in player payloads. Videos start immediately at native 1.0x speed with zero lag.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polygon points="10 8 16 12 10 16 10 8"></polygon></svg>
+                    </div>
                     <h3>CleanStream Cinema</h3>
-                    <p>Watch any web video in a gorgeous, zero-ad cinema player with bypass proxies, subtitles, and picture-in-picture.</p>
+                    <p>Stream any web video in a custom distraction-free cinema player with CORS stealth proxies, PiP, and zero popunders.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🧩</div>
-                    <h3>Chrome Companion Extension</h3>
-                    <p>Sniff media streams with 1 click. Automatically sends detected videos to your desktop app at full speed.</p>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                    </div>
+                    <h3>320kbps Audio Extractor</h3>
+                    <p>Extract pristine studio-grade 320kbps MP3 audio from any video or podcast with automatic ID3 album art tagging.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🎵</div>
-                    <h3>320kbps MP3 Extractor</h3>
-                    <p>Extract ultra-high-fidelity 320kbps audio from any music video or podcast with automatic ID3 tag formatting.</p>
-                </div>
-
-                <div class="feature-card">
-                    <div class="feature-icon">📦</div>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    </div>
                     <h3>Batch Playlist Studio</h3>
-                    <p>Download entire YouTube playlists with 1 click. Smart queue manager downloads in background with zero page-freeze.</p>
+                    <p>Download entire playlists with 1 click. Smart queue manager runs in background without freezing browser tabs.</p>
                 </div>
 
                 <div class="feature-card">
-                    <div class="feature-icon">🛡️</div>
-                    <h3>Anti-Corruption Validator</h3>
-                    <p>Deep binary inspection validates moov, moof, and mdat container atoms. Never deal with broken or truncated files again.</p>
+                    <div class="feature-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    </div>
+                    <h3>Atom Integrity Validator</h3>
+                    <p>Deep binary inspection validates moov, moof, and mdat atoms. Ensures every downloaded file opens cleanly on any player.</p>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- CleanStream Cinema Section -->
-    <section class="cinema-section" id="cinema">
-        <div class="section-container">
-            <div class="cinema-card">
-                <div class="cinema-text">
-                    <span class="section-tag">STREAMING PERFECTION</span>
-                    <h2>CleanStream Cinema</h2>
-                    <p>Don't want to download right now? Stream any video in our custom distraction-free cinema player. Features anti-hotlinking stealth proxies, frame-accurate scrubbing, and theater lighting.</p>
-                    <div class="cinema-tags">
-                        <span class="c-tag">Zero Popups</span>
-                        <span class="c-tag">CORS Bypass Proxy</span>
-                        <span class="c-tag">Adaptive Bitrate (HLS.js)</span>
-                        <span class="c-tag">Background Audio Mode</span>
+        <!-- CleanStream Cinema Section -->
+        <section class="section-container" id="cinema">
+            <div class="cinema-spotlight">
+                <div class="cinema-details">
+                    <span class="section-kicker">CINEMA PLAYER</span>
+                    <h2>Zero Distractions. Just Content.</h2>
+                    <p>Prefer streaming immediately without saving? Watch any video directly in CleanStream Cinema. Includes hardware acceleration, theater mode, and anti-hotlinking proxies.</p>
+                    <div class="cinema-pills">
+                        <span class="c-pill">No Popups or Overlays</span>
+                        <span class="c-pill">CORS Stealth Proxy</span>
+                        <span class="c-pill">HLS Adaptive Streaming</span>
+                        <span class="c-pill">Hardware PiP Support</span>
                     </div>
                 </div>
-                <div class="cinema-visual">
-                    <div class="cinema-screen">
-                        <div class="screen-play-btn">▶</div>
-                        <div class="screen-watermark">CleanStream Cinema HD</div>
+                <div class="cinema-frame">
+                    <div class="cinema-screen-placeholder">
+                        <div class="cinema-play-symbol">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        </div>
+                        <span class="cinema-brand-watermark">CleanStream Cinema HD</span>
                     </div>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- Pricing Section -->
-    <section class="pricing-section" id="pricing">
-        <div class="section-container">
+        <!-- Pricing Section -->
+        <section class="section-container" id="pricing">
             <div class="section-header">
-                <span class="section-tag">HONEST PRICING</span>
-                <h2 class="section-title">Simple Plans for Every User</h2>
-                <p class="section-desc">Start free forever with generous daily limits, or upgrade to SaveZonix PRO for unlimited 4K power.</p>
+                <span class="section-kicker">PLANS &amp; ACCESS</span>
+                <h2 class="section-headline">Fair Pricing. No Hidden Traps.</h2>
+                <p class="section-paragraph">Start 100% free with full acceleration features, or unlock unlimited batch 4K power with VIP PRO.</p>
             </div>
 
             <div class="pricing-grid">
-                <!-- Free Tier -->
+                <!-- Free Plan -->
                 <div class="pricing-card">
-                    <div class="plan-header">
-                        <span class="plan-name">Free Community</span>
-                        <div class="plan-price">₹0 <span>/ forever</span></div>
-                        <p class="plan-desc">Perfect for everyday music, video, and social media downloads.</p>
-                    </div>
-
+                    <div class="plan-badge">FREE FOREVER</div>
+                    <h3 class="plan-name">Community Edition</h3>
+                    <div class="plan-price">₹0 <span class="plan-interval">/ forever</span></div>
+                    <p class="plan-desc">Full multi-thread acceleration and ad shield for daily media archiving.</p>
                     <ul class="plan-features">
-                        <li><span class="check">✓</span> 5 Downloads Every Day</li>
-                        <li><span class="check">✓</span> Up to 1080p Full HD Resolution</li>
-                        <li><span class="check">✓</span> 32 Parallel Connection Threads</li>
-                        <li><span class="check">✓</span> MP3 High Quality (192kbps)</li>
-                        <li><span class="check">✓</span> CleanStream Cinema Player</li>
-                        <li><span class="check">✓</span> Chrome Extension Included</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Up to 1080p Full HD Resolution</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> 32 Parallel Concurrency Threads</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> High Quality MP3 Extraction (192kbps)</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> uBlock-Grade Ad &amp; Scam Shield</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> CleanStream Cinema Player</li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> Chrome Companion Extension</li>
                     </ul>
-
-                    <a href="#download" class="btn-plan-secondary">Download Free App</a>
+                    <a href="./downloads/SaveZonix-Setup.exe" download="SaveZonix-Setup.exe" class="btn-plan-download">Download Free App</a>
                 </div>
 
-                <!-- VIP PRO Tier -->
-                <div class="pricing-card featured">
-                    <div class="featured-ribbon">MOST POPULAR</div>
-                    <div class="plan-header">
-                        <span class="plan-name">SaveZonix VIP PRO</span>
-                        <div class="plan-price" id="proPlanPriceDisplay">₹99 <span>/ month</span></div>
-                        <p class="plan-desc">For power users, creators, and enthusiasts who demand maximum power.</p>
-                    </div>
-
+                <!-- VIP PRO Plan -->
+                <div class="pricing-card card-featured">
+                    <div class="bm-tag">MOST POPULAR</div>
+                    <h3 class="plan-name">SaveZonix VIP PRO</h3>
+                    <div class="plan-price" id="proPlanPriceDisplay">₹99 <span class="plan-interval">/ month</span></div>
+                    <p class="plan-desc">For power users, creators, and archivists who need peak 4K/8K power.</p>
                     <ul class="plan-features">
-                        <li><span class="check">✓</span> <strong>Unlimited Downloads</strong> (No Daily Quotas)</li>
-                        <li><span class="check">✓</span> <strong>4K &amp; 8K Ultra HD</strong> Video Unlocked</li>
-                        <li><span class="check">✓</span> <strong>64 - 256 Concurrency Threads</strong> (Maximum ISP Speed)</li>
-                        <li><span class="check">✓</span> <strong>Full Batch Playlist Downloads</strong></li>
-                        <li><span class="check">✓</span> <strong>320kbps Studio Audio Extractor</strong></li>
-                        <li><span class="check">✓</span> <strong>Priority VIP Support &amp; Updates</strong></li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>Unlimited High-Speed Downloads</strong></li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>4K (2160p) &amp; 8K Ultra HD Unlocked</strong></li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>64 – 256 Concurrency Workers</strong></li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>Complete Playlist Batch Studio</strong></li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>320kbps Studio Audio Extractor</strong></li>
+                        <li><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>Priority Engine Updates &amp; VIP Support</strong></li>
                     </ul>
-
-                    <a href="#download" class="btn-plan-primary">Get SaveZonix VIP PRO</a>
+                    <a href="./downloads/SaveZonix-Setup.exe" download="SaveZonix-Setup.exe" class="btn-plan-pro">Get SaveZonix VIP PRO</a>
                 </div>
             </div>
-        </div>
-    </section>
+        </section>
 
-    <!-- FAQ Section -->
-    <section class="faq-section" id="faq">
-        <div class="section-container">
+        <!-- FAQ Section -->
+        <section class="section-container" id="faq">
             <div class="section-header">
-                <span class="section-tag">GOT QUESTIONS?</span>
-                <h2 class="section-title">Frequently Asked Questions</h2>
+                <span class="section-kicker">HELP CENTER</span>
+                <h2 class="section-headline">Frequently Asked Questions</h2>
             </div>
 
-            <div class="faq-list">
-                <details class="faq-item">
-                    <summary class="faq-question">How does SaveZonix download so much faster than other tools?</summary>
-                    <div class="faq-answer">SaveZonix is built in native C# .NET and divides each video stream into up to 64 micro-ranges requested concurrently. It also downloads video and audio tracks in parallel, completely eliminating the 99% muxing delay.</div>
+            <div class="faq-container">
+                <details class="faq-item" open>
+                    <summary class="faq-question">
+                        <span>Why does SaveZonix download faster than standard tools?</span>
+                        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <div class="faq-answer">
+                        SaveZonix is built in native C# .NET. Instead of pulling an entire video sequentially through one socket, it splits the media file into up to 64 discrete byte-range chunks fetched simultaneously over parallel TCP connections, saturating your internet speed.
+                    </div>
                 </details>
 
                 <details class="faq-item">
-                    <summary class="faq-question">Where are downloaded videos saved on my PC?</summary>
-                    <div class="faq-answer">By default, all completed videos and audio tracks are saved directly in your Windows <code>Downloads</code> folder. You can customize the destination path anytime in the app settings.</div>
+                    <summary class="faq-question">
+                        <span>How does the uBlock Origin ad shield work?</span>
+                        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <div class="faq-answer">
+                        SaveZonix uses the official <code>json-prune</code> scriptlet architecture from uBlock Origin. It prunes <code>adPlacements</code> and <code>playerAds</code> directly from player API payloads before video initialization. Because no ads are scheduled, videos play at strictly normal 1.0x speed without buffer crashes or fast-forwarding bugs.
+                    </div>
                 </details>
 
                 <details class="faq-item">
-                    <summary class="faq-question">How does the Chrome Companion Extension work?</summary>
-                    <div class="faq-answer">When you browse YouTube, Instagram, or any video website, the extension detects the authentic playable stream URL directly from browser network requests and hands it over to the local SaveZonix engine in 1 click.</div>
+                    <summary class="faq-question">
+                        <span>How do I install the Chrome Companion Extension?</span>
+                        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <div class="faq-answer">
+                        Download <code>SaveZonix-Extension.zip</code> above, unzip the folder, open <code>chrome://extensions</code> in Chrome or Edge, enable "Developer mode" in the top right, and click "Load unpacked" selecting the unzipped folder.
+                    </div>
                 </details>
 
                 <details class="faq-item">
-                    <summary class="faq-question">How do app updates work?</summary>
-                    <div class="faq-answer">When an update is released, the desktop app notifies you automatically. You can update seamlessly with 1 click without losing your settings or download history.</div>
+                    <summary class="faq-question">
+                        <span>Where are downloaded videos stored?</span>
+                        <svg class="faq-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </summary>
+                    <div class="faq-answer">
+                        All downloaded media files are saved directly in your Windows <code>Downloads</code> folder. You can configure a custom destination folder at any time in the desktop application settings.
+                    </div>
                 </details>
             </div>
-        </div>
-    </section>
+        </section>
+    </main>
 
     <!-- Footer -->
     <footer class="site-footer">
         <div class="footer-container">
             <div class="footer-brand">
-                <div class="brand-logo">
-                    <span class="logo-icon">⚡</span>
-                    <span class="logo-text">Save<span class="gradient-text">Zonix</span></span>
-                </div>
-                <p class="footer-tagline">Engineered for speed, built for creators. The ultimate desktop video acceleration suite.</p>
-                <div class="footer-copy">© 2026 SaveZonix Inc. All rights reserved.</div>
+                <a href="#" class="brand-logo">
+                    <div class="brand-icon">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                    <span class="brand-name">Save<span class="brand-accent">Zonix</span></span>
+                </a>
+                <p class="footer-bio">Engineered for extreme speed, built for creators. The ultimate desktop video acceleration suite.</p>
+                <div class="footer-copyright">&copy; 2026 SaveZonix Inc. All rights reserved.</div>
             </div>
 
-            <div class="footer-col">
+            <div class="footer-links-col">
                 <h4>Product</h4>
                 <a href="#features">Features</a>
                 <a href="#speed">Speed Benchmark</a>
+                <a href="#shield">Ad Shield</a>
                 <a href="#cinema">CleanStream Cinema</a>
                 <a href="#pricing">Pricing</a>
             </div>
 
-            <div class="footer-col">
-                <h4>Download</h4>
-                <a href="https://github.com/zaid154/SaveZonix/releases/latest/download/SaveZonix-Setup.exe">Windows 64-bit (.exe)</a>
-                <a href="#download">Chrome Extension</a>
+            <div class="footer-links-col">
+                <h4>Direct Downloads</h4>
+                <a href="./downloads/SaveZonix-Setup.exe" download="SaveZonix-Setup.exe">Windows 64-bit App (.exe)</a>
+                <a href="./SaveZonix-Extension.zip" download="SaveZonix-Extension.zip">Chrome Extension (.zip)</a>
+                <a href="#faq">Installation Guide</a>
             </div>
         </div>
     </footer>

@@ -851,16 +851,6 @@
             div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
             /* Fake push notification prompts */
             .push-optin, .onesignal-bell-launcher,
-            /* Complete 0ms Visual Cloak: Hide all YouTube ad overlays, banners, and interstitials */
-            .ad-showing video,
-            .ad-interrupting video,
-            #movie_player.ad-showing video {
-                opacity: 0 !important;
-            }
-
-            #movie_player:not(.ad-showing):not(.ad-interrupting) video {
-                opacity: 1 !important;
-            }
 
             /* Ensure Skip Button is ALWAYS visible and clickable above any cloak */
             .ytp-ad-skip-button-modern,

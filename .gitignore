@@ -22,6 +22,8 @@ SaveZonix-Web/client/dist/
 SaveZonix-Web/server/node_modules/
 SaveZonix-Web/.env
 SaveZonix-Web/server/.env
+SaveZonix-Web/*.exe
+SaveZonix-Web/downloads/*.exe
 
 # ─── OS & IDE ───
 .vs/
