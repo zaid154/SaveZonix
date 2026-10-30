@@ -93,29 +93,64 @@
             const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
             const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
 
+            const adIndicators = [
+                '.ad-showing',
+                '.ad-interrupting',
+                '.ytp-ad-player-overlay',
+                '.ytp-ad-player-overlay-layout',
+                '.ytp-ad-text',
+                '.ytp-ad-preview-container',
+                '.ytp-ad-skip-button-slot',
+                '.ytp-skip-ad-button',
+                '.ytp-ad-skip-button',
+                '.ytp-ad-skip-button-modern',
+                'button[id^="skip-button"]',
+                '.video-ads:not(:empty)',
+                '.ytp-ad-module:not(:empty)',
+                'div[class*="ytp-ad"]',
+                'span[class*="ytp-ad"]'
+            ];
+
             const isAdShowing = Boolean(
                 player?.classList.contains('ad-showing') ||
                 player?.classList.contains('ad-interrupting') ||
-                document.querySelector('.ytp-ad-player-overlay, .ytp-ad-text, .ytp-ad-preview-container, .ytp-ad-skip-button-slot')
+                document.querySelector(adIndicators.join(', '))
             );
 
             if (isAdShowing && video) {
-                // Try native player skip method if exposed by YouTube API
+                // 1. Try native player skip method if exposed by YouTube API
                 if (typeof player?.skipAd === 'function') {
                     try { player.skipAd(); } catch { }
                 }
 
-                // If skip button is clickable, click it immediately
-                const skipButton = document.querySelector(
-                    '.ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button, button.ytp-ad-skip-button-text, .ytp-ad-overlay-close-button'
+                // 2. Click any skip buttons with trusted-like pointer/mouse event emulation
+                const skipButtons = document.querySelectorAll(
+                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button, button[id^="skip-button"], button.ytp-ad-skip-button-text, .ytp-ad-overlay-close-button, button[aria-label*="Skip"], button[class*="skip"]'
                 );
-                if (skipButton) {
-                    skipButton.click();
-                    notifyBlocked('youtube_ad_skipped');
-                    return;
-                }
+                skipButtons.forEach(btn => {
+                    try {
+                        btn.click();
+                        btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+                        btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
+                        btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                    } catch { }
+                });
 
-                // Fast-forward unskippable / countdown ad to the end at 16x speed
+                // Also check any button inside player with 'skip' text
+                const playerButtons = (player || document).querySelectorAll('button');
+                playerButtons.forEach(btn => {
+                    const txt = (btn.innerText || btn.textContent || btn.getAttribute('aria-label') || '').toLowerCase();
+                    if (txt.includes('skip') || btn.className.includes('skip') || btn.id.includes('skip')) {
+                        try {
+                            btn.click();
+                            btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+                            btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
+                            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                        } catch { }
+                    }
+                });
+
+                // 3. Fast-forward video ad to the end (CRITICAL for unskippable ads or ignored clicks)
                 if (!isAdFastForwarding) {
                     isAdFastForwarding = true;
                     originalRate = (video.playbackRate > 0 && video.playbackRate <= 2) ? video.playbackRate : 1;
@@ -125,12 +160,14 @@
                 try {
                     video.muted = true;
                     video.playbackRate = 16.0;
-                    if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.05) {
+                    if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.1) {
                         video.currentTime = video.duration - 0.05;
                     }
+                    video.dispatchEvent(new Event('timeupdate', { bubbles: true }));
+                    video.play().catch(() => {});
                 } catch { }
 
-                notifyBlocked('youtube_ad_fast_forwarded');
+                notifyBlocked('youtube_ad_defused');
             } else if (isAdFastForwarding && video) {
                 // Ad finished: restore original playback speed and audio
                 isAdFastForwarding = false;

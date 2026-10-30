@@ -275,6 +275,49 @@
         setInterval(() => {
             if (isShieldEnabled) sweepDeceptiveModals();
         }, 800);
+
+        // Dedicated YouTube Defuser in Content World (Dual-Engine Guard)
+        if (currentHost.includes('youtube.com')) {
+            const adSelectors = [
+                '.ytp-skip-ad-button',
+                '.ytp-ad-skip-button',
+                '.ytp-ad-skip-button-modern',
+                'button[id^="skip-button"]',
+                '.ytp-ad-skip-button-container button',
+                'button.ytp-ad-skip-button-text',
+                '.ytp-ad-overlay-close-button',
+                'button[aria-label*="Skip"]'
+            ];
+
+            setInterval(() => {
+                if (!isShieldEnabled) return;
+                const video = document.querySelector('video.html5-main-video') || document.querySelector('video');
+                const isAdPlaying = Boolean(
+                    document.querySelector('.ad-showing, .ad-interrupting, .ytp-ad-player-overlay, .video-ads:not(:empty), .ytp-ad-module:not(:empty)')
+                );
+
+                if (isAdPlaying && video) {
+                    // Click skip button immediately
+                    const skipBtns = document.querySelectorAll(adSelectors.join(', '));
+                    skipBtns.forEach(btn => {
+                        try {
+                            btn.click();
+                            btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, view: window }));
+                            btn.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true, view: window }));
+                        } catch { }
+                    });
+
+                    // Fast-forward & mute
+                    try {
+                        video.muted = true;
+                        video.playbackRate = 16.0;
+                        if (isFinite(video.duration) && video.duration > 0 && video.currentTime < video.duration - 0.1) {
+                            video.currentTime = video.duration - 0.05;
+                        }
+                    } catch { }
+                }
+            }, 50);
+        }
     }
 
     // Toggle message listener
