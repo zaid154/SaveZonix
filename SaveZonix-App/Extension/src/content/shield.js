@@ -1,5 +1,5 @@
 // src/content/shield.js — SaveZonix Universal Ad, Pop-up & Redirect Shield Engine
-// Runs at document_start to block pop-unders, clickjacking, fake captchas & auto-redirects globally.
+// Runs at document_start in isolated world; coordinates badge counters, cosmetic DOM cleanups & fail-safe scriptlet injection.
 
 (function () {
     'use strict';
@@ -8,7 +8,7 @@
     let blockedCount = 0;
     const currentHost = (window.location.hostname || '').toLowerCase();
 
-    // 1. Initial Storage Check
+    // 1. Storage Check
     try {
         chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
             if (res) {
@@ -22,7 +22,9 @@
                 }
             }
             if (isShieldEnabled) {
+                injectMainWorldFailsafe();
                 applyCosmeticShield();
+                startDomDefense();
             }
         });
     } catch { }
@@ -40,99 +42,33 @@
         } catch { }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Layer 1: Universal window.open & Pop-under Interception
-    // ─────────────────────────────────────────────────────────────
-    const rawWindowOpen = window.open;
-    window.open = function (url, target, features) {
-        if (!isShieldEnabled) {
-            return rawWindowOpen.apply(this, arguments);
-        }
-
-        const urlStr = String(url || '').trim().toLowerCase();
-
-        // Allow legitimate blank or internal popups created explicitly
-        const isSameOrigin = urlStr.startsWith('/') || (urlStr.startsWith('http') && urlStr.includes(currentHost));
-        const isSuspicious = !urlStr ||
-            urlStr === 'about:blank' ||
-            urlStr.startsWith('javascript:') ||
-            urlStr.includes('monetag') ||
-            urlStr.includes('adsterra') ||
-            urlStr.includes('propeller') ||
-            urlStr.includes('popads') ||
-            urlStr.includes('popcash') ||
-            urlStr.includes('exoclick') ||
-            urlStr.includes('bet365') ||
-            urlStr.includes('1xbet') ||
-            urlStr.includes('casino') ||
-            urlStr.includes('track') ||
-            urlStr.includes('affiliate') ||
-            urlStr.includes('deloton') ||
-            urlStr.includes('onclkds') ||
-            urlStr.includes('clickadu');
-
-        // Check user gesture: if triggered in a call stack with no genuine isTrusted event
-        const isUserGesture = Boolean(window.event && window.event.isTrusted);
-
-        if (isSuspicious || (!isUserGesture && !isSameOrigin)) {
-            console.warn('[SaveZonix Shield] 🛡️ Blocked pop-under / background popup window:', url || '(blank popunder)');
-            reportBlocked('popunder_window_blocked');
-            return null; // Neutralized
-        }
-
-        return rawWindowOpen.apply(this, arguments);
-    };
-
-    // ─────────────────────────────────────────────────────────────
-    // Layer 2: Universal Push Notification Trap Defuser
-    // ─────────────────────────────────────────────────────────────
-    // Movie/streaming sites use fake "You received a message!" or fake verification to trick users
-    if (typeof window.Notification !== 'undefined') {
-        const rawRequestPermission = window.Notification.requestPermission;
-        window.Notification.requestPermission = function (callback) {
-            if (isShieldEnabled) {
-                // If it's a known streaming/downloading or ad-heavy domain, auto-deny to prevent spam
-                console.warn('[SaveZonix Shield] 🛡️ Neutralized fake notification permission trap.');
-                reportBlocked('fake_notification_trap');
-                const denied = Promise.resolve('denied');
-                if (typeof callback === 'function') {
-                    callback('denied');
-                }
-                return denied;
-            }
-            return rawRequestPermission.apply(this, arguments);
-        };
+    // 2. Failsafe injection of page-shield.js into Main World
+    function injectMainWorldFailsafe() {
+        try {
+            const script = document.createElement('script');
+            script.src = chrome.runtime.getURL('src/content/page-shield.js');
+            script.async = false;
+            (document.head || document.documentElement).prepend(script);
+            script.onload = () => script.remove();
+        } catch { }
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Layer 3: Anti-Clickjack Overlay Neutralizer
-    // ─────────────────────────────────────────────────────────────
-    function removeClickjackOverlays() {
+    // 3. Listen to messages from page-shield.js (Main World)
+    window.addEventListener('message', (e) => {
         if (!isShieldEnabled) return;
-
-        // Disarm full-page transparent links (common in streaming players)
-        const suspiciousLinks = document.querySelectorAll('a[target="_blank"]');
-        suspiciousLinks.forEach(a => {
-            const style = window.getComputedStyle(a);
-            const isFixed = style.position === 'fixed' || style.position === 'absolute';
-            const isFullCover = (a.offsetWidth > window.innerWidth * 0.7 && a.offsetHeight > window.innerHeight * 0.7);
-            const isHighZ = parseInt(style.zIndex, 10) > 1000;
-
-            if (isFixed && (isFullCover || isHighZ) && (style.opacity === '0' || style.backgroundColor.includes('rgba(0, 0, 0, 0)'))) {
-                a.remove();
-                reportBlocked('clickjack_overlay_removed');
-            }
-        });
-    }
+        if (e.data && e.data.source === 'savezonix-shield-main') {
+            reportBlocked(e.data.reason || 'main_world_threat_blocked');
+        }
+    });
 
     // ─────────────────────────────────────────────────────────────
-    // Layer 4: Cosmetic Ad Hiding (CSS Shield)
+    // Layer 1: Cosmetic Ad & Modal Hiding (CSS Shield)
     // ─────────────────────────────────────────────────────────────
     function applyCosmeticShield() {
         if (document.getElementById('savezonix-cosmetic-shield')) return;
 
         const css = `
-            /* SaveZonix Universal Cosmetic Ad Shield */
+            /* SaveZonix Universal Cosmetic Ad & Modal Shield */
             [class*="ad-banner"], [id*="ad-banner"],
             [class*="popunder"], [id*="popunder"],
             [class*="banner-ad"], [id*="banner-ad"],
@@ -140,12 +76,15 @@
             [class*="ad-container"], [id*="ad-container"],
             [class*="sponsored-post"], [class*="native-ad"],
             div[class*="floating-ad"], div[id*="floating-ad"],
-            div[style*="z-index: 2147483647"]:not([id*="player"]):not([class*="player"]),
-            div[style*="z-index: 999999"]:not([id*="player"]):not([class*="player"]):not([id*="modal"]),
-            /* Floating sports / casino / sticky banners */
+            div[class*="outstream"], div[id*="outstream"],
+            div[class*="aniview"], div[class*="connatix"], div[class*="vdoai"],
+            /* Floating sports / casino / sticky banners / basketball widget */
             div[style*="position: fixed"][style*="bottom: 0"][style*="z-index"]:has(a[target="_blank"]),
-            div[style*="position: fixed"][style*="right:"][style*="top:"]:has(img[src*="ad"]),
-            /* Fake notification overlays */
+            div[style*="position: fixed"][style*="right:"][style*="top:"]:has(img),
+            /* Floating side video ad with AI robot or sound controls */
+            div[style*="position: fixed"][style*="right: 0"]:has(video),
+            div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
+            /* Fake notification / age / captcha prompts */
             div[class*="push-prompt"], div[id*="push-prompt"],
             div[class*="notification-modal"], div[id*="notification-dialog"] {
                 display: none !important;
@@ -162,29 +101,142 @@
         styleEl.textContent = css;
 
         if (document.head) {
-            document.head.appendChild(styleEl);
+            document.head.prepend(styleEl);
         } else {
             document.addEventListener('DOMContentLoaded', () => {
                 if (document.head && !document.getElementById('savezonix-cosmetic-shield')) {
-                    document.head.appendChild(styleEl);
+                    document.head.prepend(styleEl);
                 }
             });
         }
     }
 
-    // Periodic sweep for dynamically injected clickjack overlays
-    if (typeof document !== 'undefined') {
-        document.addEventListener('DOMContentLoaded', () => {
-            if (isShieldEnabled) {
-                applyCosmeticShield();
-                removeClickjackOverlays();
+    // ─────────────────────────────────────────────────────────────
+    // Layer 2: Deceptive Modal & Clickjack Annihilator (DOM Engine)
+    // ─────────────────────────────────────────────────────────────
+    const SCAM_PATTERNS = [
+        "over 18",
+        "confirm that you're over",
+        "confirm that you are over",
+        "confirm you are not a robot",
+        "i'm not a robot",
+        "you received a message",
+        "click allow to view",
+        "click allow to verify",
+        "click \"allow\"",
+        "click 'allow'",
+        "press allow to continue",
+        "your browser is outdated",
+        "system has been infected",
+        "trade gold 24/7"
+    ];
+
+    function sweepDeceptiveModals() {
+        if (!isShieldEnabled) return;
+
+        // 1. Sweep modals containing scam phrases
+        const allFloating = document.querySelectorAll('div, dialog, section, aside');
+        allFloating.forEach(el => {
+            // Check if element is positioned as an overlay
+            const style = window.getComputedStyle ? window.getComputedStyle(el) : null;
+            if (!style) return;
+
+            const isOverlay = style.position === 'fixed' || style.position === 'absolute';
+            const isHighZ = parseInt(style.zIndex, 10) >= 50;
+
+            if (isOverlay || isHighZ) {
+                const text = (el.innerText || el.textContent || '').toLowerCase();
+                const matchedPattern = SCAM_PATTERNS.find(pat => text.includes(pat));
+
+                if (matchedPattern) {
+                    console.warn('[SaveZonix Shield] 🛡️ Removed deceptive scam modal (' + matchedPattern + '):', el);
+                    el.remove();
+                    reportBlocked('deceptive_modal_removed');
+
+                    // If body overflow was set to hidden by modal, restore it
+                    if (document.body && document.body.style.overflow === 'hidden') {
+                        document.body.style.overflow = 'auto';
+                    }
+                    if (document.documentElement && document.documentElement.style.overflow === 'hidden') {
+                        document.documentElement.style.overflow = 'auto';
+                    }
+                }
             }
         });
 
-        // MutationObserver to catch dynamically injected ad overlays
+        // 2. Sweep full-page transparent clickjack link overlays
+        const allLinks = document.querySelectorAll('a');
+        allLinks.forEach(a => {
+            const style = window.getComputedStyle ? window.getComputedStyle(a) : null;
+            if (!style) return;
+
+            const isFixed = style.position === 'fixed' || style.position === 'absolute';
+            const isFullCover = (a.offsetWidth > window.innerWidth * 0.5 && a.offsetHeight > window.innerHeight * 0.5);
+            const isHighZ = parseInt(style.zIndex, 10) >= 100;
+            const isTransparent = style.opacity === '0' || style.backgroundColor.includes('rgba(0, 0, 0, 0)');
+
+            if (isFixed && (isFullCover || (isHighZ && isTransparent))) {
+                console.warn('[SaveZonix Shield] 🛡️ Removed full-page clickjack overlay link:', a);
+                a.remove();
+                reportBlocked('clickjack_overlay_removed');
+            }
+        });
+
+        // 3. Sweep floating outstream video ads (not genuine video players)
+        const floatingVideos = document.querySelectorAll('video');
+        floatingVideos.forEach(v => {
+            // Keep genuine media players with controls or inside main content
+            if (v.hasAttribute('controls') || v.closest('#player') || v.closest('.player') || v.closest('.video-container')) {
+                return;
+            }
+            const container = v.closest('div[style*="position: fixed"], div[style*="position: absolute"]');
+            if (container) {
+                const rect = container.getBoundingClientRect();
+                // If it is a small floating widget docked to screen edges
+                if (rect.width < 450 && (rect.right >= window.innerWidth - 30 || rect.bottom >= window.innerHeight - 30)) {
+                    console.warn('[SaveZonix Shield] 🛡️ Removed floating outstream video ad:', container);
+                    container.remove();
+                    reportBlocked('outstream_video_ad_removed');
+                }
+            }
+        });
+
+        // 4. Sweep floating sports/basketball icons
+        const floatingIcons = document.querySelectorAll('div[style*="position: fixed"] img, div[style*="position: absolute"] img');
+        floatingIcons.forEach(img => {
+            const src = (img.src || '').toLowerCase();
+            if (src.includes('basketball') || src.includes('bet') || src.includes('ball') || src.includes('coin')) {
+                const parent = img.closest('div[style*="position: fixed"], div[style*="position: absolute"]');
+                if (parent && parent.getBoundingClientRect().width < 100) {
+                    parent.remove();
+                    reportBlocked('floating_icon_ad_removed');
+                }
+            }
+        });
+    }
+
+    function startDomDefense() {
+        if (typeof document === 'undefined') return;
+
+        // Immediate initial sweeps
+        sweepDeceptiveModals();
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                applyCosmeticShield();
+                sweepDeceptiveModals();
+            });
+        }
+
+        // Real-time MutationObserver
+        let debounceTimer = null;
         const observer = new MutationObserver(() => {
-            if (isShieldEnabled) {
-                removeClickjackOverlays();
+            if (!isShieldEnabled) return;
+            if (!debounceTimer) {
+                debounceTimer = setTimeout(() => {
+                    sweepDeceptiveModals();
+                    debounceTimer = null;
+                }, 50);
             }
         });
 
@@ -192,22 +244,25 @@
             childList: true,
             subtree: true
         });
+
+        // Periodic hygiene sweep for dynamically delayed scripts
+        setInterval(() => {
+            if (isShieldEnabled) sweepDeceptiveModals();
+        }, 1000);
     }
 
-    // Listen for toggle updates from popup or background
+    // Toggle message listener
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         if (msg.action === 'updateShieldStatus') {
             isShieldEnabled = Boolean(msg.enabled);
             const style = document.getElementById('savezonix-cosmetic-shield');
             if (isShieldEnabled) {
                 applyCosmeticShield();
+                sweepDeceptiveModals();
             } else if (style) {
                 style.remove();
             }
             sendResponse({ success: true, isShieldEnabled });
-        }
-        if (msg.action === 'getShieldPageStats') {
-            sendResponse({ blockedCount, isShieldEnabled, host: currentHost });
         }
     });
 
