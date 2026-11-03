@@ -754,20 +754,9 @@
         if (wordIndex) return wordIndex;
         wordIndex = new Map();
 
-        // 1. Index Core High-Priority Signatures
+        // Index Core High-Priority Signatures only (instant < 0.1ms load)
         for (let i = 0; i < CORE_SCAM_PATTERNS.length; i++) {
             addPatternToIndex(wordIndex, CORE_SCAM_PATTERNS[i]);
-        }
-
-        // 2. Index Extended Database (73,776 signatures from all-scam-patterns.js in top frame)
-        if (typeof window !== 'undefined' && Array.isArray(window.SCAM_PATTERNS)) {
-            for (let i = 0; i < window.SCAM_PATTERNS.length; i++) {
-                addPatternToIndex(wordIndex, window.SCAM_PATTERNS[i]);
-            }
-        } else if (typeof globalThis !== 'undefined' && Array.isArray(globalThis.SCAM_PATTERNS)) {
-            for (let i = 0; i < globalThis.SCAM_PATTERNS.length; i++) {
-                addPatternToIndex(wordIndex, globalThis.SCAM_PATTERNS[i]);
-            }
         }
 
         return wordIndex;
@@ -939,12 +928,12 @@
         if (!isShieldEnabled) return;
         if (currentHost.includes('youtube.com')) return;
 
-        // A. Direct "Close ad" Button & Interstitial Purger
+        // A. Direct "Close ad" Button & Interstitial Purger (High precision)
         const closeAdElements = document.querySelectorAll(
-            'button, a, div[role="button"], [class*="close-ad"], [class*="ad-close"], [id*="close-ad"]'
+            '.close-ad, [class*="close-ad"], [class*="ad-close"], [id*="close-ad"]'
         );
         for (const el of closeAdElements) {
-            const txt = (el.innerText || el.textContent || '').trim().toLowerCase();
+            const txt = (el.textContent || '').trim().toLowerCase();
             if (txt === 'close ad' || txt === 'close advertisement' || txt.startsWith('close ad')) {
                 try { el.click(); } catch { }
                 let topContainer = el;
@@ -974,9 +963,9 @@
             }
         }
 
-        // B. Query Candidate Modals & Check Against 74k Signatures
+        // B. Query Candidate Modals & Check Against Core Signatures (Scoped)
         const candidateModals = document.querySelectorAll(
-            'dialog, [role="dialog"], [role="alertdialog"], [class*="modal"], [id*="modal"], [class*="interstitial"], [id*="interstitial"], [class*="overlay"]:not(#player):not(.player):not(.video-player), [data-role="promo-messages-wrapper"], [class*="flirtify"], [class*="popup"], [id*="popup"], [class*="lightbox"], [id*="lightbox"]'
+            'dialog[open], [role="dialog"], [role="alertdialog"], .ad-modal, [class*="ad-modal"], [class*="interstitial-ad"], [class*="flirtify"], [data-role="promo-messages-wrapper"]'
         );
 
         candidateModals.forEach(el => {
@@ -989,7 +978,7 @@
             const hasInputs = el.querySelector('input[type="password"], input[type="email"], input[name*="user"], input[type="radio"]') !== null;
             const isAuthOrLogin = /login|signin|register|signup|auth|account/i.test(el.className + ' ' + el.id);
 
-            const text = (el.innerText || el.textContent || '').toLowerCase();
+            const text = (el.textContent || '').toLowerCase();
             if (!text || text.length < 5) return;
 
             // Authentic Age Gate detection: real age gates give choice ("Enter" / "Exit" / "I am 18" / "Under 18")
@@ -1082,7 +1071,7 @@
                 debounceTimer = setTimeout(() => {
                     sweepDeceptiveModals();
                     debounceTimer = null;
-                }, 250);
+                }, 1000);
             }
         });
 

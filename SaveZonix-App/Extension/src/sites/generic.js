@@ -27,21 +27,25 @@
         extractMetadata() {
             let playerTitle = '';
             let playerThumb = '';
-            try {
-                const scripts = document.querySelectorAll('script:not([src])');
-                for (const s of scripts) {
-                    const txt = s.textContent || '';
-                    if (!playerTitle) {
-                        const tm = txt.match(/html5player\.setVideoTitle\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
-                        if (tm) playerTitle = tm[1].trim();
+            const host = (window.location.hostname || '').toLowerCase();
+            const isAdultTube = host.includes('xnxx') || host.includes('xvideos') || host.includes('tube') || host.includes('phncdn');
+            if (isAdultTube) {
+                try {
+                    const scripts = document.querySelectorAll('script:not([src])');
+                    for (const s of scripts) {
+                        const txt = s.textContent || '';
+                        if (!playerTitle) {
+                            const tm = txt.match(/html5player\.setVideoTitle\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+                            if (tm) playerTitle = tm[1].trim();
+                        }
+                        if (!playerThumb) {
+                            const thm = txt.match(/html5player\.setThumbUrl(?:169)?\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
+                            if (thm) playerThumb = thm[1].trim();
+                        }
+                        if (playerTitle && playerThumb) break;
                     }
-                    if (!playerThumb) {
-                        const thm = txt.match(/html5player\.setThumbUrl(?:169)?\s*\(\s*['"]([^'"]+)['"]\s*\)/i);
-                        if (thm) playerThumb = thm[1].trim();
-                    }
-                    if (playerTitle && playerThumb) break;
-                }
-            } catch { }
+                } catch { }
+            }
 
             if (typeof root.extractPageMetadata === 'function') {
                 const meta = root.extractPageMetadata();
@@ -73,9 +77,12 @@
             const seen = new Set();
 
             // 0. Inspect XNXX / XVideos player API scripts (HLS 1080p Master & High MP4)
-            try {
-                const scripts = document.querySelectorAll('script:not([src])');
-                for (const s of scripts) {
+            const host = (window.location.hostname || '').toLowerCase();
+            const isAdultTube = host.includes('xnxx') || host.includes('xvideos') || host.includes('tube') || host.includes('phncdn');
+            if (isAdultTube) {
+                try {
+                    const scripts = document.querySelectorAll('script:not([src])');
+                    for (const s of scripts) {
                     const text = s.textContent || '';
                     if (text.includes('html5player.setVideoHLS') || text.includes('html5player.setVideoUrlHigh')) {
                         const mHls = text.match(/html5player\.setVideoHLS\s*\(\s*['"]([^'"]+)['"]/i);

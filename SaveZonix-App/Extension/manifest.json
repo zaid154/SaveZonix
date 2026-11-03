@@ -43,25 +43,9 @@
       "js": [
         "src/content/page-shield.js"
       ],
-      "all_frames": true,
+      "all_frames": false,
       "run_at": "document_start",
       "world": "MAIN"
-    },
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "exclude_matches": [
-        "*://*.youtube.com/*",
-        "*://youtube.com/*",
-        "*://*.google.com/*",
-        "*://*.google.co.in/*"
-      ],
-      "js": [
-        "src/content/all-scam-patterns.js"
-      ],
-      "all_frames": false,
-      "run_at": "document_start"
     },
     {
       "matches": [
@@ -70,7 +54,7 @@
       "js": [
         "src/content/shield.js"
       ],
-      "all_frames": true,
+      "all_frames": false,
       "run_at": "document_start"
     },
     {
@@ -88,7 +72,7 @@
         "src/sites/generic.js",
         "src/content/content.js"
       ],
-      "all_frames": true,
+      "all_frames": false,
       "run_at": "document_idle"
     }
   ],

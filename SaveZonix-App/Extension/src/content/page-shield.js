@@ -426,8 +426,12 @@
         }
 
         // ─────────────────────────────────────────────────────────
-        // B. Generic Players & Third-Party Tube Sites
+        // B. Generic Players & Third-Party Tube Sites (Zero Overhead)
         // ─────────────────────────────────────────────────────────
+        if (!document.querySelector('video')) {
+            return; // 0% CPU overhead on non-video websites
+        }
+
         const genericSkipBtn = document.querySelector(
             '.vast-skip-button, .skip-btn, .skip-button, .video-skip-ad, .vjs-skip-ad, .ad-skip, [class*="skip-button"], [class*="skip_button"], [class*="skip-ad"], [id*="skip-ad"], button[aria-label*="Skip" i]'
         );
@@ -437,13 +441,13 @@
             notifyBlocked('ad_skip_button_clicked');
         }
 
-        // Universal "Close ad" Modal Defuser (e.g. adult tube overlays, AI Girlfriend popups)
+        // High-precision "Close ad" selector (avoids querying all buttons, a, span!)
         const closeAdBtns = document.querySelectorAll(
-            'button, a, div[role="button"], span, [class*="close-ad"], [class*="ad-close"], [id*="close-ad"]'
+            '.close-ad, [class*="close-ad"], [class*="ad-close"], [id*="close-ad"]'
         );
         for (let i = 0; i < closeAdBtns.length; i++) {
             const btn = closeAdBtns[i];
-            const txt = (btn.innerText || btn.textContent || '').trim().toLowerCase();
+            const txt = (btn.textContent || '').trim().toLowerCase();
             if (txt === 'close ad' || txt === 'close advertisement' || txt.startsWith('close ad')) {
                 try { btn.click(); } catch { }
                 let topContainer = btn;
@@ -500,10 +504,26 @@
         }
     }
 
-    // Periodic safety sweep (every 500ms, < 0.01ms execution, 0% CPU)
-    setInterval(() => {
-        attachScopedPlayerObserver();
-        processAdElements();
-    }, 500);
+    // Fast Scoped Triggers (Zero continuous intervals on generic websites)
+    if (isYouTube) {
+        setInterval(() => {
+            attachScopedPlayerObserver();
+            processAdElements();
+        }, 500);
+    } else {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                if (document.querySelector('video')) processAdElements();
+            }, { once: true });
+        } else if (document.querySelector('video')) {
+            processAdElements();
+        }
+
+        window.addEventListener('play', (e) => {
+            if (e.target && e.target.tagName === 'VIDEO') {
+                processAdElements();
+            }
+        }, { capture: true, passive: true });
+    }
 
 })();
