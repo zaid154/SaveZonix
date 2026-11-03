@@ -471,11 +471,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function isGenericTitle(t) {
+        if (!t) return true;
+        const s = String(t).trim().toLowerCase();
+        return s === 'video' || s === 'youtube video' || s === 'youtube' || s === 'instagram reel' || s === 'instagram' || s === 'stream' || s === 'pvrplay';
+    }
+
     function getFallbackTitle() {
         if (!currentTabTitle) return 'Video';
         return currentTabTitle
+            .replace(/^\(\d+\)\s*/, '')
             .replace(/^Watch\s+/i, '')
-            .replace(/\s*[-|–—]\s*(PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
+            .replace(/\s*[-–—|•]\s*(PixelFlix|YouTube|Instagram|PvrPlay).*$/i, '')
             .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
             .trim() || 'Video';
     }
@@ -669,8 +676,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }];
         }
 
-        const isGenericTitle = (t) => !t || t === 'Video' || t === 'YouTube Video' || t === 'YouTube' || t === 'Instagram Reel' || t === 'Instagram' || t === 'Stream' || t === 'PvrPlay';
-
         const effectiveTitle = (livePageMetadata && livePageMetadata.title && !isGenericTitle(livePageMetadata.title) && livePageMetadata.title.length > 3)
             ? livePageMetadata.title
             : (videos[0]?.title && !isGenericTitle(videos[0].title) && videos[0].title.length > 3 ? videos[0].title : fallbackTitle);
@@ -771,11 +776,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             videoList.innerHTML = '';
         }
 
+        const fbTitle = getFallbackTitle();
         videos.forEach((video) => {
             let card = document.getElementById(`card_${video.id}`);
 
-            const currentTitle = (!isGenericTitle(video.title) ? video.title : (!isGenericTitle(video.showName) ? video.showName : fallbackTitle));
-            const currentShow = (!isGenericTitle(video.showName) ? video.showName : (!isGenericTitle(video.title) ? video.title : fallbackTitle));
+            const currentTitle = (!isGenericTitle(video.title) ? video.title : (!isGenericTitle(video.showName) ? video.showName : fbTitle));
+            const currentShow = (!isGenericTitle(video.showName) ? video.showName : (!isGenericTitle(video.title) ? video.title : fbTitle));
             const currentSub = video.subtitle || '';
             const safeFileName = window.FilenameGenerator.generate({ ...video, title: currentTitle, platform: currentSiteName });
             const thumbUrl = video.thumbnail || liveThumbnail;
