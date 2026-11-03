@@ -45,20 +45,38 @@
             let channel = 'YouTube';
             let videoId = '';
 
-            // 1. Live Video Title
-            const titleEl = document.querySelector('h1.ytd-watch-metadata yt-formatted-string, ytd-watch-metadata #title yt-formatted-string, #above-the-fold #title h1, #title h1, h1.title, ytd-reel-player-header-renderer h2, .ytp-title-link');
+            // 1. Live Video Title (Multi-tiered selector query)
+            const titleEl = document.querySelector(
+                'ytd-watch-metadata #title yt-formatted-string, ' +
+                'ytd-watch-metadata #title h1, ' +
+                'ytd-watch-metadata h1, ' +
+                '#above-the-fold #title yt-formatted-string, ' +
+                '#above-the-fold #title h1, ' +
+                '#title.ytd-watch-metadata, ' +
+                'h1.ytd-watch-metadata, ' +
+                'h1.title.style-scope.ytd-video-primary-info-renderer, ' +
+                'h1.style-scope.ytd-watch-metadata, ' +
+                'ytd-reel-player-header-renderer h2, ' +
+                '.ytp-title-link'
+            );
             if (titleEl && (titleEl.innerText || titleEl.textContent)?.trim()) {
                 title = (titleEl.innerText || titleEl.textContent).trim();
-            } else {
+            }
+            if (!title) {
+                const metaTitle = document.querySelector('meta[name="title"]')?.content ||
+                    document.querySelector('meta[property="og:title"]')?.content ||
+                    document.querySelector('meta[name="twitter:title"]')?.content;
+                if (metaTitle && metaTitle.trim() && metaTitle.trim() !== 'YouTube') {
+                    title = metaTitle.trim();
+                }
+            }
+            if (!title && document.title) {
                 const cleanDocTitle = document.title
-                    .replace(/^\(\d+\)\s*/, '') // Remove "(12) " notification badge
-                    .replace(/\s*-\s*YouTube$/i, '')
+                    .replace(/^\(\d+\)\s*/, '')
+                    .replace(/\s*[-–—|•]\s*YouTube.*$/i, '')
                     .trim();
                 if (cleanDocTitle && cleanDocTitle !== 'YouTube') {
                     title = cleanDocTitle;
-                } else {
-                    const metaTitle = document.querySelector('meta[name="title"]')?.content || document.querySelector('meta[property="og:title"]')?.content;
-                    if (metaTitle) title = metaTitle.trim();
                 }
             }
 
@@ -111,6 +129,12 @@
                         const match = txt.match(/ytInitialPlayerResponse\s*=\s*({.+?});/) || txt.match(/var ytInitialPlayerResponse\s*=\s*({.+?});/);
                         if (match) {
                             const data = JSON.parse(match[1]);
+                            if (!title && data.videoDetails?.title) {
+                                title = data.videoDetails.title.trim();
+                            }
+                            if ((!channel || channel === 'YouTube') && data.videoDetails?.author) {
+                                channel = data.videoDetails.author.trim();
+                            }
                             if (data.videoDetails?.lengthSeconds) {
                                 const sec = parseInt(data.videoDetails.lengthSeconds, 10);
                                 if (!isNaN(sec) && sec > 0) {

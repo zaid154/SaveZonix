@@ -633,8 +633,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const fallbackTitle = (tab.title || 'Video')
             .replace(/^\(\d+\)\s*/, '')
-            .replace(/\s*-\s*YouTube$/i, '')
-            .trim();
+            .replace(/\s*[-–—|•]\s*YouTube.*$/i, '')
+            .replace(/[\\/:*?"<>|\r\n\t]+/g, ' ')
+            .trim() || 'Video';
 
         // Only synthesize a live card if the user is actually on a dedicated video/watch page
         const isWatchPage = (isYT && (Boolean(ytDetails && (ytDetails.videoId || ytDetails.hasPlaylist || ytDetails.isPlaylistPage)) || currentTabUrl.includes('/shorts/') || currentTabUrl.includes('/live/')))
@@ -668,13 +669,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }];
         }
 
-        const effectiveTitle = (livePageMetadata && livePageMetadata.title && livePageMetadata.title !== 'Video' && livePageMetadata.title !== 'PvrPlay' && livePageMetadata.title.length > 3)
-            ? livePageMetadata.title
-            : (videos[0]?.title && videos[0]?.title !== 'Video' && videos[0]?.title !== 'PvrPlay' && videos[0].title.length > 3 ? videos[0].title : fallbackTitle);
+        const isGenericTitle = (t) => !t || t === 'Video' || t === 'YouTube Video' || t === 'YouTube' || t === 'Instagram Reel' || t === 'Instagram' || t === 'Stream' || t === 'PvrPlay';
 
-        const effectiveShow = (livePageMetadata && livePageMetadata.showName && livePageMetadata.showName !== 'Video' && livePageMetadata.showName !== 'PvrPlay' && livePageMetadata.showName.length > 3)
+        const effectiveTitle = (livePageMetadata && livePageMetadata.title && !isGenericTitle(livePageMetadata.title) && livePageMetadata.title.length > 3)
+            ? livePageMetadata.title
+            : (videos[0]?.title && !isGenericTitle(videos[0].title) && videos[0].title.length > 3 ? videos[0].title : fallbackTitle);
+
+        const effectiveShow = (livePageMetadata && livePageMetadata.showName && !isGenericTitle(livePageMetadata.showName) && livePageMetadata.showName.length > 3)
             ? livePageMetadata.showName
-            : (videos[0]?.showName && videos[0]?.showName !== 'Video' && videos[0]?.showName !== 'PvrPlay' && videos[0].showName.length > 3 ? videos[0].showName : fallbackTitle);
+            : (videos[0]?.showName && !isGenericTitle(videos[0].showName) && videos[0].showName.length > 3 ? videos[0].showName : fallbackTitle);
 
         const effectiveSubtitle = livePageMetadata?.subtitle || videos[0]?.subtitle || '';
         const effectiveSeason = livePageMetadata?.season !== undefined ? livePageMetadata.season : videos[0]?.season;
@@ -771,8 +774,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         videos.forEach((video) => {
             let card = document.getElementById(`card_${video.id}`);
 
-            const currentTitle = video.title || 'Video';
-            const currentShow = video.showName || 'Video';
+            const currentTitle = (!isGenericTitle(video.title) ? video.title : (!isGenericTitle(video.showName) ? video.showName : fallbackTitle));
+            const currentShow = (!isGenericTitle(video.showName) ? video.showName : (!isGenericTitle(video.title) ? video.title : fallbackTitle));
             const currentSub = video.subtitle || '';
             const safeFileName = window.FilenameGenerator.generate({ ...video, title: currentTitle, platform: currentSiteName });
             const thumbUrl = video.thumbnail || liveThumbnail;
