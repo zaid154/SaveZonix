@@ -954,7 +954,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 1. Highest / Best Available option matches the highest quality available for this video
                 qualityOptions.push({
                     value: 'best',
-                    label: `⭐  Best Available (${topQualityTag}) • ~${bestSize}`,
+                    label: `Best Available (${topQualityTag}) • ~${bestSize}`,
                     tag: topQualityTag,
                     size: `~${bestSize}`,
                     selected: (targetQuality === 'best')
@@ -999,7 +999,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const sMp3 = estimateQualitySize('mp3', durSeconds);
 
                 qualityOptions = [
-                    { value: 'best', label: `⭐ Best Available (Auto 4K/1080p) • ~${s1080}`, tag: 'Best Quality', size: `~${s1080}`, selected: (targetQuality === 'best') },
+                    { value: 'best', label: `Best Available (Auto 4K/1080p) • ~${s1080}`, tag: 'Best Quality', size: `~${s1080}`, selected: (targetQuality === 'best') },
                     { value: '2160p', label: `4K Ultra HD (2160p) • ~${s4k}`, tag: '4K Ultra HD', size: `~${s4k}`, selected: (targetQuality === '2160p') },
                     { value: '1440p', label: `2K Quad HD (1440p) • ~${s2k}`, tag: '2K Quad HD', size: `~${s2k}`, selected: (targetQuality === '1440p') },
                     { value: '1080p', label: `1080p Full HD (MP4) • ~${s1080}`, tag: '1080p Full HD', size: `~${s1080}`, selected: (targetQuality === '1080p') },
@@ -1047,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             backendOptions.push({
                                 value: 'best',
-                                label: `⭐  Best Available (${topTag}) • ${top.formattedEstimatedSize || ''}`,
+                                label: `Best Available (${topTag}) • ${top.formattedEstimatedSize || ''}`,
                                 tag: topTag,
                                 size: top.formattedEstimatedSize || ''
                             });
@@ -1266,7 +1266,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         qualSelect.addEventListener('change', () => {
             const selectedText = qualSelect.options[qualSelect.selectedIndex]?.text || '';
-            const cleanTier = selectedText.replace('⭐  Best Quality — ', '').split(' • ')[0];
+            const cleanTier = selectedText.replace(/^[⭐\s•—\u0090\x90]+/, '').replace('Best Quality — ', '').replace('Best Available', 'Best Quality').split(' • ')[0];
             if (!dlBtn.disabled) {
                 dlBtn.innerHTML = `<span>Download ${cleanTier}</span>`;
             }

@@ -17,7 +17,7 @@
             variants.forEach((v, idx) => {
                 const opt = document.createElement('option');
                 opt.value = v.url;
-                opt.textContent = idx === 0 ? `⭐  Max Quality — ${v.label}` : v.label;
+                opt.textContent = idx === 0 ? `Max Quality — ${v.label}` : v.label;
                 if (idx === 0) {
                     opt.selected = true;
                 }
