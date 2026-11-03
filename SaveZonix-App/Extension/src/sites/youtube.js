@@ -81,6 +81,14 @@
             } else if (window.location.pathname.includes('/shorts/')) {
                 const parts = window.location.pathname.split('/shorts/');
                 if (parts[1]) videoId = parts[1].split('/')[0].split('?')[0];
+            } else if (window.location.pathname.includes('/live/')) {
+                const parts = window.location.pathname.split('/live/');
+                if (parts[1]) videoId = parts[1].split('/')[0].split('?')[0];
+            }
+
+            // On YouTube Home feed, Search results, or Channel tabs with no active video:
+            if (!videoId && !isPlaylist) {
+                return null;
             }
 
             let durationSeconds = 0;
@@ -315,6 +323,9 @@
 
         findStreams(meta) {
             const streams = [];
+            if (!meta || (!meta.videoId && !meta.isPlaylist)) {
+                return streams;
+            }
             const activeVideo = document.querySelector('video');
 
             let durationStr = '';

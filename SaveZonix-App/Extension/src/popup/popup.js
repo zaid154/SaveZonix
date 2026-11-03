@@ -599,7 +599,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return !v.isYouTube && v.platform !== 'YouTube' && v.platform !== 'Instagram' && !v.domain?.includes('instagram') && !v.domain?.includes('youtube');
                 }
                 if (isInsta) return v.platform === 'Instagram' || v.domain?.includes('instagram');
-                if (isYT) return v.platform === 'YouTube' || v.domain?.includes('youtube');
+                if (isYT) {
+                    const isYtVideoActive = Boolean(ytDetails && (ytDetails.videoId || ytDetails.hasPlaylist || ytDetails.isPlaylistPage)) || currentTabUrl.includes('/shorts/') || currentTabUrl.includes('/live/');
+                    if (!isYtVideoActive) return false; // Do not show media on YouTube home/search/channel feed
+                    return v.platform === 'YouTube' || v.domain?.includes('youtube');
+                }
                 return v.platform !== 'Instagram' && v.platform !== 'YouTube';
             });
 
@@ -632,8 +636,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             .replace(/\s*-\s*YouTube$/i, '')
             .trim();
 
-        // Synthesize live detection if no captured streams yet
-        if (videos.length === 0) {
+        // Only synthesize a live card if the user is actually on a dedicated video/watch page
+        const isWatchPage = (isYT && (Boolean(ytDetails && (ytDetails.videoId || ytDetails.hasPlaylist || ytDetails.isPlaylistPage)) || currentTabUrl.includes('/shorts/') || currentTabUrl.includes('/live/')))
+            || (isInsta && (currentTabUrl.includes('/reel/') || currentTabUrl.includes('/p/') || currentTabUrl.includes('/stories/')))
+            || (isPixelFlix && (currentTabUrl.includes('/watch') || currentTabUrl.includes('/movie') || currentTabUrl.includes('/episode') || currentTabUrl.includes('/title')))
+            || (!isYT && !isInsta && !isPixelFlix && livePageMetadata && livePageMetadata.title && livePageMetadata.title !== 'Video' && livePageMetadata.title.length > 3);
+
+        if (videos.length === 0 && isWatchPage) {
             const initialTitle = (livePageMetadata?.title && livePageMetadata.title.length > 3) ? livePageMetadata.title : fallbackTitle;
             videos = [{
                 id: generateUniqueTaskId(`vid_${tab.id}`),
@@ -694,7 +703,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             emptyState.classList.remove('hidden');
             videoList.classList.add('hidden');
-            statusLabel.textContent = 'Scanning for media streams...';
+            statusLabel.textContent = 'Ready to Capture';
+            const dot = document.querySelector('.status-line .dot');
+            if (dot) dot.style.background = '#64748b';
         }
 
         if (completed && completed.length > 0) {

@@ -549,8 +549,9 @@ chrome.webRequest.onBeforeRequest.addListener(
             // Instagram frequently fetches its audio rendition after the video
             // request. Wait for the response header below so only a confirmed
             // video/mp4 stream can become the primary Reel download.
-            if (isInstaCdn) return;
+            // Dedicated site adapters handle YouTube (/watch & /shorts) and Instagram.
             const isYtCdn = details.url.includes('googlevideo.com');
+            if (isInstaCdn || isYtCdn) return;
             const isPhCdn = details.url.includes('phncdn.com') || details.url.includes('pornhub.com');
             const isXnxxCdn = details.url.includes('xnxx-cdn.com') || details.url.includes('xnxx.com') || details.url.includes('xvideos');
 
@@ -610,6 +611,7 @@ chrome.webRequest.onHeadersReceived.addListener(
 
             const isInstaCdn = details.url.includes('cdninstagram.com') || details.url.includes('fbcdn.net');
             const isYtCdn = details.url.includes('googlevideo.com');
+            if (isInstaCdn || isYtCdn) return; // Dedicated adapters handle active media from page
             const isPhCdn = details.url.includes('phncdn.com') || details.url.includes('pornhub.com');
             const isXnxxCdn = details.url.includes('xnxx-cdn.com') || details.url.includes('xnxx.com') || details.url.includes('xvideos');
 
