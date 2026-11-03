@@ -31,7 +31,7 @@ using (var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(200) })
     {
         try
         {
-            var res = client.GetAsync($"http://127.0.0.1:{p}/api/system/health").GetAwaiter().GetResult();
+            var res = await client.GetAsync($"http://127.0.0.1:{p}/api/system/health");
             if (res.IsSuccessStatusCode)
             {
                 port = p;
@@ -99,7 +99,7 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions
 // 1. Dependency Injection: Register modular services & engines
 builder.Services.AddSaveZonixServices(builder.Configuration);
 
-builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
 var app = builder.Build();
 
@@ -165,7 +165,7 @@ Console.WriteLine($@"
 ");
 Console.ResetColor();
 
-app.Run();
+await app.RunAsync();
 
 // ─────────────────────────────────────────────────────────────
 // Backward Compatibility Forwarders for Existing Controllers

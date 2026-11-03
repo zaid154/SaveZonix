@@ -519,7 +519,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             scanRes = await Promise.race([
                 scanPromise,
-                new Promise(r => setTimeout(() => r(null), 250))
+                new Promise(r => setTimeout(() => r(null), 600))
             ]);
 
             if (scanRes && scanRes.metadata) {
@@ -703,6 +703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
+        if (isYT && !isWatchPage) { videos = []; }
         if (videos.length > 0) {
             emptyState.classList.add('hidden');
             videoList.classList.remove('hidden');

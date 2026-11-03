@@ -32,3 +32,8 @@ SaveZonix-Web/downloads/*.exe
 *.suo
 Thumbs.db
 .DS_Store
+
+[Bb]in/
+[Oo]bj/
+SaveZonix.Tests/bin/
+SaveZonix.Tests/obj/

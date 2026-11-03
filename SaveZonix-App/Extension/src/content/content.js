@@ -90,6 +90,7 @@
 
     // Passive Standard Event Listeners (Zero prototype monkey-patching)
     window.addEventListener('popstate', () => triggerDebouncedScan(300), { passive: true });
+    window.addEventListener('yt-navigate-finish', () => triggerDebouncedScan(200), { passive: true });
     window.addEventListener('hashchange', () => triggerDebouncedScan(300), { passive: true });
 
     // Initial passive scan once DOM is ready
@@ -176,13 +177,16 @@
                 const streams = adapter.findStreams(meta);
                 sendResponse({
                     scanned: true,
-                    metadata: { ...meta, platform: siteName },
-                    streams: streams,
-                    thumbnail: meta.thumbnail,
+                    metadata: meta ? { ...meta, platform: siteName } : null,
+                    streams: streams || [],
+                    thumbnail: (meta && meta.thumbnail) ? meta.thumbnail : '',
                     pageUrl: window.location.href,
                     hostname: window.location.hostname,
                     site: siteName
                 });
+            } else {
+                sendResponse({ scanned: false, metadata: null, streams: [] });
+            }
             } else {
                 sendResponse({ scanned: false });
             }

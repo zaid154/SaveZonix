@@ -125,29 +125,37 @@ public class SegmentMerger
         var orderedSegments = segments.OrderBy(s => s.Index).ToList();
         long totalExpectedBytes = orderedSegments.Sum(s => s.SizeBytes > 0 ? s.SizeBytes : (new FileInfo(s.LocalTempPath).Exists ? new FileInfo(s.LocalTempPath).Length : 0));
         string tempOutputFile = outputFilePath + ".tmp_" + Guid.NewGuid().ToString("N");
-        
-        await using (var outputStream = new FileStream(tempOutputFile, FileMode.Create, FileAccess.Write, FileShare.None, 4194304, FileOptions.Asynchronous | FileOptions.SequentialScan))
+
+        await using (var outputStream = new FileStream(tempOutputFile, FileMode.Create, FileAccess.Write, FileShare.None, 1048576, FileOptions.Asynchronous | FileOptions.SequentialScan))
         {
             if (totalExpectedBytes > 0)
             {
                 outputStream.SetLength(totalExpectedBytes);
             }
 
-            byte[] buffer = new byte[4194304]; // 4MB high-throughput buffer for instant NVMe/SSD assembly
-            foreach (var seg in orderedSegments)
+            const int mergeBufferSize = 524288;
+            byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(mergeBufferSize);
+            try
             {
-                if (File.Exists(seg.LocalTempPath))
+                foreach (var seg in orderedSegments)
                 {
-                    var fileInfo = new FileInfo(seg.LocalTempPath);
-                    if (fileInfo.Length == 0) continue;
-
-                    await using var inputStream = new FileStream(seg.LocalTempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 2097152, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                    int bytesRead;
-                    while ((bytesRead = await inputStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    if (File.Exists(seg.LocalTempPath))
                     {
-                        await outputStream.WriteAsync(buffer, 0, bytesRead);
+                        var fileInfo = new FileInfo(seg.LocalTempPath);
+                        if (fileInfo.Length == 0) continue;
+
+                        await using var inputStream = new FileStream(seg.LocalTempPath, FileMode.Open, FileAccess.Read, FileShare.Read, 524288, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                        int bytesRead;
+                        while ((bytesRead = await inputStream.ReadAsync(buffer.AsMemory(0, mergeBufferSize))) > 0)
+                        {
+                            await outputStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                        }
                     }
                 }
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
             }
 
             await outputStream.FlushAsync();
@@ -164,7 +172,6 @@ public class SegmentMerger
         }
         catch
         {
-            // Fallback zero-lock file copy
             File.Copy(tempOutputFile, outputFilePath, true);
             try { File.Delete(tempOutputFile); } catch { }
         }
@@ -225,9 +232,21 @@ public class SegmentMerger
                     if (process == null) continue;
 
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(180));
+                    var outTask = process.StandardOutput.ReadToEndAsync();
                     var errTask = process.StandardError.ReadToEndAsync();
-                    await process.WaitForExitAsync(cts.Token);
+
+                    try
+                    {
+                        await process.WaitForExitAsync(cts.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        try { process.Kill(entireProcessTree: true); } catch { }
+                        throw;
+                    }
+
                     string stderr = await errTask;
+                    await outTask;
 
                     if (process.ExitCode == 0 && File.Exists(outputFile) && new FileInfo(outputFile).Length > 1024)
                     {

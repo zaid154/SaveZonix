@@ -291,7 +291,7 @@ public class ParallelDownloader
         // Optimal chunk size is 4MB - 16MB so TCP congestion window ramps up to max bandwidth
         long minChunkSize = 4L * 1024 * 1024;
         int maxChunksByLength = (int)Math.Max(2, confirmedLength / minChunkSize);
-        int numChunks = Math.Clamp(optimizedConcurrency, 2, Math.Min(maxChunksByLength, 64));
+        int numChunks = Math.Clamp(optimizedConcurrency, 2, Math.Min(maxChunksByLength, 16));
         long chunkSize = confirmedLength / numChunks;
         var chunks = new List<SegmentItem>();
 
@@ -457,34 +457,41 @@ public class ParallelDownloader
             await using var contentStream = await res.Content.ReadAsStreamAsync(ct);
             await using var fileStream = new FileStream(singleChunk.LocalTempPath, FileMode.Create, FileAccess.Write, FileShare.None, 262144, true);
 
-            byte[] buffer = new byte[131072];
+            byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(131072);
             int bytesRead;
             long totalBytes = 0;
             var sw = Stopwatch.StartNew();
 
-            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
+            try
             {
-                await fileStream.WriteAsync(buffer, 0, bytesRead, ct);
-                totalBytes += bytesRead;
-
-                double spd = (totalBytes / (1024.0 * 1024.0)) / Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                TimeSpan eta = reportedLen > 0 && spd > 0.01 
-                    ? TimeSpan.FromSeconds((reportedLen - totalBytes) / (spd * 1024.0 * 1024.0)) 
-                    : TimeSpan.Zero;
-
-                progress?.Report(new DownloadProgressReport
+                while ((bytesRead = await contentStream.ReadAsync(buffer, 0, 131072, ct)) > 0)
                 {
-                    TotalSegments = 1,
-                    DownloadedSegments = (totalBytes >= reportedLen && reportedLen > 0) ? 1 : 0,
-                    TotalBytesDownloaded = totalBytes,
-                    EstimatedTotalBytes = reportedLen,
-                    SpeedMBps = spd,
-                    PeakSpeedMBps = spd,
-                    ActiveThreads = 1,
-                    Elapsed = sw.Elapsed,
-                    EstimatedTimeRemaining = eta,
-                    Status = "Downloading Single Stream..."
-                });
+                    await fileStream.WriteAsync(buffer, 0, bytesRead, ct);
+                    totalBytes += bytesRead;
+
+                    double spd = (totalBytes / (1024.0 * 1024.0)) / Math.Max(0.1, sw.Elapsed.TotalSeconds);
+                    TimeSpan eta = reportedLen > 0 && spd > 0.01 
+                        ? TimeSpan.FromSeconds((reportedLen - totalBytes) / (spd * 1024.0 * 1024.0)) 
+                        : TimeSpan.Zero;
+
+                    progress?.Report(new DownloadProgressReport
+                    {
+                        TotalSegments = 1,
+                        DownloadedSegments = (totalBytes >= reportedLen && reportedLen > 0) ? 1 : 0,
+                        TotalBytesDownloaded = totalBytes,
+                        EstimatedTotalBytes = reportedLen,
+                        SpeedMBps = spd,
+                        PeakSpeedMBps = spd,
+                        ActiveThreads = 1,
+                        Elapsed = sw.Elapsed,
+                        EstimatedTimeRemaining = eta,
+                        Status = "Downloading Single Stream..."
+                    });
+                }
+            }
+            finally
+            {
+                System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
             }
 
             singleChunk.SizeBytes = totalBytes;
@@ -593,18 +600,25 @@ public class ParallelDownloader
                 var fileMode = existingBytes > 0 ? FileMode.Append : FileMode.Create;
                 await using var fileStream = new FileStream(chunk.LocalTempPath, fileMode, FileAccess.Write, FileShare.None, 262144, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
-                byte[] buffer = new byte[262144];
+                byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(262144);
                 int bytesRead;
 
-                while (true)
+                try
                 {
-                    attemptCts.CancelAfter(TimeSpan.FromSeconds(45));
-                    bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, attemptCts.Token);
-                    if (bytesRead == 0) break;
+                    while (true)
+                    {
+                        attemptCts.CancelAfter(TimeSpan.FromSeconds(45));
+                        bytesRead = await contentStream.ReadAsync(buffer, 0, 262144, attemptCts.Token);
+                        if (bytesRead == 0) break;
 
-                    await fileStream.WriteAsync(buffer, 0, bytesRead, attemptCts.Token);
-                    existingBytes += bytesRead;
-                    totalBytesRef(bytesRead);
+                        await fileStream.WriteAsync(buffer, 0, bytesRead, attemptCts.Token);
+                        existingBytes += bytesRead;
+                        totalBytesRef(bytesRead);
+                    }
+                }
+                finally
+                {
+                    System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
                 }
 
                 await fileStream.FlushAsync(ct);

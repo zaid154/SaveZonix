@@ -92,7 +92,7 @@ public class SqlDownloadAnalyticsService : IDownloadAnalyticsService
                                          d.Platform.Contains(search, StringComparison.OrdinalIgnoreCase) ||
                                          d.UserIp.Contains(search, StringComparison.OrdinalIgnoreCase));
             }
-            return Task.FromResult(query.Take(limit).ToList()).Result;
+            return query.Take(limit).ToList();
         }
     }
 

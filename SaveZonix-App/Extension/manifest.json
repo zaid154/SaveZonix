@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "SaveZonix — Video Downloader",
+  "name": "SaveZonix - Video Downloader",
   "version": "2.5.4",
   "description": "Independent, high-performance video stream protocol inspector and authorized local media saver with video thumbnail preview, duration timestamp overlay, and dynamic size badges.",
   "icons": {
@@ -79,9 +79,9 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/**/*",
         "icons/*",
-        "assets/*"
+        "assets/*",
+        "src/content/floating-button.css"
       ],
       "matches": [
         "<all_urls>"

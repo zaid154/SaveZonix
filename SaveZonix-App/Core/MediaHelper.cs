@@ -143,14 +143,30 @@ public static class MediaHelper
 
     public static string HashPassword(string password)
     {
-        using var sha256 = SHA256.Create();
-        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "SaveZonix_Salt_2026"));
-        return Convert.ToBase64String(bytes);
+        return BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
     }
 
     public static bool VerifyPassword(string password, string storedHash)
     {
-        return HashPassword(password) == storedHash;
+        if (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(storedHash))
+            return false;
+
+        if (storedHash.StartsWith("$2"))
+        {
+            try
+            {
+                return BCrypt.Net.BCrypt.Verify(password, storedHash);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        using var sha256 = SHA256.Create();
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password + "SaveZonix_Salt_2026"));
+        var legacyHash = Convert.ToBase64String(bytes);
+        return legacyHash == storedHash;
     }
 
     public static (int? Season, int? Episode, string? EpisodeTag) ExtractSeasonAndEpisode(string? urlOrText)
@@ -548,21 +564,24 @@ public static class MediaHelper
 
     public static void OpenBrowser(string url)
     {
+        if (string.IsNullOrWhiteSpace(url)) return;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+            (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return;
+        }
+
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = url,
+                FileName = uri.AbsoluteUri,
                 UseShellExecute = true
             });
         }
-        catch
+        catch (Exception ex)
         {
-            try
-            {
-                Process.Start(new ProcessStartInfo("cmd", $"/c start \"\" \"{url}\"") { CreateNoWindow = true });
-            }
-            catch { }
+            Console.WriteLine($"[OpenBrowser Notice] Failed to launch default browser: {ex.Message}");
         }
     }
 }

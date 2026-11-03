@@ -81,7 +81,14 @@
             }
 
             // 2. Channel Name
-            const channelEl = document.querySelector('#channel-name #text, ytd-channel-name a, #owner-name a, ytd-channel-name yt-formatted-string');
+            const channelEl = document.querySelector(
+                'ytd-watch-metadata #owner #channel-name a, ' +
+                '#above-the-fold #channel-name a, ' +
+                'ytd-watch-metadata #channel-name #text, ' +
+                '#owner #channel-name #text, ' +
+                '#above-the-fold #owner-name a, ' +
+                'ytd-channel-name yt-formatted-string'
+            );
             if (channelEl && (channelEl.innerText || channelEl.textContent)?.trim()) {
                 channel = (channelEl.innerText || channelEl.textContent).trim();
             } else {
