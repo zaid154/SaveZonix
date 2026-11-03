@@ -816,6 +816,7 @@ btnStartDownload.addEventListener('click', async () => {
 
     // Populate Active Mini Video Banner
     activeTitleDisplay.textContent = streamData.title || fileName;
+    activeTitleDisplay.title = streamData.title || fileName;
     activePlatformBadge.textContent = streamData.platform || 'Web Stream';
     activeThreadsBadge.textContent = `${concurrency} Max Workers`;
     activeQualityBadge.textContent = isAudioMode ? `${audioBitrate} kbps ${selectedFormat}` : (selectedOpt?.dataset.res || '1080p FHD');

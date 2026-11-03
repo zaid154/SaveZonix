@@ -220,8 +220,6 @@
 
                 <!-- Progress Section with Live Video Banner, Canvas Graph & Rich Metrics -->
                 <div id="progressSection" class="progress-section hidden">
-                    <div class="divider"></div>
-
                     <!-- Compact Active Download Video Banner -->
                     <div class="active-download-banner">
                         <div class="active-thumb-wrap">
@@ -229,7 +227,7 @@
                             <div class="active-thumb-fallback" id="activeThumbFallback">▶</div>
                         </div>
                         <div class="active-info">
-                            <h4 class="active-title" id="activeTitleDisplay">Downloading Video Stream...</h4>
+                            <h4 class="active-title" id="activeTitleDisplay" title="Downloading Video Stream...">Downloading Video Stream...</h4>
                             <div class="active-badges">
                                 <span class="badge badge-platform" id="activePlatformBadge">Web Stream</span>
                                 <span class="badge badge-threads" id="activeThreadsBadge">64 Active Workers</span>
@@ -240,12 +238,12 @@
                         
                         <!-- Visible Pause / Resume and Cancel Action Controls -->
                         <div class="download-action-controls">
-                            <button type="button" class="btn btn-secondary btn-icon-text" id="btnPauseResume">
-                                <svg id="pauseResumeIcon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
+                            <button type="button" class="btn btn-secondary btn-icon-text btn-action-pause" id="btnPauseResume" title="Pause or Resume Download">
+                                <svg id="pauseResumeIcon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>
                                 <span id="pauseResumeText">Pause</span>
                             </button>
-                            <button type="button" class="btn btn-danger-subtle btn-icon-text" id="btnCancelDownload">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <button type="button" class="btn btn-danger-subtle btn-icon-text btn-action-cancel" id="btnCancelDownload" title="Cancel Download">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 <span>Cancel</span>
                             </button>
                         </div>
@@ -273,37 +271,37 @@
                                 <span class="stat-tag avg" id="statAvgSpeed">Avg: 0.0 MB/s</span>
                             </div>
                         </div>
-                        <canvas id="speedSparklineCanvas" class="speed-sparkline-canvas" width="600" height="48"></canvas>
+                        <canvas id="speedSparklineCanvas" class="speed-sparkline-canvas" width="600" height="34"></canvas>
                     </div>
 
-                    <!-- Clean 3 Primary Metric Cards (With Secondary Technical Stats Preserved for JS) -->
+                    <!-- Clean 3 Primary Metric Cards & 3 Technical Stats Grid -->
                     <div class="metrics-grid six-cards">
-                        <div class="metric-card">
+                        <div class="metric-card metric-card-primary">
                             <span class="metric-label">Download Speed</span>
                             <span class="metric-value speed" id="metricSpeed">0.0 MB/s</span>
                             <span class="metric-sub" id="metricPeakSpeedSub">Peak: 0.0 MB/s</span>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card metric-card-primary">
                             <span class="metric-label">Downloaded Size</span>
                             <span class="metric-value" id="metricSize">0 MB / 0 MB</span>
                             <span class="metric-sub" id="metricSizePct">0% complete</span>
                         </div>
-                        <div class="metric-card">
+                        <div class="metric-card metric-card-primary">
                             <span class="metric-label">Estimated Time Left</span>
                             <span class="metric-value" id="metricEta">Calculating...</span>
                             <span class="metric-sub" id="metricElapsedSub">Elapsed: 00:00</span>
                         </div>
-                        <div class="metric-card" style="opacity: 0.75;">
+                        <div class="metric-card metric-card-tech">
                             <span class="metric-label">Active Connections</span>
                             <span class="metric-value" id="metricWorkers">64 Workers</span>
                             <span class="metric-sub" id="metricMaxThreadsSub">Max: 64 Concurrency</span>
                         </div>
-                        <div class="metric-card" style="opacity: 0.75;">
+                        <div class="metric-card metric-card-tech">
                             <span class="metric-label">Downloaded Parts</span>
                             <span class="metric-value" id="metricChunks">0 / 0 Parts</span>
                             <span class="metric-sub" id="metricChunksSub">0 Retrying</span>
                         </div>
-                        <div class="metric-card" style="opacity: 0.75;">
+                        <div class="metric-card metric-card-tech">
                             <span class="metric-label">Connection Health</span>
                             <span class="metric-value status-good" id="metricHealth">Optimal</span>
                             <span class="metric-sub" id="metricRetrySub">100% Stable</span>
