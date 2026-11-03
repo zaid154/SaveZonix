@@ -857,41 +857,59 @@
             .ytp-skip-ad-button,
             .ytp-ad-skip-button,
             .ytp-ad-skip-button-slot,
-            .ytp-ad-skip-button-container {
+            .ytp-ad-skip-button-container,
+            .ytp-ad-skip-button-text,
+            button[class*="ytp-ad-skip-button"],
+            button[class*="skip-button"],
+            [aria-label*="Skip ad" i] {
                 display: block !important;
                 visibility: visible !important;
                 opacity: 1 !important;
                 pointer-events: auto !important;
-                z-index: 999999 !important;
+                z-index: 2147483647 !important;
             }
 
-            #movie_player.ad-showing .ytp-ad-player-overlay,
-            #movie_player.ad-showing .ytp-ad-player-overlay-layout,
-            #movie_player.ad-showing .ytp-ad-action-interstitial,
-            #movie_player.ad-showing .ytp-ad-player-overlay-instream-info,
-            #movie_player.ad-showing .ytp-ad-overlay-container,
-            #movie_player.ad-showing .ytp-ad-message-container,
-            #movie_player.ad-showing .ytp-ad-text-overlay,
-            #movie_player.ad-showing .ytp-ad-image-overlay,
-            #movie_player.ad-showing .ytp-ad-preview-container,
-            #movie_player.ad-showing .ytp-ad-duration-remaining,
+            /* YouTube In-stream Ad Overlays & Interstitials */
+            .ytp-ad-player-overlay,
+            .ytp-ad-player-overlay-layout,
             .ytp-ad-action-interstitial,
+            .ytp-ad-action-interstitial-slot,
             .ytp-ad-action-interstitial-background,
             .ytp-ad-player-overlay-instream-info,
-            .ytp-ad-image-overlay,
+            .ytp-ad-overlay-container,
             .ytp-ad-overlay-slot,
+            .ytp-ad-message-container,
+            .ytp-ad-text-overlay,
+            .ytp-ad-image-overlay,
+            .ytp-ad-preview-container,
+            .ytp-ad-duration-remaining,
+            .ytp-ad-button,
+            .ytp-ad-survey,
+            .ytp-ad-feedback-dialog,
+            .ytp-ad-module > *:not(.ytp-ad-skip-button-container):not(.ytp-ad-skip-button-slot):not(.ytp-ad-skip-button-modern):not([class*="skip-button"]),
+
+            /* YouTube Statement Banners & Masthead Promos (e.g. Gemini, Grammarly) */
+            ytd-statement-banner-renderer,
+            ytd-banner-promo-renderer,
+            ytd-brand-video-singleton-renderer,
+            ytd-primetime-promo-renderer,
             ytd-ad-slot-renderer,
             ytd-in-feed-ad-layout-renderer,
-            ytd-banner-promo-renderer,
-            ytd-statement-banner-renderer,
             ytd-action-companion-ad-renderer,
             ytd-video-masthead-ad-v3-renderer,
+            ytd-video-masthead-ad-primary-v3-renderer,
+            ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+            ytd-rich-section-renderer:has(ytd-statement-banner-renderer),
             ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
-            #player-ads {
+            #masthead-ad,
+            #player-ads,
+            #panels:has(ytd-ads-engagement-panel-content-renderer) {
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;
                 pointer-events: none !important;
+                height: 0 !important;
+                min-height: 0 !important;
             }
 
             /* YouTube Header & Player Protection */
@@ -1079,6 +1097,9 @@
         }, 2500);
     }
 
+    // Synchronously apply cosmetic shield immediately at document_start (0ms delay)
+    applyCosmeticShield();
+
     // Initialize Shield State from storage
     try {
         chrome.storage?.local?.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
@@ -1092,6 +1113,9 @@
             if (isShieldEnabled) {
                 applyCosmeticShield();
                 startDomDefense();
+            } else {
+                const style = document.getElementById('savezonix-cosmetic-shield');
+                if (style) style.remove();
             }
         });
     } catch {
