@@ -10,6 +10,7 @@
 
     const currentHost = (window.location.hostname || '').toLowerCase();
     let isShieldEnabled = true;
+    let cachedWhitelist = [];
     let blockedCount = 0;
 
     // ─────────────────────────────────────────────────────────────
@@ -819,7 +820,18 @@
     // ─────────────────────────────────────────────────────────────
     // 3. Cosmetic Ad & Modal Hiding (CSS Shield)
     // ─────────────────────────────────────────────────────────────
+    function removeCosmeticShield() {
+        const style = document.getElementById('savezonix-cosmetic-shield');
+        if (style) {
+            try { style.remove(); } catch { }
+        }
+    }
+
     function applyCosmeticShield() {
+        if (!isShieldEnabled) {
+            removeCosmeticShield();
+            return;
+        }
         if (document.getElementById('savezonix-cosmetic-shield')) return;
 
         const css = `
@@ -827,17 +839,17 @@
             [class*="ad-banner"], [id*="ad-banner"],
             [class*="popunder"], [id*="popunder"],
             [class*="banner-ad"], [id*="banner-ad"],
-            [class*="ad-wrapper"]:not(#masthead-container):not([id*="masthead"]),
-            [id*="ad-wrapper"]:not(#masthead-container):not([id*="masthead"]),
-            [class*="ad-container"]:not(#masthead-container):not([id*="masthead"]),
-            [id*="ad-container"]:not(#masthead-container):not([id*="masthead"]),
+            [class*="ad-wrapper"]:not(#masthead-container):not([id*="masthead"]):not(:has(form)):not(:has(video)):not(:has([role="search"])),
+            [id*="ad-wrapper"]:not(#masthead-container):not([id*="masthead"]):not(:has(form)):not(:has(video)):not(:has([role="search"])),
+            [class*="ad-container"]:not(#masthead-container):not([id*="masthead"]):not(:has(form)):not(:has(video)):not(:has([role="search"])),
+            [id*="ad-container"]:not(#masthead-container):not([id*="masthead"]):not(:has(form)):not(:has(video)):not(:has([role="search"])),
             [class*="sponsored-post"], [class*="native-ad"],
             div[class*="floating-ad"], div[id*="floating-ad"],
             div[class*="outstream"], div[id*="outstream"],
             div[class*="aniview"], div[class*="connatix"], div[class*="vdoai"],
-            /* Floating side video ad widget */
-            div[style*="position: fixed"][style*="right: 0"]:has(video),
-            div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video),
+            /* Floating side video ad widget (never matches legitimate video players or miniplayers) */
+            div[style*="position: fixed"][style*="right: 0"]:has(video):not(#movie_player):not(.video-player):not(ytd-miniplayer):not([class*="miniplayer"]):not([class*="player"]),
+            div[style*="position: fixed"][style*="right:"][style*="bottom: 0"]:has(video):not(#movie_player):not(.video-player):not(ytd-miniplayer):not([class*="miniplayer"]):not([class*="player"]),
             /* Fake push notification prompts */
             .push-optin, .onesignal-bell-launcher,
 
@@ -901,14 +913,41 @@
                 min-height: 0 !important;
             }
 
-            /* YouTube Header & Player Protection */
+            /* Universal Protection: Legitimate Login Forms, Age Gates, Search Bars, Video Players & Navigation */
             #masthead-container,
             ytd-masthead,
             #masthead,
             ytd-searchbox,
             #search-form,
             #container.ytd-searchbox,
-            ytm-mobile-topbar-renderer {
+            ytm-mobile-topbar-renderer,
+            video,
+            audio,
+            #player,
+            #movie_player,
+            .video-player,
+            .html5-video-player,
+            .html5-main-video,
+            ytd-player,
+            ytd-miniplayer,
+            ytd-watch-flexy,
+            form:has(input[type="password"]),
+            form:has(input[type="email"]),
+            form[role="search"],
+            [role="search"],
+            input[type="search"],
+            input[name*="search" i],
+            input[id*="search" i],
+            [class*="search-box"],
+            [class*="search-bar"],
+            [class*="search-form"],
+            [id*="search-box"],
+            [id*="search-bar"],
+            [id*="search-form"],
+            [class*="age-gate"],
+            [class*="age-verification"],
+            [id*="age-gate"],
+            [id*="age-verification"] {
                 visibility: visible !important;
                 opacity: 1 !important;
                 pointer-events: auto !important;
@@ -924,40 +963,116 @@
     // ─────────────────────────────────────────────────────────────
     // 4. Modal & Interstitial Defuser (Zero Layout Thrashing)
     // ─────────────────────────────────────────────────────────────
+
+    // Safeguard validator: Ensures legitimate login forms, authentic age verification, search bars, and video players are never hidden or modified
+    function isLegitimateProtectedElement(el) {
+        if (!el || el === document.body || el === document.documentElement) return true;
+
+        // 1. YouTube Masthead, Headers & Navigation
+        if (el.closest('#masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, header, nav')) {
+            return true;
+        }
+
+        // 2. Video Players & Media Elements (YouTube, HTML5, Vimeo, custom players)
+        if (el.matches('video, audio, #player, .video-player, #movie_player, .html5-video-player, ytd-player, ytd-miniplayer, ytd-watch-flexy') ||
+            el.closest('#player, .video-player, #movie_player, .html5-video-player, ytd-player, ytd-miniplayer, ytd-watch-flexy') ||
+            el.querySelector('video, audio, .html5-main-video, iframe[src*="youtube.com/embed"], iframe[src*="player.vimeo.com"]')) {
+            return true;
+        }
+
+        // 3. Search Bars & Search Forms
+        if (el.matches('input[type="search"], [role="search"], form[role="search"], [class*="search-box"], [class*="search-bar"], #search-form') ||
+            el.closest('[role="search"], form[role="search"], .search-box, .search-bar, ytd-searchbox') ||
+            el.querySelector('input[type="search"], [role="search"], input[name*="search" i], input[id*="search" i]')) {
+            return true;
+        }
+
+        // 4. Legitimate Login & Authentication Forms
+        const hasPassword = el.matches('input[type="password"]') || el.querySelector('input[type="password"], input[autocomplete*="password"]') !== null;
+        const hasAuthInputs = el.querySelector('input[type="email"], input[name*="user" i], input[name*="login" i], input[id*="login" i], input[id*="signin" i]') !== null;
+        const hasForm = el.matches('form') || el.querySelector('form') !== null;
+        const isAuthOrLogin = /login|signin|sign-in|register|signup|sign-up|auth|account|oauth/i.test((el.className || '') + ' ' + (el.id || ''));
+
+        if (hasPassword || (hasForm && hasAuthInputs) || (isAuthOrLogin && (hasForm || hasAuthInputs))) {
+            return true;
+        }
+
+        // 5. Authentic Age Verification Gates
+        const text = (el.textContent || '').toLowerCase();
+        if (text.length >= 5) {
+            const hasAgeClues = text.includes('18') || text.includes('21') || text.includes('age verification') ||
+                                text.includes('legal age') || text.includes('verify your age') || text.includes('date of birth') ||
+                                text.includes('disclaimer') || text.includes('terms of service');
+            const hasAgeChoices = text.includes('enter') || text.includes('exit') || text.includes('i am 18') ||
+                                 text.includes('i am 21') || text.includes('i agree') || text.includes('agree') ||
+                                 text.includes('yes') || text.includes('leave') || text.includes('continue');
+            const hasAgeInputs = el.querySelector('select[name*="year" i], select[name*="age" i], select[name*="dob" i], input[type="date"], input[name*="dob" i], input[name*="birth" i]') !== null;
+            const hasDeceptiveTrap = text.includes('click "allow"') || text.includes("click 'allow'") ||
+                                    text.includes('click allow') || text.includes('press allow') ||
+                                    text.includes('enable notifications') || text.includes('robot');
+
+            if ((hasAgeClues && (hasAgeChoices || hasAgeInputs)) && !hasDeceptiveTrap) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Climbs modal hierarchy safely without layout thrashing and respects protected components
+    function getSafeTopModalContainer(el) {
+        let topContainer = el;
+        let curr = el;
+        while (curr && curr !== document.body && curr !== document.documentElement) {
+            // Guard: stop climbing if ancestor is main layout or contains protected elements
+            if (curr !== el && (
+                curr.matches('header, nav, main, article, #app, #root, [role="main"]') ||
+                curr.querySelector('video, audio, input[type="search"], input[type="password"], [role="search"]')
+            )) {
+                break;
+            }
+
+            const style = curr.style;
+            let pos = (style && style.position) || '';
+            if (!pos) {
+                try { pos = window.getComputedStyle(curr).position; } catch { }
+            }
+            if (pos === 'fixed' || pos === 'absolute') {
+                topContainer = curr;
+            }
+            curr = curr.parentElement;
+        }
+
+        if (topContainer === document.body || topContainer === document.documentElement) {
+            return null;
+        }
+        if (isLegitimateProtectedElement(topContainer)) {
+            return null;
+        }
+        return topContainer;
+    }
+
     function sweepDeceptiveModals() {
         if (!isShieldEnabled) return;
         if (currentHost.includes('youtube.com')) return;
+
+        const elementsToRemove = new Set();
+        let clickedCloseAd = false;
+        let removedModal = false;
 
         // A. Direct "Close ad" Button & Interstitial Purger (High precision)
         const closeAdElements = document.querySelectorAll(
             '.close-ad, [class*="close-ad"], [class*="ad-close"], [id*="close-ad"]'
         );
         for (const el of closeAdElements) {
+            if (isLegitimateProtectedElement(el)) continue;
             const txt = (el.textContent || '').trim().toLowerCase();
             if (txt === 'close ad' || txt === 'close advertisement' || txt.startsWith('close ad')) {
-                try { el.click(); } catch { }
-                let topContainer = el;
-                let curr = el;
-                while (curr && curr !== document.body && curr !== document.documentElement) {
-                    const pos = curr.style.position || (window.getComputedStyle(curr).position);
-                    if (pos === 'fixed' || pos === 'absolute') {
-                        topContainer = curr;
-                    }
-                    curr = curr.parentElement;
-                }
-                if (topContainer && topContainer !== document.body && topContainer !== document.documentElement) {
-                    topContainer.remove();
-                    reportBlocked('close_ad_interstitial_removed');
-                }
-                document.querySelectorAll('div[class*="backdrop"], div[class*="dimmer"]').forEach(bd => {
-                    if (!bd.closest('#player, .video-player')) bd.remove();
-                });
-                if (document.body) {
-                    document.body.style.removeProperty('overflow');
-                    document.body.style.removeProperty('position');
-                }
-                if (document.documentElement) {
-                    document.documentElement.style.removeProperty('overflow');
+                try { el.click(); clickedCloseAd = true; } catch { }
+                const top = getSafeTopModalContainer(el);
+                if (top) {
+                    elementsToRemove.add(top);
+                    removedModal = true;
                 }
                 break;
             }
@@ -968,55 +1083,62 @@
             'dialog[open], [role="dialog"], [role="alertdialog"], .ad-modal, [class*="ad-modal"], [class*="interstitial-ad"], [class*="flirtify"], [data-role="promo-messages-wrapper"]'
         );
 
-        candidateModals.forEach(el => {
+        for (const el of candidateModals) {
             // SAFEGUARD: Never delete legitimate navigation headers, search boxes, forms, login boxes, or authentic age verification gates
-            if (el.closest('#masthead-container, ytd-masthead, #masthead, ytd-searchbox, #search-form, ytm-mobile-topbar-renderer, header, nav, #player, .video-player')) {
-                return;
+            if (isLegitimateProtectedElement(el)) {
+                continue;
             }
-
-            const hasForm = el.querySelector('form') !== null;
-            const hasInputs = el.querySelector('input[type="password"], input[type="email"], input[name*="user"], input[type="radio"]') !== null;
-            const isAuthOrLogin = /login|signin|register|signup|auth|account/i.test(el.className + ' ' + el.id);
 
             const text = (el.textContent || '').toLowerCase();
-            if (!text || text.length < 5) return;
-
-            // Authentic Age Gate detection: real age gates give choice ("Enter" / "Exit" / "I am 18" / "Under 18")
-            const isAuthenticAgeGate = (
-                (text.includes('18') || text.includes('age') || text.includes('disclaimer') || text.includes('terms')) &&
-                (text.includes('enter') || text.includes('yes') || text.includes('agree') || text.includes('exit') || text.includes('leave') || text.includes('continue')) &&
-                !text.includes('click "allow"') &&
-                !text.includes('click \'allow\'') &&
-                !text.includes('click allow')
-            );
-
-            if ((hasForm || hasInputs || isAuthOrLogin || isAuthenticAgeGate) && !text.includes('close ad') && !text.includes('ai girlfriend')) {
-                return; // Preserve legitimate dialog/gateway intact
-            }
+            if (!text || text.length < 5) continue;
 
             // Check against unified 74k scam signatures
             const matchedPattern = matchScamText(text);
             if (matchedPattern) {
                 console.warn('[SaveZonix Shield] 🛡️ Neutralized deceptive modal / interstitial (' + matchedPattern + '):', el);
-
-                let topContainer = el;
-                let curr = el;
-                while (curr && curr !== document.body && curr !== document.documentElement) {
-                    const pos = curr.style.position || (window.getComputedStyle(curr).position);
-                    if (pos === 'fixed' || pos === 'absolute') {
-                        topContainer = curr;
-                    }
-                    curr = curr.parentElement;
+                const top = getSafeTopModalContainer(el) || el;
+                if (!isLegitimateProtectedElement(top)) {
+                    elementsToRemove.add(top);
+                    removedModal = true;
                 }
-                topContainer.remove();
+            }
+        }
 
-                // Remove dark background backdrops
+        // C. Universal Transparent Clickjack Div Purger
+        const clickjacks = document.querySelectorAll(
+            'div[style*="position: fixed"][style*="opacity: 0"], div[style*="position: fixed"][style*="opacity:0"], a[style*="position: fixed"][style*="opacity: 0"], a[style*="position: fixed"][style*="opacity:0"], [class*="clickjack"]'
+        );
+        for (const cj of clickjacks) {
+            if (isLegitimateProtectedElement(cj)) continue;
+            console.warn('[SaveZonix Shield] 🛡️ Removed clickjack overlay:', cj);
+            elementsToRemove.add(cj);
+        }
+
+        // D. Outstream Floating Video Ads Sweep
+        const floatingAdWidgets = document.querySelectorAll('div[class*="aniview"], div[class*="connatix"], div[class*="vdoai"]');
+        for (const w of floatingAdWidgets) {
+            if (isLegitimateProtectedElement(w)) continue;
+            elementsToRemove.add(w);
+        }
+
+        // --- WRITE BATCH: Mutate DOM in a single pass without interleaving layout reads ---
+        if (elementsToRemove.size > 0 || clickedCloseAd) {
+            elementsToRemove.forEach(node => {
+                try {
+                    node.remove();
+                    reportBlocked('deceptive_modal_removed');
+                } catch { }
+            });
+
+            if (removedModal || clickedCloseAd) {
+                // Clean up dark background backdrops not attached to legitimate components
                 document.querySelectorAll('div[class*="backdrop"], div[class*="dimmer"], div[style*="rgba(0, 0, 0"]').forEach(bd => {
-                    if (!bd.closest('#player, .video-player')) bd.remove();
+                    if (!isLegitimateProtectedElement(bd)) {
+                        try { bd.remove(); } catch { }
+                    }
                 });
 
-                reportBlocked('deceptive_modal_removed');
-
+                // Restore page scroll
                 if (document.body) {
                     document.body.style.removeProperty('overflow');
                     document.body.style.removeProperty('position');
@@ -1025,54 +1147,73 @@
                     document.documentElement.style.removeProperty('overflow');
                 }
             }
-        });
-
-        // C. Universal Transparent Clickjack Div Purger
-        const clickjacks = document.querySelectorAll(
-            'div[style*="position: fixed"][style*="opacity: 0"], div[style*="position: fixed"][style*="opacity:0"], a[style*="position: fixed"][style*="opacity: 0"], a[style*="position: fixed"][style*="opacity:0"], [class*="clickjack"]'
-        );
-        clickjacks.forEach(cj => {
-            if (cj.closest('#player, .video-player, nav, header')) return;
-            console.warn('[SaveZonix Shield] 🛡️ Removed clickjack overlay:', cj);
-            cj.remove();
-            reportBlocked('clickjack_overlay_removed');
-        });
-
-        // D. Outstream Floating Video Ads Sweep
-        const floatingAdWidgets = document.querySelectorAll('div[class*="aniview"], div[class*="connatix"], div[class*="vdoai"]');
-        floatingAdWidgets.forEach(w => {
-            w.remove();
-            reportBlocked('outstream_video_ad_removed');
-        });
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
     // 5. Lifecycle & Dynamic Sweeps
     // ─────────────────────────────────────────────────────────────
-    function startDomDefense() {
-        if (typeof document === 'undefined') return;
+    function isDomainWhitelisted(host, whitelist) {
+        if (!host || !Array.isArray(whitelist) || whitelist.length === 0) return false;
+        const cleanHost = host.toLowerCase().trim();
+        return whitelist.some(entry => {
+            if (!entry || typeof entry !== 'string') return false;
+            const w = entry.toLowerCase().trim();
+            if (!w) return false;
+            return cleanHost === w || cleanHost.endsWith('.' + w) || w.endsWith('.' + cleanHost);
+        });
+    }
+
+    function configureShieldState(globalEnabled, whitelist) {
+        const enabled = (typeof globalEnabled === 'boolean') ? globalEnabled : isShieldEnabled;
+        if (Array.isArray(whitelist)) {
+            cachedWhitelist = whitelist;
+        }
+        const isWhitelisted = isDomainWhitelisted(currentHost, cachedWhitelist);
+        isShieldEnabled = enabled && !isWhitelisted;
 
         broadcastShieldState(isShieldEnabled);
-        sweepDeceptiveModals();
+
+        if (isShieldEnabled) {
+            applyCosmeticShield();
+        } else {
+            removeCosmeticShield();
+        }
+
+        return isShieldEnabled;
+    }
+
+    let domDefenseStarted = false;
+    function startDomDefense() {
+        if (typeof document === 'undefined' || domDefenseStarted) return;
+        domDefenseStarted = true;
+
+        broadcastShieldState(isShieldEnabled);
+        if (isShieldEnabled) {
+            sweepDeceptiveModals();
+        }
 
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
-                applyCosmeticShield();
-                sweepDeceptiveModals();
+                if (isShieldEnabled) {
+                    applyCosmeticShield();
+                    sweepDeceptiveModals();
+                }
                 broadcastShieldState(isShieldEnabled);
             });
         }
 
-        // Lightweight debounced MutationObserver (250ms debounce prevents CPU freezing)
+        // Clean 1000ms debounced MutationObserver prevents CPU freezing and layout thrashing
         let debounceTimer = null;
         const observer = new MutationObserver(() => {
             if (!isShieldEnabled) return;
-            if (!debounceTimer) {
-                debounceTimer = setTimeout(() => {
-                    sweepDeceptiveModals();
-                    debounceTimer = null;
-                }, 1000);
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
             }
+            debounceTimer = setTimeout(() => {
+                debounceTimer = null;
+                sweepDeceptiveModals();
+            }, 1000);
         });
 
         observer.observe(document.documentElement || document, {
@@ -1089,42 +1230,53 @@
     // Synchronously apply cosmetic shield immediately at document_start (0ms delay)
     applyCosmeticShield();
 
-    // Initialize Shield State from storage
+    // Initialize Shield State & Whitelist from storage
     try {
-        chrome.storage?.local?.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
-            const globalEnabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
-            const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
-            const isWhitelisted = whitelist.some(domain => currentHost.includes(domain));
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
+                const globalEnabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
+                const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
+                configureShieldState(globalEnabled, whitelist);
 
-            isShieldEnabled = globalEnabled && !isWhitelisted;
-            broadcastShieldState(isShieldEnabled);
+                if (isShieldEnabled) {
+                    startDomDefense();
+                }
+            });
 
-            if (isShieldEnabled) {
-                applyCosmeticShield();
-                startDomDefense();
-            } else {
-                const style = document.getElementById('savezonix-cosmetic-shield');
-                if (style) style.remove();
+            // Listen for dynamic storage updates (e.g. whitelist toggle or global switch)
+            if (chrome.storage.onChanged) {
+                chrome.storage.onChanged.addListener((changes, areaName) => {
+                    if (areaName === 'local') {
+                        if (changes.savezonix_shield_enabled || changes.savezonix_shield_whitelist) {
+                            chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
+                                const globalEnabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
+                                const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
+                                configureShieldState(globalEnabled, whitelist);
+                            });
+                        }
+                    }
+                });
             }
-        });
+        } else {
+            startDomDefense();
+        }
     } catch {
         startDomDefense();
     }
 
     // Toggle message listener
-    chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-        if (msg.action === 'updateShieldStatus') {
-            isShieldEnabled = Boolean(msg.enabled);
-            broadcastShieldState(isShieldEnabled);
-            const style = document.getElementById('savezonix-cosmetic-shield');
-            if (isShieldEnabled) {
-                applyCosmeticShield();
-                sweepDeceptiveModals();
-            } else if (style) {
-                style.remove();
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
+        chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+            if (msg.action === 'updateShieldStatus') {
+                const globalEnabled = Boolean(msg.enabled);
+                configureShieldState(globalEnabled, cachedWhitelist);
+                sendResponse({ success: true, isShieldEnabled });
+            } else if (msg.action === 'updateShieldWhitelist') {
+                const whitelist = Array.isArray(msg.whitelist) ? msg.whitelist : cachedWhitelist;
+                configureShieldState(isShieldEnabled, whitelist);
+                sendResponse({ success: true, isShieldEnabled });
             }
-            sendResponse({ success: true, isShieldEnabled });
-        }
-    });
+        });
+    }
 
 })();

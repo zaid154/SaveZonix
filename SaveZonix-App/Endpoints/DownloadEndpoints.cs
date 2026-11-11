@@ -216,9 +216,9 @@ public static class DownloadEndpoints
                     using var httpClient = MediaHelper.CreateConfiguredHttpClient();
                     var downloader = new ParallelDownloader(httpClient)
                     {
-                        StrictCdnMaxThreads = await adminSettings.GetSettingIntAsync("StrictCdnMaxThreads", 8),
-                        OpenCdnMaxThreads = await adminSettings.GetSettingIntAsync("OpenCdnMaxThreads", 256),
-                        StrictCdnDomains = await adminSettings.GetSettingAsync("StrictCdnDomains", "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo,googlevideo,youtube")
+                        StrictCdnMaxThreads = await adminSettings.GetStrictCdnMaxThreadsAsync(),
+                        OpenCdnMaxThreads = await adminSettings.GetMaxThreadsAsync(),
+                        StrictCdnDomains = await adminSettings.GetSettingAsync("StrictCdnDomains", "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo")
                     };
 
                     string downloadsFolder = !string.IsNullOrWhiteSpace(req.DestinationFolder) && Directory.Exists(req.DestinationFolder)

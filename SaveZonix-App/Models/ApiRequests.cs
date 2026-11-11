@@ -84,7 +84,7 @@ public class DownloadRequest
     public string? Format { get; set; }
     public string? AudioUrl { get; set; }
     public string FileName { get; set; } = "video.mp4";
-    public int Concurrency { get; set; } = 64;
+    public int Concurrency { get; set; } = 32;
     public long EstimatedSizeBytes { get; set; } = 0;
     public bool IsDirectFile { get; set; } = false;
     public int DurationSeconds { get; set; } = 0;

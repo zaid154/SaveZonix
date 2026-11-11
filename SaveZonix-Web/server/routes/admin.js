@@ -928,12 +928,72 @@ router.get('/database-status', adminAuth, async (req, res) => {
   });
 });
 
+// Helper to mirror system settings to MongoDB 'adminsettings' collection used by SaveZonix-App (.NET)
+async function syncToAdminSettingsCollection(settingsMap) {
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return;
+  try {
+    const adminSettingsCol = mongoose.connection.db.collection('adminsettings');
+    for (const [key, val] of Object.entries(settingsMap)) {
+      if (val !== undefined && val !== null) {
+        await adminSettingsCol.updateOne(
+          { Key: key },
+          {
+            $set: {
+              Key: key,
+              Value: String(val),
+              Category: ['DefaultThreads', 'MaxThreads', 'StrictCdnMaxThreads'].includes(key)
+                ? 'Engine'
+                : (key === 'RegistrationEnabled' ? 'Security' : 'System'),
+              UpdatedAt: new Date()
+            }
+          },
+          { upsert: true }
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[syncToAdminSettingsCollection error]:', err.message);
+  }
+}
+
+// Helper to fetch key-value dictionary from MongoDB 'adminsettings' collection
+async function getAdminSettingsCollectionMap() {
+  const map = {};
+  if (mongoose.connection.readyState !== 1 || !mongoose.connection.db) return map;
+  try {
+    const adminSettingsCol = mongoose.connection.db.collection('adminsettings');
+    const docs = await adminSettingsCol.find({}).toArray();
+    for (const d of docs) {
+      if (d && d.Key) {
+        map[d.Key] = d.Value;
+      }
+    }
+  } catch (err) {
+    console.warn('[getAdminSettingsCollectionMap error]:', err.message);
+  }
+  return map;
+}
+
 router.post('/sync-databases', adminAuth, async (req, res) => {
-  return res.json({
-    success: true,
-    message: 'Cloud Database (MongoDB Atlas) refreshed and synchronized with all desktop clients.',
-    syncedAt: new Date()
-  });
+  try {
+    const config = await AppConfig.findOne();
+    if (config) {
+      await syncToAdminSettingsCollection({
+        DefaultThreads: config.DefaultThreads || config.defaultThreads || 64,
+        MaxThreads: config.MaxThreads || config.maxThreads || 256,
+        StrictCdnMaxThreads: config.StrictCdnMaxThreads || config.strictCdnMaxThreads || 32,
+        RegistrationEnabled: config.RegistrationEnabled !== false && config.registrationEnabled !== false,
+        MaintenanceMode: !!(config.MaintenanceMode || config.maintenanceMode)
+      });
+    }
+    return res.json({
+      success: true,
+      message: 'Cloud Database (MongoDB Atlas) refreshed and synchronized with all desktop clients.',
+      syncedAt: new Date()
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/settings', adminAuth, async (req, res) => {
@@ -955,11 +1015,18 @@ router.get('/settings', adminAuth, async (req, res) => {
         razorpayKeySecret: '',
         announcementMessage: '',
         defaultThreads: 64,
+        DefaultThreads: 64,
+        maxThreads: 256,
+        MaxThreads: 256,
         strictCdnMaxThreads: 32,
+        StrictCdnMaxThreads: 32,
         openCdnMaxThreads: 128,
+        registrationEnabled: true,
+        RegistrationEnabled: true,
         allowGuestDownloads: true,
         guestDailyDownloadLimit: 10,
         maintenanceMode: false,
+        MaintenanceMode: false,
         maintenanceDurationMinutes: 15,
         maintenanceMessage: 'Server routine upgrade in progress. All stream engines will resume shortly.',
         freeMaxSpeedMBps: 15,
@@ -972,7 +1039,66 @@ router.get('/settings', adminAuth, async (req, res) => {
     if (!config) {
       config = await AppConfig.create({});
     }
-    return res.json(config);
+
+    const adminSettingsMap = await getAdminSettingsCollectionMap();
+
+    // Resolve threads & policies with fallbacks across adminsettings, AppConfig, and defaults
+    const defaultThreads = Number(
+      adminSettingsMap['DefaultThreads'] ||
+      config.defaultThreads ||
+      config.DefaultThreads ||
+      64
+    );
+
+    const maxThreads = Number(
+      adminSettingsMap['MaxThreads'] ||
+      config.maxThreads ||
+      config.MaxThreads ||
+      config.openCdnMaxThreads ||
+      256
+    );
+
+    const strictCdnMaxThreads = Number(
+      adminSettingsMap['StrictCdnMaxThreads'] ||
+      config.strictCdnMaxThreads ||
+      config.StrictCdnMaxThreads ||
+      32
+    );
+
+    let registrationEnabled = true;
+    if (adminSettingsMap['RegistrationEnabled'] !== undefined) {
+      registrationEnabled = adminSettingsMap['RegistrationEnabled'] === 'true' || adminSettingsMap['RegistrationEnabled'] === true;
+    } else if (config.registrationEnabled !== undefined) {
+      registrationEnabled = !!config.registrationEnabled;
+    } else if (config.RegistrationEnabled !== undefined) {
+      registrationEnabled = !!config.RegistrationEnabled;
+    }
+
+    let maintenanceMode = false;
+    if (adminSettingsMap['MaintenanceMode'] !== undefined) {
+      maintenanceMode = adminSettingsMap['MaintenanceMode'] === 'true' || adminSettingsMap['MaintenanceMode'] === true;
+    } else if (config.maintenanceMode !== undefined) {
+      maintenanceMode = !!config.maintenanceMode;
+    } else if (config.MaintenanceMode !== undefined) {
+      maintenanceMode = !!config.MaintenanceMode;
+    }
+
+    const configObj = config.toObject ? config.toObject() : { ...config };
+    const responsePayload = {
+      ...configObj,
+      defaultThreads,
+      DefaultThreads: defaultThreads,
+      maxThreads,
+      MaxThreads: maxThreads,
+      strictCdnMaxThreads,
+      StrictCdnMaxThreads: strictCdnMaxThreads,
+      registrationEnabled,
+      RegistrationEnabled: registrationEnabled,
+      maintenanceMode,
+      MaintenanceMode: maintenanceMode
+    };
+
+    return res.json(responsePayload);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
@@ -1002,11 +1128,18 @@ router.post('/settings', adminAuth, async (req, res) => {
       'razorpayKeySecret',
       'announcementMessage',
       'defaultThreads',
+      'DefaultThreads',
+      'maxThreads',
+      'MaxThreads',
       'strictCdnMaxThreads',
+      'StrictCdnMaxThreads',
       'openCdnMaxThreads',
+      'registrationEnabled',
+      'RegistrationEnabled',
       'allowGuestDownloads',
       'guestDailyDownloadLimit',
       'maintenanceMode',
+      'MaintenanceMode',
       'maintenanceDurationMinutes',
       'maintenanceMessage',
       'freeMaxSpeedMBps',
@@ -1037,7 +1170,56 @@ router.post('/settings', adminAuth, async (req, res) => {
       }
     });
 
-    if (config.maintenanceMode) {
+    // Explicit handling & normalisation for required settings:
+    // 1. DefaultThreads
+    if (req.body.DefaultThreads !== undefined || req.body.defaultThreads !== undefined) {
+      const parsed = Number(req.body.DefaultThreads !== undefined ? req.body.DefaultThreads : req.body.defaultThreads);
+      if (!isNaN(parsed) && parsed > 0) {
+        config.defaultThreads = parsed;
+        config.DefaultThreads = parsed;
+      }
+    }
+
+    // 2. MaxThreads
+    if (req.body.MaxThreads !== undefined || req.body.maxThreads !== undefined || req.body.openCdnMaxThreads !== undefined) {
+      const parsed = Number(
+        req.body.MaxThreads !== undefined
+          ? req.body.MaxThreads
+          : (req.body.maxThreads !== undefined ? req.body.maxThreads : req.body.openCdnMaxThreads)
+      );
+      if (!isNaN(parsed) && parsed > 0) {
+        config.maxThreads = parsed;
+        config.MaxThreads = parsed;
+        config.openCdnMaxThreads = parsed;
+      }
+    }
+
+    // 3. StrictCdnMaxThreads
+    if (req.body.StrictCdnMaxThreads !== undefined || req.body.strictCdnMaxThreads !== undefined) {
+      const parsed = Number(req.body.StrictCdnMaxThreads !== undefined ? req.body.StrictCdnMaxThreads : req.body.strictCdnMaxThreads);
+      if (!isNaN(parsed) && parsed > 0) {
+        config.strictCdnMaxThreads = parsed;
+        config.StrictCdnMaxThreads = parsed;
+      }
+    }
+
+    // 4. RegistrationEnabled
+    if (req.body.RegistrationEnabled !== undefined || req.body.registrationEnabled !== undefined) {
+      const raw = req.body.RegistrationEnabled !== undefined ? req.body.RegistrationEnabled : req.body.registrationEnabled;
+      const parsed = raw === true || raw === 'true' || raw === 1 || raw === '1';
+      config.registrationEnabled = parsed;
+      config.RegistrationEnabled = parsed;
+    }
+
+    // 5. MaintenanceMode
+    if (req.body.MaintenanceMode !== undefined || req.body.maintenanceMode !== undefined) {
+      const raw = req.body.MaintenanceMode !== undefined ? req.body.MaintenanceMode : req.body.maintenanceMode;
+      const parsed = raw === true || raw === 'true' || raw === 1 || raw === '1';
+      config.maintenanceMode = parsed;
+      config.MaintenanceMode = parsed;
+    }
+
+    if (config.maintenanceMode || config.MaintenanceMode) {
       const duration = Number(config.maintenanceDurationMinutes || 15);
       config.maintenanceEndsAt = new Date(Date.now() + duration * 60 * 1000);
     } else {
@@ -1047,7 +1229,31 @@ router.post('/settings', adminAuth, async (req, res) => {
     config.updatedAt = new Date();
     await config.save();
 
-    return res.json({ success: true, message: 'Configuration parameters saved successfully!', config });
+    // Mirror updates to 'adminsettings' collection for immediate C# (.NET) client visibility
+    await syncToAdminSettingsCollection({
+      DefaultThreads: config.DefaultThreads || config.defaultThreads || 64,
+      MaxThreads: config.MaxThreads || config.maxThreads || 256,
+      StrictCdnMaxThreads: config.StrictCdnMaxThreads || config.strictCdnMaxThreads || 32,
+      RegistrationEnabled: config.RegistrationEnabled !== false && config.registrationEnabled !== false,
+      MaintenanceMode: !!(config.MaintenanceMode || config.maintenanceMode)
+    });
+
+    const configObj = config.toObject ? config.toObject() : { ...config };
+    const responseConfig = {
+      ...configObj,
+      defaultThreads: config.defaultThreads,
+      DefaultThreads: config.DefaultThreads,
+      maxThreads: config.maxThreads,
+      MaxThreads: config.MaxThreads,
+      strictCdnMaxThreads: config.strictCdnMaxThreads,
+      StrictCdnMaxThreads: config.StrictCdnMaxThreads,
+      registrationEnabled: config.registrationEnabled,
+      RegistrationEnabled: config.RegistrationEnabled,
+      maintenanceMode: config.maintenanceMode,
+      MaintenanceMode: config.MaintenanceMode
+    };
+
+    return res.json({ success: true, message: 'Configuration parameters saved successfully!', config: responseConfig });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

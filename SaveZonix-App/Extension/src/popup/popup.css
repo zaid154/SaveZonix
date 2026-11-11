@@ -1,4 +1,4 @@
-/* src/popup/popup.css — Senior Enterprise Luxury SaaS Theme (Glassmorphism, 14px Radius, Micro-Animations) */
+/* src/popup/popup.css â€” Senior Enterprise Luxury SaaS Theme (Glassmorphism, 14px Radius, Micro-Animations) */
 
 :root {
     --bg-page: #090d16;
@@ -38,10 +38,15 @@
     -webkit-font-smoothing: antialiased;
 }
 
+html {
+    width: 360px;
+    background: #090d16;
+}
+
 body {
-    width: 355px;
-    min-height: auto;
-    max-height: 480px;
+    width: 360px;
+    min-height: 420px;
+    max-height: 580px;
     background: radial-gradient(circle at 50% -20%, #172554 0%, #090d16 85%);
     color: var(--text-primary);
     display: flex;
@@ -67,7 +72,7 @@ body::-webkit-scrollbar-thumb:hover {
     background: rgba(56, 189, 248, 0.4);
 }
 
-/* âââ HEADER ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ HEADER Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .header {
     display: flex;
     justify-content: space-between;
@@ -144,7 +149,7 @@ body::-webkit-scrollbar-thumb:hover {
     to { transform: rotate(360deg); }
 }
 
-/* âââ SETTINGS PANEL (Obsidian Glassmorphism Modal) ââââââââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ SETTINGS PANEL (Obsidian Glassmorphism Modal) Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .settings-panel {
     background: rgba(11, 17, 32, 0.97);
     backdrop-filter: blur(24px);
@@ -288,7 +293,7 @@ body::-webkit-scrollbar-thumb:hover {
     width: 100%;
 }
 
-/* âââ MAIN ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ MAIN Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .main {
     padding: 8px 11px;
     display: flex;
@@ -297,12 +302,20 @@ body::-webkit-scrollbar-thumb:hover {
     flex: 1;
 }
 
-/* Status Line with Glowing Radar Pulse */
+/* Status Line with Glowing Radar Pulse & Engine Pill */
 .status-line {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 3px 2px;
+    justify-content: space-between;
+    padding: 2px 2px 4px;
+    gap: 6px;
+}
+
+.status-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
 }
 
 .dot {
@@ -312,6 +325,7 @@ body::-webkit-scrollbar-thumb:hover {
     background: var(--emerald);
     position: relative;
     box-shadow: 0 0 8px var(--emerald);
+    flex-shrink: 0;
 }
 
 .dot::after {
@@ -337,9 +351,42 @@ body::-webkit-scrollbar-thumb:hover {
     font-weight: 600;
     color: var(--text-secondary);
     letter-spacing: 0.2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-/* âââ VIDEO CARDS (GLASSMORPHIC & ROUNDED) ââââââââââââââââââââââââââââââââ */
+.engine-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: rgba(14, 165, 233, 0.12);
+    border: 1px solid rgba(14, 165, 233, 0.28);
+    color: #38bdf8;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+}
+
+.engine-status-badge:hover {
+    background: rgba(14, 165, 233, 0.2);
+    border-color: rgba(14, 165, 233, 0.45);
+}
+
+.engine-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #38bdf8;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ VIDEO CARDS (GLASSMORPHIC & ROUNDED) Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .video-list {
     display: flex;
     flex-direction: column;
@@ -524,7 +571,7 @@ body::-webkit-scrollbar-thumb:hover {
     display: none;
 }
 
-/* âââ ACTION BUTTONS (NO EMOJIS, SLEEK ICONS, TACTILE) ââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ ACTION BUTTONS (NO EMOJIS, SLEEK ICONS, TACTILE) Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .card-action-row {
     width: 100%;
 }
@@ -633,7 +680,7 @@ body::-webkit-scrollbar-thumb:hover {
     line-height: 1.4;
 }
 
-/* âââ EMPTY STATE âââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ EMPTY STATE Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .empty-state {
     padding: 38px 20px;
     text-align: center;
@@ -674,7 +721,7 @@ body::-webkit-scrollbar-thumb:hover {
     line-height: 1.5;
 }
 
-/* âââ RECENT DOWNLOADS (MODERN POLISHED ROW CARDS) âââââââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ RECENT DOWNLOADS (MODERN POLISHED ROW CARDS) Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .history-section {
     display: flex;
     flex-direction: column;
@@ -899,7 +946,7 @@ body::-webkit-scrollbar-thumb:hover {
     display: none !important;
 }
 
-/* âââ YOUTUBE CHOICE MODAL âââââââââââââââââââââââââââââââââââââââââââââââââ */
+/* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ YOUTUBE CHOICE MODAL Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -1044,38 +1091,245 @@ body::-webkit-scrollbar-thumb:hover {
     transform: translateY(-1px);
 }
 
-/* SaveZonix Universal Shield Switch */
-.switch-toggle input:checked + .switch-slider {
-    background-color: #10b981 !important;
+/* ─── SAVEZONIX UNIVERSAL AD & POPUP SHIELD ────────────────────────────── */
+.shield-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    margin-bottom: 6px;
+    border-radius: var(--radius-md);
+    background: rgba(16, 185, 129, 0.07);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.switch-toggle input:not(:checked) + .switch-slider {
-    background-color: #475569 !important;
+
+.shield-card:hover {
+    border-color: rgba(16, 185, 129, 0.35);
 }
+
+.shield-card.paused {
+    background: rgba(22, 32, 54, 0.55);
+    border-color: rgba(148, 163, 184, 0.16);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.shield-card.paused:hover {
+    border-color: rgba(148, 163, 184, 0.25);
+}
+
+.shield-main-content {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex: 1;
+    min-width: 0;
+}
+
+.shield-icon-wrap {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(16, 185, 129, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--emerald);
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.shield-card.paused .shield-icon-wrap {
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.15);
+    color: var(--text-dim);
+}
+
+.shield-details {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5px;
+    flex: 1;
+    min-width: 0;
+}
+
+.shield-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shield-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+}
+
+.shield-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.3px;
+    line-height: 1.2;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.shield-badge.badge-on {
+    background: #10b981;
+    color: #022c22;
+}
+
+.shield-badge.badge-paused {
+    background: #475569;
+    color: #f1f5f9;
+}
+
+.shield-block-label {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-weight: 500;
+    line-height: 1.2;
+}
+
+.shield-block-num {
+    color: #34d399;
+    font-weight: 700;
+}
+
+.shield-card.paused .shield-block-num {
+    color: var(--text-muted);
+}
+
+.shield-site-action {
+    margin-top: 2px;
+}
+
+.shield-site-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    font-size: 9.5px;
+    font-weight: 600;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.2;
+}
+
+.shield-site-btn:hover {
+    background: rgba(244, 63, 94, 0.12);
+    border-color: rgba(244, 63, 94, 0.3);
+    color: #fda4af;
+    transform: translateY(-0.5px);
+}
+
+.shield-site-btn:active {
+    transform: scale(0.96);
+}
+
+.shield-site-btn.resumed {
+    background: rgba(14, 165, 233, 0.12);
+    border-color: rgba(14, 165, 233, 0.3);
+    color: #38bdf8;
+}
+
+.shield-site-btn.resumed:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #34d399;
+}
+
+.shield-toggle-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    padding-left: 8px;
+}
+
+/* Toggle Switch */
+.switch-toggle {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+    cursor: pointer;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #334155;
+    transition: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .switch-slider:before {
     position: absolute;
     content: "";
     height: 14px;
     width: 14px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: .25s ease;
+    left: 2px;
+    bottom: 2px;
+    background-color: #ffffff;
+    transition: 0.22s cubic-bezier(0.16, 1, 0.3, 1);
     border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
+
+.switch-toggle input:checked + .switch-slider {
+    background-color: #10b981;
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
 .switch-toggle input:checked + .switch-slider:before {
-    transform: translateX(18px);
+    transform: translateX(16px);
 }
-.shield-card.paused {
-    background: rgba(148, 163, 184, 0.08) !important;
-    border-color: rgba(148, 163, 184, 0.2) !important;
+
+/* ─── FOOTER ──────────────────────────────────────────────────────────────── */
+.popup-footer {
+    padding: 8px 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+    color: var(--text-dim);
 }
-.shield-card.paused #shieldIconWrap {
-    background: rgba(148, 163, 184, 0.15) !important;
-    color: #94a3b8 !important;
+
+.footer-link {
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.15s ease;
 }
-.shield-card.paused #shieldActiveBadge {
-    background: #64748b !important;
-    color: #f8fafc !important;
+
+.footer-link:hover {
+    color: #7dd3fc;
+    text-decoration: underline;
 }
 

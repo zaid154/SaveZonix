@@ -291,7 +291,7 @@ public class ParallelDownloader
         // Optimal chunk size is 4MB - 16MB so TCP congestion window ramps up to max bandwidth
         long minChunkSize = 4L * 1024 * 1024;
         int maxChunksByLength = (int)Math.Max(2, confirmedLength / minChunkSize);
-        int numChunks = Math.Clamp(optimizedConcurrency, 2, Math.Min(maxChunksByLength, 16));
+        int numChunks = Math.Clamp(optimizedConcurrency, 2, Math.Min(maxChunksByLength, 32));
         long chunkSize = confirmedLength / numChunks;
         var chunks = new List<SegmentItem>();
 
@@ -837,9 +837,9 @@ public class ParallelDownloader
         return data;
     }
 
-    public int StrictCdnMaxThreads { get; set; } = 8;
+    public int StrictCdnMaxThreads { get; set; } = 24;
     public int OpenCdnMaxThreads { get; set; } = 256;
-    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo,googlevideo,youtube";
+    public string StrictCdnDomains { get; set; } = "phncdn,pornhub,xhpingcdn,xhcdn,xhamster,okxxx,ok.xxx,phcdn,spankbang,sb-cd,mat6tube,pvvstream,xnxx,xnxx-cdn,xvideos,xvideos-cdn,pixelflix,pron.click,freefuckvidz,freepornvideo";
 
     private int GetOptimizedConcurrency(string? sampleUrl, int requestedConcurrency)
     {
@@ -850,7 +850,7 @@ public class ParallelDownloader
         var strictList = (StrictCdnDomains ?? "").Split(new[] { ',', ';', ' ' }, StringSplitOptions.RemoveEmptyEntries);
         if (strictList.Any(d => lower.Contains(d.Trim().ToLowerInvariant())))
         {
-            return Math.Clamp(requestedConcurrency, 1, StrictCdnMaxThreads > 0 ? StrictCdnMaxThreads : 8);
+            return Math.Clamp(requestedConcurrency, 1, StrictCdnMaxThreads > 0 ? StrictCdnMaxThreads : 24);
         }
 
         return Math.Clamp(requestedConcurrency, 1, OpenCdnMaxThreads > 0 ? OpenCdnMaxThreads : 256);

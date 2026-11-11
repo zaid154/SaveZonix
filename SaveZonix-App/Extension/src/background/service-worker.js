@@ -9,171 +9,302 @@ try {
     console.warn('[SaveZonix] Failed to configure uninstall feedback URL:', e);
 }
 
-// Smart Dynamic Header Spoofing for Downloader Tab (Bypasses Hotlink Protection on phncdn, xnxx, pixelflix)
-if (chrome.declarativeNetRequest) {
-    chrome.declarativeNetRequest.getDynamicRules().then(rules => {
-        const ids = rules.map(r => r.id);
-        chrome.declarativeNetRequest.updateDynamicRules({
-            removeRuleIds: ids,
-            addRules: [
-                // 1. Pornhub CDN Rule (only for non-pornhub initiators like extension downloader)
-                {
-                    id: 2001,
-                    priority: 5,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://www.pornhub.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://www.pornhub.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'phncdn.com',
-                        excludedInitiatorDomains: ['pornhub.com', 'pornhub.org', 'phncdn.com', 'pornhubpremium.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 2. XNXX / XVideos CDN Rule
-                {
-                    id: 2002,
-                    priority: 2,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://www.xnxx.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://www.xnxx.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'xnxx-cdn.com',
-                        excludedInitiatorDomains: ['xnxx.com', 'xnxx-cdn.com', 'xvideos.com', 'xvideos-cdn.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 3. xHamster xhcdn CDN Rule
-                {
-                    id: 2003,
-                    priority: 2,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://xhamster.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://xhamster.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'xhcdn.com',
-                        excludedInitiatorDomains: ['xhamster.com', 'xhamster.desi', 'xhamster1.desi', 'xhamster2.com', 'xhamster3.com', 'xhcdn.com', 'xhpingcdn.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 4. Instagram CDN Rule
-                {
-                    id: 2004,
-                    priority: 2,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://www.instagram.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://www.instagram.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'cdninstagram.com',
-                        excludedInitiatorDomains: ['instagram.com', 'cdninstagram.com', 'facebook.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 5. SpankBang CDN Rule
-                {
-                    id: 2005,
-                    priority: 2,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://spankbang.party' },
-                            { header: 'Referer', operation: 'set', value: 'https://spankbang.party/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'sb-cd.com',
-                        excludedInitiatorDomains: ['spankbang.com', 'spankbang.party', 'sb-cd.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 6. Mat6tube / PvvStream Rule
-                {
-                    id: 2006,
-                    priority: 2,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://mat6tube.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://mat6tube.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'pvvstream.pro',
-                        excludedInitiatorDomains: ['mat6tube.com', 'pvvstream.pro'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 7. OKXXX Rule
-                {
-                    id: 2007,
-                    priority: 2,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://okxxx1.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://okxxx1.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'okxxx1.com',
-                        excludedInitiatorDomains: ['okxxx1.com', 'ok.xxx', 'okxxx.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 8. OKXXX PhCdn Segment Rule
-                {
-                    id: 2008,
-                    priority: 1,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://okxxx1.com' },
-                            { header: 'Referer', operation: 'set', value: 'https://okxxx1.com/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'phcdn',
-                        excludedRequestDomains: ['phncdn.com'],
-                        excludedInitiatorDomains: ['okxxx1.com', 'ok.xxx', 'pornhub.com', 'pornhub.org', 'phncdn.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                },
-                // 9. xHamster xhpingcdn CDN Rule
-                {
-                    id: 2009,
-                    priority: 3,
-                    action: {
-                        type: 'modifyHeaders',
-                        requestHeaders: [
-                            { header: 'Origin', operation: 'set', value: 'https://xhamster1.desi' },
-                            { header: 'Referer', operation: 'set', value: 'https://xhamster1.desi/' }
-                        ]
-                    },
-                    condition: {
-                        urlFilter: 'xhpingcdn.com',
-                        excludedInitiatorDomains: ['xhamster.com', 'xhamster.desi', 'xhamster1.desi', 'xhamster2.com', 'xhamster3.com', 'xhcdn.com', 'xhpingcdn.com'],
-                        resourceTypes: ['xmlhttprequest', 'media', 'other']
-                    }
-                }
+// Base DeclarativeNetRequest dynamic rules:
+// 1-9: Dynamic Header Spoofing for Downloader Tab (Bypasses Hotlink Protection on phncdn, xnxx, pixelflix)
+// 10: YouTube / Googlevideo Safe Streaming Rule (Protects video playback from blocking)
+const BASE_DYNAMIC_RULES = [
+    // 1. Pornhub CDN Rule (only for non-pornhub initiators like extension downloader)
+    {
+        id: 2001,
+        priority: 5,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://www.pornhub.com' },
+                { header: 'Referer', operation: 'set', value: 'https://www.pornhub.com/' }
             ]
-        }).catch(() => { });
-    }).catch(() => { });
+        },
+        condition: {
+            urlFilter: 'phncdn.com',
+            excludedInitiatorDomains: ['pornhub.com', 'pornhub.org', 'phncdn.com', 'pornhubpremium.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 2. XNXX / XVideos CDN Rule
+    {
+        id: 2002,
+        priority: 2,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://www.xnxx.com' },
+                { header: 'Referer', operation: 'set', value: 'https://www.xnxx.com/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'xnxx-cdn.com',
+            excludedInitiatorDomains: ['xnxx.com', 'xnxx-cdn.com', 'xvideos.com', 'xvideos-cdn.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 3. xHamster xhcdn CDN Rule
+    {
+        id: 2003,
+        priority: 2,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://xhamster.com' },
+                { header: 'Referer', operation: 'set', value: 'https://xhamster.com/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'xhcdn.com',
+            excludedInitiatorDomains: ['xhamster.com', 'xhamster.desi', 'xhamster1.desi', 'xhamster2.com', 'xhamster3.com', 'xhcdn.com', 'xhpingcdn.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 4. Instagram CDN Rule
+    {
+        id: 2004,
+        priority: 2,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://www.instagram.com' },
+                { header: 'Referer', operation: 'set', value: 'https://www.instagram.com/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'cdninstagram.com',
+            excludedInitiatorDomains: ['instagram.com', 'cdninstagram.com', 'facebook.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 5. SpankBang CDN Rule
+    {
+        id: 2005,
+        priority: 2,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://spankbang.party' },
+                { header: 'Referer', operation: 'set', value: 'https://spankbang.party/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'sb-cd.com',
+            excludedInitiatorDomains: ['spankbang.com', 'spankbang.party', 'sb-cd.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 6. Mat6tube / PvvStream Rule
+    {
+        id: 2006,
+        priority: 2,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://mat6tube.com' },
+                { header: 'Referer', operation: 'set', value: 'https://mat6tube.com/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'pvvstream.pro',
+            excludedInitiatorDomains: ['mat6tube.com', 'pvvstream.pro'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 7. OKXXX Rule
+    {
+        id: 2007,
+        priority: 2,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://okxxx1.com' },
+                { header: 'Referer', operation: 'set', value: 'https://okxxx1.com/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'okxxx1.com',
+            excludedInitiatorDomains: ['okxxx1.com', 'ok.xxx', 'okxxx.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 8. OKXXX PhCdn Segment Rule
+    {
+        id: 2008,
+        priority: 1,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://okxxx1.com' },
+                { header: 'Referer', operation: 'set', value: 'https://okxxx1.com/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'phcdn',
+            excludedRequestDomains: ['phncdn.com'],
+            excludedInitiatorDomains: ['okxxx1.com', 'ok.xxx', 'pornhub.com', 'pornhub.org', 'phncdn.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 9. xHamster xhpingcdn CDN Rule
+    {
+        id: 2009,
+        priority: 3,
+        action: {
+            type: 'modifyHeaders',
+            requestHeaders: [
+                { header: 'Origin', operation: 'set', value: 'https://xhamster1.desi' },
+                { header: 'Referer', operation: 'set', value: 'https://xhamster1.desi/' }
+            ]
+        },
+        condition: {
+            urlFilter: 'xhpingcdn.com',
+            excludedInitiatorDomains: ['xhamster.com', 'xhamster.desi', 'xhamster1.desi', 'xhamster2.com', 'xhamster3.com', 'xhcdn.com', 'xhpingcdn.com'],
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    },
+    // 10. YouTube / Googlevideo Safe Streaming Rule: Explicitly allow genuine video media streams
+    {
+        id: 2010,
+        priority: 100,
+        action: {
+            type: 'allow'
+        },
+        condition: {
+            urlFilter: 'googlevideo.com',
+            resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+    }
+];
+
+function generateWhitelistRules(whitelist) {
+    if (!Array.isArray(whitelist)) return [];
+    const rules = [];
+    const validDomains = [];
+
+    whitelist.forEach((raw) => {
+        if (!raw || typeof raw !== 'string') return;
+        let domain = raw.trim().toLowerCase();
+        try {
+            if (domain.includes('://')) {
+                domain = new URL(domain).hostname;
+            }
+        } catch { }
+        domain = domain.replace(/:\d+$/, '').replace(/^\.+/, '').replace(/\.+$/, '');
+        if (domain && !validDomains.includes(domain)) {
+            validDomains.push(domain);
+        }
+    });
+
+    validDomains.forEach((domain, idx) => {
+        // Frame-level bypass: allow all child requests and subframes
+        rules.push({
+            id: 3000 + idx * 2,
+            priority: 1000,
+            action: { type: 'allowAllRequests' },
+            condition: {
+                initiatorDomains: [domain],
+                resourceTypes: ['main_frame', 'sub_frame']
+            }
+        });
+        // Resource-level bypass: allow network resources initiated by whitelisted domain
+        rules.push({
+            id: 3000 + idx * 2 + 1,
+            priority: 1000,
+            action: { type: 'allow' },
+            condition: {
+                initiatorDomains: [domain],
+                resourceTypes: ['sub_frame', 'stylesheet', 'script', 'image', 'font', 'object', 'xmlhttprequest', 'ping', 'media', 'websocket', 'other']
+            }
+        });
+    });
+
+    return rules;
 }
+
+async function syncDeclarativeNetRequestRules(whitelist = []) {
+    if (typeof chrome === 'undefined' || !chrome.declarativeNetRequest || !chrome.declarativeNetRequest.getDynamicRules) return;
+    try {
+        const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+        const removeRuleIds = existingRules.map(r => r.id);
+        const whitelistRules = generateWhitelistRules(whitelist);
+        const addRules = [...BASE_DYNAMIC_RULES, ...whitelistRules];
+
+        await chrome.declarativeNetRequest.updateDynamicRules({
+            removeRuleIds,
+            addRules
+        });
+    } catch (err) {
+        console.warn('[Shield] Failed to update dynamic rules:', err);
+    }
+}
+
+async function syncShieldRuleset(enabled) {
+    if (typeof chrome === 'undefined' || !chrome.declarativeNetRequest || !chrome.declarativeNetRequest.updateEnabledRulesets) return;
+    try {
+        await chrome.declarativeNetRequest.updateEnabledRulesets({
+            enableRulesetIds: enabled ? ['adblock_rules'] : [],
+            disableRulesetIds: enabled ? [] : ['adblock_rules']
+        });
+        if (chrome.declarativeNetRequest.updateDisabledRuleIds) {
+            chrome.declarativeNetRequest.updateDisabledRuleIds({
+                rulesetId: 'adblock_rules',
+                disableRulesetRuleIds: [192]
+            }).catch(() => { });
+        }
+    } catch (err) {
+        console.warn('[Shield] Failed to update static ruleset:', err);
+    }
+}
+
+function notifyOpenTabsShieldStatus(globalEnabled, whitelist = []) {
+    if (typeof chrome === 'undefined' || !chrome.tabs || !chrome.tabs.query) return;
+    chrome.tabs.query({}, (tabs) => {
+        if (!Array.isArray(tabs)) return;
+        tabs.forEach(t => {
+            if (!t.id) return;
+            let tabHost = '';
+            try {
+                if (t.url) tabHost = new URL(t.url).hostname.toLowerCase();
+            } catch { }
+            const isWhitelisted = Boolean(tabHost && whitelist.some(d => tabHost === d || tabHost.endsWith('.' + d) || d.includes(tabHost)));
+            const tabEnabled = globalEnabled && !isWhitelisted;
+
+            chrome.tabs.sendMessage(t.id, {
+                action: 'updateShieldStatus',
+                enabled: tabEnabled,
+                globalEnabled,
+                isWhitelisted,
+                whitelist
+            }).catch(() => { });
+
+            if (!tabEnabled) {
+                try { chrome.action.setBadgeText({ tabId: t.id, text: '' }); } catch { }
+            }
+        });
+    });
+}
+
+// Initialize DeclarativeNetRequest dynamic rules, static ruleset, and Shield state on worker startup
+async function initDeclarativeNetRequest() {
+    try {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], async (res) => {
+                const enabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
+                const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
+                await syncShieldRuleset(enabled);
+                await syncDeclarativeNetRequestRules(whitelist);
+            });
+        }
+    } catch (e) {
+        console.warn('[Shield] Failed to initialize declarativeNetRequest:', e);
+    }
+}
+initDeclarativeNetRequest();
 
 // Strictly match genuine video master manifests and direct video containers
 const MEDIA_URL_REGEX = /(\.m3u8|\.mp4|\.webm|\.m4v|\/hls\/|\/get_file\/|videoplayback|serve_m3u8|proxy\.php\?url=|cdninstagram\.com\/(?:o1\/)?v\/|fbcdn\.net\/o1\/v\/|fbcdn\.net\/v\/)/i;
@@ -702,7 +833,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         }
         sendResponse({ success: true, count: tabBlockedAdCounts[tabId] || 0 });
     } else if (req.action === 'getShieldStats') {
-        const queryTabId = req.tabId || tabId;
+        const queryTabId = (req && typeof req.tabId === 'number' && req.tabId > 0) ? req.tabId : tabId;
         chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
             const enabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
             const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
@@ -710,45 +841,44 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
                 success: true,
                 enabled,
                 whitelist,
-                blockedCount: tabBlockedAdCounts[queryTabId] || 0
+                blockedCount: (queryTabId > 0 ? (tabBlockedAdCounts[queryTabId] || 0) : 0)
             });
         });
     } else if (req.action === 'toggleShield') {
         const targetState = Boolean(req.enabled);
-        chrome.storage.local.set({ savezonix_shield_enabled: targetState }, () => {
-            if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateEnabledRulesets) {
-                chrome.declarativeNetRequest.updateEnabledRulesets({
-                    enableRulesetIds: targetState ? ['adblock_rules'] : [],
-                    disableRulesetIds: targetState ? [] : ['adblock_rules']
-                }).catch(err => console.warn('[Shield] Failed to update ruleset:', err));
-            }
-            chrome.tabs.query({}, (tabs) => {
-                tabs.forEach(t => {
-                    if (t.id) {
-                        chrome.tabs.sendMessage(t.id, { action: 'updateShieldStatus', enabled: targetState }).catch(() => { });
-                        if (!targetState) {
-                            try { chrome.action.setBadgeText({ tabId: t.id, text: '' }); } catch { }
-                        }
-                    }
-                });
+        chrome.storage.local.get(['savezonix_shield_whitelist'], (res) => {
+            const whitelist = Array.isArray(res?.savezonix_shield_whitelist) ? res.savezonix_shield_whitelist : [];
+            chrome.storage.local.set({ savezonix_shield_enabled: targetState }, async () => {
+                await syncShieldRuleset(targetState);
+                await syncDeclarativeNetRequestRules(whitelist);
+                notifyOpenTabsShieldStatus(targetState, whitelist);
+                sendResponse({ success: true, enabled: targetState, whitelist });
             });
-            sendResponse({ success: true, enabled: targetState });
         });
     } else if (req.action === 'toggleWhitelistSite') {
-        const site = (req.hostname || '').toLowerCase();
-        chrome.storage.local.get(['savezonix_shield_whitelist'], (res) => {
+        let site = (req.hostname || '').toLowerCase().trim();
+        try {
+            if (site.includes('://')) site = new URL(site).hostname.toLowerCase();
+        } catch { }
+        site = site.replace(/:\d+$/, '').replace(/^\.+/, '').replace(/\.+$/, '');
+
+        chrome.storage.local.get(['savezonix_shield_enabled', 'savezonix_shield_whitelist'], (res) => {
+            const globalEnabled = (typeof res?.savezonix_shield_enabled === 'boolean') ? res.savezonix_shield_enabled : true;
             let list = Array.isArray(res?.savezonix_shield_whitelist) ? [...res.savezonix_shield_whitelist] : [];
-            const idx = list.indexOf(site);
+            const idx = site ? list.indexOf(site) : -1;
             let isWhitelisted = false;
             if (idx > -1) {
                 list.splice(idx, 1);
                 isWhitelisted = false;
-            } else {
+            } else if (site) {
                 list.push(site);
                 isWhitelisted = true;
             }
-            chrome.storage.local.set({ savezonix_shield_whitelist: list }, () => {
-                sendResponse({ success: true, isWhitelisted, whitelist: list });
+
+            chrome.storage.local.set({ savezonix_shield_whitelist: list }, async () => {
+                await syncDeclarativeNetRequestRules(list);
+                notifyOpenTabsShieldStatus(globalEnabled, list);
+                sendResponse({ success: true, isWhitelisted, whitelist: list, enabled: globalEnabled });
             });
         });
     }

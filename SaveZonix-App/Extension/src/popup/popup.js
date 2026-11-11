@@ -1,6 +1,7 @@
 // src/popup/popup.js — High-Performance Event-Driven Popup Controller (Universal)
 
 document.addEventListener('DOMContentLoaded', async () => {
+    try {
     const videoList = document.getElementById('videoList');
     const emptyState = document.getElementById('emptyState');
     const statusLabel = document.getElementById('statusLabel');
@@ -29,14 +30,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     const shieldWhitelistBtn = document.getElementById('shieldWhitelistBtn');
 
     // ─────────────────────────────────────────────────────────────
+    // Instant Active Tab Resolution & Star Sanitizer (<50ms startup)
+    // ─────────────────────────────────────────────────────────────
+    let tab = null;
+    try {
+        const [t1] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        tab = t1;
+    } catch { }
+    if (!tab) {
+        try {
+            const [t2] = await chrome.tabs.query({ active: true, currentWindow: true });
+            tab = t2;
+        } catch { }
+    }
+    if (!tab) {
+        try {
+            const allActive = await chrome.tabs.query({ active: true });
+            tab = allActive && allActive[0];
+        } catch { }
+    }
+    if (!tab || !tab.id) {
+        tab = { id: -1, url: '', title: 'Web Media' };
+        if (statusLabel) statusLabel.textContent = 'Ready to Capture';
+        if (emptyState) emptyState.classList.remove('hidden');
+    }
+
+    function sanitizeStar(str) {
+        if (!str) return '';
+        return String(str).replace(/[★⭐]/g, '').trim();
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // SaveZonix Universal Ad & Pop-up Shield Controller
     // ─────────────────────────────────────────────────────────────
     let currentTabHostname = '';
 
-    function initShieldUI() {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-            const activeTab = tabs && tabs[0];
-            const activeTabId = activeTab ? activeTab.id : -1;
+    function initShieldUI(activeTab) {
+        const activeTabId = activeTab ? activeTab.id : -1;
 
             if (activeTab && activeTab.url) {
                 try {
@@ -73,7 +103,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 });
             }
-        });
     }
 
     function updateShieldUIState(isEnabled, count = 0, isSiteWhitelisted = false) {
@@ -82,11 +111,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (shieldWhitelistBtn && currentTabHostname) {
             if (isSiteWhitelisted) {
-                shieldWhitelistBtn.textContent = 'Site Exempted (Click to Protect)';
-                shieldWhitelistBtn.style.color = '#38bdf8';
+                shieldWhitelistBtn.textContent = 'Resume on this site';
+                shieldWhitelistBtn.classList.add('resumed');
+                shieldWhitelistBtn.title = 'Resume shield protection on this site';
             } else {
                 shieldWhitelistBtn.textContent = 'Pause on this site';
-                shieldWhitelistBtn.style.color = '#94a3b8';
+                shieldWhitelistBtn.classList.remove('resumed');
+                shieldWhitelistBtn.title = 'Pause shield protection on this site';
             }
         }
 
@@ -94,28 +125,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             shieldCard?.classList.remove('paused');
             if (shieldActiveBadge) {
                 shieldActiveBadge.textContent = 'ON';
-                shieldActiveBadge.style.background = '#10b981';
-                shieldActiveBadge.style.color = '#022c22';
-            }
-            if (shieldCard) {
-                shieldCard.style.borderColor = 'rgba(16, 185, 129, 0.25)';
-                shieldCard.style.background = 'rgba(16, 185, 129, 0.08)';
+                shieldActiveBadge.className = 'shield-badge badge-on';
             }
         } else {
             shieldCard?.classList.add('paused');
             if (shieldActiveBadge) {
-                shieldActiveBadge.textContent = isSiteWhitelisted ? 'OFF (SITE)' : 'PAUSED';
-                shieldActiveBadge.style.background = '#64748b';
-                shieldActiveBadge.style.color = '#f8fafc';
-            }
-            if (shieldCard) {
-                shieldCard.style.borderColor = 'rgba(148, 163, 184, 0.2)';
-                shieldCard.style.background = 'rgba(148, 163, 184, 0.06)';
+                shieldActiveBadge.textContent = 'PAUSED';
+                shieldActiveBadge.className = 'shield-badge badge-paused';
             }
         }
     }
 
-    initShieldUI();
+    initShieldUI(tab);
 
     let backendBaseUrl = 'http://localhost:50550';
     let isLaunchingBackend = false;
@@ -171,10 +192,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    async function pingBackend(port) {
+    async function pingBackend(port, timeoutMs = 200) {
         try {
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 250);
+            const timeout = setTimeout(() => controller.abort(), timeoutMs);
             const res = await fetch(`http://localhost:${port}/api/system/health`, { signal: controller.signal });
             clearTimeout(timeout);
             if (res.ok) {
@@ -182,21 +203,45 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return { ok: true, port, data };
             }
         } catch { }
-        return { ok: false };
+        return { ok: false, port };
     }
 
-    // Live Engine Handshake & Smart Auto-Port Discovery
+    // Live Engine Handshake & Smart Auto-Port Discovery (Fast Parallel Checks & Cached Port Priority)
     async function checkEngineHealth() {
         const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
-        for (const p of candidatePorts) {
-            const res = await pingBackend(p);
-            if (res.ok) {
-                backendBaseUrl = `http://localhost:${p}`;
-                chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: p });
-                updateEngineUI(true, p, res.data?.version || '2.5.4');
-                return backendBaseUrl;
+
+        // 1. Fast check cached port first with 150ms timeout
+        let cachedPort = null;
+        try {
+            const stored = await chrome.storage.local.get(['savezonix_backend_port', 'savezonix_backend_url']);
+            if (stored?.savezonix_backend_port) {
+                cachedPort = parseInt(stored.savezonix_backend_port, 10);
+            } else if (stored?.savezonix_backend_url) {
+                const u = new URL(stored.savezonix_backend_url);
+                if (u.port) cachedPort = parseInt(u.port, 10);
             }
+        } catch { }
+
+        const primaryPort = (cachedPort && !isNaN(cachedPort)) ? cachedPort : 50550;
+        const cachedRes = await pingBackend(primaryPort, 150);
+        if (cachedRes.ok) {
+            backendBaseUrl = `http://localhost:${primaryPort}`;
+            chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: primaryPort });
+            updateEngineUI(true, primaryPort, cachedRes.data?.version || '2.5.4');
+            return backendBaseUrl;
         }
+
+        // 2. Fast parallel check of all other candidate ports with 200ms timeout
+        const remainingPorts = candidatePorts.filter(p => p !== primaryPort);
+        const results = await Promise.all(remainingPorts.map(p => pingBackend(p, 200)));
+        const active = results.find(r => r && r.ok);
+        if (active) {
+            backendBaseUrl = `http://localhost:${active.port}`;
+            chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: active.port });
+            updateEngineUI(true, active.port, active.data?.version || '2.5.4');
+            return backendBaseUrl;
+        }
+
         updateEngineUI(false);
         return null;
     }
@@ -255,22 +300,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (onProgress) onProgress('Connecting to download engine...');
 
-        // 2. Bounded polling for backend readiness (up to 15 seconds)
+        // 2. Fast parallel bounded polling for backend readiness (up to 15 seconds)
         const startTime = Date.now();
         const timeoutMs = 15000;
+        const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
         while (Date.now() - startTime < timeoutMs) {
-            await new Promise(r => setTimeout(r, 300));
-            const candidatePorts = [50550, 50551, 50552, 50553, 50554, 50555, 5000];
-            for (const p of candidatePorts) {
-                const res = await pingBackend(p);
-                if (res.ok) {
-                    isLaunchingBackend = false;
-                    backendBaseUrl = `http://localhost:${p}`;
-                    chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: p });
-                    updateEngineUI(true, p, res.data?.version || '2.5.4');
-                    if (onProgress) onProgress('Connected.');
-                    return backendBaseUrl;
-                }
+            await new Promise(r => setTimeout(r, 250));
+            const pings = candidatePorts.map(p => pingBackend(p, 200));
+            const results = await Promise.all(pings);
+            const hit = results.find(r => r && r.ok);
+            if (hit) {
+                isLaunchingBackend = false;
+                backendBaseUrl = `http://localhost:${hit.port}`;
+                chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: hit.port });
+                updateEngineUI(true, hit.port, hit.data?.version || '2.5.4');
+                if (onProgress) onProgress('Connected.');
+                return backendBaseUrl;
             }
         }
 
@@ -284,13 +329,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let livePageMetadata = null;
     let liveThumbnail = '';
     let userSettings = { defaultQuality: 'best', threads: '32', rememberQuality: true, autoDetectEpisode: true };
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id) {
-        statusLabel.textContent = 'No active tab found';
-        emptyState.classList.remove('hidden');
-        return;
-    }
 
     const currentTabUrl = tab.url || '';
     const currentTabTitle = tab.title || '';
@@ -498,67 +536,40 @@ document.addEventListener('DOMContentLoaded', async () => {
             rememberQuality: settingRemember.checked,
             autoDetectEpisode: settingAutoEpisode.checked
         };
-        await window.Storage.set('user_settings', userSettings);
+        const storageService = (typeof window.SaveZonixStorage !== 'undefined' && window.SaveZonixStorage?.set)
+            ? window.SaveZonixStorage
+            : (window.Storage?.set ? window.Storage : null);
+        if (storageService) await storageService.set('user_settings', userSettings);
         settingsPanel.classList.add('hidden');
         loadData();
     });
 
-    // Reactive State Loading
-    async function loadData() {
-        let scanRes = null;
-        // 1. Await live page scan before reading storage (Strict 250ms race timeout prevents freezing)
+    // ─────────────────────────────────────────────────────────────
+    // Instant Cached Media Renderer (<50ms Load Time — Zero Blocking)
+    // ─────────────────────────────────────────────────────────────
+    async function renderStoredMedia() {
         try {
-            const scanPromise = new Promise(resolve => {
-                try {
-                    chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, (r) => {
-                        if (chrome.runtime.lastError) resolve(null);
-                        else resolve(r);
-                    });
-                } catch { resolve(null); }
-            });
+            const storageService = (typeof window.SaveZonixStorage !== 'undefined' && window.SaveZonixStorage?.getTabVideos)
+                ? window.SaveZonixStorage
+                : (window.Storage?.getTabVideos ? window.Storage : null);
 
-            scanRes = await Promise.race([
-                scanPromise,
-                new Promise(r => setTimeout(() => r(null), 600))
-            ]);
-
-            if (scanRes && scanRes.metadata) {
-                livePageMetadata = scanRes.metadata;
-                liveThumbnail = scanRes.thumbnail || scanRes.metadata.thumbnail;
-                if (scanRes.streams && scanRes.streams.length > 0) {
-                    if (isInsta && window.Storage?.clearTabVideos) {
-                        await window.Storage.clearTabVideos(tab.id);
-                    }
-                    for (const st of scanRes.streams) {
-                        await window.Storage.addVideo(tab.id, {
-                            ...st,
-                            title: scanRes.metadata.title,
-                            showName: scanRes.metadata.showName,
-                            subtitle: scanRes.metadata.subtitle,
-                            thumbnail: scanRes.thumbnail || scanRes.metadata.thumbnail,
-                            platform: scanRes.site || 'Instagram'
-                        });
-                    }
-                }
+            const tabData = (storageService && tab.id > 0) ? await storageService.getTabVideos(tab.id) : null;
+            if (tabData && tabData.settings) {
+                userSettings = { ...userSettings, ...tabData.settings };
+                settingQuality.value = userSettings.defaultQuality || 'best';
+                if (settingThreads) settingThreads.value = userSettings.threads || '64';
+                settingRemember.checked = userSettings.rememberQuality !== false;
+                settingAutoEpisode.checked = userSettings.autoDetectEpisode !== false;
             }
-        } catch { }
 
-        const tabData = await window.Storage.getTabVideos(tab.id);
-        if (tabData && tabData.settings) {
-            userSettings = { ...userSettings, ...tabData.settings };
-            settingQuality.value = userSettings.defaultQuality || 'best';
-            if (settingThreads) settingThreads.value = userSettings.threads || '64';
-            settingRemember.checked = userSettings.rememberQuality !== false;
-            settingAutoEpisode.checked = userSettings.autoDetectEpisode !== false;
-        }
+            let rawVideos = (tabData && tabData.videos) ? tabData.videos : [];
+            let completed = (tabData && tabData.completed) ? tabData.completed : [];
 
-        let rawVideos = (tabData && tabData.videos) ? tabData.videos : [];
-        let completed = (tabData && tabData.completed) ? tabData.completed : [];
-
-        // Sync recent downloads asynchronously in background without blocking video cards
-        fetch(`${backendBaseUrl}/api/extension/recent-downloads`, {
-            signal: AbortSignal.timeout(1200)
-        }).then(async syncResp => {
+            // Sync recent downloads asynchronously in background without blocking video cards
+            const abortSig = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(1200) : undefined;
+            fetch(`${backendBaseUrl}/api/extension/recent-downloads`, {
+                signal: abortSig
+            }).then(async syncResp => {
             if (syncResp.ok) {
                 const syncData = await syncResp.json();
                 if (syncData && syncData.success && Array.isArray(syncData.items)) {
@@ -581,19 +592,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Strict Site Isolation & Filtering
         let videos = [];
-        if (isInsta && scanRes && scanRes.streams && scanRes.streams.length > 0) {
-            // For Instagram: Strictly prioritize the active visible reel from live scan!
-            videos = scanRes.streams.map(st => ({
-                ...st,
-                title: scanRes.metadata?.title || 'Instagram Reel',
-                showName: scanRes.metadata?.showName || 'Instagram Reel',
-                subtitle: scanRes.metadata?.subtitle || '',
-                thumbnail: scanRes.thumbnail || scanRes.metadata?.thumbnail || st.thumbnail || '',
-                platform: 'Instagram',
-                isDirectMp4: true,
-                isDownloadable: st.isDownloadable !== false
-            }));
-        } else if (isInsta && rawVideos.length > 0) {
+        if (isInsta && rawVideos.length > 0) {
             videos = rawVideos.filter(v => (v.platform === 'Instagram' || v.domain?.includes('instagram')) && (!v.url || !window.isInvalidStreamUrl || !window.isInvalidStreamUrl(v.url)));
             if (videos.length > 1) {
                 videos = [videos[videos.length - 1]]; // latest detected
@@ -703,7 +702,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        if (isYT && !isWatchPage) { videos = []; }
         if (videos.length > 0) {
             emptyState.classList.add('hidden');
             videoList.classList.remove('hidden');
@@ -723,13 +721,75 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             completedSection.classList.add('hidden');
         }
+        } catch (err) {
+            console.error('[SaveZonix Popup Render Error]', err);
+        }
     }
 
-    // Initial Load & Storage Change Listener (Event-Driven Performance)
-    await loadData();
+    // ─────────────────────────────────────────────────────────────
+    // Asynchronous Non-blocking Page Scanner & Background Refresh
+    // ─────────────────────────────────────────────────────────────
+    let isBackgroundScanning = false;
+    function triggerBackgroundScan() {
+        if (isBackgroundScanning || !tab || tab.id <= 0) return;
+        isBackgroundScanning = true;
+        try {
+            chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, async (scanRes) => {
+                isBackgroundScanning = false;
+                if (chrome.runtime.lastError || !scanRes) return;
+
+                let stateChanged = false;
+                if (scanRes.metadata) {
+                    livePageMetadata = scanRes.metadata;
+                    if (scanRes.thumbnail || scanRes.metadata.thumbnail) {
+                        liveThumbnail = scanRes.thumbnail || scanRes.metadata.thumbnail;
+                    }
+                    stateChanged = true;
+                }
+
+                if (scanRes.streams && scanRes.streams.length > 0) {
+                    const storageService = (typeof window.SaveZonixStorage !== 'undefined') ? window.SaveZonixStorage : window.Storage;
+                    if (isInsta && storageService?.clearTabVideos) {
+                        await storageService.clearTabVideos(tab.id);
+                    }
+                    for (const st of scanRes.streams) {
+                        if (storageService?.addVideo) {
+                            await storageService.addVideo(tab.id, {
+                                ...st,
+                                title: scanRes.metadata?.title || st.title,
+                                showName: scanRes.metadata?.showName || st.showName,
+                                subtitle: scanRes.metadata?.subtitle || st.subtitle,
+                                thumbnail: scanRes.thumbnail || scanRes.metadata?.thumbnail || st.thumbnail,
+                                platform: scanRes.site || (isInsta ? 'Instagram' : currentSiteName)
+                            });
+                        }
+                    }
+                    stateChanged = true;
+                }
+
+                if (stateChanged) {
+                    await renderStoredMedia();
+                }
+            });
+        } catch {
+            isBackgroundScanning = false;
+        }
+    }
+
+    const loadData = renderStoredMedia;
+
+    // 1. Instantly render cached media from chrome.storage.local (<50ms zero delay)
+    await renderStoredMedia();
+
+    // 2. Trigger scanPage asynchronously in background to refresh if anything changed
+    if (tab && tab.id > 0) {
+        triggerBackgroundScan();
+    }
+
+    // 3. Storage Change Listener for Reactive Live Updates
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area === 'local' && (changes[`tab_media_${tab.id}`] || changes['completed_downloads'])) {
-            loadData();
+            renderStoredMedia();
         }
     });
 
@@ -737,6 +797,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnRefresh.classList.add('spinning');
         statusLabel.textContent = 'Rescanning media streams...';
         try {
+            if (!tab || tab.id <= 0) {
+                setTimeout(() => {
+                    btnRefresh.classList.remove('spinning');
+                    statusLabel.textContent = 'Ready to Capture';
+                }, 300);
+                return;
+            }
+
             const scanPromise = new Promise(resolve => {
                 try {
                     chrome.tabs.sendMessage(tab.id, { action: 'scanPage' }, (res) => {
@@ -754,13 +822,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (res && res.metadata) {
                 livePageMetadata = res.metadata;
                 liveThumbnail = res.thumbnail || res.metadata.thumbnail;
-                if (res.streams && res.streams.length > 0 && isInsta && window.Storage?.clearTabVideos) {
-                    await window.Storage.clearTabVideos(tab.id);
+                if (res.streams && res.streams.length > 0) {
+                    const storageService = (typeof window.SaveZonixStorage !== 'undefined') ? window.SaveZonixStorage : window.Storage;
+                    if (isInsta && storageService?.clearTabVideos) {
+                        await storageService.clearTabVideos(tab.id);
+                    }
+                    for (const st of res.streams) {
+                        if (storageService?.addVideo) {
+                            await storageService.addVideo(tab.id, {
+                                ...st,
+                                title: res.metadata?.title || st.title,
+                                showName: res.metadata?.showName || st.showName,
+                                subtitle: res.metadata?.subtitle || st.subtitle,
+                                thumbnail: res.thumbnail || res.metadata?.thumbnail || st.thumbnail,
+                                platform: res.site || (isInsta ? 'Instagram' : currentSiteName)
+                            });
+                        }
+                    }
                 }
             }
         } catch { }
 
-        await loadData();
+        await renderStoredMedia();
 
         setTimeout(() => {
             btnRefresh.classList.remove('spinning');
@@ -784,7 +867,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             const currentTitle = (!isGenericTitle(video.title) ? video.title : (!isGenericTitle(video.showName) ? video.showName : fbTitle));
             const currentShow = (!isGenericTitle(video.showName) ? video.showName : (!isGenericTitle(video.title) ? video.title : fbTitle));
             const currentSub = video.subtitle || '';
-            const safeFileName = window.FilenameGenerator.generate({ ...video, title: currentTitle, platform: currentSiteName });
+            let safeFileName = 'video.mp4';
+            try {
+                if (typeof window.FilenameGenerator !== 'undefined' && window.FilenameGenerator?.generate) {
+                    safeFileName = window.FilenameGenerator.generate({ ...video, title: currentTitle, platform: currentSiteName });
+                } else {
+                    safeFileName = (currentTitle || 'video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_') + '.mp4';
+                }
+            } catch {
+                safeFileName = (currentTitle || 'video').replace(/[\\/:*?"<>|\r\n\t]+/g, '_') + '.mp4';
+            }
             const thumbUrl = video.thumbnail || liveThumbnail;
 
             const isDownloadPossible = true;
@@ -797,6 +889,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else if (video.qualityLabel) {
                 qualityLabel = video.qualityLabel;
             }
+            qualityLabel = sanitizeStar(qualityLabel);
 
             const isAlreadyDownloaded = Array.isArray(completedListItems) && completedListItems.some(c => (c.url && c.url === video.url) || c.id === video.id);
 
@@ -873,7 +966,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             <div class="show-title-text" id="title_${video.id}">${currentShow}</div>
                             <div class="show-subtitle-text" id="sub_${video.id}">${currentSub}</div>
                             <div class="meta-badges-row">
-                                <span class="badge-tag" id="res_tag_${video.id}">${isAlreadyDownloaded ? 'Downloaded' : (isDownloadPossible ? 'Ready' : 'Stream')}</span>
+                                <span class="badge-tag" id="res_tag_${video.id}">${sanitizeStar(isAlreadyDownloaded ? 'Downloaded' : (isDownloadPossible ? 'Ready' : 'Stream'))}</span>
                                 <span class="badge-tag badge-size" id="size_tag_${video.id}"></span>
                                 <span class="badge-tag">${(ytDetails && ytDetails.hasPlaylist) ? 'YouTube Mix' : currentSiteName}</span>
                             </div>
@@ -884,7 +977,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         <div class="control-field">
                             <span class="control-label">Quality</span>
                             <select class="quality-dropdown" id="qual_${video.id}">
-                                <option value="">${qualityLabel}</option>
+                                <option value="">${sanitizeStar(qualityLabel)}</option>
                             </select>
                         </div>
                         <div class="filename-preview-row">
@@ -955,8 +1048,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 1. Highest / Best Available option matches the highest quality available for this video
                 qualityOptions.push({
                     value: 'best',
-                    label: `Best Available (${topQualityTag}) • ~${bestSize}`,
-                    tag: topQualityTag,
+                    label: `Best Available (${sanitizeStar(topQualityTag)}) • ~${bestSize}`,
+                    tag: sanitizeStar(topQualityTag),
                     size: `~${bestSize}`,
                     selected: (targetQuality === 'best')
                 });
@@ -975,8 +1068,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     qualityOptions.push({
                         value: normVal,
-                        label: `${displayLabel} • ~${sizeStr}`,
-                        tag: displayLabel.split(' (')[0],
+                        label: `${sanitizeStar(displayLabel)} • ~${sizeStr}`,
+                        tag: sanitizeStar(displayLabel.split(' (')[0]),
                         size: `~${sizeStr}`,
                         selected: (targetQuality === normVal)
                     });
@@ -1014,10 +1107,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 qualityOptions[0].selected = true;
             }
 
-            qualSelect.innerHTML = qualityOptions.map(opt => `<option value="${opt.value}" ${opt.selected ? 'selected' : ''} data-tag="${opt.tag}" data-size="${opt.size}">${opt.label}</option>`).join('');
+            qualSelect.innerHTML = qualityOptions.map(opt => `<option value="${opt.value}" ${opt.selected ? 'selected' : ''} data-tag="${sanitizeStar(opt.tag)}" data-size="${opt.size}">${sanitizeStar(opt.label)}</option>`).join('');
 
             const currentOpt = qualityOptions.find(o => o.selected) || qualityOptions[0];
-            resTag.textContent = (ytDetails && ytDetails.hasPlaylist) ? 'Playlist' : (currentOpt.tag || '1080p');
+            resTag.textContent = sanitizeStar((ytDetails && ytDetails.hasPlaylist) ? 'Playlist' : (currentOpt.tag || '1080p'));
             if (sizeTag) {
                 sizeTag.textContent = currentOpt.size || '';
                 sizeTag.style.display = currentOpt.size ? 'inline-flex' : 'none';
@@ -1026,9 +1119,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // Sync button label immediately on render
             const initialSingleSpan = card.querySelector(`#btn_yt_single_${video.id} span`);
-            if (initialSingleSpan) initialSingleSpan.textContent = `Download Video (${currentOpt.tag || 'Best Quality'})`;
+            if (initialSingleSpan) initialSingleSpan.textContent = `Download Video (${sanitizeStar(currentOpt.tag || 'Best Quality')})`;
             const initialDlSpan = dlBtn ? dlBtn.querySelector('span') : null;
-            if (initialDlSpan) initialDlSpan.textContent = `Download Video (${currentOpt.tag || 'Best Quality'})`;
+            if (initialDlSpan) initialDlSpan.textContent = `Download Video (${sanitizeStar(currentOpt.tag || 'Best Quality')})`;
 
             // Option 2: Probe server-side analyze in background to confirm exact streams & exact file sizes
             const singleVideoUrl = (ytDetails && ytDetails.singleVideoUrl) || currentTabUrl;
@@ -1044,7 +1137,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (data && data.success && Array.isArray(data.qualities) && data.qualities.length > 0) {
                             const backendOptions = [];
                             const top = data.qualities[0];
-                            const topTag = top.resolution || 'Best Quality';
+                            const topTag = sanitizeStar(top.resolution || 'Best Quality');
 
                             backendOptions.push({
                                 value: 'best',
@@ -1053,10 +1146,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 size: top.formattedEstimatedSize || ''
                             });
                             data.qualities.forEach(q => {
+                                const cleanRes = sanitizeStar(q.resolution);
                                 backendOptions.push({
                                     value: q.resolution,
-                                    label: `${q.resolution} • ${q.formattedEstimatedSize || ''}`,
-                                    tag: q.resolution,
+                                    label: `${cleanRes} • ${q.formattedEstimatedSize || ''}`,
+                                    tag: cleanRes,
                                     size: q.formattedEstimatedSize || ''
                                 });
                             });
@@ -1075,19 +1169,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 activeVal = 'best';
                             }
 
-                            qualSelect.innerHTML = backendOptions.map(opt => `<option value="${opt.value}" ${opt.value === activeVal ? 'selected' : ''} data-tag="${opt.tag}" data-size="${opt.size}">${opt.label}</option>`).join('');
+                            qualSelect.innerHTML = backendOptions.map(opt => `<option value="${opt.value}" ${opt.value === activeVal ? 'selected' : ''} data-tag="${sanitizeStar(opt.tag)}" data-size="${opt.size}">${sanitizeStar(opt.label)}</option>`).join('');
 
                             const activeOpt = backendOptions.find(o => o.value === qualSelect.value) || backendOptions[0];
                             if (activeOpt) {
-                                resTag.textContent = (ytDetails && ytDetails.hasPlaylist) ? 'Playlist' : (activeOpt.tag || 'Ready');
+                                resTag.textContent = sanitizeStar((ytDetails && ytDetails.hasPlaylist) ? 'Playlist' : (activeOpt.tag || 'Ready'));
                                 if (sizeTag) {
                                     sizeTag.textContent = activeOpt.size || '';
                                     sizeTag.style.display = activeOpt.size ? 'inline-flex' : 'none';
                                 }
                                 const bSpan = card.querySelector(`#btn_yt_single_${video.id} span`);
-                                if (bSpan) bSpan.textContent = `Download Video (${activeOpt.tag})`;
+                                if (bSpan) bSpan.textContent = `Download Video (${sanitizeStar(activeOpt.tag)})`;
                                 const dSpan = dlBtn ? dlBtn.querySelector('span') : null;
-                                if (dSpan) dSpan.textContent = `Download Video (${activeOpt.tag})`;
+                                if (dSpan) dSpan.textContent = `Download Video (${sanitizeStar(activeOpt.tag)})`;
                             }
                         }
                     }
@@ -1096,7 +1190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             qualSelect.addEventListener('change', () => {
                 const sel = qualSelect.options[qualSelect.selectedIndex];
-                const optTag = sel?.dataset.tag || 'Ready';
+                const optTag = sanitizeStar(sel?.dataset.tag || 'Ready');
                 const optSize = sel?.dataset.size || '';
                 resTag.textContent = (ytDetails && ytDetails.hasPlaylist) ? 'Playlist' : optTag;
                 if (sizeTag) {
@@ -1236,38 +1330,42 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (video.url && video.url.startsWith('http') && !card.dataset.inspected) {
             card.dataset.inspected = 'true';
-            window.StreamDetector.parseHls(video.url, tab.id).then(parsed => {
-                if (parsed.isDrmProtected) {
-                    dlBtn.disabled = true;
-                    errBanner.textContent = `${siteName} stream is DRM-protected and cannot be downloaded.`;
-                    errBanner.classList.remove('hidden');
-                    resTag.textContent = 'DRM Protected';
-                    qualSelect.innerHTML = '<option value="">DRM Protected Stream</option>';
-                    dlBtn.innerHTML = '<span>Download Unavailable</span>';
-                } else if (parsed.isMaster && parsed.variants?.length > 0) {
-                    window.QualitySelector.populate(qualSelect, parsed.variants);
-                    const best = parsed.bestVariant || parsed.variants[0];
-                    const cleanLabel = best.label.split(' • ')[0];
-                    resTag.textContent = `${cleanLabel}`;
-                    dlBtn.innerHTML = `<span>Download ${cleanLabel}</span>`;
-                    dlBtn.disabled = false;
-                    errBanner.classList.add('hidden');
-                } else if (!parsed.isInvalid) {
+            if (typeof window.StreamDetector !== 'undefined' && window.StreamDetector?.parseHls) {
+                window.StreamDetector.parseHls(video.url, tab.id).then(parsed => {
+                    if (parsed.isDrmProtected) {
+                        dlBtn.disabled = true;
+                        errBanner.textContent = `${siteName} stream is DRM-protected and cannot be downloaded.`;
+                        errBanner.classList.remove('hidden');
+                        resTag.textContent = 'DRM Protected';
+                        qualSelect.innerHTML = '<option value="">DRM Protected Stream</option>';
+                        dlBtn.innerHTML = '<span>Download Unavailable</span>';
+                    } else if (parsed.isMaster && parsed.variants?.length > 0) {
+                        if (typeof window.QualitySelector !== 'undefined' && window.QualitySelector?.populate) {
+                            window.QualitySelector.populate(qualSelect, parsed.variants);
+                        }
+                        const best = parsed.bestVariant || parsed.variants[0];
+                        const cleanLabel = sanitizeStar(best.label.split(' • ')[0]);
+                        resTag.textContent = `${cleanLabel}`;
+                        dlBtn.innerHTML = `<span>Download ${cleanLabel}</span>`;
+                        dlBtn.disabled = false;
+                        errBanner.classList.add('hidden');
+                    } else if (!parsed.isInvalid) {
+                        resTag.textContent = 'Ready';
+                        qualSelect.innerHTML = '<option value="">Highest Available (Auto)</option>';
+                        dlBtn.innerHTML = `<span>Download Video</span>`;
+                        dlBtn.disabled = false;
+                        errBanner.classList.add('hidden');
+                    }
+                }).catch(() => {
                     resTag.textContent = 'Ready';
-                    qualSelect.innerHTML = '<option value="">Highest Available (Auto)</option>';
-                    dlBtn.innerHTML = `<span>Download Video</span>`;
                     dlBtn.disabled = false;
-                    errBanner.classList.add('hidden');
-                }
-            }).catch(() => {
-                resTag.textContent = 'Ready';
-                dlBtn.disabled = false;
-            });
+                });
+            }
         }
 
         qualSelect.addEventListener('change', () => {
             const selectedText = qualSelect.options[qualSelect.selectedIndex]?.text || '';
-            const cleanTier = selectedText.replace(/^[⭐\s•—\u0090\x90]+/, '').replace('Best Quality — ', '').replace('Best Available', 'Best Quality').split(' • ')[0];
+            const cleanTier = sanitizeStar(selectedText.replace(/^[⭐★\s•—\u0090\x90]+/, '').replace('Best Quality — ', '').replace('Best Available', 'Best Quality').split(' • ')[0]);
             if (!dlBtn.disabled) {
                 dlBtn.innerHTML = `<span>Download ${cleanTier}</span>`;
             }
@@ -1388,7 +1486,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         completedSection.classList.remove('hidden');
 
         const btnClearAllHistory = document.getElementById('btnClearAllHistory');
-        if (btnClearAllHistory && !btnClearAllHistory.dataset.bound) {
+        if (btnClearAllHistory && (!btnClearAllHistory.dataset || !btnClearAllHistory.dataset.bound)) {
+            if (!btnClearAllHistory.dataset) btnClearAllHistory.dataset = {};
             btnClearAllHistory.dataset.bound = 'true';
             btnClearAllHistory.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -1397,7 +1496,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 completedSection.classList.add('hidden');
 
                 try {
-                    await window.Storage.clearAllCompletedDownloads();
+                    const storageService = (typeof window.SaveZonixStorage !== 'undefined') ? window.SaveZonixStorage : window.Storage;
+                    if (storageService?.clearAllCompletedDownloads) {
+                        await storageService.clearAllCompletedDownloads();
+                    }
                 } catch { }
 
                 try {
@@ -1406,7 +1508,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        const hasActive = videoList && videoList.children.length > 0;
+        const hasActive = Boolean(videoList?.children && videoList.children.length > 0);
         validItems.slice(0, hasActive ? 2 : 4).forEach(item => {
             const rawTitle = (item.title && item.title.toLowerCase() !== 'video.mp4' && item.title.toLowerCase() !== 'video')
                 ? item.title
@@ -1467,7 +1569,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }, 220);
 
                     try {
-                        await window.Storage.removeCompletedDownload(targetId);
+                        const storageService = (typeof window.SaveZonixStorage !== 'undefined') ? window.SaveZonixStorage : window.Storage;
+                        if (storageService?.removeCompletedDownload) {
+                            await storageService.removeCompletedDownload(targetId);
+                        }
                     } catch { }
 
                     try {
@@ -1478,5 +1583,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             completedList.appendChild(div);
         });
+    }
+    } catch (fatalErr) {
+        console.error('[SaveZonix Fatal Popup Error]', fatalErr);
     }
 });

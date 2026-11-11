@@ -14,7 +14,18 @@ const DEFAULT_CONFIG = {
   vipMonthlyPriceINR: 99,
   appDownloadUrl: 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.4/SaveZonix-Setup-v2.5.4.exe',
   silentAutoUpdate: true,
-  announcementMessage: ''
+  announcementMessage: '',
+  defaultThreads: 64,
+  DefaultThreads: 64,
+  maxThreads: 256,
+  MaxThreads: 256,
+  strictCdnMaxThreads: 32,
+  StrictCdnMaxThreads: 32,
+  openCdnMaxThreads: 128,
+  registrationEnabled: true,
+  RegistrationEnabled: true,
+  maintenanceMode: false,
+  MaintenanceMode: false
 };
 
 // GET /api/app-config - Public endpoint consumed by Desktop App & Landing Site
@@ -24,6 +35,13 @@ router.get('/', async (req, res) => {
     if (!config) {
       config = await AppConfig.create(DEFAULT_CONFIG);
     }
+
+    const defaultThreads = Number(config.DefaultThreads || config.defaultThreads || 64);
+    const maxThreads = Number(config.MaxThreads || config.maxThreads || config.openCdnMaxThreads || 256);
+    const strictCdnMaxThreads = Number(config.StrictCdnMaxThreads || config.strictCdnMaxThreads || 32);
+    const registrationEnabled = config.RegistrationEnabled !== undefined ? !!config.RegistrationEnabled : (config.registrationEnabled !== undefined ? !!config.registrationEnabled : true);
+    const maintenanceMode = !!(config.MaintenanceMode ?? config.maintenanceMode);
+
     res.json({
       success: true,
       latestAppVersion: config.latestAppVersion,
@@ -36,15 +54,22 @@ router.get('/', async (req, res) => {
       appDownloadUrl: config.appDownloadUrl,
       silentAutoUpdate: config.silentAutoUpdate !== false,
       announcementMessage: config.announcementMessage,
-      maintenanceMode: !!config.maintenanceMode,
+      maintenanceMode,
+      MaintenanceMode: maintenanceMode,
       maintenanceDurationMinutes: config.maintenanceDurationMinutes || 15,
       maintenanceEndsAt: config.maintenanceEndsAt || null,
       maintenanceMessage: config.maintenanceMessage || 'Server routine upgrade in progress. All stream engines will resume shortly.',
       freeMaxSpeedMBps: config.freeMaxSpeedMBps ?? 15,
       vipMaxSpeedMBps: config.vipMaxSpeedMBps ?? 0,
-      defaultThreads: config.defaultThreads || 64,
-      strictCdnMaxThreads: config.strictCdnMaxThreads || 32,
+      defaultThreads,
+      DefaultThreads: defaultThreads,
+      maxThreads,
+      MaxThreads: maxThreads,
+      strictCdnMaxThreads,
+      StrictCdnMaxThreads: strictCdnMaxThreads,
       openCdnMaxThreads: config.openCdnMaxThreads || 128,
+      registrationEnabled,
+      RegistrationEnabled: registrationEnabled,
       platformThreadCaps: config.platformThreadCaps || { youtube: 64, instagram: 24, tiktok: 24, directCdn: 128 }
     });
   } catch (err) {

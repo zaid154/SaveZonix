@@ -83,62 +83,63 @@
                 try {
                     const scripts = document.querySelectorAll('script:not([src])');
                     for (const s of scripts) {
-                    const text = s.textContent || '';
-                    if (text.includes('html5player.setVideoHLS') || text.includes('html5player.setVideoUrlHigh')) {
-                        const mHls = text.match(/html5player\.setVideoHLS\s*\(\s*['"]([^'"]+)['"]/i);
-                        const mHigh = text.match(/html5player\.setVideoUrlHigh\s*\(\s*['"]([^'"]+)['"]/i);
-                        const mLow = text.match(/html5player\.setVideoUrlLow\s*\(\s*['"]([^'"]+)['"]/i);
+                        const text = s.textContent || '';
+                        if (text.includes('html5player.setVideoHLS') || text.includes('html5player.setVideoUrlHigh')) {
+                            const mHls = text.match(/html5player\.setVideoHLS\s*\(\s*['"]([^'"]+)['"]/i);
+                            const mHigh = text.match(/html5player\.setVideoUrlHigh\s*\(\s*['"]([^'"]+)['"]/i);
+                            const mLow = text.match(/html5player\.setVideoUrlLow\s*\(\s*['"]([^'"]+)['"]/i);
 
-                        if (mHls && mHls[1]) {
-                            const clean = mHls[1].replace(/\\\//g, '/').replace(/['"]/g, '');
-                            if (clean.startsWith('http') && !seen.has(clean)) {
-                                seen.add(clean);
-                                streams.push({
-                                    url: clean,
-                                    quality: '1080p Full HD',
-                                    format: 'HLS',
-                                    duration: meta.duration || '',
-                                    thumbnail: meta.thumbnail,
-                                    platform: meta.platform || 'Stream',
-                                    isDownloadable: true
-                                });
+                            if (mHls && mHls[1]) {
+                                const clean = mHls[1].replace(/\\\//g, '/').replace(/['"]/g, '');
+                                if (clean.startsWith('http') && !seen.has(clean)) {
+                                    seen.add(clean);
+                                    streams.push({
+                                        url: clean,
+                                        quality: '1080p Full HD',
+                                        format: 'HLS',
+                                        duration: meta.duration || '',
+                                        thumbnail: meta.thumbnail,
+                                        platform: meta.platform || 'Stream',
+                                        isDownloadable: true
+                                    });
+                                }
                             }
-                        }
-                        if (mHigh && mHigh[1]) {
-                            const clean = mHigh[1].replace(/\\\//g, '/').replace(/['"]/g, '');
-                            if (clean.startsWith('http') && !seen.has(clean)) {
-                                seen.add(clean);
-                                streams.push({
-                                    url: clean,
-                                    quality: '1080p Full HD',
-                                    format: 'MP4',
-                                    duration: meta.duration || '',
-                                    thumbnail: meta.thumbnail,
-                                    platform: meta.platform || 'Stream',
-                                    isDirectMp4: true,
-                                    isDownloadable: true
-                                });
+                            if (mHigh && mHigh[1]) {
+                                const clean = mHigh[1].replace(/\\\//g, '/').replace(/['"]/g, '');
+                                if (clean.startsWith('http') && !seen.has(clean)) {
+                                    seen.add(clean);
+                                    streams.push({
+                                        url: clean,
+                                        quality: '1080p Full HD',
+                                        format: 'MP4',
+                                        duration: meta.duration || '',
+                                        thumbnail: meta.thumbnail,
+                                        platform: meta.platform || 'Stream',
+                                        isDirectMp4: true,
+                                        isDownloadable: true
+                                    });
+                                }
                             }
-                        }
-                        if (mLow && mLow[1]) {
-                            const clean = mLow[1].replace(/\\\//g, '/').replace(/['"]/g, '');
-                            if (clean.startsWith('http') && !seen.has(clean)) {
-                                seen.add(clean);
-                                streams.push({
-                                    url: clean,
-                                    quality: '360p SD',
-                                    format: 'MP4',
-                                    duration: meta.duration || '',
-                                    thumbnail: meta.thumbnail,
-                                    platform: meta.platform || 'Stream',
-                                    isDirectMp4: true,
-                                    isDownloadable: true
-                                });
+                            if (mLow && mLow[1]) {
+                                const clean = mLow[1].replace(/\\\//g, '/').replace(/['"]/g, '');
+                                if (clean.startsWith('http') && !seen.has(clean)) {
+                                    seen.add(clean);
+                                    streams.push({
+                                        url: clean,
+                                        quality: '360p SD',
+                                        format: 'MP4',
+                                        duration: meta.duration || '',
+                                        thumbnail: meta.thumbnail,
+                                        platform: meta.platform || 'Stream',
+                                        isDirectMp4: true,
+                                        isDownloadable: true
+                                    });
+                                }
                             }
                         }
                     }
-                }
-            } catch { }
+                } catch { }
+            }
 
             // 1. Inspect In-Page Script variables (e.g. okxxx, tube engines, flashvars)
             try {

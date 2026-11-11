@@ -29,6 +29,35 @@
             }
         },
 
+        async addVideo(tabId, video) {
+            if (!tabId || !video) return false;
+            const key = `tab_media_${tabId}`;
+            try {
+                const data = await chrome.storage.local.get(key);
+                const videos = Array.isArray(data[key]) ? data[key] : [];
+                const idx = videos.findIndex(v => (v.url && v.url === video.url) || (v.id && v.id === video.id));
+                if (idx >= 0) {
+                    videos[idx] = { ...videos[idx], ...video };
+                } else {
+                    videos.push(video);
+                }
+                await chrome.storage.local.set({ [key]: videos });
+                return true;
+            } catch {
+                return false;
+            }
+        },
+
+        async clearTabVideos(tabId) {
+            if (!tabId) return false;
+            try {
+                await chrome.storage.local.remove(`tab_media_${tabId}`);
+                return true;
+            } catch {
+                return false;
+            }
+        },
+
         async getTabVideos(tabId) {
             const key = `tab_media_${tabId}`;
             const activeDlKey = `active_dl_${tabId}`;
@@ -117,4 +146,5 @@
     };
 
     root.Storage = Storage;
+    root.SaveZonixStorage = Storage;
 })(typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : this));

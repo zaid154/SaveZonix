@@ -187,9 +187,7 @@
             } else {
                 sendResponse({ scanned: false, metadata: null, streams: [] });
             }
-            } else {
-                sendResponse({ scanned: false });
-            }
+            return true;
         } else if (req.action === 'getYoutubeQueue') {
             const adapter = getActiveAdapter();
             if (adapter && adapter.name === 'YouTube' && typeof adapter.extractQueue === 'function') {
@@ -216,7 +214,6 @@
                 });
             return true;
         }
-        return true;
     });
 
     // Bridge the SaveZonix dashboard to the extension. A server (local or

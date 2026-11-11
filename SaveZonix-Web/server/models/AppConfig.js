@@ -78,13 +78,37 @@ const AppConfigSchema = new mongoose.Schema({
     type: Number,
     default: 64
   },
+  DefaultThreads: {
+    type: Number,
+    default: 64
+  },
+  maxThreads: {
+    type: Number,
+    default: 256
+  },
+  MaxThreads: {
+    type: Number,
+    default: 256
+  },
   strictCdnMaxThreads: {
+    type: Number,
+    default: 32
+  },
+  StrictCdnMaxThreads: {
     type: Number,
     default: 32
   },
   openCdnMaxThreads: {
     type: Number,
     default: 128
+  },
+  registrationEnabled: {
+    type: Boolean,
+    default: true
+  },
+  RegistrationEnabled: {
+    type: Boolean,
+    default: true
   },
   allowGuestDownloads: {
     type: Boolean,
@@ -95,6 +119,10 @@ const AppConfigSchema = new mongoose.Schema({
     default: 10
   },
   maintenanceMode: {
+    type: Boolean,
+    default: false
+  },
+  MaintenanceMode: {
     type: Boolean,
     default: false
   },
@@ -135,6 +163,6 @@ const AppConfigSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   }
-});
+}, { strict: false });
 
 module.exports = mongoose.model('AppConfig', AppConfigSchema);
