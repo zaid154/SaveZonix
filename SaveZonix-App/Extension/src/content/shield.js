@@ -904,7 +904,18 @@
             ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
             #masthead-ad,
             #player-ads,
-            #panels:has(ytd-ads-engagement-panel-content-renderer) {
+            #panels:has(ytd-ads-engagement-panel-content-renderer),
+            /* YouTube Interruption Toasts & Anti-Adblock Banners */
+            yt-notification-action-renderer,
+            tp-yt-paper-toast,
+            #toast,
+            .toast-button,
+            .ytSnackbarContainerOpened,
+            .snackbarViewModelSwipeable,
+            paper-toast[class*="toast"],
+            yt-playability-error-supported-renderers,
+            ytd-enforcement-message-view-model,
+            tp-yt-paper-dialog:has(ytd-enforcement-message-view-model) {
                 display: none !important;
                 visibility: hidden !important;
                 opacity: 0 !important;

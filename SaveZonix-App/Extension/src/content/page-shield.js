@@ -28,6 +28,59 @@
         }
     });
 
+    let ytUserPaused = false;
+    let wasAdShowing = false;
+
+    if (isYouTube) {
+        // Neutralize YouTube anti-adblock experiment flags & artificial delays
+        const neutraliseYouTubeExperiments = () => {
+            try {
+                const disableFlags = (flags) => {
+                    if (!flags || typeof flags !== 'object') return;
+                    flags.web_enable_ab_rsp_cl = false;
+                    flags.web_enable_ab_delay = false;
+                    flags.ab_stream_delay = false;
+                    flags.html5_disable_repeated_ab_checks = true;
+                };
+
+                if (window.ytcfg && typeof window.ytcfg.get === 'function') {
+                    disableFlags(window.ytcfg.get('EXPERIMENT_FLAGS'));
+                }
+                if (window.yt && window.yt.config_ && window.yt.config_.EXPERIMENT_FLAGS) {
+                    disableFlags(window.yt.config_.EXPERIMENT_FLAGS);
+                }
+            } catch { }
+        };
+        neutraliseYouTubeExperiments();
+        setInterval(neutraliseYouTubeExperiments, 1500);
+
+        // Reset user pause state on navigation (new video/playlist track)
+        window.addEventListener('yt-navigate-finish', () => {
+            ytUserPaused = false;
+            wasAdShowing = false;
+        }, { passive: true });
+        window.addEventListener('popstate', () => {
+            ytUserPaused = false;
+            wasAdShowing = false;
+        }, { passive: true });
+
+        // Intentional keyboard pause
+        window.addEventListener('keydown', (e) => {
+            const tag = (e.target && e.target.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+            if (e.code === 'Space' || e.code === 'KeyK') {
+                ytUserPaused = true;
+            }
+        }, { capture: true, passive: true });
+
+        // Intentional mouse click on play/pause controls
+        window.addEventListener('click', (e) => {
+            if (e.target && e.target.closest && (e.target.closest('.ytp-play-button') || e.target.closest('#movie_player'))) {
+                ytUserPaused = true;
+            }
+        }, { capture: true, passive: true });
+    }
+
     let lastAdBlockedNotificationTime = 0;
     function notifyBlocked(reason, url) {
         const now = Date.now();
@@ -618,8 +671,24 @@
                 ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
                 #companion,
                 #ad-card-shelf,
-                .ytd-merch-shelf-renderer {
+                .ytd-merch-shelf-renderer,
+                /* YouTube Interruption Toasts & Anti-Adblock Notifications */
+                yt-notification-action-renderer,
+                tp-yt-paper-toast,
+                #toast,
+                .toast-button,
+                .ytSnackbarContainerOpened,
+                .snackbarViewModelSwipeable,
+                paper-toast[class*="toast"],
+                yt-playability-error-supported-renderers,
+                ytd-enforcement-message-view-model,
+                tp-yt-paper-dialog:has(ytd-enforcement-message-view-model) {
                     display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                    height: 0 !important;
+                    min-height: 0 !important;
                 }
             `;
             const style = document.createElement('style');
@@ -954,9 +1023,10 @@
             const ytPlayer = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
             if (ytPlayer) {
                 const isAdShowing = ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting');
-                const video = ytPlayer.querySelector('video');
+                const video = ytPlayer.querySelector('video') || document.querySelector('video');
 
                 if (isAdShowing) {
+                    wasAdShowing = true;
                     // 1. Try native skip function
                     if (typeof ytPlayer.skipAd === 'function') {
                         try { ytPlayer.skipAd(); } catch { }
@@ -974,6 +1044,7 @@
 
                     // 3. Unskippable & bumper ad fast-forward annihilator (< 50ms)
                     if (video) {
+                        video.__sz_ad_muted = true;
                         video.muted = true;
                         video.playbackRate = 16.0;
                         if (isFinite(video.duration) && video.duration > 0) {
@@ -982,9 +1053,39 @@
                     }
                     notifyBlocked('youtube_ad_annihilated');
                 } else {
-                    // Normal main video is playing: ensure 1.0x normal speed
+                    // Main video playback path:
+                    // A. Restore unmuted audio if it was muted during ad annihilation
+                    if (video && video.__sz_ad_muted) {
+                        video.muted = false;
+                        delete video.__sz_ad_muted;
+                    }
+
+                    // B. Ensure normal 1.0x playback speed
                     if (video && video.playbackRate > 2.0) {
                         try { video.playbackRate = 1.0; } catch { }
+                    }
+
+                    // C. Auto-unfreeze playback if stalled by YouTube's "Experiencing interruptions" check
+                    const hasToast = Boolean(document.querySelector('yt-notification-action-renderer, tp-yt-paper-toast, #toast, .ytSnackbarContainerOpened, .toast-button'));
+                    const isAtStart = video ? (video.currentTime <= 1.0) : false;
+                    const hasSpinner = Boolean(ytPlayer.querySelector('.ytp-spinner:not([style*="display: none"])'));
+
+                    if (wasAdShowing || isAtStart || hasToast || hasSpinner) {
+                        ytUserPaused = false; // YouTube forced the stall, NOT the user!
+                    }
+
+                    if (video && video.paused && !video.ended && !ytUserPaused) {
+                        try {
+                            const p = video.play();
+                            if (p && typeof p.catch === 'function') p.catch(() => { });
+                        } catch { }
+                        if (typeof ytPlayer.playVideo === 'function') {
+                            try { ytPlayer.playVideo(); } catch { }
+                        }
+                    }
+
+                    if (wasAdShowing) {
+                        wasAdShowing = false;
                     }
                 }
 
@@ -992,6 +1093,12 @@
                 if (overlayClose) {
                     try { overlayClose.click(); } catch { }
                 }
+            }
+
+            // Remove any "Experiencing interruptions" toast notification immediately from DOM
+            const toasts = document.querySelectorAll('yt-notification-action-renderer, tp-yt-paper-toast, #toast, .ytSnackbarContainerOpened, .toast-button');
+            for (let i = 0; i < toasts.length; i++) {
+                try { toasts[i].remove(); } catch { }
             }
 
             // Dismiss anti-adblock modal if present and auto-resume playback
@@ -1117,10 +1224,40 @@
             }
         }, { capture: true, passive: true });
 
+        // Unpause listener: catch and disarm YouTube's artificial stall instantly
+        window.addEventListener('pause', (e) => {
+            if (e.target && e.target.tagName === 'VIDEO') {
+                const video = e.target;
+                const ytPlayer = video.closest('#movie_player, .html5-video-player');
+                if (!ytPlayer) return;
+
+                const isAd = ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting');
+                if (isAd) return;
+
+                const hasSpinner = Boolean(ytPlayer.querySelector('.ytp-spinner:not([style*="display: none"])'));
+                const hasToast = Boolean(document.querySelector('yt-notification-action-renderer, tp-yt-paper-toast, #toast, .ytSnackbarContainerOpened, .toast-button'));
+                const isAtStart = video.currentTime <= 1.0;
+
+                if ((isAtStart || hasSpinner || hasToast || wasAdShowing) && !ytUserPaused) {
+                    setTimeout(() => {
+                        if (video.paused && !video.ended && !ytUserPaused) {
+                            try {
+                                const p = video.play();
+                                if (p && typeof p.catch === 'function') p.catch(() => { });
+                            } catch { }
+                            if (typeof ytPlayer.playVideo === 'function') {
+                                try { ytPlayer.playVideo(); } catch { }
+                            }
+                        }
+                    }, 20);
+                }
+            }
+        }, { capture: true, passive: true });
+
         setInterval(() => {
             attachScopedPlayerObserver();
             processAdElements();
-        }, 300);
+        }, 250);
     } else {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
