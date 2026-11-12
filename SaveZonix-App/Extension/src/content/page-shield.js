@@ -570,7 +570,7 @@
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 7. Clickjack Overlay Cosmetic Neutralizer
+    // 7. Clickjack Overlay Cosmetic Neutralizer & YouTube Ad Shield
     // ─────────────────────────────────────────────────────────────
     function injectAntiClickjackStyles() {
         if (isYouTube) return; // 0% overhead on YouTube
@@ -595,6 +595,40 @@
         } catch { }
     }
     injectAntiClickjackStyles();
+
+    function injectYouTubeAdblockStyles() {
+        if (!isYouTube) return;
+        try {
+            const css = `
+                #player-ads,
+                .video-ads,
+                .ytp-ad-module,
+                .ytp-ad-overlay-container,
+                .ytp-ad-overlay-slot,
+                .ytp-ad-player-overlay,
+                .ytp-ad-player-overlay-flyout-cta,
+                ytd-ad-slot-renderer,
+                ytd-banner-promo-renderer,
+                ytd-in-feed-ad-layout-renderer,
+                ytd-promoted-sparkles-web-renderer,
+                ytd-promoted-sparkles-text-search-renderer,
+                ytd-promoted-video-renderer,
+                ytd-display-ad-renderer,
+                #masthead-ad,
+                ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
+                #companion,
+                #ad-card-shelf,
+                .ytd-merch-shelf-renderer {
+                    display: none !important;
+                }
+            `;
+            const style = document.createElement('style');
+            style.id = 'savezonix-yt-adblock-style';
+            style.textContent = css;
+            (document.head || document.documentElement).appendChild(style);
+        } catch { }
+    }
+    injectYouTubeAdblockStyles();
 
     // ─────────────────────────────────────────────────────────────
     // 8. Safe Notification.requestPermission Trap Disarmer
@@ -621,8 +655,17 @@
 
         let pruned = false;
 
-        // uBlock Origin core prune keys
-        const adKeys = ['adPlacements', 'playerAds', 'adSlots', 'adPlacementConfig', 'adBreakHeartbeatParams'];
+        // Core YouTube ad placement & player keys
+        const adKeys = [
+            'adPlacements',
+            'playerAds',
+            'adSlots',
+            'adPlacementConfig',
+            'adBreakHeartbeatParams',
+            'adBreakParams',
+            'adParams',
+            'playerOverlays'
+        ];
         for (let i = 0; i < adKeys.length; i++) {
             const k = adKeys[i];
             if (k in root) {
@@ -631,9 +674,27 @@
             }
         }
 
-        // Nested playerResponse in watchEndpoint or initialData
+        // Nested playerResponse in watchEndpoint, next response, or initialData
         if (root.playerResponse && typeof root.playerResponse === 'object') {
             if (pruneYouTubeAdObject(root.playerResponse)) pruned = true;
+        }
+
+        // Nested playbackTracking
+        if (root.playbackTracking && typeof root.playbackTracking === 'object') {
+            const pt = root.playbackTracking;
+            if (pt.videostatsPlaybackUrl && typeof pt.videostatsPlaybackUrl.baseUrl === 'string' && pt.videostatsPlaybackUrl.baseUrl.includes('ad_')) {
+                delete pt.videostatsPlaybackUrl;
+                pruned = true;
+            }
+        }
+
+        // Array traversal (e.g. watch next recommendations / mixes)
+        if (Array.isArray(root)) {
+            for (let i = 0; i < root.length; i++) {
+                if (root[i] && typeof root[i] === 'object') {
+                    if (pruneYouTubeAdObject(root[i])) pruned = true;
+                }
+            }
         }
 
         return pruned;
@@ -650,9 +711,21 @@
     }
 
     if (isYouTube) {
-        // A. Intercept window.fetch strictly for /youtubei/v1/player endpoint
+        // 0. Intercept JSON.parse for YouTube data structures (uBlock Origin style)
+        try {
+            const rawJsonParse = JSON.parse;
+            JSON.parse = function (...args) {
+                const parsed = rawJsonParse.apply(this, args);
+                if (isShieldActive && parsed && typeof parsed === 'object') {
+                    pruneYouTubeAdObject(parsed);
+                }
+                return parsed;
+            };
+        } catch { }
+
+        // A. Intercept window.fetch strictly for /youtubei/v1/player & /youtubei/v1/next endpoints
         // Uses uBlock Origin's clone-then-prune architecture:
-        // Strictly targets /player JSON. Non-player and non-JSON requests are returned untouched immediately.
+        // Strictly targets player/next JSON. Non-player and non-JSON requests are returned untouched immediately.
         const rawFetch = window.fetch;
         window.fetch = function (...args) {
             const fetchPromise = rawFetch.apply(this, args);
@@ -669,8 +742,9 @@
                 }
             } catch { }
 
-            // Strictly filter target YouTube player API endpoint: 0% overhead on all other calls
-            if (!requestUrl.includes('/youtubei/v1/player')) {
+            // Target YouTube player and watch next API endpoints (supports standard watch + mixes & radio playlists)
+            const isTargetEndpoint = requestUrl.includes('/youtubei/v1/player') || requestUrl.includes('/youtubei/v1/next');
+            if (!isTargetEndpoint) {
                 return fetchPromise;
             }
 
@@ -879,19 +953,38 @@
         if (isYouTube) {
             const ytPlayer = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
             if (ytPlayer) {
-                // Scope search strictly inside player container (only ~20 elements, never query the entire page!)
-                const skipBtn = ytPlayer.querySelector(
-                    '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, button[class*="ytp-ad-skip-button"], button[class*="skip-button"], .ytp-ad-skip-button-container button, [aria-label*="Skip ad" i], [aria-label*="Skip" i]'
-                );
-                if (skipBtn) {
-                    try { skipBtn.click(); } catch { }
-                    try { dispatchRealClick(skipBtn); } catch { }
-                    notifyBlocked('ad_skip_button_clicked');
-                }
+                const isAdShowing = ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting');
+                const video = ytPlayer.querySelector('video');
 
-                if (ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting')) {
+                if (isAdShowing) {
+                    // 1. Try native skip function
                     if (typeof ytPlayer.skipAd === 'function') {
                         try { ytPlayer.skipAd(); } catch { }
+                    }
+
+                    // 2. Click skip button immediately if present
+                    const skipBtn = ytPlayer.querySelector(
+                        '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, button[class*="ytp-ad-skip-button"], button[class*="skip-button"], .ytp-ad-skip-button-container button, [aria-label*="Skip ad" i], [aria-label*="Skip" i]'
+                    );
+                    if (skipBtn) {
+                        try { skipBtn.click(); } catch { }
+                        try { dispatchRealClick(skipBtn); } catch { }
+                        notifyBlocked('ad_skip_button_clicked');
+                    }
+
+                    // 3. Unskippable & bumper ad fast-forward annihilator (< 50ms)
+                    if (video) {
+                        video.muted = true;
+                        video.playbackRate = 16.0;
+                        if (isFinite(video.duration) && video.duration > 0) {
+                            video.currentTime = video.duration;
+                        }
+                    }
+                    notifyBlocked('youtube_ad_annihilated');
+                } else {
+                    // Normal main video is playing: ensure 1.0x normal speed
+                    if (video && video.playbackRate > 2.0) {
+                        try { video.playbackRate = 1.0; } catch { }
                     }
                 }
 
@@ -901,14 +994,17 @@
                 }
             }
 
-            // Dismiss anti-adblock modal if present
+            // Dismiss anti-adblock modal if present and auto-resume playback
             const antiAdblockModal = document.querySelector('ytd-enforcement-message-view-model, tp-yt-paper-dialog:has(ytd-enforcement-message-view-model)');
             if (antiAdblockModal) {
                 antiAdblockModal.remove();
                 document.querySelectorAll('tp-yt-iron-overlay-backdrop').forEach(b => b.remove());
+                const v = document.querySelector('video');
+                if (v && v.paused) {
+                    try { v.play(); } catch { }
+                }
             }
 
-            enforceNormalPlaybackSpeed();
             return; // STRICT RETURN: YouTube is clean, do not run heavy generic queries!
         }
 
@@ -984,20 +1080,15 @@
 
     // Attach lightweight observer strictly to player container
     let playerObserver = null;
-    let observerThrottleTimer = null;
     function attachScopedPlayerObserver() {
         if (playerObserver) return;
-        const playerContainer = document.getElementById('movie_player') || document.querySelector('.html5-video-player, .video-player, #player');
+        const playerContainer = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
         if (playerContainer) {
             playerObserver = new MutationObserver(() => {
-                if (observerThrottleTimer) return;
-                observerThrottleTimer = setTimeout(() => {
-                    observerThrottleTimer = null;
-                    processAdElements();
-                }, 100); // 100ms throttle
+                processAdElements();
             });
 
-            // Scoped observation: NO subtree recursion, only watch class attribute on player wrapper!
+            // Scoped observation: watch class changes on player wrapper
             playerObserver.observe(playerContainer, {
                 childList: false,
                 subtree: false,
@@ -1009,10 +1100,27 @@
 
     // Fast Scoped Triggers (Zero continuous intervals on generic websites)
     if (isYouTube) {
+        // Immediate event listeners on video player: 0ms reaction time
+        window.addEventListener('timeupdate', (e) => {
+            if (e.target && e.target.tagName === 'VIDEO') {
+                const ytPlayer = e.target.closest('#movie_player, .html5-video-player');
+                if (ytPlayer && (ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting'))) {
+                    processAdElements();
+                }
+            }
+        }, { capture: true, passive: true });
+
+        window.addEventListener('play', (e) => {
+            if (e.target && e.target.tagName === 'VIDEO') {
+                attachScopedPlayerObserver();
+                processAdElements();
+            }
+        }, { capture: true, passive: true });
+
         setInterval(() => {
             attachScopedPlayerObserver();
             processAdElements();
-        }, 500);
+        }, 300);
     } else {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {
