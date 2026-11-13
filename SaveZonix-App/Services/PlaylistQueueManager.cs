@@ -914,7 +914,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                             }
                         });
 
-                        await DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 4);
+                        await DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 8);
 
                         if (item.Format.Equals("MP3", StringComparison.OrdinalIgnoreCase))
                         {
@@ -997,7 +997,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
                                 }
                             });
 
-                            await DownloadStreamParallelAsync(muxed, tempOutput, muxProgress, ct, turboChunks: 6);
+                            await DownloadStreamParallelAsync(muxed, tempOutput, muxProgress, ct, turboChunks: 16);
                         }
                         else
                         {
@@ -1059,9 +1059,9 @@ public class PlaylistQueueManager : IPlaylistQueueManager
 
                             item.Status = $"⚡ Turbo Downloading {videoStream.VideoQuality.Label} + Audio (Parallel Chunks)...";
 
-                            var videoTask = DownloadStreamParallelAsync(videoStream, tempVideoRaw, videoProgress, ct, turboChunks: 6);
+                            var videoTask = DownloadStreamParallelAsync(videoStream, tempVideoRaw, videoProgress, ct, turboChunks: 16);
                             var audioTask = audioStream != null
-                                ? DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 2)
+                                ? DownloadStreamParallelAsync(audioStream, tempAudioRaw, audioProgress, ct, turboChunks: 8)
                                 : Task.CompletedTask;
 
                             await Task.WhenAll(videoTask, audioTask);
@@ -1349,49 +1349,74 @@ public class PlaylistQueueManager : IPlaylistQueueManager
         string directUrl = streamInfo.Url;
         long totalSize = streamInfo.Size.Bytes;
 
-        // If stream is too small (<1MB) or no size info, fall back to single-stream
-        if (totalSize < 1 * 1024 * 1024 || string.IsNullOrEmpty(directUrl))
+        if (string.IsNullOrEmpty(directUrl))
         {
             await DownloadStreamToDiskAsync(streamInfo, targetPath, progress, ct);
             return;
         }
 
-        // Verify HTTP Range support with a probe request
-        bool supportsRange = false;
-        try
-        {
-            using var probeReq = new HttpRequestMessage(HttpMethod.Get, directUrl);
-            probeReq.Version = System.Net.HttpVersion.Version11;
-            probeReq.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
-            AddYouTubePlayerHeaders(probeReq);
-            probeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
+        bool isYouTube = directUrl.Contains("googlevideo", StringComparison.OrdinalIgnoreCase) ||
+                         directUrl.Contains("youtube", StringComparison.OrdinalIgnoreCase);
 
-            using var probeResp = await _sharedHttpClient.SendAsync(probeReq, HttpCompletionOption.ResponseHeadersRead, ct);
-            supportsRange = probeResp.StatusCode == System.Net.HttpStatusCode.PartialContent;
-
-            if (probeResp.Content.Headers.ContentRange?.Length.HasValue == true)
-            {
-                totalSize = probeResp.Content.Headers.ContentRange.Length.Value;
-            }
-        }
-        catch
-        {
-            // Probe failed
-        }
-
+        // Verify HTTP Range support
+        // YouTube GoogleVideo CDN ALWAYS supports byte ranges. If streamInfo.Size.Bytes > 0, we do not require a probe to succeed.
+        bool supportsRange = isYouTube && totalSize > 0;
         if (!supportsRange)
         {
+            try
+            {
+                using var probeReq = new HttpRequestMessage(HttpMethod.Get, directUrl);
+                probeReq.Version = System.Net.HttpVersion.Version11;
+                probeReq.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                AddYouTubePlayerHeaders(probeReq);
+                probeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
+
+                using var probeResp = await _sharedHttpClient.SendAsync(probeReq, HttpCompletionOption.ResponseHeadersRead, ct);
+                supportsRange = probeResp.StatusCode == System.Net.HttpStatusCode.PartialContent;
+
+                if (probeResp.Content.Headers.ContentRange?.Length.HasValue == true)
+                {
+                    totalSize = probeResp.Content.Headers.ContentRange.Length.Value;
+                }
+            }
+            catch
+            {
+                if (isYouTube && totalSize > 0)
+                {
+                    supportsRange = true;
+                }
+            }
+        }
+
+        if (!supportsRange || totalSize <= 0)
+        {
             await DownloadStreamToDiskAsync(streamInfo, targetPath, progress, ct);
             return;
         }
 
-        // 2MB micro-burst chunk size: YouTube GoogleVideo serves 2MB in instant wire burst without triggering throttling
-        const long CHUNK_SIZE = 2L * 1024 * 1024;
+        // ─── TURBO MICRO-BURST CHUNK SIZING ──────────────
+        // 512KB for audio (<6MB) yields 6-12 rapid slices that finish in 1-2 seconds
+        // 1MB for medium files (6MB-30MB)
+        // 2MB for large videos (30MB+)
+        long chunkSize;
+        if (totalSize <= 6L * 1024 * 1024)
+        {
+            chunkSize = 512L * 1024;
+        }
+        else if (totalSize <= 30L * 1024 * 1024)
+        {
+            chunkSize = 1024L * 1024;
+        }
+        else
+        {
+            chunkSize = 2L * 1024 * 1024;
+        }
+
         var chunkRanges = new ConcurrentQueue<(int Index, long Start, long End)>();
         int chunkIdx = 0;
-        for (long start = 0; start < totalSize; start += CHUNK_SIZE)
+        for (long start = 0; start < totalSize; start += chunkSize)
         {
-            long end = Math.Min(start + CHUNK_SIZE - 1, totalSize - 1);
+            long end = Math.Min(start + chunkSize - 1, totalSize - 1);
             chunkRanges.Enqueue((chunkIdx++, start, end));
         }
 
@@ -1402,23 +1427,30 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             RandomAccess.SetLength(targetFileHandle, totalSize);
 
             long totalBytesDownloaded = 0;
-            // Multi-socket HTTP/1.1 burst workers (up to 16 parallel connections) fully saturates 300+ Mbps connections
-            int workerCount = Math.Clamp(turboChunks, 2, 8);
+            // Multi-socket HTTP/1.1 burst workers (8 to 24 parallel connections)
+            int workerCount = Math.Clamp(turboChunks, 2, Math.Min(24, Math.Max(2, chunkRanges.Count)));
             var workers = new List<Task>();
 
             for (int w = 0; w < workerCount; w++)
             {
                 workers.Add(Task.Run(async () =>
                 {
-                    byte[] buffer = new byte[524288]; // 512KB read buffer for maximum pipe throughput
-                    while (chunkRanges.TryDequeue(out var chunk) && !ct.IsCancellationRequested)
+                    byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(524288); // 512KB read buffer for maximum pipe throughput
+                    try
                     {
-                        await DownloadSingleBurstChunkAsync(directUrl, targetFileHandle, chunk.Start, chunk.End, buffer,
-                            bytesRead =>
-                            {
-                                Interlocked.Add(ref totalBytesDownloaded, bytesRead);
-                                progress?.Report(Interlocked.Read(ref totalBytesDownloaded));
-                            }, ct);
+                        while (chunkRanges.TryDequeue(out var chunk) && !ct.IsCancellationRequested)
+                        {
+                            await DownloadSingleBurstChunkAsync(directUrl, targetFileHandle, chunk.Start, chunk.End, buffer,
+                                bytesRead =>
+                                {
+                                    Interlocked.Add(ref totalBytesDownloaded, bytesRead);
+                                    progress?.Report(Interlocked.Read(ref totalBytesDownloaded));
+                                }, ct);
+                        }
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
                     }
                 }, ct));
             }
@@ -1451,7 +1483,7 @@ public class PlaylistQueueManager : IPlaylistQueueManager
             try
             {
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(60)); // 60s timeout for steady streaming
+                cts.CancelAfter(TimeSpan.FromSeconds(35)); // 35s timeout for fast micro-burst slices
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Version = System.Net.HttpVersion.Version11;

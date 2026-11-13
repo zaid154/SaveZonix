@@ -241,64 +241,106 @@ public class ParallelDownloader
             Directory.CreateDirectory(tempDirectory);
         }
 
-        bool supportsRange = false;
+        bool isYouTube = fileUrl.Contains("googlevideo", StringComparison.OrdinalIgnoreCase) ||
+                         fileUrl.Contains("youtube", StringComparison.OrdinalIgnoreCase);
+        bool supportsRange = isYouTube && totalContentLength > 0;
         long confirmedLength = totalContentLength;
 
-        try
+        if (!supportsRange)
         {
-            using var rangeReq = new HttpRequestMessage(HttpMethod.Get, fileUrl);
-            if (fileUrl.Contains("googlevideo", StringComparison.OrdinalIgnoreCase) || fileUrl.Contains("youtube", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                rangeReq.Version = System.Net.HttpVersion.Version11;
-                rangeReq.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
-                rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
-                rangeReq.Headers.TryAddWithoutValidation("Referer", "https://www.youtube.com/");
-                rangeReq.Headers.TryAddWithoutValidation("Accept", "*/*");
-                rangeReq.Headers.TryAddWithoutValidation("Accept-Encoding", "identity");
-            }
-            else
-            {
-                rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
-            }
-            rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
-            var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(fileUrl));
-            if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0]) && !rangeReq.Headers.Contains("Referer")) rangeReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
-
-            using var rangeRes = await _httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (rangeRes.StatusCode == HttpStatusCode.PartialContent)
-            {
-                supportsRange = true;
-                if (rangeRes.Content.Headers.ContentRange?.Length.HasValue == true)
+                using var rangeReq = new HttpRequestMessage(HttpMethod.Get, fileUrl);
+                if (isYouTube)
                 {
-                    confirmedLength = rangeRes.Content.Headers.ContentRange.Length.Value;
+                    rangeReq.Version = System.Net.HttpVersion.Version11;
+                    rangeReq.VersionPolicy = HttpVersionPolicy.RequestVersionExact;
+                    rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36");
+                    rangeReq.Headers.TryAddWithoutValidation("Referer", "https://www.youtube.com/");
+                    rangeReq.Headers.TryAddWithoutValidation("Accept", "*/*");
+                    rangeReq.Headers.TryAddWithoutValidation("Accept-Encoding", "identity");
+                }
+                else
+                {
+                    rangeReq.Headers.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+                }
+                rangeReq.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, 0);
+                var referers = StreamSecurityHelper.GetCandidateReferers(new Uri(fileUrl));
+                if (referers.Count > 0 && !string.IsNullOrEmpty(referers[0]) && !rangeReq.Headers.Contains("Referer")) rangeReq.Headers.TryAddWithoutValidation("Referer", referers[0]);
+
+                using var rangeRes = await _httpClient.SendAsync(rangeReq, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                if (rangeRes.StatusCode == HttpStatusCode.PartialContent)
+                {
+                    supportsRange = true;
+                    if (rangeRes.Content.Headers.ContentRange?.Length.HasValue == true)
+                    {
+                        confirmedLength = rangeRes.Content.Headers.ContentRange.Length.Value;
+                    }
+                }
+                else if (rangeRes.IsSuccessStatusCode && rangeRes.Content.Headers.ContentLength.HasValue)
+                {
+                    confirmedLength = rangeRes.Content.Headers.ContentLength.Value;
                 }
             }
-            else if (rangeRes.IsSuccessStatusCode && rangeRes.Content.Headers.ContentLength.HasValue)
+            catch
             {
-                confirmedLength = rangeRes.Content.Headers.ContentLength.Value;
+                if (isYouTube && totalContentLength > 0)
+                {
+                    supportsRange = true;
+                    confirmedLength = totalContentLength;
+                }
             }
         }
-        catch { }
 
-        if (!supportsRange || confirmedLength <= 524288)
+        if (!supportsRange || confirmedLength <= 262144)
         {
             return await DownloadDirectSingleStreamAsync(fileUrl, tempDirectory, confirmedLength, progress, cancellationToken);
         }
 
-        // ─── SMART SITE-ADAPTIVE CONCURRENCY & CHUNK SIZING ──────────────
+        // ─── TURBO MICRO-BURST CONCURRENCY & CHUNK SIZING ──────────────
+        // YouTube GoogleVideo CDN algorithm throttles continuous open streams to ~16-60 KB/s for audio
+        // and ~100-300 KB/s for video. However, bounded byte ranges (512KB - 2MB) are served at full line rate (15-40 MB/s).
+        long targetChunkSize;
+        if (isYouTube)
+        {
+            if (confirmedLength <= 6L * 1024 * 1024)
+            {
+                // Audio files (3MB - 5MB): Slice into 512KB chunks (6 - 12 slices) so 8+ parallel sockets finish in ~1.2s
+                targetChunkSize = 512L * 1024;
+            }
+            else if (confirmedLength <= 30L * 1024 * 1024)
+            {
+                // Medium videos (6MB - 30MB): 1MB chunks
+                targetChunkSize = 1024L * 1024;
+            }
+            else
+            {
+                // Large 1080p / 4K videos: 2MB chunks
+                targetChunkSize = 2L * 1024 * 1024;
+            }
+        }
+        else
+        {
+            targetChunkSize = 4L * 1024 * 1024; // 4MB for standard web CDNs
+        }
+
+        int numChunks = (int)Math.Max(1, Math.Ceiling((double)confirmedLength / targetChunkSize));
+        if (isYouTube && confirmedLength >= 1024 * 1024 && numChunks < 4)
+        {
+            numChunks = 4;
+            targetChunkSize = (long)Math.Ceiling((double)confirmedLength / numChunks);
+        }
+
         int optimizedConcurrency = GetOptimizedConcurrency(fileUrl, maxConcurrency);
+        int activeWorkers = isYouTube
+            ? Math.Clamp(Math.Max(maxConcurrency, 8), 4, Math.Min(32, Math.Max(2, numChunks)))
+            : Math.Clamp(optimizedConcurrency, 2, Math.Min(32, Math.Max(2, numChunks)));
 
-        // Optimal chunk size is 4MB - 16MB so TCP congestion window ramps up to max bandwidth
-        long minChunkSize = 4L * 1024 * 1024;
-        int maxChunksByLength = (int)Math.Max(2, confirmedLength / minChunkSize);
-        int numChunks = Math.Clamp(optimizedConcurrency, 2, Math.Min(maxChunksByLength, 32));
-        long chunkSize = confirmedLength / numChunks;
         var chunks = new List<SegmentItem>();
-
         for (int i = 0; i < numChunks; i++)
         {
-            long start = i * chunkSize;
-            long end = (i == numChunks - 1) ? confirmedLength - 1 : (start + chunkSize - 1);
+            long start = i * targetChunkSize;
+            long end = Math.Min(start + targetChunkSize - 1, confirmedLength - 1);
 
             chunks.Add(new SegmentItem
             {
@@ -370,17 +412,17 @@ public class ParallelDownloader
                     EstimatedTotalBytes = confirmedLength,
                     SpeedMBps = curSpeed,
                     PeakSpeedMBps = peakSpeedMBps,
-                    ActiveThreads = numChunks,
+                    ActiveThreads = activeWorkers,
                     Elapsed = stopwatch.Elapsed,
                     EstimatedTimeRemaining = eta,
-                    Status = $"Downloading Direct File ({numChunks} Turbo Range Slices)..."
+                    Status = $"⚡ Turbo Downloading ({chunks.Count} Slices @ {activeWorkers} Sockets)..."
                 });
             }
         }, cancellationToken);
 
         var parallelOptions = new ParallelOptions
         {
-            MaxDegreeOfParallelism = numChunks,
+            MaxDegreeOfParallelism = activeWorkers,
             CancellationToken = cancellationToken
         };
 
@@ -416,7 +458,7 @@ public class ParallelDownloader
             EstimatedTotalBytes = totalBytes,
             SpeedMBps = (totalBytes / 1024.0 / 1024.0) / Math.Max(0.1, stopwatch.Elapsed.TotalSeconds),
             PeakSpeedMBps = peakSpeedMBps,
-            ActiveThreads = numChunks,
+            ActiveThreads = activeWorkers,
             Elapsed = stopwatch.Elapsed,
             EstimatedTimeRemaining = TimeSpan.Zero,
             Status = "Download Complete"
@@ -598,17 +640,17 @@ public class ParallelDownloader
 
                 await using var contentStream = await response.Content.ReadAsStreamAsync(attemptCts.Token);
                 var fileMode = existingBytes > 0 ? FileMode.Append : FileMode.Create;
-                await using var fileStream = new FileStream(chunk.LocalTempPath, fileMode, FileAccess.Write, FileShare.None, 262144, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                await using var fileStream = new FileStream(chunk.LocalTempPath, fileMode, FileAccess.Write, FileShare.None, 524288, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
-                byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(262144);
+                byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(524288);
                 int bytesRead;
 
                 try
                 {
                     while (true)
                     {
-                        attemptCts.CancelAfter(TimeSpan.FromSeconds(45));
-                        bytesRead = await contentStream.ReadAsync(buffer, 0, 262144, attemptCts.Token);
+                        attemptCts.CancelAfter(TimeSpan.FromSeconds(35));
+                        bytesRead = await contentStream.ReadAsync(buffer, 0, 524288, attemptCts.Token);
                         if (bytesRead == 0) break;
 
                         await fileStream.WriteAsync(buffer, 0, bytesRead, attemptCts.Token);

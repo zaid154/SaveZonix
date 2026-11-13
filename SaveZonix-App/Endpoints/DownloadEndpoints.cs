@@ -345,8 +345,8 @@ public static class DownloadEndpoints
                                 state.Status = vp.Status;
                             });
 
-                            var videoTask = downloader.DownloadDirectFileAsync(req.StreamUrl, videoTempDir, 0, concurrency, combinedVideoProgress, cts.Token);
-                            var audioTask = downloader.DownloadDirectFileAsync(req.AudioUrl, audioTempDir, 0, Math.Clamp(concurrency / 2, 4, 32), audioProgress, cts.Token);
+                            var videoTask = downloader.DownloadDirectFileAsync(req.StreamUrl, videoTempDir, 0, Math.Clamp(concurrency, 12, 32), combinedVideoProgress, cts.Token);
+                            var audioTask = downloader.DownloadDirectFileAsync(req.AudioUrl, audioTempDir, 0, Math.Clamp(concurrency / 2, 8, 16), audioProgress, cts.Token);
                             await Task.WhenAll(videoTask, audioTask);
 
                             if (!await SegmentMerger.MergeSegmentsAsync(await videoTask, tempVideo, videoTempDir) ||
@@ -398,7 +398,7 @@ public static class DownloadEndpoints
 
                                     string tempRawAudio = Path.Combine(tempDirectory, "audio_raw.bin");
                                     string audioTempDir = Path.Combine(tempDirectory, "audio_chunks");
-                                    var chunks = await downloader.DownloadDirectFileAsync(bestAudio.Url, audioTempDir, bestAudio.Size.Bytes, Math.Clamp(concurrency, 4, 16), progress, cts.Token);
+                                    var chunks = await downloader.DownloadDirectFileAsync(bestAudio.Url, audioTempDir, bestAudio.Size.Bytes, Math.Clamp(concurrency, 8, 16), progress, cts.Token);
                                     if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempRawAudio, audioTempDir) || !File.Exists(tempRawAudio))
                                     {
                                         finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to download audio stream." };
@@ -437,7 +437,7 @@ public static class DownloadEndpoints
                                     {
                                         state.Status = $"Downloading YouTube {videoStream.VideoQuality.Label} Stream...";
                                         string muxTempDir = Path.Combine(tempDirectory, "muxed_chunks");
-                                        var chunks = await downloader.DownloadDirectFileAsync(muxed.Url, muxTempDir, muxed.Size.Bytes, Math.Clamp(concurrency, 4, 16), progress, cts.Token);
+                                        var chunks = await downloader.DownloadDirectFileAsync(muxed.Url, muxTempDir, muxed.Size.Bytes, Math.Clamp(concurrency, 12, 32), progress, cts.Token);
                                         if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, muxTempDir) || !File.Exists(tempMergedFile))
                                         {
                                             finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Failed to download YouTube stream." };
@@ -478,9 +478,9 @@ public static class DownloadEndpoints
                                             Interlocked.Exchange(ref audDownloaded, ap.TotalBytesDownloaded);
                                         });
 
-                                        var vTask = downloader.DownloadDirectFileAsync(videoStream.Url, vidTempDir, vidSize, Math.Clamp(concurrency, 4, 16), vidProg, cts.Token);
+                                        var vTask = downloader.DownloadDirectFileAsync(videoStream.Url, vidTempDir, vidSize, Math.Clamp(concurrency, 12, 32), vidProg, cts.Token);
                                         var aTask = bestAudio != null
-                                            ? downloader.DownloadDirectFileAsync(bestAudio.Url, audTempDir, audSize, 4, audProg, cts.Token)
+                                            ? downloader.DownloadDirectFileAsync(bestAudio.Url, audTempDir, audSize, Math.Clamp(concurrency / 2, 8, 16), audProg, cts.Token)
                                             : Task.FromResult(new List<SegmentItem>());
 
                                         await Task.WhenAll(vTask, aTask);
@@ -516,7 +516,7 @@ public static class DownloadEndpoints
                                 if (isDirect)
                                 {
                                     string directTempDir = Path.Combine(tempDirectory, "direct_chunks");
-                                    var chunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, directTempDir, req.EstimatedSizeBytes, concurrency, progress, cts.Token);
+                                    var chunks = await downloader.DownloadDirectFileAsync(req.StreamUrl, directTempDir, req.EstimatedSizeBytes, Math.Clamp(concurrency, 12, 32), progress, cts.Token);
                                     if (!await SegmentMerger.MergeSegmentsAsync(chunks, tempMergedFile, directTempDir) || !File.Exists(tempMergedFile))
                                     {
                                         finalValidation = new MediaValidationResult { IsValid = false, IntegrityStatus = MediaIntegrityStatus.Corrupted, ErrorReason = "Direct media stream failed to download completely." };
