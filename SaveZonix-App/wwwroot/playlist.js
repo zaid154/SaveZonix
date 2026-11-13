@@ -554,7 +554,7 @@
 
         // Progressive Load More Events
         if (btnLoadNextBatch) {
-            btnLoadNextBatch.addEventListener('click', () => loadMoreVideos(50, false));
+            btnLoadNextBatch.addEventListener('click', () => loadMoreVideos(25, false));
         }
         if (btnLoadAllVideos) {
             btnLoadAllVideos.addEventListener('click', () => loadMoreVideos(0, true));
@@ -1017,7 +1017,7 @@
                 btnLoadNextBatch.style.display = 'inline-flex';
                 btnLoadNextBatch.disabled = false;
                 const span = btnLoadNextBatch.querySelector('span');
-                if (span) span.textContent = `Load Next 50 Videos (From #${loadedVideos.length + 1})`;
+                if (span) span.textContent = `Load Next 25 Videos (From #${loadedVideos.length + 1})`;
             }
             if (btnLoadAllVideos) {
                 btnLoadAllVideos.style.display = 'inline-flex';
@@ -1154,7 +1154,7 @@
             }
 
             // Normal single batch loading
-            const actualBatchSize = batchSize || 50;
+            const actualBatchSize = batchSize || 25;
             if (progressiveLoadingMsg) {
                 progressiveLoadingMsg.textContent = `Fetching next ${actualBatchSize} videos (#${loadedVideos.length + 1} to #${loadedVideos.length + actualBatchSize}) from YouTube...`;
             }
@@ -1239,7 +1239,7 @@
             if (btnLoadNextBatch) {
                 btnLoadNextBatch.disabled = false;
                 const span = btnLoadNextBatch.querySelector('span');
-                if (span) span.textContent = `Load Next 50 Videos (From #${loadedVideos.length + 1})`;
+                if (span) span.textContent = `Load Next 25 Videos (From #${loadedVideos.length + 1})`;
             }
             if (btnLoadAllVideos) {
                 btnLoadAllVideos.disabled = false;

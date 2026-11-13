@@ -434,6 +434,9 @@ public class YouTubePlaylistService : IYouTubePlaylistService
             cleanTitle = cleanTitle.Substring("Mix - ".Length).Trim();
         }
 
+        var isMix = (request.Url ?? "").Contains("list=RD", StringComparison.OrdinalIgnoreCase) ||
+                    (request.Url ?? "").Contains("start_radio=1", StringComparison.OrdinalIgnoreCase);
+
         var firstVid = videos.FirstOrDefault();
         var result = new PlaylistInfoResult
         {
@@ -443,16 +446,16 @@ public class YouTubePlaylistService : IYouTubePlaylistService
             Author = firstVid?.Author ?? (request.Author ?? "YouTube Mix"),
             ThumbnailUrl = firstVid?.ThumbnailUrl ?? "",
             VideoCount = videos.Count,
-            TotalKnownVideos = videos.Count,
-            HasMore = false,
-            IsMix = true,
+            TotalKnownVideos = isMix ? 400 : (videos.Count >= 25 ? videos.Count + 50 : videos.Count),
+            HasMore = isMix || videos.Count >= 25,
+            IsMix = isMix,
             Videos = videos
         };
 
         _importedQueues[key] = result;
 
         // Also cache under playlistId so loading by URL also returns this exact queue!
-        var playlistId = ExtractPlaylistId(request.Url);
+        var playlistId = ExtractPlaylistId(request.Url ?? string.Empty);
         if (!string.IsNullOrWhiteSpace(playlistId))
         {
             _cache[playlistId] = (DateTime.UtcNow, result);
