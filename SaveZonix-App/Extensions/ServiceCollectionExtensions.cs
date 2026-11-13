@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
@@ -16,6 +17,16 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddSaveZonixServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // 0. Embedded SQLite Database (ACID-Compliant Zero-Config Desktop Storage)
+        string sqliteDbPath = SaveZonix.Data.SaveZonixDbContext.GetDatabasePath();
+        services.AddDbContext<SaveZonix.Data.SaveZonixDbContext>(options =>
+        {
+            options.UseSqlite($"Data Source={sqliteDbPath}");
+        });
+
+        // 0b. SignalR Real-Time Telemetry WebSockets
+        services.AddSignalR();
+
         // 1. MongoDB Atlas Driver (Singleton Client & Database) - Zero hardcoded credentials
         string? mongoConnStr = configuration["MongoDb:ConnectionString"]
             ?? configuration.GetConnectionString("MongoDb")
@@ -98,7 +109,7 @@ public static class ServiceCollectionExtensions
         // 4. Application Services & Switchable Analytics/Database Layer
         services.AddSingleton<IEmailService, EmailService>();
         services.AddSingleton<IEmailVerificationService, EmailVerificationService>();
-        services.AddScoped<IDownloadHistoryService, DownloadHistoryService>();
+        services.AddScoped<IDownloadHistoryService, SqliteDownloadHistoryService>();
         services.AddScoped<IAdminSettingsService, AdminSettingsService>();
         services.AddHostedService<CloudSettingsSyncWorker>();
 

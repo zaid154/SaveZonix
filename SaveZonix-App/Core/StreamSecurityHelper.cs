@@ -110,4 +110,86 @@ public static class StreamSecurityHelper
 
         return candidates.Distinct().ToList();
     }
+
+    /// <summary>
+    /// Strict SSRF & Loopback Protection: Validates that an incoming stream/download URL 
+    /// is an absolute HTTP/HTTPS URI targeting public internet servers, strictly rejecting 
+    /// internal RFC 1918 networks, loopback (127.0.0.1, localhost), and cloud metadata endpoints.
+    /// </summary>
+    public static bool IsSafePublicDownloadUrl(string? rawUrl, out string? errorMessage)
+    {
+        errorMessage = null;
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            errorMessage = "URL cannot be empty.";
+            return false;
+        }
+
+        string trimmed = rawUrl.Trim();
+        // Allow pure 11-char YouTube Video IDs (e.g. dQw4w9WgXcQ)
+        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[a-zA-Z0-9_-]{11}$"))
+        {
+            return true;
+        }
+
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+        {
+            errorMessage = "Malformatted URL.";
+            return false;
+        }
+
+        // Only allow HTTP and HTTPS schemes
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            errorMessage = $"Restricted URL scheme '{uri.Scheme}'. Only HTTP and HTTPS are permitted.";
+            return false;
+        }
+
+        string host = uri.Host.ToLowerInvariant().Trim();
+        if (host == "localhost" || host == "127.0.0.1" || host == "::1" || host == "0.0.0.0")
+        {
+            errorMessage = "Loopback and localhost targets are strictly prohibited.";
+            return false;
+        }
+
+        // Direct IP check
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            if (IsPrivateOrRestrictedIp(ip))
+            {
+                errorMessage = "Access to private, local, or cloud metadata IP addresses is prohibited.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool IsPrivateOrRestrictedIp(System.Net.IPAddress ip)
+    {
+        if (System.Net.IPAddress.IsLoopback(ip)) return true;
+
+        if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            byte[] bytes = ip.GetAddressBytes();
+            // 10.0.0.0/8
+            if (bytes[0] == 10) return true;
+            // 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+            // 192.168.0.0/16
+            if (bytes[0] == 192 && bytes[1] == 168) return true;
+            // 169.254.0.0/16 (Link-Local / AWS/GCP/Azure Metadata 169.254.169.254)
+            if (bytes[0] == 169 && bytes[1] == 254) return true;
+            // 127.0.0.0/8
+            if (bytes[0] == 127) return true;
+            // 0.0.0.0
+            if (bytes[0] == 0) return true;
+        }
+        else if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast) return true;
+        }
+
+        return false;
+    }
 }

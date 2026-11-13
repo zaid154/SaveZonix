@@ -142,6 +142,17 @@ public static class DownloadEndpoints
                     ? clientTaskId
                     : ("dl_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "_" + Guid.NewGuid().ToString("N")[..8]);
             }
+
+            // 0. Strict SSRF Defense: Block private network addresses, loopback, and metadata endpoints
+            if (!Zonix.Core.StreamSecurityHelper.IsSafePublicDownloadUrl(req.StreamUrl, out var urlSecurityError))
+            {
+                return Results.BadRequest(new { success = false, message = urlSecurityError ?? "Restricted target URL." });
+            }
+            if (!string.IsNullOrEmpty(req.AudioUrl) && !Zonix.Core.StreamSecurityHelper.IsSafePublicDownloadUrl(req.AudioUrl, out var audioSecurityError))
+            {
+                return Results.BadRequest(new { success = false, message = audioSecurityError ?? "Restricted audio stream URL." });
+            }
+
             int concurrency = Math.Clamp(req.Concurrency, 1, 256);
             var cts = new CancellationTokenSource();
 

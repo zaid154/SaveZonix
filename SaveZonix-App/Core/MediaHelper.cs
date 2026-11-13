@@ -335,17 +335,25 @@ public static class MediaHelper
 
     public static string GetAvailableUniqueFilePath(string folder, string fileName)
     {
-        string path = Path.Combine(folder, fileName);
+        string safeFileName = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(safeFileName)) safeFileName = "download.mp4";
+        string safeFolder = Path.GetFullPath(folder);
+        string path = Path.GetFullPath(Path.Combine(safeFolder, safeFileName));
+        if (!path.StartsWith(safeFolder, StringComparison.OrdinalIgnoreCase))
+        {
+            path = Path.Combine(safeFolder, Path.GetFileName(safeFileName));
+        }
+
         if (!File.Exists(path)) return path;
 
-        string nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-        string ext = Path.GetExtension(fileName);
+        string nameWithoutExt = Path.GetFileNameWithoutExtension(safeFileName);
+        string ext = Path.GetExtension(safeFileName);
         for (int i = 1; i <= 500; i++)
         {
-            string candidate = Path.Combine(folder, $"{nameWithoutExt} ({i}){ext}");
+            string candidate = Path.Combine(safeFolder, $"{nameWithoutExt} ({i}){ext}");
             if (!File.Exists(candidate)) return candidate;
         }
-        return Path.Combine(folder, $"{nameWithoutExt}_{DateTime.UtcNow.Ticks.ToString().Substring(10)}{ext}");
+        return Path.Combine(safeFolder, $"{nameWithoutExt}_{DateTime.UtcNow.Ticks.ToString().Substring(10)}{ext}");
     }
 
     public static string GetDownloadsDirectory()

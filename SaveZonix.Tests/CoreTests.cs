@@ -80,4 +80,45 @@ public class CoreTests
         int clamped = Math.Clamp(requestedHigh, 2, maxAllowed);
         Assert.Equal(16, clamped);
     }
+
+    [Theory]
+    [InlineData("http://127.0.0.1/admin", false)]
+    [InlineData("http://localhost:5000", false)]
+    [InlineData("http://169.254.169.254/latest/meta-data", false)]
+    [InlineData("http://10.0.0.1/internal", false)]
+    [InlineData("http://192.168.1.100/router", false)]
+    [InlineData("file:///etc/passwd", false)]
+    [InlineData("gopher://evil.com/1", false)]
+    [InlineData("https://www.youtube.com/watch?v=dQw4w9WgXcQ", true)]
+    [InlineData("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", true)]
+    [InlineData("dQw4w9WgXcQ", true)]
+    public void IsSafePublicDownloadUrl_ValidatesCorrectly(string url, bool expectedSafe)
+    {
+        bool isSafe = Zonix.Core.StreamSecurityHelper.IsSafePublicDownloadUrl(url, out var reason);
+        Assert.Equal(expectedSafe, isSafe);
+        if (!expectedSafe)
+        {
+            Assert.NotNull(reason);
+        }
+    }
+
+    [Fact]
+    public void GetAvailableUniqueFilePath_PreventsPathTraversalEscape()
+    {
+        string baseFolder = Path.Combine(Path.GetTempPath(), "savezonix_safe_dir");
+        Directory.CreateDirectory(baseFolder);
+
+        try
+        {
+            string maliciousFileName = "../../Windows/System32/malicious.dll";
+            string resolvedPath = MediaHelper.GetAvailableUniqueFilePath(baseFolder, maliciousFileName);
+
+            Assert.StartsWith(Path.GetFullPath(baseFolder), Path.GetFullPath(resolvedPath), StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("malicious.dll", Path.GetFileName(resolvedPath));
+        }
+        finally
+        {
+            try { Directory.Delete(baseFolder, true); } catch { }
+        }
+    }
 }

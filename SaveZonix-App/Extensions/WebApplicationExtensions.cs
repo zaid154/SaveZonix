@@ -70,11 +70,25 @@ public static class WebApplicationExtensions
         app.UseAuthentication();
         app.UseAuthorization();
 
+        // Map SignalR Real-Time Telemetry Hub
+        app.MapHub<SaveZonix.Hubs.DownloadHub>("/hubs/download");
+
         return app;
     }
 
     public static async Task RunStartupTasksAsync(this WebApplication app)
     {
+        try
+        {
+            using var dbScope = app.Services.CreateScope();
+            var db = dbScope.ServiceProvider.GetRequiredService<SaveZonix.Data.SaveZonixDbContext>();
+            db.Database.EnsureCreated();
+            Console.WriteLine("[Startup] ⚡ SQLite Database verified & ready.");
+        }
+        catch (Exception dbEx)
+        {
+            Console.WriteLine($"[Startup SQLite Notice] {dbEx.Message}");
+        }
 
         try
         {
