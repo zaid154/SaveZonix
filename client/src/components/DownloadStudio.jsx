@@ -99,8 +99,18 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       }
     });
 
-    // Connect to Socket.IO
-    const socket = io('/', { transports: ['websocket', 'polling'] });
+    // Connect to Socket.IO with dynamic host
+    const socketBase = localEngineActive
+      ? 'http://localhost:5001'
+      : (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+          ? 'https://savezonix.onrender.com'
+          : '/');
+
+    const socket = io(socketBase, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      timeout: 10000
+    });
     socketRef.current = socket;
 
     socket.on('download:progress', (data) => {
@@ -142,7 +152,8 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
   // Sanitize single media URL
   const sanitizeSingleUrl = (raw) => {
-    let clean = (raw || '').trim();
+    const rawStr = (typeof raw === 'string' && raw) ? raw : (typeof url === 'string' ? url : '');
+    let clean = (rawStr || '').trim();
     try {
       const u = new URL(clean);
       if (u.searchParams.has('v') && !clean.includes('/playlist')) {
@@ -255,25 +266,70 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       return;
     }
 
-    const finalUrl = sanitizeSingleUrl(targetUrl || url);
+    const actualUrl = (typeof targetUrl === 'string' && targetUrl) ? targetUrl : url;
+    const actualQuality = (typeof targetQuality === 'string' && targetQuality) ? targetQuality : selectedQuality;
+
+    const finalUrl = sanitizeSingleUrl(actualUrl || url);
     if (!finalUrl) return;
     setIsDownloading(true);
     setErrorMsg('');
     setCompletedTask(null);
 
-    const base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+    let base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
 
     try {
-      const res = await fetch(`${base}/api/downloads/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: finalUrl,
-          quality: targetQuality || selectedQuality
-        })
-      });
+      let res;
+      try {
+        res = await fetch(`${base}/api/downloads/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: finalUrl,
+            quality: actualQuality || selectedQuality
+          })
+        });
+      } catch (cloudErr) {
+        if (!base) {
+          try {
+            res = await fetch('http://localhost:5001/api/downloads/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: finalUrl,
+                quality: actualQuality || selectedQuality
+              })
+            });
+            if (res.ok) {
+              base = 'http://localhost:5001';
+              setLocalEngineActive(true);
+            }
+          } catch {}
+        }
+        if (!res) throw cloudErr;
+      }
+
       const data = await res.json();
       if (!data.success) {
+        // Fallback to local engine if cloud failed to start
+        if (!base) {
+          try {
+            const localRes = await fetch('http://localhost:5001/api/downloads/start', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: finalUrl,
+                quality: actualQuality || selectedQuality
+              })
+            });
+            const localData = await localRes.json();
+            if (localData.success) {
+              setLocalEngineActive(true);
+              recordTrialDownloadConsumed(user);
+              return;
+            }
+          } catch {}
+        }
+
         setErrorMsg(data.message || 'Failed to start download.');
         setIsDownloading(false);
       } else {
@@ -638,7 +694,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                     </div>
 
                     <button
-                      onClick={handleStartDownload}
+                      onClick={() => handleStartDownload()}
                       disabled={isDownloading}
                       style={{
                         marginLeft: 'auto', padding: '10px 24px', background: '#10b981', color: '#fff',
