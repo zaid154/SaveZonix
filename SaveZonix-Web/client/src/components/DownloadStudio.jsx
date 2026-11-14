@@ -161,6 +161,13 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     return () => clearInterval(interval);
   }, [isDownloading]);
 
+  // Get file download link routing to local engine or cloud
+  const getFileDownloadUrl = (fileName) => {
+    if (!fileName) return '#';
+    const base = localEngineActive ? 'http://localhost:5001' : '';
+    return `${base}/api/downloads/file/${encodeURIComponent(fileName)}`;
+  };
+
   // Fetch download history from MongoDB
   const fetchHistory = async () => {
     setLoadingHistory(true);
@@ -762,8 +769,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                     </div>
                   </div>
                   <a
-                    href={`/api/downloads/file/${encodeURIComponent(completedTask.fileName)}`}
+                    href={getFileDownloadUrl(completedTask.fileName)}
                     download={completedTask.fileName}
+                    target="_blank"
+                    rel="noreferrer"
                     style={{
                       padding: '8px 18px', background: '#10b981', color: '#fff', fontWeight: 600,
                       borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px'
@@ -949,8 +958,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                   </div>
                   <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <a
-                      href={`/api/downloads/file/${encodeURIComponent(item.fileName)}`}
+                      href={getFileDownloadUrl(item.fileName)}
                       download={item.fileName}
+                      target="_blank"
+                      rel="noreferrer"
                       style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>
                       Download
                     </a>
