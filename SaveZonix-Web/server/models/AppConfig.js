@@ -1,0 +1,172 @@
+const mongoose = require('mongoose');
+
+const AppConfigSchema = new mongoose.Schema({
+  // App Version & Auto-Update Controls
+  latestAppVersion: {
+    type: String,
+    default: '2.5.0'
+  },
+  minAllowedVersion: {
+    type: String,
+    default: '2.0.0'
+  },
+  forceUpdate: {
+    type: Boolean,
+    default: false
+  },
+  gracePeriodDays: {
+    type: Number,
+    default: 7
+  },
+  appDownloadUrl: {
+    type: String,
+    default: 'https://github.com/zaid154/SaveZonix/releases/latest'
+  },
+  updateChangelog: {
+    type: String,
+    default: 'High-speed multi-threaded engine, 4K Cinema Player & HLS stream capture.'
+  },
+  silentAutoUpdate: {
+    type: Boolean,
+    default: true
+  },
+  extensionVersion: {
+    type: String,
+    default: '2.5.0'
+  },
+  extensionDownloadUrl: {
+    type: String,
+    default: 'https://savezonix-pro.vercel.app/SaveZonix-Extension.zip'
+  },
+  chromeWebStoreUrl: {
+    type: String,
+    default: 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1'
+  },
+
+  // Monetization & Quotas
+  freeDailyLimit: {
+    type: Number,
+    default: 10
+  },
+  lock4KForVip: {
+    type: Boolean,
+    default: true
+  },
+  vipMonthlyPriceINR: {
+    type: Number,
+    default: 99
+  },
+  vipAnnualPriceINR: {
+    type: Number,
+    default: 799
+  },
+  vipLifetimePriceINR: {
+    type: Number,
+    default: 1999
+  },
+  razorpayKeyId: {
+    type: String,
+    default: ''
+  },
+  razorpayKeySecret: {
+    type: String,
+    default: ''
+  },
+  announcementMessage: {
+    type: String,
+    default: ''
+  },
+
+  // Engine & Performance Settings
+  defaultThreads: {
+    type: Number,
+    default: 64
+  },
+  DefaultThreads: {
+    type: Number,
+    default: 64
+  },
+  maxThreads: {
+    type: Number,
+    default: 256
+  },
+  MaxThreads: {
+    type: Number,
+    default: 256
+  },
+  strictCdnMaxThreads: {
+    type: Number,
+    default: 32
+  },
+  StrictCdnMaxThreads: {
+    type: Number,
+    default: 32
+  },
+  openCdnMaxThreads: {
+    type: Number,
+    default: 128
+  },
+  registrationEnabled: {
+    type: Boolean,
+    default: true
+  },
+  RegistrationEnabled: {
+    type: Boolean,
+    default: true
+  },
+  allowGuestDownloads: {
+    type: Boolean,
+    default: true
+  },
+  guestDailyDownloadLimit: {
+    type: Number,
+    default: 10
+  },
+  maintenanceMode: {
+    type: Boolean,
+    default: false
+  },
+  MaintenanceMode: {
+    type: Boolean,
+    default: false
+  },
+  maintenanceDurationMinutes: {
+    type: Number,
+    default: 15
+  },
+  maintenanceEndsAt: {
+    type: Date
+  },
+  maintenanceMessage: {
+    type: String,
+    default: 'Server routine upgrade in progress. All stream engines will resume shortly.'
+  },
+
+  // Bandwidth Speed Throttler (MB/s) - 0 indicates Uncapped Gigabit
+  freeMaxSpeedMBps: {
+    type: Number,
+    default: 15
+  },
+  vipMaxSpeedMBps: {
+    type: Number,
+    default: 0
+  },
+
+  // Platform-Specific Thread Concurrency Presets
+  platformThreadCaps: {
+    type: Object,
+    default: {
+      youtube: 64,
+      instagram: 24,
+      tiktok: 24,
+      directCdn: 128
+    }
+  },
+
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, { strict: false });
+
+module.exports = mongoose.model('AppConfig', AppConfigSchema);
