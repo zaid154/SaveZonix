@@ -1,4 +1,13 @@
-/* SaveZonix React Client Styles */
+/* Mobile Responsive Optimizations for SaveZonix Web */
+@media (max-width: 640px) {
+  .btn-nav-download {
+    display: none !important;
+  }
+  .nav-container {
+    padding: 0 12px !important;
+  }
+}
+
 :root {
   --bg-main: #07090e;
   --bg-card: rgba(18, 24, 38, 0.7);

@@ -466,7 +466,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   return (
     <div className="download-studio-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
       {/* Tab Navigation Header */}
-      <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', marginBottom: '24px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <button 
           onClick={() => setActiveTab('single')}
           style={{
@@ -706,7 +706,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Zap color="#3b82f6" /> Turbo High-Speed Downloader
             </h2>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <input
                 type="text"
                 placeholder="Paste YouTube, Video or Audio Link here..."
@@ -714,16 +714,16 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && resolveSingleUrl()}
                 style={{
-                  flex: 1, padding: '12px 16px', borderRadius: '8px', background: '#1f2937',
-                  border: '1px solid #374151', color: '#fff', fontSize: '1rem', outline: 'none'
+                  flex: '1 1 200px', minWidth: 0, padding: '12px 14px', borderRadius: '8px', background: '#1f2937',
+                  border: '1px solid #374151', color: '#fff', fontSize: '0.95rem', outline: 'none'
                 }}
               />
               <button
                 onClick={() => resolveSingleUrl()}
                 disabled={isResolving || !url.trim()}
                 style={{
-                  padding: '12px 24px', background: '#2563eb', color: '#fff', fontWeight: 600,
-                  borderRadius: '8px', border: 'none', cursor: 'pointer'
+                  padding: '12px 20px', background: '#2563eb', color: '#fff', fontWeight: 600,
+                  borderRadius: '8px', border: 'none', cursor: 'pointer', flexShrink: 0
                 }}>
                 {isResolving ? 'Resolving...' : 'Analyze'}
               </button>
