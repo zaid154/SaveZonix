@@ -137,6 +137,30 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     };
   }, []);
 
+  // Polling fallback: Automatically detect completed downloads even if WebSocket disconnects
+  useEffect(() => {
+    let interval;
+    if (isDownloading) {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/downloads/history?limit=1');
+          const data = await res.json();
+          if (data.success && data.history?.length > 0) {
+            const latest = data.history[0];
+            const diffSec = (Date.now() - new Date(latest.createdAt).getTime()) / 1000;
+            if (diffSec < 120 && latest.status === 'Completed') {
+              setCompletedTask(latest);
+              setIsDownloading(false);
+              setDownloadProgress(null);
+              fetchHistory();
+            }
+          }
+        } catch {}
+      }, 2500);
+    }
+    return () => clearInterval(interval);
+  }, [isDownloading]);
+
   // Fetch download history from MongoDB
   const fetchHistory = async () => {
     setLoadingHistory(true);
@@ -708,17 +732,20 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
               </div>
 
               {/* Real-time Progress Bar */}
-              {isDownloading && downloadProgress && (
-                <div style={{ marginTop: '24px', background: '#1f2937', padding: '16px', borderRadius: '8px' }}>
+              {isDownloading && (
+                <div style={{ marginTop: '24px', background: '#1f2937', padding: '16px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>
-                    <span>{downloadProgress.status || 'Downloading...'}</span>
-                    <span>{downloadProgress.percentage || 0}% ({downloadProgress.speedMBps || 0} MB/s)</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#10b981' }} />
+                      {downloadProgress?.status || '⚡ Turbo Engine: Processing & fetching stream chunks from YouTube...'}
+                    </span>
+                    <span>{downloadProgress?.percentage || 15}% {downloadProgress?.speedMBps ? `(${downloadProgress.speedMBps} MB/s)` : ''}</span>
                   </div>
                   <div style={{ width: '100%', height: '10px', background: '#374151', borderRadius: '5px', overflow: 'hidden' }}>
                     <div style={{
-                      width: `${downloadProgress.percentage || 0}%`, height: '100%',
+                      width: `${Math.max(15, downloadProgress?.percentage || 15)}%`, height: '100%',
                       background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-                      transition: 'width 0.2s ease'
+                      transition: 'width 0.3s ease'
                     }} />
                   </div>
                 </div>
