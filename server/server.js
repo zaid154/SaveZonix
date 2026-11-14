@@ -62,15 +62,18 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check
-app.get('/api/health', (req, res) => {
+const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
+    version: '2.5.4',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,
     timestamp: new Date()
   });
-});
+};
+app.get('/api/health', healthHandler);
+app.get('/api/system/health', healthHandler);
 
 // Serve React SPA Frontend
 const clientDist = path.resolve(__dirname, '../client/dist');

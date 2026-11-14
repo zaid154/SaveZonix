@@ -188,11 +188,11 @@ async function initPopup() {
         }
     }
 
-    async function pingBackend(port, timeoutMs = 150) {
+    async function pingBackend(port, timeoutMs = 250) {
         try {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), timeoutMs);
-            const res = await fetch(`http://localhost:${port}/api/system/health`, { signal: controller.signal });
+            const res = await fetch(`http://localhost:${port}/api/health`, { signal: controller.signal });
             clearTimeout(timeout);
             if (res.ok) {
                 const data = await res.json();
