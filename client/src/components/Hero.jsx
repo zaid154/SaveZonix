@@ -1,9 +1,6 @@
 import React from 'react';
 
-export default function Hero({ appConfig }) {
-  const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
-  const chromeStoreUrl = appConfig?.chromeWebStoreUrl || CHROME_STORE_DEFAULT;
-
+export default function Hero({ appConfig, onOpenExtensionModal }) {
   const scrollToStudio = (e) => {
     e.preventDefault();
     const studioEl = document.getElementById('studio');
@@ -32,16 +29,17 @@ export default function Hero({ appConfig }) {
         </p>
 
         <div className="hero-cta-group">
-          {/* Primary: Add to Chrome (Official Web Store) */}
-          <a
-            href={chromeStoreUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          {/* Primary: Add to Chrome (Opens 1-Click Free Setup Modal) */}
+          <button
+            type="button"
+            onClick={onOpenExtensionModal}
             className="btn-hero-primary"
             style={{
               background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
               color: '#030816',
-              boxShadow: '0 8px 30px rgba(56, 189, 248, 0.4)'
+              boxShadow: '0 8px 30px rgba(56, 189, 248, 0.4)',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
             {/* Chrome 4-color SVG Logo */}
@@ -55,9 +53,9 @@ export default function Hero({ appConfig }) {
             </svg>
             <div className="btn-text-wrap">
               <span className="btn-main-label">Add to Chrome — It's Free</span>
-              <span className="btn-sub-label">Official Chrome Web Store • 1-Click Add</span>
+              <span className="btn-sub-label">YouTube Ad Blocker &amp; 1-Click Downloader</span>
             </div>
-          </a>
+          </button>
 
           {/* Secondary: Direct Web Downloader */}
           <a

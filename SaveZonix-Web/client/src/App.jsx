@@ -12,6 +12,7 @@ import AdminDashboard from './components/AdminDashboard';
 import LegalPage from './components/LegalPage';
 import UpgradeVipModal from './components/UpgradeVipModal';
 import FeedbackPage from './components/FeedbackPage';
+import ExtensionInstallModal from './components/ExtensionInstallModal';
 
 export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(() => {
@@ -22,6 +23,7 @@ export default function App() {
     return false;
   });
   const [isVipOpen, setIsVipOpen] = useState(false);
+  const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [user, setUser] = useState(null);
   const [appConfig, setAppConfig] = useState(null);
@@ -84,6 +86,7 @@ export default function App() {
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenVip={() => setIsVipOpen(true)}
+        onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
         onLogout={handleLogout}
         onOpenAdmin={() => navigate('/admin/overview')}
         onNavigate={navigate}
@@ -106,7 +109,10 @@ export default function App() {
           <FeedbackPage onNavigate={navigate} />
         ) : (
           <>
-            <Hero appConfig={appConfig} />
+            <Hero
+              appConfig={appConfig}
+              onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+            />
             <div id="studio">
               <DownloadStudio user={user} />
             </div>
@@ -139,6 +145,11 @@ export default function App() {
         onClose={() => setIsVipOpen(false)}
         user={user}
         onSuccess={(u) => setUser(u)}
+      />
+
+      <ExtensionInstallModal
+        isOpen={isExtensionModalOpen}
+        onClose={() => setIsExtensionModalOpen(false)}
       />
     </div>
   );

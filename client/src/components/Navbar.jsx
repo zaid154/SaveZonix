@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogout, onNavigate, currentPath }) {
+export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenExtensionModal, onLogout, onNavigate, currentPath }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -465,15 +465,16 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
             </button>
           )}
 
-          <a
-            href={chromeStoreUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={onOpenExtensionModal}
             className="btn-nav-download"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '7px'
+              gap: '7px',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
@@ -485,7 +486,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
               <circle cx="12" cy="12" r="3.8" fill="#1A73E8"/>
             </svg>
             <span>Add to Chrome</span>
-          </a>
+          </button>
         </div>
       </div>
     </header>
