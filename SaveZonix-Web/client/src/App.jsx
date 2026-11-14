@@ -13,6 +13,7 @@ import LegalPage from './components/LegalPage';
 import UpgradeVipModal from './components/UpgradeVipModal';
 import FeedbackPage from './components/FeedbackPage';
 import ExtensionInstallModal from './components/ExtensionInstallModal';
+import FreeTrialGatekeeperModal from './components/FreeTrialGatekeeperModal';
 
 export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(() => {
@@ -24,6 +25,7 @@ export default function App() {
   });
   const [isVipOpen, setIsVipOpen] = useState(false);
   const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
+  const [isGatekeeperOpen, setIsGatekeeperOpen] = useState(false);
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
   const [user, setUser] = useState(null);
   const [appConfig, setAppConfig] = useState(null);
@@ -87,6 +89,7 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenVip={() => setIsVipOpen(true)}
         onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+        onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
         onLogout={handleLogout}
         onOpenAdmin={() => navigate('/admin/overview')}
         onNavigate={navigate}
@@ -114,7 +117,12 @@ export default function App() {
               onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
             />
             <div id="studio">
-              <DownloadStudio user={user} />
+              <DownloadStudio
+                user={user}
+                onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
+                onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+                onOpenVip={() => setIsVipOpen(true)}
+              />
             </div>
             <Features />
             <HowItWorks />
@@ -150,6 +158,14 @@ export default function App() {
       <ExtensionInstallModal
         isOpen={isExtensionModalOpen}
         onClose={() => setIsExtensionModalOpen(false)}
+      />
+
+      <FreeTrialGatekeeperModal
+        isOpen={isGatekeeperOpen}
+        onClose={() => setIsGatekeeperOpen(false)}
+        onOpenExtension={() => setIsExtensionModalOpen(true)}
+        onOpenVip={() => setIsVipOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
       />
     </div>
   );

@@ -12,10 +12,13 @@ import {
   Zap, 
   Search,
   Music,
-  Video
+  Video,
+  Lock,
+  Crown
 } from 'lucide-react';
+import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
 
-export default function DownloadStudio({ user }) {
+export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtensionModal, onOpenVip }) {
   const [activeTab, setActiveTab] = useState('single'); // 'single' | 'playlist' | 'history'
   
   // Single Downloader State
@@ -27,6 +30,18 @@ export default function DownloadStudio({ user }) {
   const [downloadProgress, setDownloadProgress] = useState(null);
   const [completedTask, setCompletedTask] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [localEngineActive, setLocalEngineActive] = useState(false);
+  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user));
+
+  useEffect(() => {
+    setRemainingTrials(getRemainingTrials(user));
+  }, [user]);
+
+  useEffect(() => {
+    const onTrialUpdated = () => setRemainingTrials(getRemainingTrials(user));
+    window.addEventListener('savezonix:trial_updated', onTrialUpdated);
+    return () => window.removeEventListener('savezonix:trial_updated', onTrialUpdated);
+  }, [user]);
 
   // Playlist Studio State
   const [playlistUrl, setPlaylistUrl] = useState('');
@@ -43,29 +58,46 @@ export default function DownloadStudio({ user }) {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Check if query param ?url= or ?queueKey= exists
-    const params = new URLSearchParams(window.location.search);
-    const autoUrl = params.get('url');
-    const autoQueue = params.get('queueKey');
+    // Check if SaveZonix Local Companion Engine is running on localhost:5001
+    const checkLocal = async () => {
+      try {
+        const res = await fetch('http://localhost:5001/api/health', { signal: AbortSignal.timeout(600) });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.status === 'ok') {
+            setLocalEngineActive(true);
+            return 'http://localhost:5001';
+          }
+        }
+      } catch {}
+      return '';
+    };
 
-    if (autoQueue) {
-      setActiveTab('playlist');
-      loadPlaylistQueue(autoQueue, '');
-    } else if (autoUrl) {
-      if (autoUrl.includes('list=')) {
+    checkLocal().then(detectedBase => {
+      // Check if query param ?url= or ?queueKey= exists
+      const params = new URLSearchParams(window.location.search);
+      const autoUrl = params.get('url');
+      const autoQueue = params.get('queueKey');
+
+      if (autoQueue) {
         setActiveTab('playlist');
-        setPlaylistUrl(autoUrl);
-        loadPlaylistQueue('', autoUrl);
-      } else {
-        setUrl(autoUrl);
-        const autoDownload = params.get('autoDownload') === '1' || params.get('auto') === '1';
-        resolveSingleUrl(autoUrl, autoDownload);
-        setTimeout(() => {
-          const el = document.getElementById('studio');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300);
+        loadPlaylistQueue(autoQueue, '', detectedBase);
+      } else if (autoUrl) {
+        if (autoUrl.includes('list=') && !autoUrl.includes('watch?v=')) {
+          setActiveTab('playlist');
+          setPlaylistUrl(autoUrl);
+          loadPlaylistQueue('', autoUrl, detectedBase);
+        } else {
+          setUrl(autoUrl);
+          const autoDownload = params.get('autoDownload') === '1' || params.get('auto') === '1';
+          resolveSingleUrl(autoUrl, autoDownload, detectedBase);
+          setTimeout(() => {
+            const el = document.getElementById('studio');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 300);
+        }
       }
-    }
+    });
 
     // Connect to Socket.IO
     const socket = io('/', { transports: ['websocket', 'polling'] });
@@ -108,21 +140,56 @@ export default function DownloadStudio({ user }) {
     setLoadingHistory(false);
   };
 
+  // Sanitize single media URL
+  const sanitizeSingleUrl = (raw) => {
+    let clean = (raw || '').trim();
+    try {
+      const u = new URL(clean);
+      if (u.searchParams.has('v') && !clean.includes('/playlist')) {
+        clean = `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
+      }
+    } catch {}
+    return clean;
+  };
+
   // Resolve single media info
-  const resolveSingleUrl = async (targetUrl = url, autoStart = false) => {
-    const cleanTarget = (targetUrl || url).trim();
+  const resolveSingleUrl = async (targetUrl = url, autoStart = false, engineBase = null) => {
+    const cleanTarget = sanitizeSingleUrl(targetUrl || url);
     if (!cleanTarget) return;
     setIsResolving(true);
     setErrorMsg('');
     setResolvedMedia(null);
     setCompletedTask(null);
 
+    let base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+
     try {
-      const res = await fetch('/api/downloads/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: cleanTarget })
-      });
+      let res;
+      try {
+        res = await fetch(`${base}/api/downloads/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanTarget }),
+          signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(8000) : undefined
+        });
+      } catch (cloudErr) {
+        if (!base) {
+          try {
+            res = await fetch('http://localhost:5001/api/downloads/resolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: cleanTarget }),
+              signal: AbortSignal.timeout(5000)
+            });
+            if (res.ok) {
+              base = 'http://localhost:5001';
+              setLocalEngineActive(true);
+            }
+          } catch {}
+        }
+        if (!res) throw cloudErr;
+      }
+
       const data = await res.json();
       if (data.success) {
         setResolvedMedia(data);
@@ -132,29 +199,72 @@ export default function DownloadStudio({ user }) {
         }
         if (autoStart) {
           setTimeout(() => {
-            handleStartDownload(cleanTarget, topQuality);
+            handleStartDownload(cleanTarget, topQuality, base);
           }, 350);
         }
       } else {
-        setErrorMsg(data.message || 'Failed to resolve media stream.');
+        // Fallback to local companion engine if cloud resolution failed
+        if (!base) {
+          try {
+            const localRes = await fetch('http://localhost:5001/api/downloads/resolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: cleanTarget }),
+              signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
+            });
+            const localData = await localRes.json();
+            if (localData.success) {
+              setResolvedMedia(localData);
+              setLocalEngineActive(true);
+              const topQuality = localData.availableQualities?.includes('1080p') ? '1080p' : (localData.availableQualities?.[0] || '1080p');
+              if (localData.availableQualities?.length > 0) {
+                setSelectedQuality(topQuality);
+              }
+              if (autoStart) {
+                setTimeout(() => {
+                  handleStartDownload(cleanTarget, topQuality, 'http://localhost:5001');
+                }, 350);
+              }
+              return;
+            }
+          } catch {}
+        }
+
+        if (data.message?.includes('player') || data.message?.includes('429') || data.message?.includes('bot') || data.message?.includes('throttled')) {
+          setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+        } else {
+          setErrorMsg(data.message || 'Failed to resolve media stream.');
+        }
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Network error.');
+      if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted') || err.message?.includes('player')) {
+        setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+      } else {
+        setErrorMsg(err.message || 'Resolution failed.');
+      }
     } finally {
       setIsResolving(false);
     }
   };
 
   // Start single turbo download
-  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality) => {
-    const finalUrl = (targetUrl || url).trim();
+  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality, engineBase = null) => {
+    // Gatekeeper enforcement for free web trials
+    if (!hasFreeTrialsRemaining(user)) {
+      if (onOpenGatekeeper) onOpenGatekeeper();
+      return;
+    }
+
+    const finalUrl = sanitizeSingleUrl(targetUrl || url);
     if (!finalUrl) return;
     setIsDownloading(true);
     setErrorMsg('');
     setCompletedTask(null);
 
+    const base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+
     try {
-      const res = await fetch('/api/downloads/start', {
+      const res = await fetch(`${base}/api/downloads/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -166,15 +276,24 @@ export default function DownloadStudio({ user }) {
       if (!data.success) {
         setErrorMsg(data.message || 'Failed to start download.');
         setIsDownloading(false);
+      } else {
+        // Record trial download consumption
+        recordTrialDownloadConsumed(user);
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Network error.');
+      setErrorMsg(err.message || 'Failed to start download.');
       setIsDownloading(false);
     }
   };
 
   // Load Playlist or Tab Queue
   const loadPlaylistQueue = async (queueKey = '', customUrl = playlistUrl) => {
+    // Gatekeeper enforcement for free web trials
+    if (!hasFreeTrialsRemaining(user)) {
+      if (onOpenGatekeeper) onOpenGatekeeper();
+      return;
+    }
+
     setIsLoadingPlaylist(true);
     setErrorMsg('');
 
@@ -253,8 +372,205 @@ export default function DownloadStudio({ user }) {
       </div>
 
       {errorMsg && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle size={18} /> {errorMsg}
+        <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} /> <span>{errorMsg}</span>
+          </div>
+          {(errorMsg.includes('Extension') || errorMsg.includes('Cloud IP') || errorMsg.includes('localhost')) && (
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={onOpenExtensionModal}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🚀 Install Free Extension
+              </button>
+              <a
+                href="http://localhost:5001"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  background: 'rgba(56, 189, 248, 0.2)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center'
+                }}
+              >
+                ⚡ Open Local Engine
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── FREE TRIAL & VIP STATUS BANNER ── */}
+      {isUserVip(user) ? (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          borderRadius: '12px',
+          padding: '8px 16px',
+          marginBottom: '20px',
+          color: '#fbbf24',
+          fontSize: '13px',
+          fontWeight: 600,
+          boxShadow: '0 4px 15px rgba(245, 158, 11, 0.1)'
+        }}>
+          <Crown size={16} color="#fbbf24" />
+          <span>👑 VIP Member Active • Unlimited 4K Cloud Downloads Unlocked</span>
+        </div>
+      ) : remainingTrials > 0 ? (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          background: remainingTrials === 1 
+            ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(234, 88, 12, 0.05) 100%)'
+            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.05) 100%)',
+          border: remainingTrials === 1 ? '1px solid rgba(249, 115, 22, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
+          borderRadius: '12px',
+          padding: '10px 16px',
+          marginBottom: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>🎁</span>
+            <div>
+              <span style={{
+                color: remainingTrials === 1 ? '#fb923c' : '#34d399',
+                fontSize: '13.5px',
+                fontWeight: 700
+              }}>
+                Free Web Trial: {remainingTrials} of {MAX_FREE_TRIALS} Downloads Left
+              </span>
+              <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: '8px' }}>
+                • No Login or Card Required
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenExtensionModal}
+            style={{
+              background: 'rgba(56, 189, 248, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              color: '#38bdf8',
+              fontSize: '12px',
+              fontWeight: 600,
+              padding: '6px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'}
+          >
+            <Zap size={13} />
+            <span>Get Unlimited with Free Extension →</span>
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          marginBottom: '20px',
+          boxShadow: '0 0 25px rgba(239, 68, 68, 0.15)',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Lock size={16} color="#f87171" />
+            </div>
+            <div>
+              <div style={{ color: '#f87171', fontSize: '14px', fontWeight: 700 }}>
+                Free Web Trial Limit Reached (3/3 Used)
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: '12px' }}>
+                Install the 100% Free Chrome Extension or Upgrade to VIP for unlimited turbo downloads.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={onOpenExtensionModal}
+              style={{
+                background: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                color: '#38bdf8',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                padding: '7px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>Install Free Extension</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenGatekeeper}
+              style={{
+                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+                border: 'none',
+                color: '#fff',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                padding: '7px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(37, 99, 235, 0.4)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Zap size={14} />
+              <span>Unlock Unlimited</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -428,6 +744,10 @@ export default function DownloadStudio({ user }) {
                   </select>
                   <button
                     onClick={() => {
+                      if (!hasFreeTrialsRemaining(user)) {
+                        if (onOpenGatekeeper) onOpenGatekeeper();
+                        return;
+                      }
                       if (selectedVideoIds.size === 0) return alert('Please select at least 1 video.');
                       alert(`Queued ${selectedVideoIds.size} items for turbo batch download!`);
                     }}
