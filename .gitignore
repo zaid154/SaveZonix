@@ -3,6 +3,7 @@ node_modules/
 client/node_modules/
 server/node_modules/
 client/dist/
+SaveZonix-Web/client/dist/
 
 # Environment files
 .env

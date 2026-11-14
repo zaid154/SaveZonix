@@ -150,15 +150,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     } catch { }
 
-    function updateEngineUI(isActive, port = 50550, version = '2.5.4', isStarting = false) {
+    function updateEngineUI(isActive, port = 5001, version = '2.5.4', isStarting = false) {
         if (!engineStatusPill) return;
         if (isStarting) {
             engineStatusPill.style.background = 'rgba(56, 189, 248, 0.15)';
             engineStatusPill.style.borderColor = 'rgba(56, 189, 248, 0.35)';
             engineStatusPill.style.color = '#38bdf8';
             if (enginePulseDot) enginePulseDot.style.background = '#38bdf8';
-            if (engineStatusText) engineStatusText.textContent = 'Starting Engine...';
-            engineStatusPill.title = 'SaveZonix Desktop Engine is starting up...';
+            if (engineStatusText) engineStatusText.textContent = 'Connecting...';
+            engineStatusPill.title = 'Connecting to SaveZonix Engine...';
             return;
         }
 
@@ -168,31 +168,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             engineStatusPill.style.color = '#34d399';
             if (enginePulseDot) enginePulseDot.style.background = '#10b981';
             if (engineStatusText) engineStatusText.textContent = `Engine Active (v${version})`;
-            engineStatusPill.title = `SaveZonix Desktop Turbo Engine is connected & ready (Port ${port})`;
+            engineStatusPill.title = `SaveZonix Turbo Engine Connected (${backendBaseUrl})`;
             engineStatusPill.onclick = () => {
                 chrome.tabs.create({ url: backendBaseUrl });
             };
         } else {
-            engineStatusPill.style.background = 'rgba(245, 158, 11, 0.15)';
-            engineStatusPill.style.borderColor = 'rgba(245, 158, 11, 0.35)';
-            engineStatusPill.style.color = '#fbbf24';
-            if (enginePulseDot) enginePulseDot.style.background = '#f59e0b';
-            if (engineStatusText) engineStatusText.textContent = 'App Sleeping (Launch)';
-            engineStatusPill.title = 'SaveZonix Desktop App is not running. Click to launch automatically.';
-            engineStatusPill.onclick = async () => {
-                try {
-                    await ensureDesktopBackendRunning((msg) => {
-                        if (engineStatusText) engineStatusText.textContent = msg;
-                    });
-                    chrome.tabs.create({ url: backendBaseUrl });
-                } catch (err) {
-                    alert(err.message || 'Could not start SaveZonix desktop application.');
-                }
+            engineStatusPill.style.background = 'rgba(14, 165, 233, 0.12)';
+            engineStatusPill.style.borderColor = 'rgba(14, 165, 233, 0.28)';
+            engineStatusPill.style.color = '#38bdf8';
+            if (enginePulseDot) enginePulseDot.style.background = '#38bdf8';
+            if (engineStatusText) engineStatusText.textContent = 'Cloud Engine Ready';
+            engineStatusPill.title = 'SaveZonix Cloud Studio is active & ready';
+            engineStatusPill.onclick = () => {
+                chrome.tabs.create({ url: 'https://savezonix-pro.vercel.app' });
             };
         }
     }
 
-    async function pingBackend(port, timeoutMs = 200) {
+    async function pingBackend(port, timeoutMs = 150) {
         try {
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -206,125 +199,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { ok: false, port };
     }
 
-    // Live Engine Handshake & Smart Auto-Port Discovery (Fast Parallel Checks & Cached Port Priority)
+    // Live Engine Handshake: Fast background check (non-blocking)
     async function checkEngineHealth() {
-        const candidatePorts = [5001, 50550, 5000];
-
-        // 1. Fast check cached port first with 150ms timeout
-        let cachedPort = null;
         try {
-            const stored = await chrome.storage.local.get(['savezonix_backend_port', 'savezonix_backend_url']);
-            if (stored?.savezonix_backend_port) {
-                cachedPort = parseInt(stored.savezonix_backend_port, 10);
-            } else if (stored?.savezonix_backend_url) {
-                const u = new URL(stored.savezonix_backend_url);
-                if (u.port) cachedPort = parseInt(u.port, 10);
+            const res = await pingBackend(5001, 150);
+            if (res.ok) {
+                backendBaseUrl = 'http://localhost:5001';
+                chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: 5001 });
+                updateEngineUI(true, 5001, res.data?.version || '2.5.4');
+                return backendBaseUrl;
             }
         } catch { }
 
-        const primaryPort = (cachedPort && !isNaN(cachedPort)) ? cachedPort : 50550;
-        const cachedRes = await pingBackend(primaryPort, 150);
-        if (cachedRes.ok) {
-            backendBaseUrl = `http://localhost:${primaryPort}`;
-            chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: primaryPort });
-            updateEngineUI(true, primaryPort, cachedRes.data?.version || '2.5.4');
-            return backendBaseUrl;
-        }
-
-        // 2. Fast parallel check of all other candidate ports with 200ms timeout
-        const remainingPorts = candidatePorts.filter(p => p !== primaryPort);
-        const results = await Promise.all(remainingPorts.map(p => pingBackend(p, 200)));
-        const active = results.find(r => r && r.ok);
-        if (active) {
-            backendBaseUrl = `http://localhost:${active.port}`;
-            chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: active.port });
-            updateEngineUI(true, active.port, active.data?.version || '2.5.4');
-            return backendBaseUrl;
-        }
-
+        // Default to live cloud portal: instant, reliable, zero timeout
+        backendBaseUrl = 'https://savezonix-pro.vercel.app';
+        chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl });
         updateEngineUI(false);
-        return null;
-    }
-
-    async function triggerNativeLaunch() {
-        return new Promise((resolve) => {
-            try {
-                chrome.runtime.sendNativeMessage('com.savezonix.launcher', { action: 'start' }, (response) => {
-                    if (chrome.runtime.lastError) {
-                        console.warn('[SaveZonix] Native messaging host not available:', chrome.runtime.lastError.message);
-                        triggerProtocolLaunch();
-                        resolve({ success: false, error: chrome.runtime.lastError.message });
-                    } else {
-                        console.log('[SaveZonix] Native messaging launch response:', response);
-                        resolve({ success: true, response });
-                    }
-                });
-            } catch (ex) {
-                console.warn('[SaveZonix] sendNativeMessage error:', ex);
-                triggerProtocolLaunch();
-                resolve({ success: false, error: ex.message });
-            }
-        });
-    }
-
-    function triggerProtocolLaunch(customUrl = '') {
-        try {
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = customUrl ? `savezonix://download?url=${encodeURIComponent(customUrl)}` : 'savezonix://launch';
-            document.body.appendChild(iframe);
-            setTimeout(() => {
-                try { iframe.remove(); } catch { }
-            }, 2000);
-        } catch { }
+        return backendBaseUrl;
     }
 
     async function ensureDesktopBackendRunning(onProgress) {
-        if (onProgress) onProgress('Checking desktop app...');
-
-        // 1. Fast check if already running
+        if (onProgress) onProgress('Connecting...');
         const activeUrl = await checkEngineHealth();
-        if (activeUrl) {
-            return activeUrl;
-        }
-
-        // Prevent parallel launch races
-        if (isLaunchingBackend) {
-            if (onProgress) onProgress('Starting SaveZonix...');
-        } else {
-            isLaunchingBackend = true;
-            updateEngineUI(false, 50550, '2.5.4', true);
-            if (onProgress) onProgress('Starting SaveZonix...');
-            await triggerNativeLaunch();
-        }
-
-        if (onProgress) onProgress('Connecting to download engine...');
-
-        // 2. Fast parallel bounded polling for backend readiness (up to 15 seconds)
-        const startTime = Date.now();
-        const timeoutMs = 15000;
-        const candidatePorts = [5001, 50550, 5000];
-        while (Date.now() - startTime < timeoutMs) {
-            await new Promise(r => setTimeout(r, 250));
-            const pings = candidatePorts.map(p => pingBackend(p, 200));
-            const results = await Promise.all(pings);
-            const hit = results.find(r => r && r.ok);
-            if (hit) {
-                isLaunchingBackend = false;
-                backendBaseUrl = `http://localhost:${hit.port}`;
-                chrome.storage.local.set({ savezonix_backend_url: backendBaseUrl, savezonix_backend_port: hit.port });
-                updateEngineUI(true, hit.port, hit.data?.version || '2.5.4');
-                if (onProgress) onProgress('Connected.');
-                return backendBaseUrl;
-            }
-        }
-
-        isLaunchingBackend = false;
-        updateEngineUI(false);
-        throw new Error('SaveZonix desktop application is not installed or could not be started. Please run SaveZonix Setup.');
+        return activeUrl || 'https://savezonix-pro.vercel.app';
     }
 
-    checkEngineHealth();
+    // Trigger health check in background so UI opens instantly (<20ms)
+    setTimeout(checkEngineHealth, 10);
 
     let livePageMetadata = null;
     let liveThumbnail = '';

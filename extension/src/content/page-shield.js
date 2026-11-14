@@ -52,7 +52,7 @@
             } catch { }
         };
         neutraliseYouTubeExperiments();
-        setInterval(neutraliseYouTubeExperiments, 1500);
+        window.addEventListener('yt-navigate-finish', neutraliseYouTubeExperiments, { passive: true });
 
         // Reset user pause state on navigation (new video/playlist track)
         window.addEventListener('yt-navigate-finish', () => {
@@ -811,8 +811,8 @@
                 }
             } catch { }
 
-            // Target YouTube player and watch next API endpoints (supports standard watch + mixes & radio playlists)
-            const isTargetEndpoint = requestUrl.includes('/youtubei/v1/player') || requestUrl.includes('/youtubei/v1/next');
+            // Target strictly YouTube player API endpoint (excludes heavy /next and browse queries)
+            const isTargetEndpoint = requestUrl.includes('/youtubei/v1/player') && !requestUrl.includes('/youtubei/v1/next');
             if (!isTargetEndpoint) {
                 return fetchPromise;
             }
@@ -1254,10 +1254,22 @@
             }
         }, { capture: true, passive: true });
 
-        setInterval(() => {
+        // Lightweight periodic check: only runs when YouTube video player is active
+        let ytAdPollTimer = null;
+        const startPassiveYtAdScanner = () => {
+            if (ytAdPollTimer) return;
+            ytAdPollTimer = setInterval(() => {
+                const ytPlayer = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                if (ytPlayer && (ytPlayer.classList.contains('ad-showing') || ytPlayer.classList.contains('ad-interrupting'))) {
+                    processAdElements();
+                }
+            }, 1200);
+        };
+        window.addEventListener('play', startPassiveYtAdScanner, { once: true, passive: true });
+        window.addEventListener('yt-navigate-finish', () => {
             attachScopedPlayerObserver();
-            processAdElements();
-        }, 250);
+            startPassiveYtAdScanner();
+        }, { passive: true });
     } else {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => {

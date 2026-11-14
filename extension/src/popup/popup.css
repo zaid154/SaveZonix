@@ -39,22 +39,24 @@
 }
 
 html {
-    width: 360px;
+    width: 375px;
     background: #090d16;
 }
 
 body {
-    width: 360px;
+    width: 375px;
+    min-width: 375px;
+    max-width: 375px;
     min-height: 420px;
-    max-height: 580px;
+    max-height: 590px;
     background: radial-gradient(circle at 50% -20%, #172554 0%, #090d16 85%);
     color: var(--text-primary);
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
-    border-radius: var(--radius-lg);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-sizing: border-box;
 }
 
 /* Custom modern sleek scrollbar */
@@ -533,6 +535,9 @@ body::-webkit-scrollbar-thumb:hover {
     align-items: center;
     gap: 8px;
     padding: 4px 0;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .control-field {
@@ -540,16 +545,19 @@ body::-webkit-scrollbar-thumb:hover {
     align-items: center;
     gap: 8px;
     flex: 1;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .control-label {
     font-size: 11px;
     color: var(--text-muted);
     font-weight: 600;
+    flex-shrink: 0;
 }
 
 .quality-dropdown {
-    padding: 5px 8px;
+    padding: 6px 8px;
     background: #0b1120;
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: var(--radius-sm);
@@ -558,7 +566,14 @@ body::-webkit-scrollbar-thumb:hover {
     font-weight: 500;
     outline: none;
     flex: 1;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     cursor: pointer;
+    box-sizing: border-box;
     transition: all 0.15s ease;
 }
 
@@ -574,11 +589,13 @@ body::-webkit-scrollbar-thumb:hover {
 /* Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ ACTION BUTTONS (NO EMOJIS, SLEEK ICONS, TACTILE) Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€Ã¢Â”Â€ */
 .card-action-row {
     width: 100%;
+    box-sizing: border-box;
 }
 
 .btn-primary-download {
     width: 100%;
-    padding: 7px 11px;
+    box-sizing: border-box;
+    padding: 8px 12px;
     background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
     border: 1px solid rgba(56, 189, 248, 0.35);
     border-radius: var(--radius-md);
@@ -619,10 +636,12 @@ body::-webkit-scrollbar-thumb:hover {
     flex-direction: column;
     gap: 7px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .btn-yt-choice {
     width: 100%;
+    box-sizing: border-box;
     padding: 8px 12px;
     border-radius: var(--radius-md);
     font-size: 11px;

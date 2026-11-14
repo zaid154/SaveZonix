@@ -46,12 +46,11 @@ function obfuscateJsFiles(dir) {
           legalComments: 'none'
         });
 
-        // Step 2: Add Anti-Tamper Obfuscation Header & Scramble Wrapper
+        // Step 2: Add Anti-Tamper Obfuscation Header
         const timestamp = Date.now();
         const hexSig = Buffer.from(`SaveZonixShield_${timestamp}`).toString('hex');
         
-        const protectedCode = `/** [SaveZonix Shield Protocol 0x${hexSig}] - Protected binary. Unauthorized reverse engineering prohibited. **/
-!function(){try{${minified.code}}catch(e){console.error("[SaveZonix Guard]",e);}}();`;
+        const protectedCode = `/** [SaveZonix Shield Protocol 0x${hexSig}] - Protected binary. Unauthorized reverse engineering prohibited. **/\n${minified.code}`;
 
         fs.writeFileSync(fullPath, protectedCode, 'utf8');
         console.log(`  ✓ Protected & Obfuscated: ${entry.name} (${originalCode.length}B -> ${protectedCode.length}B)`);

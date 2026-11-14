@@ -810,7 +810,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
 
         const target = req.url || '';
         chrome.storage.local.get(['savezonix_backend_url', 'savezonix_backend_port'], (res) => {
-            const baseUrl = res?.savezonix_backend_url || (res?.savezonix_backend_port ? `http://localhost:${res.savezonix_backend_port}` : 'http://localhost:50550');
+            const baseUrl = res?.savezonix_backend_url || (res?.savezonix_backend_port ? `http://localhost:${res.savezonix_backend_port}` : 'https://savezonix-pro.vercel.app');
             const localUrl = target ? `${baseUrl}/?url=${encodeURIComponent(target)}&autoDownload=1` : baseUrl;
             chrome.tabs.create({ url: localUrl });
             sendResponse({ success: true });

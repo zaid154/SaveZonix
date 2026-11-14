@@ -58,7 +58,12 @@ export default function DownloadStudio({ user }) {
         loadPlaylistQueue('', autoUrl);
       } else {
         setUrl(autoUrl);
-        resolveSingleUrl(autoUrl);
+        const autoDownload = params.get('autoDownload') === '1' || params.get('auto') === '1';
+        resolveSingleUrl(autoUrl, autoDownload);
+        setTimeout(() => {
+          const el = document.getElementById('studio');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
       }
     }
 
@@ -104,8 +109,9 @@ export default function DownloadStudio({ user }) {
   };
 
   // Resolve single media info
-  const resolveSingleUrl = async (targetUrl = url) => {
-    if (!targetUrl.trim()) return;
+  const resolveSingleUrl = async (targetUrl = url, autoStart = false) => {
+    const cleanTarget = (targetUrl || url).trim();
+    if (!cleanTarget) return;
     setIsResolving(true);
     setErrorMsg('');
     setResolvedMedia(null);
@@ -115,13 +121,19 @@ export default function DownloadStudio({ user }) {
       const res = await fetch('/api/downloads/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl.trim() })
+        body: JSON.stringify({ url: cleanTarget })
       });
       const data = await res.json();
       if (data.success) {
         setResolvedMedia(data);
+        const topQuality = data.availableQualities?.includes('1080p') ? '1080p' : (data.availableQualities?.[0] || '1080p');
         if (data.availableQualities?.length > 0) {
-          setSelectedQuality(data.availableQualities.includes('1080p') ? '1080p' : data.availableQualities[0]);
+          setSelectedQuality(topQuality);
+        }
+        if (autoStart) {
+          setTimeout(() => {
+            handleStartDownload(cleanTarget, topQuality);
+          }, 350);
         }
       } else {
         setErrorMsg(data.message || 'Failed to resolve media stream.');
@@ -134,8 +146,9 @@ export default function DownloadStudio({ user }) {
   };
 
   // Start single turbo download
-  const handleStartDownload = async () => {
-    if (!url.trim()) return;
+  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality) => {
+    const finalUrl = (targetUrl || url).trim();
+    if (!finalUrl) return;
     setIsDownloading(true);
     setErrorMsg('');
     setCompletedTask(null);
@@ -145,8 +158,8 @@ export default function DownloadStudio({ user }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: url.trim(),
-          quality: selectedQuality
+          url: finalUrl,
+          quality: targetQuality || selectedQuality
         })
       });
       const data = await res.json();
