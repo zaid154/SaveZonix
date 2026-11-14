@@ -200,6 +200,9 @@ class TurboDownloader {
                 agent: agent,
                 headers: { 'User-Agent': 'SaveZonix-TurboDownloader/2.0' }
             }, (res) => {
+                if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+                    return resolve(this._probeContentLength(res.headers.location));
+                }
                 const len = parseInt(res.headers['content-length'] || '0', 10);
                 resolve(len > 0 ? len : 0);
             });
@@ -250,6 +253,15 @@ class TurboDownloader {
 
             const writeStream = fs.createWriteStream(partPath);
             const req = client.request(options, (res) => {
+                // Follow HTTP 301, 302, 303, 307, 308 redirects from YouTube/CDN edges
+                if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+                    writeStream.close();
+                    if (fs.existsSync(partPath)) {
+                        try { fs.unlinkSync(partPath); } catch {}
+                    }
+                    return resolve(this._downloadSlice(res.headers.location, start, end, partPath, onChunkBytes, abortSignal));
+                }
+
                 if (res.statusCode !== 206 && res.statusCode !== 200) {
                     writeStream.close();
                     return reject(new Error(`Server returned HTTP ${res.statusCode} for range ${start}-${end}`));

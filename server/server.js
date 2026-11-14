@@ -18,6 +18,14 @@ const downloadsRoutes = require('./routes/downloads');
 const feedbackRoutes = require('./routes/feedback');
 const downloadManager = require('./services/DownloadManager');
 
+// Crash prevention guards for unhandled background stream rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection at Promise]:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]:', err);
+});
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
