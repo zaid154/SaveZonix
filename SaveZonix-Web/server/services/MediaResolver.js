@@ -1,0 +1,118 @@
+const { Ytdl, chooseFormat } = require('@distube/ytdl-core');
+
+class MediaResolver {
+    constructor() {
+        this.ytdl = new Ytdl();
+    }
+
+    /**
+     * Resolves complete metadata and available qualities for a YouTube or media URL
+     */
+    async resolveVideo(url) {
+        if (!url) throw new Error('URL is required');
+
+        const info = await this.ytdl.getInfo(url);
+        const details = info.videoDetails;
+
+        // Group qualities and audio streams
+        const formats = info.formats || [];
+        const videoStreams = formats.filter(f => f.qualityLabel);
+        const audioStreams = formats.filter(f => !f.qualityLabel && f.audioBitrate);
+
+        const availableQualities = [];
+        const qualityMap = new Map();
+
+        const standardLabels = ['4K', '2160p', '1440p', '2K', '1080p', '720p', '480p', '360p'];
+        for (const label of standardLabels) {
+            const match = videoStreams.find(v => v.qualityLabel && v.qualityLabel.includes(label.replace('4K', '2160').replace('2K', '1440')));
+            if (match && !qualityMap.has(label)) {
+                qualityMap.set(label, match);
+                availableQualities.push(label);
+            }
+        }
+        if (!availableQualities.includes('MP3')) {
+            availableQualities.push('MP3');
+        }
+
+        const bestAudio = chooseFormat(formats, { quality: 'highestaudio' }) || audioStreams[0];
+        const bestVideo = chooseFormat(formats, { quality: 'highestvideo' }) || videoStreams[0];
+
+        return {
+            id: details.videoId,
+            url: details.video_url || url,
+            title: details.title,
+            author: details.author ? details.author.name : 'YouTube',
+            durationSeconds: parseInt(details.lengthSeconds || '0', 10),
+            formattedDuration: this._formatDuration(parseInt(details.lengthSeconds || '0', 10)),
+            thumbnailUrl: details.thumbnails && details.thumbnails.length > 0 
+                ? details.thumbnails[details.thumbnails.length - 1].url 
+                : `https://i.ytimg.com/vi/${details.videoId}/hqdefault.jpg`,
+            availableQualities,
+            availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
+            bestAudioStream: bestAudio ? {
+                url: bestAudio.url,
+                mimeType: bestAudio.mimeType,
+                bitrate: bestAudio.audioBitrate,
+                sizeBytes: parseInt(bestAudio.contentLength || '0', 10)
+            } : null,
+            bestVideoStream: bestVideo ? {
+                url: bestVideo.url,
+                qualityLabel: bestVideo.qualityLabel,
+                mimeType: bestVideo.mimeType,
+                sizeBytes: parseInt(bestVideo.contentLength || '0', 10)
+            } : null,
+            allFormats: formats.map(f => ({
+                itag: f.itag,
+                qualityLabel: f.qualityLabel,
+                audioBitrate: f.audioBitrate,
+                mimeType: f.mimeType,
+                contentLength: parseInt(f.contentLength || '0', 10),
+                url: f.url
+            }))
+        };
+    }
+
+    /**
+     * Resolves a specific requested quality format (e.g. "1080p", "720p", "MP3")
+     */
+    async resolveSpecificStream(url, quality = '1080p') {
+        const info = await this.ytdl.getInfo(url);
+        const formats = info.formats || [];
+
+        if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
+            const audio = chooseFormat(formats, { quality: 'highestaudio' });
+            return {
+                type: 'audio',
+                stream: audio,
+                title: info.videoDetails.title,
+                sizeBytes: parseInt(audio?.contentLength || '0', 10)
+            };
+        }
+
+        const targetLabel = quality.toLowerCase().replace('p', '');
+        const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel))
+                   || chooseFormat(formats, { quality: 'highestvideo' });
+        const audio = chooseFormat(formats, { quality: 'highestaudio' });
+
+        return {
+            type: 'video',
+            videoStream: video,
+            audioStream: audio,
+            title: info.videoDetails.title,
+            sizeBytes: (parseInt(video?.contentLength || '0', 10)) + (parseInt(audio?.contentLength || '0', 10))
+        };
+    }
+
+    _formatDuration(seconds) {
+        if (!seconds || isNaN(seconds)) return '00:00';
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) {
+            return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+}
+
+module.exports = new MediaResolver();

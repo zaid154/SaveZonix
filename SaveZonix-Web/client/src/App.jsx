@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import DownloadStudio from './components/DownloadStudio';
 import Hero from './components/Hero';
 import Features from './components/Features';
 import HowItWorks from './components/HowItWorks';
@@ -105,6 +106,7 @@ export default function App() {
           <FeedbackPage onNavigate={navigate} />
         ) : (
           <>
+            <DownloadStudio user={user} />
             <Hero appConfig={appConfig} />
             <Features />
             <HowItWorks />

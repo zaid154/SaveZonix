@@ -1,9 +1,12 @@
 const path = require('path');
+const http = require('http');
+const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const { Server } = require('socket.io');
 
 const authRoutes = require('./routes/auth');
 const configRoutes = require('./routes/config');
@@ -13,10 +16,27 @@ const paymentRoutes = require('./routes/payment');
 const playlistRoutes = require('./routes/playlist');
 const downloadsRoutes = require('./routes/downloads');
 const feedbackRoutes = require('./routes/feedback');
+const downloadManager = require('./services/DownloadManager');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  }
+});
+
 const PORT = process.env.PORT || 5001;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/SaveZonixDb';
+
+// Wire real-time Socket.IO to DownloadManager
+downloadManager.setSocketIO(io);
+
+io.on('connection', (socket) => {
+  console.log(`[Socket.IO] 🔌 Client connected: ${socket.id}`);
+  socket.on('disconnect', () => {});
+});
 
 // Middleware
 app.use(cors({
@@ -24,9 +44,13 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
-// Routes
+// Static downloads directory for file downloads
+const downloadsDir = path.resolve(__dirname, '../downloads');
+app.use('/api/downloads/file', express.static(downloadsDir));
+
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/app-config', configRoutes);
 app.use('/api/admin', adminRoutes);
@@ -43,22 +67,34 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    connectedClients: io.engine.clientsCount,
     timestamp: new Date()
   });
 });
 
-// Root Welcome
-app.get('/', (req, res) => {
-  res.send('⚡ SaveZonix Central Cloud API is Live. Connected to Render & Vercel.');
-});
+// Serve React SPA Frontend
+const clientDist = path.resolve(__dirname, '../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.send('⚡ SaveZonix MERN Core API & Download Engine is Live.');
+  });
+}
 
-// Start Express Server
-app.listen(PORT, () => {
-  console.log(`[SaveZonix Server] 🚀 Server running on http://localhost:${PORT}`);
+// Start HTTP + Socket.IO Server
+server.listen(PORT, () => {
+  console.log(`[SaveZonix Server] 🚀 MERN Server running on http://localhost:${PORT}`);
 });
 
 // Connect to MongoDB asynchronously
-mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 3000 })
+mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
   .then(() => {
     console.log(`[SaveZonix Server] 🍃 Connected to MongoDB: ${MONGO_URI}`);
   })

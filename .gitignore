@@ -37,3 +37,6 @@ Thumbs.db
 [Oo]bj/
 SaveZonix.Tests/bin/
 SaveZonix.Tests/obj/
+
+SaveZonix-Web/downloads/
+

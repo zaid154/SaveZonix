@@ -2,26 +2,30 @@ const express = require('express');
 const router = express.Router();
 const {
   startDownload,
+  resolveMedia,
+  getHistory,
+  deleteHistoryItem,
+  recordDownloadTelemetry,
   cancelDownload,
   cancelAllDownloads,
-  getActiveDownloads,
-  recordDownloadTelemetry
+  getActiveDownloads
 } = require('../controllers/downloadController');
 
-// Record / Telemetry for Web & Extension downloads
-router.post('/record', recordDownloadTelemetry);
+// Resolve video/stream details and available qualities
+router.post('/resolve', resolveMedia);
 
-// Start download with format flag routing
+// Start Turbo Download
 router.post('/start', startDownload);
 
-// Global Cancel All endpoint
-router.post('/cancel-all', cancelAllDownloads);
+// Fetch Download History from MongoDB
+router.get('/history', getHistory);
+router.delete('/history/:id', deleteHistoryItem);
 
-// Cancel individual download
+// Telemetry & Cancel endpoints
+router.post('/record', recordDownloadTelemetry);
+router.post('/cancel-all', cancelAllDownloads);
 router.post('/cancel/:id', cancelDownload);
 router.post('/cancel', cancelDownload);
-
-// Active downloads monitor endpoint
 router.get('/active', getActiveDownloads);
 
 module.exports = router;
