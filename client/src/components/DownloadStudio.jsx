@@ -12,10 +12,13 @@ import {
   Zap, 
   Search,
   Music,
-  Video
+  Video,
+  Lock,
+  Crown
 } from 'lucide-react';
+import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
 
-export default function DownloadStudio({ user }) {
+export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtensionModal, onOpenVip }) {
   const [activeTab, setActiveTab] = useState('single'); // 'single' | 'playlist' | 'history'
   
   // Single Downloader State
@@ -28,6 +31,17 @@ export default function DownloadStudio({ user }) {
   const [completedTask, setCompletedTask] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [localEngineActive, setLocalEngineActive] = useState(false);
+  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user));
+
+  useEffect(() => {
+    setRemainingTrials(getRemainingTrials(user));
+  }, [user]);
+
+  useEffect(() => {
+    const onTrialUpdated = () => setRemainingTrials(getRemainingTrials(user));
+    window.addEventListener('savezonix:trial_updated', onTrialUpdated);
+    return () => window.removeEventListener('savezonix:trial_updated', onTrialUpdated);
+  }, [user]);
 
   // Playlist Studio State
   const [playlistUrl, setPlaylistUrl] = useState('');
@@ -204,6 +218,12 @@ export default function DownloadStudio({ user }) {
 
   // Start single turbo download
   const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality, engineBase = null) => {
+    // Gatekeeper enforcement for free web trials
+    if (!hasFreeTrialsRemaining(user)) {
+      if (onOpenGatekeeper) onOpenGatekeeper();
+      return;
+    }
+
     const finalUrl = sanitizeSingleUrl(targetUrl || url);
     if (!finalUrl) return;
     setIsDownloading(true);
@@ -225,6 +245,9 @@ export default function DownloadStudio({ user }) {
       if (!data.success) {
         setErrorMsg(data.message || 'Failed to start download.');
         setIsDownloading(false);
+      } else {
+        // Record trial download consumption
+        recordTrialDownloadConsumed(user);
       }
     } catch (err) {
       setErrorMsg(err.message || 'Failed to start download.');
@@ -234,6 +257,12 @@ export default function DownloadStudio({ user }) {
 
   // Load Playlist or Tab Queue
   const loadPlaylistQueue = async (queueKey = '', customUrl = playlistUrl) => {
+    // Gatekeeper enforcement for free web trials
+    if (!hasFreeTrialsRemaining(user)) {
+      if (onOpenGatekeeper) onOpenGatekeeper();
+      return;
+    }
+
     setIsLoadingPlaylist(true);
     setErrorMsg('');
 
@@ -314,6 +343,162 @@ export default function DownloadStudio({ user }) {
       {errorMsg && (
         <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <AlertCircle size={18} /> {errorMsg}
+        </div>
+      )}
+
+      {/* ── FREE TRIAL & VIP STATUS BANNER ── */}
+      {isUserVip(user) ? (
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          borderRadius: '12px',
+          padding: '8px 16px',
+          marginBottom: '20px',
+          color: '#fbbf24',
+          fontSize: '13px',
+          fontWeight: 600,
+          boxShadow: '0 4px 15px rgba(245, 158, 11, 0.1)'
+        }}>
+          <Crown size={16} color="#fbbf24" />
+          <span>👑 VIP Member Active • Unlimited 4K Cloud Downloads Unlocked</span>
+        </div>
+      ) : remainingTrials > 0 ? (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          background: remainingTrials === 1 
+            ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(234, 88, 12, 0.05) 100%)'
+            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.05) 100%)',
+          border: remainingTrials === 1 ? '1px solid rgba(249, 115, 22, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
+          borderRadius: '12px',
+          padding: '10px 16px',
+          marginBottom: '20px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '18px' }}>🎁</span>
+            <div>
+              <span style={{
+                color: remainingTrials === 1 ? '#fb923c' : '#34d399',
+                fontSize: '13.5px',
+                fontWeight: 700
+              }}>
+                Free Web Trial: {remainingTrials} of {MAX_FREE_TRIALS} Downloads Left
+              </span>
+              <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: '8px' }}>
+                • No Login or Card Required
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenExtensionModal}
+            style={{
+              background: 'rgba(56, 189, 248, 0.15)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              color: '#38bdf8',
+              fontSize: '12px',
+              fontWeight: 600,
+              padding: '6px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'}
+          >
+            <Zap size={13} />
+            <span>Get Unlimited with Free Extension →</span>
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          marginBottom: '20px',
+          boxShadow: '0 0 25px rgba(239, 68, 68, 0.15)',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0
+            }}>
+              <Lock size={16} color="#f87171" />
+            </div>
+            <div>
+              <div style={{ color: '#f87171', fontSize: '14px', fontWeight: 700 }}>
+                Free Web Trial Limit Reached (3/3 Used)
+              </div>
+              <div style={{ color: '#94a3b8', fontSize: '12px' }}>
+                Install the 100% Free Chrome Extension or Upgrade to VIP for unlimited turbo downloads.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={onOpenExtensionModal}
+              style={{
+                background: 'rgba(56, 189, 248, 0.15)',
+                border: '1px solid rgba(56, 189, 248, 0.4)',
+                color: '#38bdf8',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                padding: '7px 14px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span>Install Free Extension</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenGatekeeper}
+              style={{
+                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+                border: 'none',
+                color: '#fff',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                padding: '7px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                boxShadow: '0 2px 10px rgba(37, 99, 235, 0.4)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <Zap size={14} />
+              <span>Unlock Unlimited</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -487,6 +672,10 @@ export default function DownloadStudio({ user }) {
                   </select>
                   <button
                     onClick={() => {
+                      if (!hasFreeTrialsRemaining(user)) {
+                        if (onOpenGatekeeper) onOpenGatekeeper();
+                        return;
+                      }
                       if (selectedVideoIds.size === 0) return alert('Please select at least 1 video.');
                       alert(`Queued ${selectedVideoIds.size} items for turbo batch download!`);
                     }}

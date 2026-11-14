@@ -1,8 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getRemainingTrials, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
 
-export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenExtensionModal, onLogout, onNavigate, currentPath }) {
+export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenExtensionModal, onOpenGatekeeper, onLogout, onNavigate, currentPath }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user));
   const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    setRemainingTrials(getRemainingTrials(user));
+  }, [user]);
+
+  useEffect(() => {
+    const onTrialUpdated = () => setRemainingTrials(getRemainingTrials(user));
+    window.addEventListener('savezonix:trial_updated', onTrialUpdated);
+    return () => window.removeEventListener('savezonix:trial_updated', onTrialUpdated);
+  }, [user]);
 
   const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
   const chromeStoreUrl = appConfig?.chromeWebStoreUrl || CHROME_STORE_DEFAULT;
@@ -463,6 +475,70 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             >
               Upgrade VIP
             </button>
+          )}
+
+          {/* Free Web Trial Pill (For non-VIP users) */}
+          {!isUserVip(user) && (
+            remainingTrials > 0 ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.querySelector('#studio');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }}
+                title={`${remainingTrials} of ${MAX_FREE_TRIALS} free web downloads left`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  background: remainingTrials === 1 ? 'rgba(249, 115, 22, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                  border: remainingTrials === 1 ? '1px solid rgba(249, 115, 22, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
+                  color: remainingTrials === 1 ? '#fb923c' : '#34d399',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  flexShrink: 0
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.04)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <span>🎁</span>
+                <span>{remainingTrials}/{MAX_FREE_TRIALS} Free</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onOpenGatekeeper}
+                title="Free trials exhausted. Click to unlock unlimited downloads."
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  background: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid rgba(239, 68, 68, 0.4)',
+                  color: '#f87171',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: '0 0 12px rgba(239, 68, 68, 0.25)',
+                  flexShrink: 0,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.04)'}
+                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span>Trial Limit</span>
+              </button>
+            )
           )}
 
           <button
