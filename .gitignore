@@ -1,42 +1,28 @@
-# ─── .NET / C# (SaveZonix-App) ───
-SaveZonix-App/bin/
-SaveZonix-App/obj/
-SaveZonixHost/bin/
-SaveZonixHost/obj/
-SaveZonix-App/.vs/
-SaveZonix-App/publish/
-SaveZonix-App/*.db*
-SaveZonix-App/*.db
-SaveZonix-App/Downloads/
-SaveZonix-App/app_data/
-SaveZonix-App/ffmpeg.exe
-SaveZonix-App/*.exe
-SaveZonix-App/installer/*.exe
-SaveZonix-App/*.zip
-
-# ─── Node.js / MERN (SaveZonix-Web) ───
+# Node.js dependencies
 node_modules/
-SaveZonix-Web/node_modules/
-SaveZonix-Web/client/node_modules/
-SaveZonix-Web/client/dist/
-SaveZonix-Web/server/node_modules/
-SaveZonix-Web/.env
-SaveZonix-Web/server/.env
-SaveZonix-Web/*.exe
-SaveZonix-Web/downloads/*.exe
+client/node_modules/
+server/node_modules/
+client/dist/
 
-# ─── OS & IDE ───
+# Environment files
+.env
+server/.env
+*.env.local
+
+# Downloads & Temp
+downloads/
+temp/
+*.tmp
+
+# Executables & Binaries
+*.exe
+server/ffmpeg.exe
+*.zip
+
+# OS & Editors
 .vs/
 .vscode/
-*.user
 *.suo
+*.user
 Thumbs.db
 .DS_Store
-
-[Bb]in/
-[Oo]bj/
-SaveZonix.Tests/bin/
-SaveZonix.Tests/obj/
-
-SaveZonix-Web/downloads/
-
