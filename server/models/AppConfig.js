@@ -38,6 +38,10 @@ const AppConfigSchema = new mongoose.Schema({
     type: String,
     default: 'https://savezonix-pro.vercel.app/SaveZonix-Extension.zip'
   },
+  chromeWebStoreUrl: {
+    type: String,
+    default: 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1'
+  },
 
   // Monetization & Quotas
   freeDailyLimit: {

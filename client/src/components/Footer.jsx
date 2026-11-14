@@ -1,7 +1,7 @@
 import React from 'react';
 
 export default function Footer({ onOpenAdmin, onOpenLegal }) {
-  const DIRECT_EXE_URL = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe';
+  const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
 
   return (
     <footer style={{ background: '#050914', borderTop: '1px solid #1e293b', paddingTop: '60px', paddingBottom: '30px', marginTop: '60px' }}>
@@ -15,7 +15,7 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
               <span style={{ fontSize: '18px', fontWeight: '800', color: '#f8fafc' }}>Save<span style={{ color: '#38bdf8' }}>Zonix</span>
               </span>
             </div>
-            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.6', margin: '0 0 16px 0' }}>High-performance multi-threaded stream analyzer and 4K media saver. Engineered in native C# .NET for creators and offline archival.
+            <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.6', margin: '0 0 16px 0' }}>High-performance multi-threaded stream analyzer and 4K media saver. 100% Pure Web + Chrome Extension for creators and offline archival.
             </p>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '4px 10px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '20px', fontSize: '11.5px', color: '#34d399', fontWeight: '600' }}>
               <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }}></span>All Systems Operational
@@ -31,7 +31,8 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
               <li><a href="#how-it-works" style={{ color: '#94a3b8', textDecoration: 'none' }}>Cinema Player 4K HDR</a></li>
               <li><a href="#features" style={{ color: '#94a3b8', textDecoration: 'none' }}>Playlist Studio</a></li>
               <li><a href="#pricing" style={{ color: '#94a3b8', textDecoration: 'none' }}>VIP Pro Tier</a></li>
-              <li><a href={DIRECT_EXE_URL} style={{ color: '#38bdf8', fontWeight: '600', textDecoration: 'none' }}>Windows Setup (.exe)</a></li>
+              <li><a href="#studio" style={{ color: '#94a3b8', textDecoration: 'none' }}>Web Downloader Studio</a></li>
+              <li><a href={CHROME_STORE_DEFAULT} target="_blank" rel="noopener noreferrer" style={{ color: '#38bdf8', fontWeight: '600', textDecoration: 'none' }}>Add to Chrome</a></li>
             </ul>
           </div>
 

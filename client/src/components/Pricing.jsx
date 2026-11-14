@@ -27,8 +27,8 @@ export default function Pricing({ appConfig, onSelectVip }) {
             <li>✓ Chrome Extension Companion</li>
           </ul>
 
-          <a href="#download" className="btn-plan secondary">
-            Download Free App
+          <a href="#studio" className="btn-plan secondary">
+            Use Web Downloader
           </a>
         </div>
 

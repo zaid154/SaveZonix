@@ -64,7 +64,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     return 'overview';
   }
 
-  // 7 Core Modules from .NET Admin Panel
+  // 7 Core Modules for Admin Panel
   const [activeTab, setActiveTab] = useState(() => getTabFromPath(currentPath));
 
   const [stats, setStats] = useState(() => {
@@ -566,6 +566,14 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       const url = settings.appDownloadUrl.trim();
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         alert('Validation Error: Setup Download URL must start with https:// or http://');
+        return;
+      }
+    }
+
+    if (settings.chromeWebStoreUrl && settings.chromeWebStoreUrl.trim().length > 0) {
+      const url = settings.chromeWebStoreUrl.trim();
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        alert('Validation Error: Chrome Web Store URL must start with https:// or http://');
         return;
       }
     }

@@ -18,7 +18,7 @@ export default function FAQ() {
     },
     {
       q: 'How does Guest Mode work?',
-      a: 'You can start downloading immediately after installing the app without creating an account! Guest users can download up to 5 videos daily. To get more downloads and save your history, simply sign in with a free account verified by email OTP.'
+      a: 'You can start downloading immediately on our website or extension without creating an account! Guest users can download up to 10 videos daily. To get more downloads and save your history, simply sign in with a free account verified by email OTP.'
     },
     {
       q: 'How do I download in 4K Ultra-HD resolution?',
@@ -26,7 +26,7 @@ export default function FAQ() {
     },
     {
       q: 'Is the Chrome Extension companion safe?',
-      a: 'Absolutely. The extension runs locally in your browser to detect hidden media streams and sends the URL to your local SaveZonix desktop engine. It contains no tracking pixels, adware, or data harvesting scripts.'
+      a: 'Absolutely. The extension runs locally in your browser to detect hidden media streams and provides 1-click downloads with built-in YouTube ad shield. It contains no tracking pixels, adware, or data harvesting scripts.'
     }
   ];
 

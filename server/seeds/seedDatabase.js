@@ -30,8 +30,8 @@ async function runSeed() {
     config.minAllowedVersion = '2.0.0';
     config.forceUpdate = false;
     config.gracePeriodDays = 7;
-    config.appDownloadUrl = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.2/SaveZonix-Setup-v2.5.2.exe';
-    config.updateChangelog = 'YouTube 429 rate limit bypass, 1-Click extension folder copy, and fast 4K stream extraction.';
+    config.chromeWebStoreUrl = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
+    config.updateChangelog = '100% Pure MERN Web Downloader & Chrome Web Store Extension integration.';
     config.silentAutoUpdate = true;
     config.freeDailyLimit = 10;
     config.lock4KForVip = true;

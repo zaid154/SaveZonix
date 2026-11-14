@@ -4,10 +4,8 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  const DIRECT_EXE_URL = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe';
-  const downloadUrl = (appConfig?.appDownloadUrl && !appConfig.appDownloadUrl.includes('/releases/latest'))
-    ? appConfig.appDownloadUrl
-    : DIRECT_EXE_URL;
+  const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
+  const chromeStoreUrl = appConfig?.chromeWebStoreUrl || CHROME_STORE_DEFAULT;
 
   const isAdmin = Boolean(
     user && (
@@ -94,6 +92,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
         </a>
 
         <nav className="nav-links">
+          <a href="#studio" onClick={(e) => handleNavClick(e, '#studio')}>Web Studio</a>
           <a href="#features" onClick={(e) => handleNavClick(e, '#features')}>Features</a>
           <a href="#how-it-works" onClick={(e) => handleNavClick(e, '#how-it-works')}>How It Works</a>
           <a href="#pricing" onClick={(e) => handleNavClick(e, '#pricing')}>Pricing</a>
@@ -466,8 +465,26 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onLogou
             </button>
           )}
 
-          <a href={downloadUrl} className="btn-nav-download">
-            Download App
+          <a
+            href={chromeStoreUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-nav-download"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px'
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+              <path fill="#4285F4" d="M12 12m-9.5 0a9.5 9.5 0 1 0 19 0a9.5 9.5 0 1 0 -19 0Z"/>
+              <path fill="#EA4335" d="M12 2.5C7.9 2.5 4.3 4.9 2.7 8.3l4.8 8.3L12 12l8.2 0C19.1 6.6 15.9 2.5 12 2.5z"/>
+              <path fill="#FBBC05" d="M2.7 8.3C1.9 9.9 1.5 11.7 1.5 13.5c0 5 3.5 9.2 8.2 10.3l4.8-8.3-2.5-3.5L2.7 8.3z"/>
+              <path fill="#34A853" d="M9.7 23.8c.8.2 1.5.2 2.3.2 5.8 0 10.5-4.7 10.5-10.5 0-1.8-.5-3.5-1.3-5L12 12l-2.3 11.8z"/>
+              <circle cx="12" cy="12" r="4.8" fill="#FFFFFF"/>
+              <circle cx="12" cy="12" r="3.8" fill="#1A73E8"/>
+            </svg>
+            <span>Add to Chrome</span>
           </a>
         </div>
       </div>

@@ -566,11 +566,12 @@ export default function EngineTab({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Setup Executable Download URL</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Chrome Web Store Extension URL</label>
             <input
               type="url"
-              value={settings.appDownloadUrl || ''}
-              onChange={(e) => setSettings({ ...settings, appDownloadUrl: e.target.value })}
+              placeholder="https://chromewebstore.google.com/detail/..."
+              value={settings.chromeWebStoreUrl || ''}
+              onChange={(e) => setSettings({ ...settings, chromeWebStoreUrl: e.target.value })}
               style={{ width: '100%', padding: '10px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#38bdf8', fontSize: '13px' }}
             />
           </div>

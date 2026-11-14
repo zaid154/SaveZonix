@@ -28,7 +28,7 @@ const FEATURES = [
       </svg>
     ),
     title: 'Chrome Companion Extension',
-    desc: 'Sniff media streams directly from browser network traffic with 1-click handover to your local desktop engine.'
+    desc: 'Detect media streams directly from browser tabs with 1-click downloads and built-in YouTube ad blocking.'
   },
   {
     icon: (

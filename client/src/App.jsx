@@ -26,7 +26,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [appConfig, setAppConfig] = useState(null);
 
-  const DIRECT_EXE_URL = 'https://github.com/zaid154/SaveZonix/releases/download/v2.5.0/SaveZonix-Setup-v2.5.0.exe';
+  const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
 
   useEffect(() => {
     // Check local storage for logged-in user
@@ -46,7 +46,7 @@ export default function App() {
           latestAppVersion: '2.5.0',
           freeDailyLimit: 10,
           vipMonthlyPriceINR: 99,
-          appDownloadUrl: DIRECT_EXE_URL
+          chromeWebStoreUrl: CHROME_STORE_DEFAULT
         });
       });
   }, []);
@@ -106,8 +106,10 @@ export default function App() {
           <FeedbackPage onNavigate={navigate} />
         ) : (
           <>
-            <DownloadStudio user={user} />
             <Hero appConfig={appConfig} />
+            <div id="studio">
+              <DownloadStudio user={user} />
+            </div>
             <Features />
             <HowItWorks />
             <Pricing
