@@ -1,5 +1,16 @@
 import React, { useEffect } from 'react';
-import { Shield, Zap, Sparkles, Check, Chrome, Crown, X, ArrowRight, Lock } from 'lucide-react';
+import { Shield, Zap, Sparkles, Check, Crown, X, ArrowRight, Lock } from 'lucide-react';
+
+const ChromeIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+    <path fill="#4285F4" d="M12 12m-9.5 0a9.5 9.5 0 1 0 19 0a9.5 9.5 0 1 0 -19 0Z"/>
+    <path fill="#EA4335" d="M12 2.5C7.9 2.5 4.3 4.9 2.7 8.3l4.8 8.3L12 12l8.2 0C19.1 6.6 15.9 2.5 12 2.5z"/>
+    <path fill="#FBBC05" d="M2.7 8.3C1.9 9.9 1.5 11.7 1.5 13.5c0 5 3.5 9.2 8.2 10.3l4.8-8.3-2.5-3.5L2.7 8.3z"/>
+    <path fill="#34A853" d="M9.7 23.8c.8.2 1.5.2 2.3.2 5.8 0 10.5-4.7 10.5-10.5 0-1.8-.5-3.5-1.3-5L12 12l-2.3 11.8z"/>
+    <circle cx="12" cy="12" r="4.8" fill="#FFFFFF"/>
+    <circle cx="12" cy="12" r="3.8" fill="#1A73E8"/>
+  </svg>
+);
 
 export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtension, onOpenVip, onOpenAuth }) {
   useEffect(() => {
@@ -154,7 +165,7 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
                   color: '#34d399'
                 }}
               >
-                <Chrome size={20} />
+                <ChromeIcon size={20} />
               </div>
               <div>
                 <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#f8fafc' }}>
