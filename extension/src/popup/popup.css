@@ -40,14 +40,16 @@
 
 html {
     width: 375px;
+    height: 520px;
     background: #090d16;
+    box-sizing: border-box;
 }
 
 body {
     width: 375px;
     min-width: 375px;
     max-width: 375px;
-    min-height: 420px;
+    min-height: 520px;
     max-height: 590px;
     background: radial-gradient(circle at 50% -20%, #172554 0%, #090d16 85%);
     color: var(--text-primary);

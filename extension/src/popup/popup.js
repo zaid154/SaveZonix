@@ -1,6 +1,6 @@
 // src/popup/popup.js — High-Performance Event-Driven Popup Controller (Universal)
 
-document.addEventListener('DOMContentLoaded', async () => {
+async function initPopup() {
     try {
     const videoList = document.getElementById('videoList');
     const emptyState = document.getElementById('emptyState');
@@ -34,19 +34,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ─────────────────────────────────────────────────────────────
     let tab = null;
     try {
-        const [t1] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        tab = t1;
+        const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        tab = tabs?.find(t => t.url && !t.url.startsWith('chrome-extension://')) || tabs?.[0];
     } catch { }
-    if (!tab) {
+    if (!tab || !tab.url) {
         try {
-            const [t2] = await chrome.tabs.query({ active: true, currentWindow: true });
-            tab = t2;
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+            tab = tabs?.find(t => t.url && !t.url.startsWith('chrome-extension://')) || tabs?.[0];
         } catch { }
     }
-    if (!tab) {
+    if (!tab || !tab.url) {
         try {
             const allActive = await chrome.tabs.query({ active: true });
-            tab = allActive && allActive[0];
+            tab = allActive?.find(t => t.url && !t.url.startsWith('chrome-extension://')) || allActive?.[0];
         } catch { }
     }
     if (!tab || !tab.id) {
@@ -75,6 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             chrome.runtime.sendMessage({ action: 'getShieldStats', tabId: activeTabId }, (res) => {
+                if (chrome.runtime.lastError) return;
                 if (res) {
                     const isSiteWhitelisted = Array.isArray(res.whitelist) && currentTabHostname && res.whitelist.includes(currentTabHostname);
                     updateShieldUIState(res.enabled, res.blockedCount || 0, isSiteWhitelisted);
@@ -85,6 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 toggleShieldSwitch.addEventListener('change', (e) => {
                     const isEnabled = e.target.checked;
                     chrome.runtime.sendMessage({ action: 'toggleShield', enabled: isEnabled }, (res) => {
+                        if (chrome.runtime.lastError) return;
                         updateShieldUIState(isEnabled, res?.blockedCount || 0);
                     });
                 });
@@ -94,6 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 shieldWhitelistBtn.addEventListener('click', () => {
                     if (!currentTabHostname) return;
                     chrome.runtime.sendMessage({ action: 'toggleWhitelistSite', hostname: currentTabHostname }, (res) => {
+                        if (chrome.runtime.lastError) return;
                         const isWhitelisted = Boolean(res?.isWhitelisted);
                         updateShieldUIState(toggleShieldSwitch ? toggleShieldSwitch.checked : true, 0, isWhitelisted);
                         // Reload tab to immediately apply or disable shield
@@ -1488,4 +1491,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (fatalErr) {
         console.error('[SaveZonix Fatal Popup Error]', fatalErr);
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPopup);
+} else {
+    initPopup();
+}
