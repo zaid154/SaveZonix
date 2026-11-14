@@ -18,6 +18,8 @@ temp/
 *.exe
 server/ffmpeg.exe
 *.zip
+!client/public/SaveZonix-Extension.zip
+!SaveZonix-Web/client/public/SaveZonix-Extension.zip
 
 # OS & Editors
 .vs/
