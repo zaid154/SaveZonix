@@ -99,7 +99,11 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       }
     });
 
-    // Connect to Socket.IO with dynamic host
+    fetchHistory();
+  }, []);
+
+  // Connect to Socket.IO with reactive host (local engine vs cloud Render)
+  useEffect(() => {
     const socketBase = localEngineActive
       ? 'http://localhost:5001'
       : (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
@@ -130,12 +134,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       setIsDownloading(false);
     });
 
-    fetchHistory();
-
     return () => {
       socket.disconnect();
     };
-  }, []);
+  }, [localEngineActive]);
 
   // Safe JSON parser that never throws on HTML error pages (e.g. Vercel 502/504 or Express HTML errors)
   const safeJsonParse = async (response) => {
@@ -168,9 +170,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   useEffect(() => {
     let interval;
     if (isDownloading) {
+      const base = localEngineActive ? 'http://localhost:5001' : '';
       interval = setInterval(async () => {
         try {
-          const res = await fetch('/api/downloads/history?limit=1');
+          const res = await fetch(`${base}/api/downloads/history?limit=1`);
           const data = await safeJsonParse(res);
           if (data.success && data.history?.length > 0) {
             const latest = data.history[0];
@@ -183,10 +186,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
             }
           }
         } catch {}
-      }, 2500);
+      }, 2000);
     }
     return () => clearInterval(interval);
-  }, [isDownloading]);
+  }, [isDownloading, localEngineActive]);
 
   // Get file download link routing to local engine or cloud
   const getFileDownloadUrl = (fileName) => {
@@ -198,8 +201,9 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   // Fetch download history from MongoDB
   const fetchHistory = async () => {
     setLoadingHistory(true);
+    const base = localEngineActive ? 'http://localhost:5001' : '';
     try {
-      const res = await fetch(`/api/downloads/history?search=${encodeURIComponent(historySearch)}`);
+      const res = await fetch(`${base}/api/downloads/history?search=${encodeURIComponent(historySearch)}`);
       const data = await safeJsonParse(res);
       if (data.success) {
         setHistoryList(data.history || []);

@@ -124,7 +124,7 @@ class MediaResolver {
     async resolveSpecificStream(url, quality = '1080p') {
         let info;
         try {
-            info = await this.ytdlVision.getInfo(url);
+            info = await this.ytdlFast.getInfo(url);
         } catch {
             info = await this.ytdlDefault.getInfo(url);
         }
