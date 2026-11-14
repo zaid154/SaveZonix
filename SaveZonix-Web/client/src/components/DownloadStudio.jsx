@@ -137,6 +137,33 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     };
   }, []);
 
+  // Safe JSON parser that never throws on HTML error pages (e.g. Vercel 502/504 or Express HTML errors)
+  const safeJsonParse = async (response) => {
+    try {
+      const contentType = response?.headers?.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return await response.json();
+      }
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        if (response.status === 404 || text.includes('404')) {
+          return { success: false, message: 'This video or media link was not found or was deleted from YouTube.' };
+        }
+        if (response.status === 502 || response.status === 504) {
+          return { success: false, message: 'Cloud server is waking up or temporarily busy. Please wait a moment and try again.' };
+        }
+        if (text.toLowerCase().includes('unavailable') || text.toLowerCase().includes('private')) {
+          return { success: false, message: 'This video is unavailable or private on YouTube.' };
+        }
+        return { success: false, message: `Server returned status ${response.status}. Please try again.` };
+      }
+    } catch {
+      return { success: false, message: 'Network connection error. Please try again.' };
+    }
+  };
+
   // Polling fallback: Automatically detect completed downloads even if WebSocket disconnects
   useEffect(() => {
     let interval;
@@ -144,7 +171,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       interval = setInterval(async () => {
         try {
           const res = await fetch('/api/downloads/history?limit=1');
-          const data = await res.json();
+          const data = await safeJsonParse(res);
           if (data.success && data.history?.length > 0) {
             const latest = data.history[0];
             const diffSec = (Date.now() - new Date(latest.createdAt).getTime()) / 1000;
@@ -173,7 +200,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     setLoadingHistory(true);
     try {
       const res = await fetch(`/api/downloads/history?search=${encodeURIComponent(historySearch)}`);
-      const data = await res.json();
+      const data = await safeJsonParse(res);
       if (data.success) {
         setHistoryList(data.history || []);
       }
@@ -235,7 +262,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
         if (!res) throw cloudErr;
       }
 
-      const data = await res.json();
+      const data = await safeJsonParse(res);
       if (data.success) {
         setResolvedMedia(data);
         const topQuality = data.availableQualities?.includes('1080p') ? '1080p' : (data.availableQualities?.[0] || '1080p');
@@ -257,7 +284,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
               body: JSON.stringify({ url: cleanTarget }),
               signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
             });
-            const localData = await localRes.json();
+            const localData = await safeJsonParse(localRes);
             if (localData.success) {
               setResolvedMedia(localData);
               setLocalEngineActive(true);
@@ -275,15 +302,23 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
           } catch {}
         }
 
-        if (data.message?.includes('player') || data.message?.includes('429') || data.message?.includes('bot') || data.message?.includes('throttled')) {
-          setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+        const msgLower = (data.message || '').toLowerCase();
+        if (msgLower.includes('unavailable') || msgLower.includes('private') || msgLower.includes('not found') || msgLower.includes('does not exist')) {
+          setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
+        } else if (msgLower.includes('player') || msgLower.includes('429') || msgLower.includes('bot') || msgLower.includes('throttled') || msgLower.includes('timeout')) {
+          setErrorMsg('⚡ YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
         } else {
           setErrorMsg(data.message || 'Failed to resolve media stream.');
         }
       }
     } catch (err) {
-      if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted') || err.message?.includes('player')) {
+      const errLower = (err?.message || '').toLowerCase();
+      if (errLower.includes('unavailable') || errLower.includes('private') || errLower.includes('not found')) {
+        setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
+      } else if (err.name === 'AbortError' || errLower.includes('timeout') || errLower.includes('aborted') || errLower.includes('player')) {
         setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+      } else if (errLower.includes('not valid json') || errLower.includes('unexpected token')) {
+        setErrorMsg('Cloud server is waking up or busy. Please try again in 5 seconds.');
       } else {
         setErrorMsg(err.message || 'Resolution failed.');
       }
@@ -342,7 +377,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
         if (!res) throw cloudErr;
       }
 
-      const data = await res.json();
+      const data = await safeJsonParse(res);
       if (!data.success) {
         // Fallback to local engine if cloud failed to start
         if (!base) {
@@ -355,7 +390,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                 quality: actualQuality || selectedQuality
               })
             });
-            const localData = await localRes.json();
+            const localData = await safeJsonParse(localRes);
             if (localData.success) {
               setLocalEngineActive(true);
               recordTrialDownloadConsumed(user);

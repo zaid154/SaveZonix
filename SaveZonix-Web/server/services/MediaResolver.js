@@ -2,10 +2,10 @@ const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
 
 class MediaResolver {
     constructor() {
-        // Primary: VisionOS client does NOT require player.js / worker thread decipher (needsPlayer: false)
-        // This completely eliminates "Could not prepare player" errors on cloud datacenter IPs
-        this.ytdlVision = new Ytdl({
-            clients: [Client.VisionOS]
+        // Primary: VisionOS, Tv, Mweb, WebEmbedded clients do not require player.js / decipher worker threads
+        // This eliminates "Could not prepare player" and worker timeout errors on cloud datacenter IPs
+        this.ytdlFast = new Ytdl({
+            clients: [Client.VisionOS, Client.Tv, Client.Mweb, Client.WebEmbedded]
         });
         this.ytdlDefault = new Ytdl();
     }
@@ -30,21 +30,32 @@ class MediaResolver {
 
         let info;
         try {
-            // Priority 1: Fast VisionOS resolution without player.js worker overhead
+            // Priority 1: Fast multi-client resolution without player.js worker decipher overhead
             info = await Promise.race([
-                this.ytdlVision.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS timeout')), 8000))
+                this.ytdlFast.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Fast resolution timeout')), 16000))
             ]);
         } catch (primaryErr) {
-            if (primaryErr.message && (primaryErr.message.includes('unavailable') || primaryErr.message.includes('private'))) {
+            const errStr = (primaryErr?.message || '').toLowerCase();
+            if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
+            console.warn('[MediaResolver] Fast client fallback triggering for:', cleanUrl, primaryErr.message);
+
             // Priority 2: Fallback to standard client resolution
-            const infoPromise = this.ytdlDefault.getInfo(cleanUrl);
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error("Resolution timed out. YouTube throttled shared cloud IPs. Please use the SaveZonix Extension or local engine for instant downloads.")), 8000)
-            );
-            info = await Promise.race([infoPromise, timeoutPromise]);
+            try {
+                const infoPromise = this.ytdlDefault.getInfo(cleanUrl);
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error("Resolution timed out. YouTube throttled shared cloud IPs. Please use the SaveZonix Extension or local engine for instant downloads.")), 14000)
+                );
+                info = await Promise.race([infoPromise, timeoutPromise]);
+            } catch (fallbackErr) {
+                const fallbackStr = (fallbackErr?.message || '').toLowerCase();
+                if (fallbackStr.includes('unavailable') || fallbackStr.includes('private') || fallbackStr.includes('not found') || fallbackStr.includes('404')) {
+                    throw new Error("This video is unavailable or private on YouTube.");
+                }
+                throw fallbackErr;
+            }
         }
 
         const details = info.videoDetails;

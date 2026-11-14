@@ -39,6 +39,16 @@ io.on('connection', (socket) => {
 });
 
 // Middleware
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -62,14 +72,34 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check
-app.get('/api/health', (req, res) => {
+const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
+    version: '2.5.4',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,
     timestamp: new Date()
   });
+};
+app.get('/api/health', healthHandler);
+app.get('/api/system/health', healthHandler);
+
+// API 404 Handler (Guarantees JSON response for unmatched /api routes)
+app.use('/api', (req, res, next) => {
+  res.status(404).json({ success: false, message: `API endpoint not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Global API Error Handler (Guarantees JSON response on internal server exceptions)
+app.use((err, req, res, next) => {
+  console.error('[API Server Error]', err);
+  if (req.path.startsWith('/api')) {
+    return res.status(err.status || 500).json({
+      success: false,
+      message: err.message || 'Internal server error occurred.'
+    });
+  }
+  next(err);
 });
 
 // Serve React SPA Frontend

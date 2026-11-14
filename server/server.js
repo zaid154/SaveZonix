@@ -85,6 +85,23 @@ const healthHandler = (req, res) => {
 app.get('/api/health', healthHandler);
 app.get('/api/system/health', healthHandler);
 
+// API 404 Handler (Guarantees JSON response for unmatched /api routes)
+app.use('/api', (req, res, next) => {
+  res.status(404).json({ success: false, message: `API endpoint not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Global API Error Handler (Guarantees JSON response on internal server exceptions)
+app.use((err, req, res, next) => {
+  console.error('[API Server Error]', err);
+  if (req.path.startsWith('/api')) {
+    return res.status(err.status || 500).json({
+      success: false,
+      message: err.message || 'Internal server error occurred.'
+    });
+  }
+  next(err);
+});
+
 // Serve React SPA Frontend
 const clientDist = path.resolve(__dirname, '../client/dist');
 if (fs.existsSync(clientDist)) {
