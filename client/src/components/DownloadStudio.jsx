@@ -203,11 +203,42 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
           }, 350);
         }
       } else {
-        setErrorMsg(data.message || 'Failed to resolve media stream.');
+        // Fallback to local companion engine if cloud resolution failed
+        if (!base) {
+          try {
+            const localRes = await fetch('http://localhost:5001/api/downloads/resolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: cleanTarget }),
+              signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
+            });
+            const localData = await localRes.json();
+            if (localData.success) {
+              setResolvedMedia(localData);
+              setLocalEngineActive(true);
+              const topQuality = localData.availableQualities?.includes('1080p') ? '1080p' : (localData.availableQualities?.[0] || '1080p');
+              if (localData.availableQualities?.length > 0) {
+                setSelectedQuality(topQuality);
+              }
+              if (autoStart) {
+                setTimeout(() => {
+                  handleStartDownload(cleanTarget, topQuality, 'http://localhost:5001');
+                }, 350);
+              }
+              return;
+            }
+          } catch {}
+        }
+
+        if (data.message?.includes('player') || data.message?.includes('429') || data.message?.includes('bot') || data.message?.includes('throttled')) {
+          setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+        } else {
+          setErrorMsg(data.message || 'Failed to resolve media stream.');
+        }
       }
     } catch (err) {
-      if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted')) {
-        setErrorMsg('Cloud resolution limit reached. For instant 1080p/4K downloads, please use the SaveZonix Chrome Extension or open http://localhost:5001.');
+      if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted') || err.message?.includes('player')) {
+        setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
       } else {
         setErrorMsg(err.message || 'Resolution failed.');
       }
@@ -341,8 +372,49 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       </div>
 
       {errorMsg && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <AlertCircle size={18} /> {errorMsg}
+        <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fca5a5', padding: '12px 16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '240px' }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} /> <span>{errorMsg}</span>
+          </div>
+          {(errorMsg.includes('Extension') || errorMsg.includes('Cloud IP') || errorMsg.includes('localhost')) && (
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={onOpenExtensionModal}
+                style={{
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                🚀 Install Free Extension
+              </button>
+              <a
+                href="http://localhost:5001"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  background: 'rgba(56, 189, 248, 0.2)',
+                  color: '#38bdf8',
+                  border: '1px solid rgba(56, 189, 248, 0.4)',
+                  borderRadius: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center'
+                }}
+              >
+                ⚡ Open Local Engine
+              </a>
+            </div>
+          )}
         </div>
       )}
 

@@ -1,8 +1,13 @@
-const { Ytdl, chooseFormat } = require('@distube/ytdl-core');
+const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
 
 class MediaResolver {
     constructor() {
-        this.ytdl = new Ytdl();
+        // Primary: VisionOS client does NOT require player.js / worker thread decipher (needsPlayer: false)
+        // This completely eliminates "Could not prepare player" errors on cloud datacenter IPs
+        this.ytdlVision = new Ytdl({
+            clients: [Client.VisionOS]
+        });
+        this.ytdlDefault = new Ytdl();
     }
 
     /**
@@ -20,12 +25,22 @@ class MediaResolver {
             }
         } catch {}
 
-        const infoPromise = this.ytdl.getInfo(cleanUrl);
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Resolution timed out. YouTube throttled shared cloud IPs. Please use the SaveZonix Extension or local engine for instant downloads.")), 10000)
-        );
+        let info;
+        try {
+            // Priority 1: Fast VisionOS resolution without player.js worker overhead
+            info = await Promise.race([
+                this.ytdlVision.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS timeout')), 7000))
+            ]);
+        } catch (primaryErr) {
+            // Priority 2: Fallback to standard client resolution
+            const infoPromise = this.ytdlDefault.getInfo(cleanUrl);
+            const timeoutPromise = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error("Resolution timed out. YouTube throttled shared cloud IPs. Please use the SaveZonix Extension or local engine for instant downloads.")), 8000)
+            );
+            info = await Promise.race([infoPromise, timeoutPromise]);
+        }
 
-        const info = await Promise.race([infoPromise, timeoutPromise]);
         const details = info.videoDetails;
 
         // Group qualities and audio streams
@@ -90,7 +105,12 @@ class MediaResolver {
      * Resolves a specific requested quality format (e.g. "1080p", "720p", "MP3")
      */
     async resolveSpecificStream(url, quality = '1080p') {
-        const info = await this.ytdl.getInfo(url);
+        let info;
+        try {
+            info = await this.ytdlVision.getInfo(url);
+        } catch {
+            info = await this.ytdlDefault.getInfo(url);
+        }
         const formats = info.formats || [];
 
         if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
