@@ -16,11 +16,14 @@ class MediaResolver {
     async resolveVideo(url) {
         if (!url) throw new Error('URL is required');
 
-        // Sanitize single video URLs: strip confusing dynamic mix params (e.g. list=RDMM)
+        // Sanitize single video URLs: support youtu.be short links & strip dynamic mix params
         let cleanUrl = url;
         try {
             const parsed = new URL(url);
-            if (parsed.searchParams.has('v')) {
+            if (parsed.hostname.includes('youtu.be')) {
+                const vid = parsed.pathname.replace(/^\//, '');
+                if (vid) cleanUrl = `https://www.youtube.com/watch?v=${vid}`;
+            } else if (parsed.searchParams.has('v')) {
                 cleanUrl = `https://www.youtube.com/watch?v=${parsed.searchParams.get('v')}`;
             }
         } catch {}
@@ -30,9 +33,12 @@ class MediaResolver {
             // Priority 1: Fast VisionOS resolution without player.js worker overhead
             info = await Promise.race([
                 this.ytdlVision.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS timeout')), 7000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS timeout')), 8000))
             ]);
         } catch (primaryErr) {
+            if (primaryErr.message && (primaryErr.message.includes('unavailable') || primaryErr.message.includes('private'))) {
+                throw new Error("This video is unavailable or private on YouTube.");
+            }
             // Priority 2: Fallback to standard client resolution
             const infoPromise = this.ytdlDefault.getInfo(cleanUrl);
             const timeoutPromise = new Promise((_, reject) =>

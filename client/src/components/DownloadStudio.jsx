@@ -187,7 +187,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     let clean = (rawStr || '').trim();
     try {
       const u = new URL(clean);
-      if (u.searchParams.has('v') && !clean.includes('/playlist')) {
+      if (u.hostname.includes('youtu.be')) {
+        const vid = u.pathname.replace(/^\//, '');
+        if (vid) clean = `https://www.youtube.com/watch?v=${vid}`;
+      } else if (u.searchParams.has('v') && !clean.includes('/playlist')) {
         clean = `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
       }
     } catch {}
@@ -212,7 +215,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: cleanTarget }),
-          signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(8000) : undefined
+          signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(20000) : undefined
         });
       } catch (cloudErr) {
         if (!base) {
