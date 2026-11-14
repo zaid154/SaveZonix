@@ -11,7 +11,21 @@ class MediaResolver {
     async resolveVideo(url) {
         if (!url) throw new Error('URL is required');
 
-        const info = await this.ytdl.getInfo(url);
+        // Sanitize single video URLs: strip confusing dynamic mix params (e.g. list=RDMM)
+        let cleanUrl = url;
+        try {
+            const parsed = new URL(url);
+            if (parsed.searchParams.has('v')) {
+                cleanUrl = `https://www.youtube.com/watch?v=${parsed.searchParams.get('v')}`;
+            }
+        } catch {}
+
+        const infoPromise = this.ytdl.getInfo(cleanUrl);
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("Resolution timed out. YouTube throttled shared cloud IPs. Please use the SaveZonix Extension or local engine for instant downloads.")), 10000)
+        );
+
+        const info = await Promise.race([infoPromise, timeoutPromise]);
         const details = info.videoDetails;
 
         // Group qualities and audio streams

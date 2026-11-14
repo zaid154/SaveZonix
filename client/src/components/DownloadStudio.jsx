@@ -27,6 +27,7 @@ export default function DownloadStudio({ user }) {
   const [downloadProgress, setDownloadProgress] = useState(null);
   const [completedTask, setCompletedTask] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [localEngineActive, setLocalEngineActive] = useState(false);
 
   // Playlist Studio State
   const [playlistUrl, setPlaylistUrl] = useState('');
@@ -43,29 +44,46 @@ export default function DownloadStudio({ user }) {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Check if query param ?url= or ?queueKey= exists
-    const params = new URLSearchParams(window.location.search);
-    const autoUrl = params.get('url');
-    const autoQueue = params.get('queueKey');
+    // Check if SaveZonix Local Companion Engine is running on localhost:5001
+    const checkLocal = async () => {
+      try {
+        const res = await fetch('http://localhost:5001/api/health', { signal: AbortSignal.timeout(600) });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.status === 'ok') {
+            setLocalEngineActive(true);
+            return 'http://localhost:5001';
+          }
+        }
+      } catch {}
+      return '';
+    };
 
-    if (autoQueue) {
-      setActiveTab('playlist');
-      loadPlaylistQueue(autoQueue, '');
-    } else if (autoUrl) {
-      if (autoUrl.includes('list=')) {
+    checkLocal().then(detectedBase => {
+      // Check if query param ?url= or ?queueKey= exists
+      const params = new URLSearchParams(window.location.search);
+      const autoUrl = params.get('url');
+      const autoQueue = params.get('queueKey');
+
+      if (autoQueue) {
         setActiveTab('playlist');
-        setPlaylistUrl(autoUrl);
-        loadPlaylistQueue('', autoUrl);
-      } else {
-        setUrl(autoUrl);
-        const autoDownload = params.get('autoDownload') === '1' || params.get('auto') === '1';
-        resolveSingleUrl(autoUrl, autoDownload);
-        setTimeout(() => {
-          const el = document.getElementById('studio');
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 300);
+        loadPlaylistQueue(autoQueue, '', detectedBase);
+      } else if (autoUrl) {
+        if (autoUrl.includes('list=') && !autoUrl.includes('watch?v=')) {
+          setActiveTab('playlist');
+          setPlaylistUrl(autoUrl);
+          loadPlaylistQueue('', autoUrl, detectedBase);
+        } else {
+          setUrl(autoUrl);
+          const autoDownload = params.get('autoDownload') === '1' || params.get('auto') === '1';
+          resolveSingleUrl(autoUrl, autoDownload, detectedBase);
+          setTimeout(() => {
+            const el = document.getElementById('studio');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 300);
+        }
       }
-    }
+    });
 
     // Connect to Socket.IO
     const socket = io('/', { transports: ['websocket', 'polling'] });
@@ -108,21 +126,56 @@ export default function DownloadStudio({ user }) {
     setLoadingHistory(false);
   };
 
+  // Sanitize single media URL
+  const sanitizeSingleUrl = (raw) => {
+    let clean = (raw || '').trim();
+    try {
+      const u = new URL(clean);
+      if (u.searchParams.has('v') && !clean.includes('/playlist')) {
+        clean = `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
+      }
+    } catch {}
+    return clean;
+  };
+
   // Resolve single media info
-  const resolveSingleUrl = async (targetUrl = url, autoStart = false) => {
-    const cleanTarget = (targetUrl || url).trim();
+  const resolveSingleUrl = async (targetUrl = url, autoStart = false, engineBase = null) => {
+    const cleanTarget = sanitizeSingleUrl(targetUrl || url);
     if (!cleanTarget) return;
     setIsResolving(true);
     setErrorMsg('');
     setResolvedMedia(null);
     setCompletedTask(null);
 
+    let base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+
     try {
-      const res = await fetch('/api/downloads/resolve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: cleanTarget })
-      });
+      let res;
+      try {
+        res = await fetch(`${base}/api/downloads/resolve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: cleanTarget }),
+          signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(8000) : undefined
+        });
+      } catch (cloudErr) {
+        if (!base) {
+          try {
+            res = await fetch('http://localhost:5001/api/downloads/resolve', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: cleanTarget }),
+              signal: AbortSignal.timeout(5000)
+            });
+            if (res.ok) {
+              base = 'http://localhost:5001';
+              setLocalEngineActive(true);
+            }
+          } catch {}
+        }
+        if (!res) throw cloudErr;
+      }
+
       const data = await res.json();
       if (data.success) {
         setResolvedMedia(data);
@@ -132,29 +185,35 @@ export default function DownloadStudio({ user }) {
         }
         if (autoStart) {
           setTimeout(() => {
-            handleStartDownload(cleanTarget, topQuality);
+            handleStartDownload(cleanTarget, topQuality, base);
           }, 350);
         }
       } else {
         setErrorMsg(data.message || 'Failed to resolve media stream.');
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Network error.');
+      if (err.name === 'AbortError' || err.message?.includes('timeout') || err.message?.includes('aborted')) {
+        setErrorMsg('Cloud resolution limit reached. For instant 1080p/4K downloads, please use the SaveZonix Chrome Extension or open http://localhost:5001.');
+      } else {
+        setErrorMsg(err.message || 'Resolution failed.');
+      }
     } finally {
       setIsResolving(false);
     }
   };
 
   // Start single turbo download
-  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality) => {
-    const finalUrl = (targetUrl || url).trim();
+  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality, engineBase = null) => {
+    const finalUrl = sanitizeSingleUrl(targetUrl || url);
     if (!finalUrl) return;
     setIsDownloading(true);
     setErrorMsg('');
     setCompletedTask(null);
 
+    const base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+
     try {
-      const res = await fetch('/api/downloads/start', {
+      const res = await fetch(`${base}/api/downloads/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -168,7 +227,7 @@ export default function DownloadStudio({ user }) {
         setIsDownloading(false);
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Network error.');
+      setErrorMsg(err.message || 'Failed to start download.');
       setIsDownloading(false);
     }
   };
