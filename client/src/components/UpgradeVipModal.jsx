@@ -290,13 +290,13 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
                   marginBottom: '10px'
                 }}
               >
-                VIP Pro Membership
+                VIP Pro
               </span>
               <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f8fafc', margin: '0 0 6px 0' }}>
-                Unlock Full Engine Capabilities
+                Upgrade to SaveZonix VIP
               </h2>
-              <p style={{ color: '#64748b', fontSize: '12.5px', margin: 0 }}>
-                High-throughput gigabit speed, 4K HDR streams, and unlimited daily downloads.
+              <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                Unlimited downloads, 4K Ultra HD video, and full speed without limits.
               </p>
             </div>
 
@@ -407,22 +407,22 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
 
             {/* Feature Checklist */}
             <div style={{ background: '#060a12', border: '1px solid #1a2333', borderRadius: '10px', padding: '14px', marginBottom: '18px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', color: '#94a3b8' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div className="vip-checklist-grid">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#10b981', fontWeight: 700 }}>✓</span>
-                  <span>Uncapped Gigabit Speeds</span>
+                  <span>Unlimited daily downloads</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#10b981', fontWeight: 700 }}>✓</span>
-                  <span>4K / 8K HDR Stream Extraction</span>
+                  <span>4K &amp; 8K Ultra HD quality</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#10b981', fontWeight: 700 }}>✓</span>
-                  <span>Unlimited Daily Downloads</span>
+                  <span>High-speed parallel downloads</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: '#10b981', fontWeight: 700 }}>✓</span>
-                  <span>128-Thread Direct Tunneling</span>
+                  <span>320kbps MP3 &amp; playlist downloader</span>
                 </div>
               </div>
             </div>

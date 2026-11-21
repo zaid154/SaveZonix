@@ -99,7 +99,7 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
 
         {/* Mobile Notice */}
         <div className="mobile-extension-notice" style={{ display: 'none', marginBottom: '14px', padding: '8px 12px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '8px', fontSize: '12px', color: '#38bdf8', textAlign: 'center' }}>
-          ℹ️ Extension sirf desktop Chrome / Edge browser ke liye hai.
+          Extension is designed for desktop Chrome, Edge, and Brave browsers.
         </div>
 
         {/* Header Badge */}

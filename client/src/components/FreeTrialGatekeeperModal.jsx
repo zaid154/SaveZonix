@@ -113,13 +113,13 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
               marginBottom: '12px'
             }}
           >
-            <Lock size={14} /> FREE WEB TRIAL LIMIT REACHED (3/3 USED)
+            <Lock size={14} /> FREE TRIAL LIMIT REACHED (3/3 USED)
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 8px', color: '#f8fafc' }}>
-            Aapne 3 Free Web Downloads Use Kar Liye Hain!
+          <h2 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 8px', color: '#f8fafc' }}>
+            Free Web Trial Limit Reached
           </h2>
           <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-            SaveZonix par aage unlimited downloads continue karne ke liye apna pasandeeda tareeqa chunein:
+            You have used all 3 free trial downloads. Choose an option below to continue downloading:
           </p>
         </div>
 
@@ -183,7 +183,7 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
                 <Check size={15} color="#10b981" /> <strong>Unlimited 4K & 8K</strong> Downloads
               </li>
               <li style={{ fontSize: '13px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Check size={15} color="#10b981" /> <strong>64-Thread Turbo</strong> Speed (PC Hardware)
+                <Check size={15} color="#10b981" /> <strong>Full Speed Direct</strong> Downloads (PC Hardware)
               </li>
               <li style={{ fontSize: '13px', color: '#cbd5e1', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Check size={15} color="#10b981" /> Built-in <strong>Ad & Popup Shield</strong>

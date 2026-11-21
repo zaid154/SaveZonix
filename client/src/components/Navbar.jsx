@@ -570,27 +570,39 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="mobile-drawer">
-          <a href="#studio" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#studio'); }}>⚡ Web Studio</a>
-          <a href="#features" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#features'); }}>✨ Features</a>
-          <a href="#how-it-works" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#how-it-works'); }}>📖 How It Works</a>
-          <a href="#pricing" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#pricing'); }}>💎 Pricing</a>
-          <a href="#faq" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#faq'); }}>❓ FAQ</a>
+          <a href="#studio" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#studio'); }}>Web Studio</a>
+          <a href="#features" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#features'); }}>Features</a>
+          <a href="#how-it-works" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#how-it-works'); }}>How It Works</a>
+          <a href="#pricing" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#pricing'); }}>Pricing</a>
+          <a href="#faq" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#faq'); }}>FAQ</a>
+
+          <div style={{ height: '1px', background: 'rgba(255, 255, 255, 0.08)', margin: '6px 0' }} />
+
           <button
             type="button"
             onClick={() => { setMobileMenuOpen(false); onOpenExtensionModal(); }}
-            className="mobile-nav-link"
-            style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'rgba(56, 189, 248, 0.25)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+            className="mobile-drawer-btn-chrome"
           >
-            🚀 Add Free Chrome Extension
+            <svg width="17" height="17" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+              <path fill="#4285F4" d="M12 12m-9.5 0a9.5 9.5 0 1 0 19 0a9.5 9.5 0 1 0 -19 0Z"/>
+              <path fill="#EA4335" d="M12 2.5C7.9 2.5 4.3 4.9 2.7 8.3l4.8 8.3L12 12l8.2 0C19.1 6.6 15.9 2.5 12 2.5z"/>
+              <path fill="#FBBC05" d="M2.7 8.3C1.9 9.9 1.5 11.7 1.5 13.5c0 5 3.5 9.2 8.2 10.3l4.8-8.3-2.5-3.5L2.7 8.3z"/>
+              <path fill="#34A853" d="M9.7 23.8c.8.2 1.5.2 2.3.2 5.8 0 10.5-4.7 10.5-10.5 0-1.8-.5-3.5-1.3-5L12 12l-2.3 11.8z"/>
+              <circle cx="12" cy="12" r="4.8" fill="#FFFFFF"/>
+              <circle cx="12" cy="12" r="3.8" fill="#1A73E8"/>
+            </svg>
+            <span>Add Free Chrome Extension</span>
           </button>
           {!isUserVip(user) && (
             <button
               type="button"
               onClick={() => { setMobileMenuOpen(false); onOpenVip(); }}
-              className="mobile-nav-link"
-              style={{ color: '#fbbf24', background: 'rgba(251, 191, 36, 0.1)', borderColor: 'rgba(251, 191, 36, 0.25)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+              className="mobile-drawer-btn-vip"
             >
-              👑 Unlock Unlimited VIP (₹99)
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14" />
+              </svg>
+              <span>Upgrade to VIP PRO (₹99)</span>
             </button>
           )}
         </div>
