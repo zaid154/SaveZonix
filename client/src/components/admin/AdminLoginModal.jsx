@@ -18,7 +18,7 @@ export default function AdminLoginModal({
 
   function fillSuperAdmin() {
     setAdminId('zaidm1323@gmail.com');
-    setPassword('Zaid@SaveZonix#2026!');
+    setPassword('Zaid@9999201255');
   }
 
   return (

@@ -49,7 +49,7 @@ async function runSeed() {
     // 2. Super Admin Account
     console.log('[Seed] Seeding Master Super Admin...');
     const adminEmail = 'zaidm1323@gmail.com';
-    const adminHash = await bcrypt.hash('Zaid@SaveZonix#2026!', 10);
+    const adminHash = await bcrypt.hash('Zaid@9999201255', 10);
     
     await User.findOneAndUpdate(
       { $or: [{ email: adminEmail }, { Email: adminEmail }] },
