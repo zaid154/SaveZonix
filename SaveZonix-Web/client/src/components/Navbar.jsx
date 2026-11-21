@@ -3,6 +3,7 @@ import { getRemainingTrials, isUserVip, MAX_FREE_TRIALS } from '../utils/trialMa
 
 export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenExtensionModal, onOpenGatekeeper, onLogout, onNavigate, currentPath }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user));
   const dropdownRef = useRef(null);
 
@@ -563,8 +564,60 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             </svg>
             <span>Add to Chrome</span>
           </button>
+
+          {/* Mobile Hamburger Toggle */}
+          <button
+            type="button"
+            className="nav-mobile-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+              {mobileMenuOpen ? (
+                <>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </>
+              ) : (
+                <>
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </>
+              )}
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="mobile-drawer">
+          <a href="#studio" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#studio'); }}>⚡ Web Studio</a>
+          <a href="#features" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#features'); }}>✨ Features</a>
+          <a href="#how-it-works" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#how-it-works'); }}>📖 How It Works</a>
+          <a href="#pricing" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#pricing'); }}>💎 Pricing</a>
+          <a href="#faq" className="mobile-nav-link" onClick={(e) => { setMobileMenuOpen(false); handleNavClick(e, '#faq'); }}>❓ FAQ</a>
+          <button
+            type="button"
+            onClick={() => { setMobileMenuOpen(false); onOpenExtensionModal(); }}
+            className="mobile-nav-link"
+            style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.1)', borderColor: 'rgba(56, 189, 248, 0.25)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+          >
+            🚀 Add Free Chrome Extension
+          </button>
+          {!isUserVip(user) && (
+            <button
+              type="button"
+              onClick={() => { setMobileMenuOpen(false); onOpenVip(); }}
+              className="mobile-nav-link"
+              style={{ color: '#fbbf24', background: 'rgba(251, 191, 36, 0.1)', borderColor: 'rgba(251, 191, 36, 0.25)', cursor: 'pointer', textAlign: 'left', width: '100%' }}
+            >
+              👑 Unlock Unlimited VIP (₹99)
+            </button>
+          )}
+        </div>
+      )}
     </header>
   );
 }

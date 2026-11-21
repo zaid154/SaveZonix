@@ -194,13 +194,12 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
       }}
     >
       <div
+        className="sz-modal-box"
         style={{
           width: '100%',
           maxWidth: '560px',
           background: '#0d131f',
           border: '1px solid #1e293b',
-          borderRadius: '16px',
-          padding: '28px',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.7)',
           position: 'relative',
           maxHeight: '90vh',

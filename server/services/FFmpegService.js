@@ -8,10 +8,13 @@ class FFmpegService {
     }
 
     _locateFFmpeg() {
-        const localServerFfmpeg = path.resolve(__dirname, '../ffmpeg.exe');
-        if (fs.existsSync(localServerFfmpeg)) {
-            return localServerFfmpeg;
+        // Check platform-specific binary (Windows .exe vs Linux)
+        const isWindows = process.platform === 'win32';
+        const localBinary = path.resolve(__dirname, isWindows ? '../ffmpeg.exe' : '../ffmpeg');
+        if (fs.existsSync(localBinary)) {
+            return localBinary;
         }
+        // Fallback: system ffmpeg (available on Render with apt-get install ffmpeg)
         return 'ffmpeg';
     }
 

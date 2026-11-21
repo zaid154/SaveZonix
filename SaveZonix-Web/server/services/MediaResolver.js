@@ -11,22 +11,27 @@ class MediaResolver {
     }
 
     /**
+     * Normalizes all YouTube URL variations (shorts, youtu.be, embed, live) to canonical watch URL
+     */
+    sanitizeUrl(url) {
+        if (!url) return '';
+        const trimmed = String(url).trim();
+        try {
+            const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]{11})/i);
+            if (match && match[1]) {
+                return `https://www.youtube.com/watch?v=${match[1]}`;
+            }
+        } catch {}
+        return trimmed;
+    }
+
+    /**
      * Resolves complete metadata and available qualities for a YouTube or media URL
      */
     async resolveVideo(url) {
         if (!url) throw new Error('URL is required');
 
-        // Sanitize single video URLs: support youtu.be short links & strip dynamic mix params
-        let cleanUrl = url;
-        try {
-            const parsed = new URL(url);
-            if (parsed.hostname.includes('youtu.be')) {
-                const vid = parsed.pathname.replace(/^\//, '');
-                if (vid) cleanUrl = `https://www.youtube.com/watch?v=${vid}`;
-            } else if (parsed.searchParams.has('v')) {
-                cleanUrl = `https://www.youtube.com/watch?v=${parsed.searchParams.get('v')}`;
-            }
-        } catch {}
+        const cleanUrl = this.sanitizeUrl(url);
 
         let info;
         try {
@@ -122,11 +127,12 @@ class MediaResolver {
      * Resolves a specific requested quality format (e.g. "1080p", "720p", "MP3")
      */
     async resolveSpecificStream(url, quality = '1080p') {
+        const cleanUrl = this.sanitizeUrl(url);
         let info;
         try {
-            info = await this.ytdlFast.getInfo(url);
+            info = await this.ytdlFast.getInfo(cleanUrl);
         } catch {
-            info = await this.ytdlDefault.getInfo(url);
+            info = await this.ytdlDefault.getInfo(cleanUrl);
         }
         const formats = info.formats || [];
 
@@ -141,6 +147,24 @@ class MediaResolver {
         }
 
         const targetLabel = quality.toLowerCase().replace('p', '');
+
+        // Priority 1: Combined format (video+audio in one stream) — no FFmpeg muxing needed on cloud
+        const combinedFormat = formats.find(f =>
+            f.qualityLabel &&
+            f.qualityLabel.toLowerCase().includes(targetLabel) &&
+            f.hasAudio && f.hasVideo
+        );
+        if (combinedFormat) {
+            return {
+                type: 'video',
+                videoStream: combinedFormat,
+                audioStream: null,
+                title: info.videoDetails.title,
+                sizeBytes: parseInt(combinedFormat.contentLength || '0', 10)
+            };
+        }
+
+        // Priority 2: Separate video + audio streams (needs muxing for full experience)
         const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel))
                    || chooseFormat(formats, { quality: 'highestvideo' });
         const audio = chooseFormat(formats, { quality: 'highestaudio' });

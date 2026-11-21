@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
 
+const RENDER_API_BASE = 'https://savezonix.onrender.com';
+
 export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtensionModal, onOpenVip }) {
   const [activeTab, setActiveTab] = useState('single'); // 'single' | 'playlist' | 'history'
   
@@ -198,10 +200,25 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     return `${base}/api/downloads/file/${encodeURIComponent(fileName)}`;
   };
 
+  // Trigger native browser download (opens download in browser's download bar)
+  const triggerBrowserDownload = (downloadUrl, filename) => {
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = filename || 'download';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+    }, 2000);
+  };
+
   // Fetch download history from MongoDB
   const fetchHistory = async () => {
     setLoadingHistory(true);
-    const base = localEngineActive ? 'http://localhost:5001' : '';
+    const isLocalHost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const base = (isLocalHost && localEngineActive) ? 'http://localhost:5001' : '';
     try {
       const res = await fetch(`${base}/api/downloads/history?search=${encodeURIComponent(historySearch)}`);
       const data = await safeJsonParse(res);
@@ -212,24 +229,25 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     setLoadingHistory(false);
   };
 
-  // Sanitize single media URL
+  // Sanitize single media URL: Normalizes Shorts, youtu.be, live, and watch links to standard watch URL
   const sanitizeSingleUrl = (raw) => {
     const rawStr = (typeof raw === 'string' && raw) ? raw : (typeof url === 'string' ? url : '');
     let clean = (rawStr || '').trim();
     try {
+      const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]{11})/i);
+      if (match && match[1]) {
+        return `https://www.youtube.com/watch?v=${match[1]}`;
+      }
       const u = new URL(clean);
-      if (u.hostname.includes('youtu.be')) {
-        const vid = u.pathname.replace(/^\//, '');
-        if (vid) clean = `https://www.youtube.com/watch?v=${vid}`;
-      } else if (u.searchParams.has('v') && !clean.includes('/playlist')) {
-        clean = `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
+      if (u.searchParams.has('v') && !clean.includes('/playlist')) {
+        return `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
       }
     } catch {}
     return clean;
   };
 
   // Resolve single media info
-  const resolveSingleUrl = async (targetUrl = url, autoStart = false, engineBase = null) => {
+  const resolveSingleUrl = async (targetUrl = url, autoStart = false, engineBase = null, retryCount = 0) => {
     const cleanTarget = sanitizeSingleUrl(targetUrl || url);
     if (!cleanTarget) return;
     setIsResolving(true);
@@ -237,7 +255,9 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
     setResolvedMedia(null);
     setCompletedTask(null);
 
-    let base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+    const isLocalHost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    let base = engineBase !== null ? engineBase : ((isLocalHost && localEngineActive) ? 'http://localhost:5001' : '');
 
     try {
       let res;
@@ -246,10 +266,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: cleanTarget }),
-          signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(20000) : undefined
+          signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(55000) : undefined
         });
       } catch (cloudErr) {
-        if (!base) {
+        if (!base && isLocalHost) {
           try {
             res = await fetch('http://localhost:5001/api/downloads/resolve', {
               method: 'POST',
@@ -279,8 +299,8 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
           }, 350);
         }
       } else {
-        // Fallback to local companion engine if cloud resolution failed
-        if (!base) {
+        // Fallback to local companion engine if cloud resolution failed (only on localhost)
+        if (!base && isLocalHost) {
           try {
             const localRes = await fetch('http://localhost:5001/api/downloads/resolve', {
               method: 'POST',
@@ -310,21 +330,32 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
         if (msgLower.includes('unavailable') || msgLower.includes('private') || msgLower.includes('not found') || msgLower.includes('does not exist')) {
           setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
         } else if (msgLower.includes('player') || msgLower.includes('429') || msgLower.includes('bot') || msgLower.includes('throttled') || msgLower.includes('timeout')) {
-          setErrorMsg('⚡ YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+          setErrorMsg('⚡ Cloud servers are waking up or busy. Please try clicking Analyze again.');
         } else {
           setErrorMsg(data.message || 'Failed to resolve media stream.');
         }
       }
     } catch (err) {
       const errLower = (err?.message || '').toLowerCase();
+      const isTimeout = err.name === 'AbortError' || errLower.includes('timeout') || errLower.includes('aborted');
+
+      // Auto-retry once if server was sleeping on Render
+      if (isTimeout && retryCount < 1) {
+        setErrorMsg('⏳ Cloud server is waking up from sleep mode (Render free tier takes ~30s on first load). Retrying now...');
+        setTimeout(() => {
+          resolveSingleUrl(targetUrl, autoStart, engineBase, retryCount + 1);
+        }, 2000);
+        return;
+      }
+
       if (errLower.includes('unavailable') || errLower.includes('private') || errLower.includes('not found')) {
         setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
-      } else if (err.name === 'AbortError' || errLower.includes('timeout') || errLower.includes('aborted') || errLower.includes('player')) {
-        setErrorMsg('YouTube Cloud IP Throttled: Cloud datacenter servers are restricted by YouTube. Please use the SaveZonix Chrome Extension or open http://localhost:5001 for 100% unrestricted 4K/8K downloads!');
+      } else if (isTimeout) {
+        setErrorMsg('⏳ Server is taking longer than usual to wake up. Please tap Analyze once more!');
       } else if (errLower.includes('not valid json') || errLower.includes('unexpected token')) {
-        setErrorMsg('Cloud server is waking up or busy. Please try again in 5 seconds.');
+        setErrorMsg('Cloud server is waking up. Please try again in 5 seconds.');
       } else {
-        setErrorMsg(err.message || 'Resolution failed.');
+        setErrorMsg('Unable to resolve media. Please check the URL and try again.');
       }
     } finally {
       setIsResolving(false);
@@ -332,7 +363,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   };
 
   // Start single turbo download
-  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality, engineBase = null) => {
+  const handleStartDownload = async (targetUrl = url, targetQuality = selectedQuality, engineBase = null, retryCount = 0) => {
     // Gatekeeper enforcement for free web trials
     if (!hasFreeTrialsRemaining(user)) {
       if (onOpenGatekeeper) onOpenGatekeeper();
@@ -341,76 +372,165 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
     const actualUrl = (typeof targetUrl === 'string' && targetUrl) ? targetUrl : url;
     const actualQuality = (typeof targetQuality === 'string' && targetQuality) ? targetQuality : selectedQuality;
-
     const finalUrl = sanitizeSingleUrl(actualUrl || url);
     if (!finalUrl) return;
+
     setIsDownloading(true);
     setErrorMsg('');
     setCompletedTask(null);
 
-    let base = engineBase !== null ? engineBase : (localEngineActive ? 'http://localhost:5001' : '');
+    const isLocalHost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    let base = engineBase !== null ? engineBase : ((isLocalHost && localEngineActive) ? 'http://localhost:5001' : '');
+    const isLocal = isLocalHost && (localEngineActive || base === 'http://localhost:5001');
 
-    try {
-      let res;
+    // ═══ LOCAL ENGINE: Use old disk-based flow with Socket.IO progress ═══
+    if (isLocal) {
       try {
-        res = await fetch(`${base}/api/downloads/start`, {
+        const res = await fetch(`${base}/api/downloads/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            url: finalUrl,
-            quality: actualQuality || selectedQuality
-          })
+          body: JSON.stringify({ url: finalUrl, quality: actualQuality || selectedQuality })
         });
-      } catch (cloudErr) {
-        if (!base) {
-          try {
-            res = await fetch('http://localhost:5001/api/downloads/start', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                url: finalUrl,
-                quality: actualQuality || selectedQuality
-              })
-            });
-            if (res.ok) {
-              base = 'http://localhost:5001';
-              setLocalEngineActive(true);
-            }
-          } catch {}
+        const data = await safeJsonParse(res);
+        if (!data.success) {
+          setErrorMsg(data.message || 'Failed to start download.');
+          setIsDownloading(false);
+        } else {
+          recordTrialDownloadConsumed(user);
         }
-        if (!res) throw cloudErr;
+      } catch (err) {
+        setErrorMsg(err.message || 'Failed to start download.');
+        setIsDownloading(false);
       }
+      return;
+    }
 
+    // ═══ CLOUD DEPLOYMENT: Use streaming approach (Vercel + Render) ═══
+    try {
+      // Step 1: Resolve stream URLs from server
+      const res = await fetch(`${base}/api/downloads/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: finalUrl, quality: actualQuality }),
+        signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(55000) : undefined
+      });
       const data = await safeJsonParse(res);
+
       if (!data.success) {
-        // Fallback to local engine if cloud failed to start
-        if (!base) {
+        // Fallback: Try local companion engine only on localhost
+        if (isLocalHost) {
           try {
-            const localRes = await fetch('http://localhost:5001/api/downloads/start', {
+            const localRes = await fetch('http://localhost:5001/api/downloads/stream', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                url: finalUrl,
-                quality: actualQuality || selectedQuality
-              })
+              body: JSON.stringify({ url: finalUrl, quality: actualQuality }),
+              signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
             });
             const localData = await safeJsonParse(localRes);
             if (localData.success) {
               setLocalEngineActive(true);
+              const sUrl = localData.type === 'audio' ? localData.streamUrl : localData.videoStreamUrl;
+              const dlUrl = `http://localhost:5001/api/downloads/proxy-stream?url=${encodeURIComponent(sUrl)}&filename=${encodeURIComponent(localData.fileName)}`;
+              triggerBrowserDownload(dlUrl, localData.fileName);
               recordTrialDownloadConsumed(user);
+              setCompletedTask({ fileName: localData.fileName, title: localData.title, directDownload: true, downloadUrl: dlUrl });
+              setIsDownloading(false);
               return;
             }
           } catch {}
         }
 
-        setErrorMsg(data.message || 'Failed to start download.');
+        // Show descriptive error
+        const msgLower = (data.message || '').toLowerCase();
+        if (msgLower.includes('unavailable') || msgLower.includes('private') || msgLower.includes('not found') || msgLower.includes('does not exist')) {
+          setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
+        } else if (msgLower.includes('player') || msgLower.includes('429') || msgLower.includes('bot') || msgLower.includes('throttled') || msgLower.includes('timeout')) {
+          setErrorMsg('⚡ Cloud servers are waking up or busy. Please tap Download again.');
+        } else {
+          setErrorMsg(data.message || 'Failed to resolve stream.');
+        }
         setIsDownloading(false);
-      } else {
-        // Record trial download consumption
-        recordTrialDownloadConsumed(user);
+        return;
       }
+
+      // Step 2: Trigger browser download directly from Render (bypasses Vercel 30s proxy timeout)
+      const streamUrl = data.type === 'audio' ? data.streamUrl : data.videoStreamUrl;
+      const dlUrl = `${RENDER_API_BASE}/api/downloads/proxy-stream?url=${encodeURIComponent(streamUrl)}&filename=${encodeURIComponent(data.fileName)}`;
+
+      triggerBrowserDownload(dlUrl, data.fileName);
+      recordTrialDownloadConsumed(user);
+
+      // Record telemetry in background (non-blocking)
+      try {
+        fetch(`${base}/api/downloads/record`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: data.title,
+            fileName: data.fileName,
+            originalUrl: finalUrl,
+            quality: actualQuality,
+            format: data.type === 'audio' ? 'mp3' : 'mp4',
+            fileSize: data.sizeBytes || data.videoSize || 0,
+            status: 'Completed',
+            downloadSource: 'web'
+          })
+        }).catch(() => {});
+      } catch {}
+
+      setCompletedTask({
+        fileName: data.fileName,
+        title: data.title,
+        fileSize: data.sizeBytes || data.videoSize || 0,
+        directDownload: true,
+        downloadUrl: dlUrl
+      });
+      setIsDownloading(false);
+      fetchHistory();
+
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to start download.');
+      // Fallback: Try local companion engine only on localhost
+      if (isLocalHost) {
+        try {
+          const localRes = await fetch('http://localhost:5001/api/downloads/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: finalUrl, quality: actualQuality }),
+            signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
+          });
+          const localData = await safeJsonParse(localRes);
+          if (localData.success) {
+            setLocalEngineActive(true);
+            const sUrl = localData.type === 'audio' ? localData.streamUrl : localData.videoStreamUrl;
+            const dlUrl = `http://localhost:5001/api/downloads/proxy-stream?url=${encodeURIComponent(sUrl)}&filename=${encodeURIComponent(localData.fileName)}`;
+            triggerBrowserDownload(dlUrl, localData.fileName);
+            recordTrialDownloadConsumed(user);
+            setCompletedTask({ fileName: localData.fileName, title: localData.title, directDownload: true, downloadUrl: dlUrl });
+            setIsDownloading(false);
+            return;
+          }
+        } catch {}
+      }
+
+      const errLower = (err?.message || '').toLowerCase();
+      const isTimeout = err.name === 'AbortError' || errLower.includes('timeout') || errLower.includes('aborted');
+
+      if (isTimeout && retryCount < 1) {
+        setErrorMsg('⏳ Server is starting up. Retrying download stream in 2s...');
+        setTimeout(() => {
+          handleStartDownload(targetUrl, targetQuality, engineBase, retryCount + 1);
+        }, 2000);
+        return;
+      }
+
+      if (isTimeout) {
+        setErrorMsg('Download stream timed out. Please tap Download again.');
+      } else if (errLower.includes('not valid json') || errLower.includes('unexpected token')) {
+        setErrorMsg('Cloud server is waking up. Please try again in 5 seconds.');
+      } else {
+        setErrorMsg(err.message || 'Download failed.');
+      }
       setIsDownloading(false);
     }
   };
@@ -468,35 +588,35 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   };
 
   return (
-    <div className="download-studio-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
+    <div className="sz-studio-container">
       {/* Tab Navigation Header */}
-      <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', marginBottom: '24px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div className="sz-tabs-scroll">
         <button 
           onClick={() => setActiveTab('single')}
+          className="sz-tab-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px',
             background: activeTab === 'single' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600
+            color: '#fff'
           }}>
-          <Zap size={18} /> Single Downloader
+          <Zap size={16} /> Single Downloader
         </button>
         <button 
           onClick={() => setActiveTab('playlist')}
+          className="sz-tab-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px',
             background: activeTab === 'playlist' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600
+            color: '#fff'
           }}>
-          <ListMusic size={18} /> Playlist Studio
+          <ListMusic size={16} /> Playlist Studio
         </button>
         <button 
           onClick={() => { setActiveTab('history'); fetchHistory(); }}
+          className="sz-tab-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '8px',
             background: activeTab === 'history' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600
+            color: '#fff'
           }}>
-          <History size={18} /> Downloads History ({historyList.length})
+          <History size={16} /> History ({historyList.length})
         </button>
       </div>
 
@@ -706,29 +826,23 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       {/* ── TAB 1: SINGLE DOWNLOADER ── */}
       {activeTab === 'single' && (
         <div>
-          <div style={{ background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Zap color="#3b82f6" /> Turbo High-Speed Downloader
+          <div className="sz-card">
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Zap color="#3b82f6" size={20} /> Turbo High-Speed Downloader
             </h2>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="sz-input-wrap">
               <input
                 type="text"
                 placeholder="Paste YouTube, Video or Audio Link here..."
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && resolveSingleUrl()}
-                style={{
-                  flex: '1 1 200px', minWidth: 0, padding: '12px 14px', borderRadius: '8px', background: '#1f2937',
-                  border: '1px solid #374151', color: '#fff', fontSize: '0.95rem', outline: 'none'
-                }}
+                className="sz-url-input"
               />
               <button
                 onClick={() => resolveSingleUrl()}
                 disabled={isResolving || !url.trim()}
-                style={{
-                  padding: '12px 20px', background: '#2563eb', color: '#fff', fontWeight: 600,
-                  borderRadius: '8px', border: 'none', cursor: 'pointer', flexShrink: 0
-                }}>
+                className="sz-btn-analyze">
                 {isResolving ? 'Resolving...' : 'Analyze'}
               </button>
             </div>
@@ -736,44 +850,42 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
           {/* Resolved Media Card */}
           {resolvedMedia && (
-            <div style={{ marginTop: '20px', background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+            <div className="sz-card" style={{ marginTop: '20px' }}>
+              <div className="sz-preview-layout">
                 <img 
                   src={resolvedMedia.thumbnailUrl} 
                   alt={resolvedMedia.title}
-                  style={{ width: '220px', height: '124px', objectFit: 'cover', borderRadius: '8px' }}
+                  className="sz-preview-img"
                 />
-                <div style={{ flex: 1, minWidth: '280px' }}>
-                  <h3 style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 600, marginBottom: '6px' }}>{resolvedMedia.title}</h3>
-                  <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '16px' }}>Channel: {resolvedMedia.author} • Duration: {resolvedMedia.formattedDuration}</p>
+                <div className="sz-preview-content">
+                  <h3 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 600, marginBottom: '6px', wordBreak: 'break-word' }}>{resolvedMedia.title}</h3>
+                  <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '14px', wordBreak: 'break-word' }}>Channel: {resolvedMedia.author} • Duration: {resolvedMedia.formattedDuration}</p>
 
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <label style={{ color: '#e5e7eb', fontSize: '0.9rem', fontWeight: 500 }}>Select Quality:</label>
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      {(resolvedMedia.availableQualities || []).map(q => (
-                        <button
-                          key={q}
-                          onClick={() => setSelectedQuality(q)}
-                          style={{
-                            padding: '6px 14px', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600,
-                            background: selectedQuality === q ? '#3b82f6' : '#1f2937',
-                            color: selectedQuality === q ? '#fff' : '#9ca3af',
-                            border: '1px solid ' + (selectedQuality === q ? '#3b82f6' : '#374151'),
-                            cursor: 'pointer'
-                          }}>
-                          {q}
-                        </button>
-                      ))}
+                  <div className="sz-quality-row">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
+                      <label style={{ color: '#e5e7eb', fontSize: '0.85rem', fontWeight: 600 }}>Quality:</label>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {(resolvedMedia.availableQualities || []).map(q => (
+                          <button
+                            key={q}
+                            onClick={() => setSelectedQuality(q)}
+                            style={{
+                              padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600,
+                              background: selectedQuality === q ? '#3b82f6' : '#1f2937',
+                              color: selectedQuality === q ? '#fff' : '#9ca3af',
+                              border: '1px solid ' + (selectedQuality === q ? '#3b82f6' : '#374151'),
+                              cursor: 'pointer'
+                            }}>
+                            {q}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <button
                       onClick={() => handleStartDownload()}
                       disabled={isDownloading}
-                      style={{
-                        marginLeft: 'auto', padding: '10px 24px', background: '#10b981', color: '#fff',
-                        fontWeight: 700, borderRadius: '8px', border: 'none', cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', gap: '8px'
-                      }}>
+                      className="sz-btn-download">
                       <Download size={18} /> {isDownloading ? 'Downloading...' : '⚡ Turbo Download'}
                     </button>
                   </div>
@@ -783,12 +895,12 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
               {/* Real-time Progress Bar */}
               {isDownloading && (
                 <div style={{ marginTop: '24px', background: '#1f2937', padding: '16px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#fff', fontSize: '0.9rem', fontWeight: 600 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#10b981' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#fff', fontSize: '0.9rem', fontWeight: 600, flexWrap: 'wrap', gap: '8px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, wordBreak: 'break-word' }}>
+                      <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
                       {downloadProgress?.status || '⚡ Turbo Engine: Processing & fetching stream chunks from YouTube...'}
                     </span>
-                    <span>{downloadProgress?.percentage || 15}% {downloadProgress?.speedMBps ? `(${downloadProgress.speedMBps} MB/s)` : ''}</span>
+                    <span style={{ flexShrink: 0 }}>{downloadProgress?.percentage || 15}% {downloadProgress?.speedMBps ? `(${downloadProgress.speedMBps} MB/s)` : ''}</span>
                   </div>
                   <div style={{ width: '100%', height: '10px', background: '#374151', borderRadius: '5px', overflow: 'hidden' }}>
                     <div style={{
@@ -802,22 +914,29 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
               {/* Completed Card */}
               {completedTask && (
-                <div style={{ marginTop: '20px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', padding: '16px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <CheckCircle2 color="#10b981" size={24} />
-                    <div>
-                      <h4 style={{ color: '#fff', fontWeight: 600 }}>Download Completed Successfully!</h4>
-                      <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>{completedTask.fileName} • {(completedTask.fileSize / 1024 / 1024).toFixed(2)} MB in {completedTask.timeSeconds}s (@ {completedTask.averageSpeedMBps} MB/s)</p>
+                <div className="sz-completed-row" style={{ marginTop: '20px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', padding: '16px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 240px' }}>
+                    <CheckCircle2 color="#10b981" size={24} style={{ flexShrink: 0 }} />
+                    <div style={{ minWidth: 0 }}>
+                      <h4 style={{ color: '#fff', fontWeight: 600, wordBreak: 'break-word', fontSize: '0.95rem' }}>Download Completed Successfully!</h4>
+                      <p style={{ color: '#9ca3af', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                        {completedTask.fileName}
+                        {completedTask.fileSize ? ` • ${(completedTask.fileSize / 1024 / 1024).toFixed(2)} MB` : ''}
+                        {completedTask.timeSeconds ? ` in ${completedTask.timeSeconds}s` : ''}
+                        {completedTask.averageSpeedMBps ? ` (@ ${completedTask.averageSpeedMBps} MB/s)` : ''}
+                      </p>
                     </div>
                   </div>
                   <a
-                    href={getFileDownloadUrl(completedTask.fileName)}
+                    href={completedTask.downloadUrl || getFileDownloadUrl(completedTask.fileName)}
                     download={completedTask.fileName}
                     target="_blank"
                     rel="noreferrer"
+                    className="sz-completed-btn"
                     style={{
-                      padding: '8px 18px', background: '#10b981', color: '#fff', fontWeight: 600,
-                      borderRadius: '6px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px'
+                      padding: '10px 20px', background: '#10b981', color: '#fff', fontWeight: 700,
+                      borderRadius: '8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      flexShrink: 0
                     }}>
                     <Download size={16} /> Save to PC
                   </a>
@@ -955,10 +1074,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       {activeTab === 'history' && (
         <div style={{ background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <History color="#3b82f6" /> Download History (MongoDB Atlas)
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <History color="#3b82f6" size={20} /> Download History (MongoDB Atlas)
             </h2>
-            <div style={{ position: 'relative', width: '280px' }}>
+            <div style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
               <Search size={16} color="#9ca3af" style={{ position: 'absolute', left: '12px', top: '12px' }} />
               <input
                 type="text"
@@ -969,8 +1088,8 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                   fetchHistory();
                 }}
                 style={{
-                  width: '100%', padding: '8px 12px 8px 36px', background: '#1f2937',
-                  border: '1px solid #374151', borderRadius: '6px', color: '#fff', outline: 'none'
+                  width: '100%', padding: '9px 12px 9px 36px', background: '#1f2937',
+                  border: '1px solid #374151', borderRadius: '8px', color: '#fff', outline: 'none', fontSize: '0.9rem'
                 }}
               />
             </div>
@@ -985,28 +1104,38 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
               {historyList.map((item) => (
                 <div
                   key={item._id}
+                  className="sz-history-row"
                   style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px', background: '#1f2937', borderRadius: '8px', border: '1px solid #374151'
+                    padding: '12px 14px', background: '#1f2937', borderRadius: '10px', border: '1px solid #374151',
+                    flexWrap: 'wrap', gap: '12px'
                   }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    {item.format === 'mp3' ? <Music color="#10b981" size={24} /> : <Video color="#3b82f6" size={24} />}
-                    <div>
-                      <h4 style={{ color: '#fff', fontSize: '0.95rem', fontWeight: 600 }}>{item.title}</h4>
-                      <p style={{ color: '#9ca3af', fontSize: '0.8rem' }}>
-                        {item.fileName} • {(item.fileSize / 1024 / 1024).toFixed(2)} MB • Speed: {item.downloadSpeedMBps || 0} MB/s • {new Date(item.createdAt).toLocaleString()}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: '1 1 220px' }}>
+                    {item.format === 'mp3' ? <Music color="#10b981" size={22} style={{ flexShrink: 0 }} /> : <Video color="#3b82f6" size={22} style={{ flexShrink: 0 }} />}
+                    <div style={{ minWidth: 0 }}>
+                      <h4 style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600, wordBreak: 'break-word' }}>{item.title}</h4>
+                      <p style={{ color: '#9ca3af', fontSize: '0.75rem', wordBreak: 'break-all' }}>
+                        {item.fileName} • {(item.fileSize / 1024 / 1024).toFixed(2)} MB • {new Date(item.createdAt).toLocaleDateString()}
                       </p>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <a
-                      href={getFileDownloadUrl(item.fileName)}
-                      download={item.fileName}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ padding: '6px 12px', background: '#2563eb', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>
-                      Download
-                    </a>
+                  <div className="sz-history-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+                    {item.originalUrl ? (
+                      <button
+                        onClick={() => handleStartDownload(item.originalUrl, item.quality || '1080p')}
+                        style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>
+                        Download
+                      </button>
+                    ) : (
+                      <a
+                        href={getFileDownloadUrl(item.fileName)}
+                        download={item.fileName}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ padding: '6px 14px', background: '#2563eb', color: '#fff', borderRadius: '6px', textDecoration: 'none', fontSize: '0.85rem', fontWeight: 600 }}>
+                        Download
+                      </a>
+                    )}
                     <button
                       onClick={() => handleDeleteHistory(item._id)}
                       style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '6px' }}>

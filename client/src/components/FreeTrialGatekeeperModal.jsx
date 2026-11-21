@@ -48,14 +48,13 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="sz-modal-box"
         style={{
           width: '100%',
           maxWidth: '680px',
           background: 'linear-gradient(165deg, #0e172a 0%, #060b14 100%)',
           border: '1px solid rgba(56, 189, 248, 0.3)',
-          borderRadius: '24px',
           boxShadow: '0 25px 70px -15px rgba(0, 0, 0, 0.95), 0 0 35px rgba(56, 189, 248, 0.2)',
-          padding: '32px 28px',
           color: '#f8fafc',
           position: 'relative',
           maxHeight: '94vh',
@@ -122,7 +121,7 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
         </div>
 
         {/* Dual Options Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px', marginBottom: '24px' }}>
           {/* Option 1: Chrome Extension (Recommended - 100% Free) */}
           <div
             style={{

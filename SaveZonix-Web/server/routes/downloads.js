@@ -3,6 +3,8 @@ const router = express.Router();
 const {
   startDownload,
   resolveMedia,
+  streamDownload,
+  proxyStream,
   getHistory,
   deleteHistoryItem,
   recordDownloadTelemetry,
@@ -14,7 +16,13 @@ const {
 // Resolve video/stream details and available qualities
 router.post('/resolve', resolveMedia);
 
-// Start Turbo Download
+// Cloud-safe streaming download (resolve + return direct URLs)
+router.post('/stream', streamDownload);
+
+// Proxy YouTube CDN stream to browser with download headers (bypasses CORS)
+router.get('/proxy-stream', proxyStream);
+
+// Start Turbo Download (disk-based, for local engine only)
 router.post('/start', startDownload);
 
 // Fetch Download History from MongoDB

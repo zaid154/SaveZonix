@@ -41,6 +41,11 @@ export default function App() {
       } catch {}
     }
 
+    // Ping Render backend in background to wake up cold container immediately
+    try {
+      fetch('/api/health').catch(() => {});
+    } catch {}
+
     // Fetch dynamic app config
     fetch('/api/app-config')
       .then((res) => res.json())
