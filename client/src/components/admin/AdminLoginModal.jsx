@@ -22,8 +22,8 @@ export default function AdminLoginModal({
   }
 
   return (
-    <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div style={{
+    <div className="admin-login-wrapper" style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div className="admin-login-card" style={{
         maxWidth: '430px',
         width: '100%',
         padding: '36px 32px',

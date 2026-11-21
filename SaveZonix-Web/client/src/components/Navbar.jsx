@@ -182,10 +182,10 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                   position: 'absolute',
                   top: 'calc(100% + 10px)',
                   right: 0,
-                  width: '260px',
+                  width: 'min(260px, calc(100vw - 24px))',
                   background: 'rgba(9, 14, 26, 0.95)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
                   border: '1px solid rgba(255, 255, 255, 0.1)',
                   borderRadius: '16px',
                   boxShadow: '0 20px 48px -10px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(255, 255, 255, 0.06)',
@@ -273,6 +273,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                           setDropdownOpen(false);
                           onNavigate('/admin/overview');
                         }}
+                        className="nav-dropdown-admin-btn"
                         style={{
                           width: '100%',
                           display: 'flex',
@@ -288,14 +289,6 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                           cursor: 'pointer',
                           textAlign: 'left',
                           transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.18)';
-                          e.currentTarget.style.borderColor = '#38bdf8';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(56, 189, 248, 0.08)';
-                          e.currentTarget.style.borderColor = 'rgba(56, 189, 248, 0.25)';
                         }}
                       >
                         <div style={{
@@ -337,6 +330,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                           setDropdownOpen(false);
                           onOpenVip();
                         }}
+                        className="nav-dropdown-vip-btn"
                         style={{
                           width: '100%',
                           display: 'flex',
@@ -352,14 +346,6 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                           cursor: 'pointer',
                           textAlign: 'left',
                           transition: 'all 0.15s ease'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.background = 'rgba(251, 191, 36, 0.16)';
-                          e.currentTarget.style.borderColor = '#fbbf24';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'rgba(251, 191, 36, 0.08)';
-                          e.currentTarget.style.borderColor = 'rgba(251, 191, 36, 0.25)';
                         }}
                       >
                         <div style={{
@@ -402,6 +388,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                         setDropdownOpen(false);
                         onLogout();
                       }}
+                      className="nav-dropdown-signout-btn"
                       style={{
                         width: '100%',
                         display: 'flex',
@@ -417,14 +404,6 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                         cursor: 'pointer',
                         textAlign: 'left',
                         transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
-                        e.currentTarget.style.color = '#ef4444';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.color = '#f87171';
                       }}
                     >
                       <div style={{
@@ -483,6 +462,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             remainingTrials > 0 ? (
               <button
                 type="button"
+                className="nav-trial-pill"
                 onClick={() => {
                   const el = document.querySelector('#studio');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -491,53 +471,52 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
+                  gap: '5px',
+                  padding: '5px 10px',
                   borderRadius: '20px',
                   background: remainingTrials === 1 ? 'rgba(249, 115, 22, 0.12)' : 'rgba(16, 185, 129, 0.12)',
                   border: remainingTrials === 1 ? '1px solid rgba(249, 115, 22, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
                   color: remainingTrials === 1 ? '#fb923c' : '#34d399',
-                  fontSize: '12px',
+                  fontSize: '11.5px',
                   fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'all 0.2s',
-                  flexShrink: 0
+                  flexShrink: 0,
+                  minHeight: '34px'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.04)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
                 <span>🎁</span>
-                <span>{remainingTrials}/{MAX_FREE_TRIALS} Free</span>
+                <span>{remainingTrials}/{MAX_FREE_TRIALS}</span>
               </button>
             ) : (
               <button
                 type="button"
+                className="nav-trial-pill trial-exhausted"
                 onClick={onOpenGatekeeper}
                 title="Free trials exhausted. Click to unlock unlimited downloads."
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '5px',
-                  padding: '6px 12px',
+                  padding: '5px 10px',
                   borderRadius: '20px',
                   background: 'rgba(239, 68, 68, 0.15)',
                   border: '1px solid rgba(239, 68, 68, 0.4)',
                   color: '#f87171',
-                  fontSize: '12px',
+                  fontSize: '11.5px',
                   fontWeight: 700,
                   cursor: 'pointer',
                   boxShadow: '0 0 12px rgba(239, 68, 68, 0.25)',
                   flexShrink: 0,
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  minHeight: '34px'
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.04)'}
-                onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                 </svg>
-                <span>Trial Limit</span>
+                <span>Limit</span>
               </button>
             )
           )}
@@ -547,7 +526,6 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             onClick={onOpenExtensionModal}
             className="btn-nav-download"
             style={{
-              display: 'inline-flex',
               alignItems: 'center',
               gap: '7px',
               border: 'none',
@@ -571,6 +549,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             className="nav-mobile-toggle"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle Navigation"
+            style={{ minWidth: '40px', minHeight: '40px', width: '40px', height: '40px', display: 'none', alignItems: 'center', justifyContent: 'center' }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
               {mobileMenuOpen ? (

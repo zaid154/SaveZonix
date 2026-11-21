@@ -46,6 +46,7 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="sz-extension-modal-box"
         style={{
           width: '100%',
           maxWidth: '560px',
@@ -56,22 +57,25 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
           padding: '28px',
           color: '#f8fafc',
           position: 'relative',
-          maxHeight: '92vh',
+          maxHeight: '92dvh',
           overflowY: 'auto'
         }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Close modal"
           style={{
             position: 'absolute',
-            top: '18px',
-            right: '18px',
+            top: '14px',
+            right: '14px',
             background: 'rgba(255, 255, 255, 0.05)',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '50%',
-            width: '32px',
-            height: '32px',
+            width: '44px',
+            height: '44px',
+            minWidth: '44px',
+            minHeight: '44px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -92,6 +96,11 @@ export default function ExtensionInstallModal({ isOpen, onClose }) {
         >
           <X size={18} />
         </button>
+
+        {/* Mobile Notice */}
+        <div className="mobile-extension-notice" style={{ display: 'none', marginBottom: '14px', padding: '8px 12px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '8px', fontSize: '12px', color: '#38bdf8', textAlign: 'center' }}>
+          ℹ️ Extension sirf desktop Chrome / Edge browser ke liye hai.
+        </div>
 
         {/* Header Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>

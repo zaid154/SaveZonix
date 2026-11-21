@@ -38,25 +38,26 @@ export default function FAQ() {
         <p className="section-desc">Got questions about performance, limits, or security? We have answers.</p>
       </div>
 
-      <div style={{ maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="faq-container" style={{ margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {faqs.map((f, i) => {
           const isOpen = openIdx === i;
           return (
             <div
               key={i}
               onClick={() => setOpenIdx(isOpen ? null : i)}
+              className="faq-item"
               style={{
                 background: '#0a0f1d',
                 border: '1px solid',
                 borderColor: isOpen ? '#38bdf8' : '#1e293b',
                 borderRadius: '12px',
-                padding: '18px 22px',
                 cursor: 'pointer',
-                transition: 'border-color 0.2s ease'
+                transition: 'border-color 0.2s ease',
+                minHeight: '44px'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '15.5px', fontWeight: '700', color: isOpen ? '#38bdf8' : '#f8fafc', margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '44px' }}>
+                <h3 className="faq-question" style={{ fontWeight: '700', color: isOpen ? '#38bdf8' : '#f8fafc', margin: 0 }}>
                   {f.q}
                 </h3>
                 <span style={{ fontSize: '18px', color: isOpen ? '#38bdf8' : '#64748b', fontWeight: 'bold', marginLeft: '12px' }}>
@@ -64,7 +65,7 @@ export default function FAQ() {
                 </span>
               </div>
               {isOpen && (
-                <p style={{ marginTop: '12px', marginBottom: 0, fontSize: '13.5px', color: '#94a3b8', lineHeight: '1.6' }}>
+                <p className="faq-answer" style={{ marginTop: '12px', marginBottom: 0, color: '#94a3b8', lineHeight: '1.6' }}>
                   {f.a}
                 </p>
               )}

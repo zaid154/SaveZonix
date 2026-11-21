@@ -5,7 +5,7 @@ export default function UserDetailsModal({ inspectorData, onClose }) {
   if (!inspectorData) return null;
 
   return (
-    <div style={{
+    <div className="admin-modal-overlay" style={{
       position: 'fixed',
       top: 0,
       left: 0,
@@ -18,7 +18,7 @@ export default function UserDetailsModal({ inspectorData, onClose }) {
       zIndex: 1000,
       padding: '20px'
     }}>
-      <div style={{
+      <div className="admin-modal-box" style={{
         background: '#0d131f',
         border: '1px solid #1a2333',
         borderRadius: '14px',
@@ -30,7 +30,7 @@ export default function UserDetailsModal({ inspectorData, onClose }) {
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
       }}>
         {/* Modal Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #1a2333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #1a2333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
               User Activity History
@@ -41,16 +41,27 @@ export default function UserDetailsModal({ inspectorData, onClose }) {
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '6px' }}
+            className="btn-close-modal"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              minWidth: '44px',
+              minHeight: '44px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
           >
             <IconX size={18} color="#94a3b8" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <div style={{ padding: '20px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ padding: '16px 20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {/* Quick Summary */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+          <div className="user-modal-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
             <div style={{ background: '#060a12', padding: '12px', borderRadius: '8px', border: '1px solid #1a2333', textAlign: 'center' }}>
               <div style={{ color: '#64748b', fontSize: '11px' }}>Total Initiated</div>
               <div style={{ fontSize: '18px', fontWeight: 700, color: '#f8fafc', marginTop: '2px' }}>

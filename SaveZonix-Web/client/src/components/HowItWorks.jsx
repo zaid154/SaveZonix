@@ -30,10 +30,11 @@ export default function HowItWorks() {
         <p className="section-desc">Engineered for maximum speed and simplicity. No complex setup or command line required.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+      <div className="how-it-works-grid">
         {steps.map((s, idx) => (
           <div
             key={idx}
+            className="how-it-works-card"
             style={{
               background: '#0a0f1d',
               border: '1px solid #1e293b',
@@ -47,7 +48,7 @@ export default function HowItWorks() {
             <div style={{ position: 'absolute', top: '16px', right: '20px', fontSize: '36px', fontWeight: '900', color: 'rgba(56,189,248,0.08)', fontFamily: 'monospace' }}>
               {s.num}
             </div>
-            <div style={{ fontSize: '36px', marginBottom: '16px' }}>{s.icon}</div>
+            {s.icon ? <div style={{ fontSize: '36px', marginBottom: '16px' }}>{s.icon}</div> : null}
             <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#f8fafc', marginBottom: '10px' }}>{s.title}</h3>
             <p style={{ fontSize: '13.5px', color: '#94a3b8', lineHeight: '1.6', margin: 0 }}>{s.desc}</p>
           </div>

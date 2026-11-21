@@ -1052,25 +1052,21 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ListMusic color="#3b82f6" /> YouTube Playlist & Mix Studio
             </h2>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="sz-input-wrap">
               <input
                 type="text"
                 placeholder="Paste YouTube Playlist or Mix Link..."
                 value={playlistUrl}
                 onChange={(e) => setPlaylistUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && loadPlaylistQueue('', playlistUrl)}
-                style={{
-                  flex: 1, padding: '12px 16px', borderRadius: '8px', background: '#1f2937',
-                  border: '1px solid #374151', color: '#fff', fontSize: '1rem', outline: 'none'
-                }}
+                className="sz-url-input"
               />
               <button
                 onClick={() => loadPlaylistQueue('', playlistUrl)}
                 disabled={isLoadingPlaylist || !playlistUrl.trim()}
-                style={{
-                  padding: '12px 24px', background: '#2563eb', color: '#fff', fontWeight: 600,
-                  borderRadius: '8px', border: 'none', cursor: 'pointer'
-                }}>
+                className="sz-btn-analyze"
+                style={{ minHeight: '44px' }}
+              >
                 {isLoadingPlaylist ? 'Loading...' : 'Load Playlist'}
               </button>
             </div>
@@ -1078,16 +1074,16 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
           {playlistData && (
             <div style={{ marginTop: '20px', background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px' }}>
-                <div>
-                  <h3 style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 700 }}>{playlistData.title}</h3>
+              <div className="sz-playlist-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '16px', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 0, flex: '1 1 200px' }}>
+                  <h3 style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{playlistData.title}</h3>
                   <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>{selectedVideoIds.size} of {playlistData.videoCount} videos selected</p>
                 </div>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div className="sz-playlist-actions" style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                   <select
                     value={batchFormat}
                     onChange={(e) => setBatchFormat(e.target.value)}
-                    style={{ padding: '8px 12px', background: '#1f2937', color: '#fff', border: '1px solid #374151', borderRadius: '6px' }}>
+                    style={{ padding: '10px 12px', background: '#1f2937', color: '#fff', border: '1px solid #374151', borderRadius: '8px', minHeight: '44px' }}>
                     <option value="1080p">1080p Full HD</option>
                     <option value="720p">720p HD</option>
                     <option value="480p">480p</option>
@@ -1104,7 +1100,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                     }}
                     style={{
                       padding: '10px 20px', background: '#10b981', color: '#fff', fontWeight: 700,
-                      borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                      borderRadius: '8px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', minHeight: '44px'
                     }}>
                     <Download size={16} /> Download Selected ({selectedVideoIds.size})
                   </button>

@@ -304,8 +304,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
-        <button className="btn-close-modal" onClick={onClose}>✕</button>
+      <div className="modal-content auth-modal-sheet" onClick={(e) => e.stopPropagation()}>
+        <button className="btn-close-modal" onClick={onClose} aria-label="Close modal">✕</button>
 
         {error && (
           <div className="auth-alert error">
@@ -474,7 +474,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '10px' }}>
               
               {/* 6 Individual Auto-Focus OTP Boxes */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }} onPaste={handleOtpPaste}>
+              <div className="auth-otp-row" onPaste={handleOtpPaste}>
                 {otpDigits.map((digit, idx) => (
                   <input
                     key={idx}
@@ -562,7 +562,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     <label style={{ margin: 0 }}>6-Digit Reset Code</label>
                     <span style={{ fontSize: '11px', color: '#64748b' }}>Expires in 10 mins</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '6px 0 16px' }} onPaste={handleOtpPaste}>
+                  <div className="auth-otp-row" style={{ margin: '6px auto 16px' }} onPaste={handleOtpPaste}>
                     {otpDigits.map((digit, idx) => (
                       <input
                         key={idx}

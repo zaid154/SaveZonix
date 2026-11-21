@@ -4,10 +4,10 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
   const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
 
   return (
-    <footer style={{ background: '#050914', borderTop: '1px solid #1e293b', paddingTop: '60px', paddingBottom: '30px', marginTop: '60px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
+    <footer className="site-footer">
+      <div className="footer-inner">
         {/* 4 Columns Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '40px', marginBottom: '50px' }}>
+        <div className="footer-grid">
           {/* Column 1: Brand */}
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
@@ -80,7 +80,7 @@ export default function Footer({ onOpenAdmin, onOpenLegal }) {
         </div>
 
         {/* Bottom Sub-Footer */}
-        <div style={{ borderTop: '1px solid #1e293b', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', fontSize: '12px', color: '#64748b' }}>
+        <div className="footer-bottom-row" style={{ borderTop: '1px solid #1e293b', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', fontSize: '12px', color: '#64748b' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             <span>© 2026 SaveZonix. All rights reserved. Universal Video Stream Engine.</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '2px 8px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '12px', fontSize: '11px', color: '#38bdf8', fontWeight: '700', fontFamily: 'monospace' }}>

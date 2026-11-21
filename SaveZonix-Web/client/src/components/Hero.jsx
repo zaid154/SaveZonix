@@ -29,11 +29,11 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
         </p>
 
         <div className="hero-cta-group">
-          {/* Primary: Add to Chrome (Opens 1-Click Free Setup Modal) */}
+          {/* Primary for Desktop: Add to Chrome */}
           <button
             type="button"
             onClick={onOpenExtensionModal}
-            className="btn-hero-primary"
+            className="btn-hero-primary hero-btn-desktop"
             style={{
               background: 'linear-gradient(135deg, #38bdf8 0%, #0284c7 100%)',
               color: '#030816',
@@ -57,18 +57,18 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
             </div>
           </button>
 
-          {/* Secondary: Direct Web Downloader */}
+          {/* Web Downloader CTA (Becomes Full-Width Primary on Mobile) */}
           <a
             href="#studio"
             onClick={scrollToStudio}
-            className="btn-hero-secondary"
+            className="btn-hero-secondary hero-btn-web"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '10px'
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
             <div className="btn-text-wrap" style={{ textAlign: 'left' }}>
@@ -79,7 +79,7 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
         </div>
 
         {/* Feature badges under Hero */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', flexWrap: 'wrap', marginTop: '16px', color: '#94a3b8', fontSize: '12.5px' }}>
+        <div className="hero-badges-row" style={{ display: 'flex', justifyContent: 'center', gap: '24px', flexWrap: 'wrap', marginTop: '16px', color: '#94a3b8', fontSize: '12.5px' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> No Software to Install
           </span>

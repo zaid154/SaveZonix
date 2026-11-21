@@ -676,7 +676,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
   }
 
   return (
-    <div style={{ maxWidth: '1240px', margin: '0 auto', padding: '32px 20px', minHeight: '85vh', color: '#f8fafc' }}>
+    <div className="admin-dashboard-container" style={{ maxWidth: '1240px', margin: '0 auto', padding: '32px 20px', minHeight: '85vh', color: '#f8fafc' }}>
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
@@ -715,7 +715,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       </div>
 
       {/* 7 Segmented Navigation Tabs */}
-      <div style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div className="admin-tabs-bar" style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '16px' }}>
         {[
           { id: 'overview', label: 'Overview', icon: IconActivity },
           { id: 'financials', label: 'Financials & VIP', icon: IconCreditCard },
@@ -745,7 +745,9 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
                 fontWeight: isActive ? 600 : 500,
                 fontSize: '13px',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease'
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+                whiteSpace: 'nowrap'
               }}
             >
               <Icon size={14} color={isActive ? '#38bdf8' : '#64748b'} />

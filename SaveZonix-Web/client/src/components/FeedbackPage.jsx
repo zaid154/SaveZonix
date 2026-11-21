@@ -173,29 +173,10 @@ export default function FeedbackPage({ onNavigate }) {
   }
 
   return (
-    <div style={{
-      minHeight: '85vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '40px 16px',
-      position: 'relative'
-    }}>
-      <div style={{
-        maxWidth: '640px',
-        width: '100%',
-        background: 'rgba(11, 17, 32, 0.85)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '20px',
-        padding: '36px 32px',
-        boxShadow: '0 24px 64px -12px rgba(0, 0, 0, 0.7), 0 0 1px 1px rgba(56, 189, 248, 0.15)',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
+    <div className="feedback-page-container">
+      <div className="feedback-card">
         {/* Subtle Ambient Glow */}
-        <div style={{
+        <div className="feedback-ambient-glow" style={{
           position: 'absolute',
           top: '-80px',
           right: '-80px',
@@ -250,7 +231,7 @@ export default function FeedbackPage({ onNavigate }) {
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#cbd5e1', marginBottom: '10px' }}>
                 How would you rate your overall experience?
               </label>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 {[1, 2, 3, 4, 5].map((star) => {
                   const isFilled = (hoverRating || rating) >= star;
                   return (
@@ -260,10 +241,16 @@ export default function FeedbackPage({ onNavigate }) {
                       onClick={() => setRating(star)}
                       onMouseEnter={() => setHoverRating(star)}
                       onMouseLeave={() => setHoverRating(0)}
+                      className="star-rating-btn"
                       style={{
                         background: 'transparent',
                         border: 'none',
-                        padding: '6px',
+                        padding: '8px',
+                        minWidth: '44px',
+                        minHeight: '44px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         cursor: 'pointer',
                         transform: isFilled ? 'scale(1.12)' : 'scale(1)',
                         transition: 'transform 0.15s ease'
@@ -289,7 +276,7 @@ export default function FeedbackPage({ onNavigate }) {
               </label>
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 220px), 1fr))',
                 gap: '8px'
               }}>
                 {REASONS.map(r => {

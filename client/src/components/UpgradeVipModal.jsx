@@ -194,7 +194,7 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
       }}
     >
       <div
-        className="sz-modal-box"
+        className="sz-modal-box sz-vip-modal-box"
         style={{
           width: '100%',
           maxWidth: '560px',
@@ -202,22 +202,29 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
           border: '1px solid #1e293b',
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.7)',
           position: 'relative',
-          maxHeight: '90vh',
+          maxHeight: '90dvh',
           overflowY: 'auto'
         }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Close modal"
           style={{
             position: 'absolute',
-            top: '18px',
-            right: '18px',
+            top: '12px',
+            right: '12px',
             background: 'transparent',
             border: 'none',
             color: '#64748b',
             fontSize: '18px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            minWidth: '44px',
+            minHeight: '44px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px'
           }}
         >
           ✕
@@ -300,7 +307,7 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
             )}
 
             {/* Plan Selector Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
+            <div className="vip-plans-grid" style={{ marginBottom: '18px' }}>
               {/* Monthly */}
               <div
                 onClick={() => setSelectedPlan('monthly')}

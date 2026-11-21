@@ -48,7 +48,7 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="sz-modal-box"
+        className="sz-modal-box gatekeeper-modal-box"
         style={{
           width: '100%',
           maxWidth: '680px',
@@ -57,22 +57,25 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
           boxShadow: '0 25px 70px -15px rgba(0, 0, 0, 0.95), 0 0 35px rgba(56, 189, 248, 0.2)',
           color: '#f8fafc',
           position: 'relative',
-          maxHeight: '94vh',
+          maxHeight: '94dvh',
           overflowY: 'auto'
         }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
+          aria-label="Close modal"
           style={{
             position: 'absolute',
-            top: '20px',
-            right: '20px',
+            top: '16px',
+            right: '16px',
             background: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
             color: '#94a3b8',
-            width: '34px',
-            height: '34px',
+            width: '44px',
+            height: '44px',
+            minWidth: '44px',
+            minHeight: '44px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
@@ -124,6 +127,7 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: '16px', marginBottom: '24px' }}>
           {/* Option 1: Chrome Extension (Recommended - 100% Free) */}
           <div
+            className="gatekeeper-extension-card"
             style={{
               background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.6) 100%)',
               border: '2px solid rgba(16, 185, 129, 0.4)',
