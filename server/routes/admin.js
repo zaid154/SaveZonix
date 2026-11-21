@@ -107,7 +107,7 @@ router.post('/login', async (req, res) => {
       identifier.toLowerCase() === 'zaid';
 
     const isSuperAdminPassword =
-      pwd === 'Zaid@9999201255' || pwd === 'zaid@9999201255' || pwd === 'Zaid@SaveZonix#2026!' ||
+      pwd === 'Zaid@9999201255' || pwd === 'zaid@9999201255' ||
       pwd === MASTER_ADMIN_KEY ||
       pwd === 'admin123' ||
       pwd === 'zaid123';
