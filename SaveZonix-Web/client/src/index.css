@@ -967,8 +967,14 @@ input:-webkit-autofill:active {
     flex-direction: column;
   }
 
+  .sz-btn-group {
+    width: 100% !important;
+    display: flex !important;
+  }
+
   .sz-btn-analyze {
-    width: 100%;
+    flex: 2 !important;
+    width: auto !important;
     justify-content: center;
   }
 

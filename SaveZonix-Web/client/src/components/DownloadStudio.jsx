@@ -230,26 +230,67 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   };
 
   // Sanitize single media URL: Normalizes Shorts, youtu.be, live, and watch links to standard watch URL
+  // Detects and warns about incomplete/truncated YouTube IDs (e.g. less than 11 chars)
   const sanitizeSingleUrl = (raw) => {
     const rawStr = (typeof raw === 'string' && raw) ? raw : (typeof url === 'string' ? url : '');
     let clean = (rawStr || '').trim();
     try {
-      const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]{11})/i);
+      const match = clean.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]+)/i);
       if (match && match[1]) {
-        return `https://www.youtube.com/watch?v=${match[1]}`;
+        const vid = match[1];
+        if (vid.length < 11) {
+          return { error: `⚠️ Incomplete YouTube link: ID "${vid}" has only ${vid.length} characters (must be 11). Please copy the complete video link (tap "Share" ➔ "Copy link" in YouTube).` };
+        }
+        return { url: `https://www.youtube.com/watch?v=${vid.substring(0, 11)}` };
       }
       const u = new URL(clean);
       if (u.searchParams.has('v') && !clean.includes('/playlist')) {
-        return `https://www.youtube.com/watch?v=${u.searchParams.get('v')}`;
+        const vParam = u.searchParams.get('v');
+        if (vParam && vParam.length < 11) {
+          return { error: `⚠️ Incomplete YouTube link: ID "${vParam}" has only ${vParam.length} characters (must be 11). Please copy the complete video link.` };
+        }
+        return { url: `https://www.youtube.com/watch?v=${(vParam || '').substring(0, 11)}` };
       }
     } catch {}
-    return clean;
+    return { url: clean };
+  };
+
+  // Quick 1-tap paste from clipboard for mobile and desktop
+  const handlePaste = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const clipText = await navigator.clipboard.readText();
+        if (clipText && clipText.trim()) {
+          const trimmed = clipText.trim();
+          setUrl(trimmed);
+          resolveSingleUrl(trimmed);
+          return;
+        }
+      }
+    } catch (clipErr) {
+      console.warn('Clipboard read error:', clipErr);
+    }
+    const inputEl = document.getElementById('sz-main-input');
+    if (inputEl) inputEl.focus();
   };
 
   // Resolve single media info
   const resolveSingleUrl = async (targetUrl = url, autoStart = false, engineBase = null, retryCount = 0) => {
-    const cleanTarget = sanitizeSingleUrl(targetUrl || url);
+    const rawTarget = (typeof targetUrl === 'string' && targetUrl) ? targetUrl : url;
+    if (!rawTarget || !rawTarget.trim()) {
+      setErrorMsg('Please paste a YouTube, video, or audio link to analyze.');
+      return;
+    }
+
+    const sanitized = sanitizeSingleUrl(rawTarget);
+    if (sanitized.error) {
+      setErrorMsg(sanitized.error);
+      return;
+    }
+
+    const cleanTarget = sanitized.url;
     if (!cleanTarget) return;
+
     setIsResolving(true);
     setErrorMsg('');
     setResolvedMedia(null);
@@ -327,9 +368,11 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
         }
 
         const msgLower = (data.message || '').toLowerCase();
-        if (msgLower.includes('unavailable') || msgLower.includes('private') || msgLower.includes('not found') || msgLower.includes('does not exist')) {
+        if (msgLower.includes('incomplete') || msgLower.includes('must be 11')) {
+          setErrorMsg(data.message);
+        } else if (msgLower.includes('unavailable') || msgLower.includes('private') || msgLower.includes('not found') || msgLower.includes('does not exist')) {
           setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
-        } else if (msgLower.includes('player') || msgLower.includes('429') || msgLower.includes('bot') || msgLower.includes('throttled') || msgLower.includes('timeout')) {
+        } else if (msgLower.includes('player') || msgLower.includes('429') || msgLower.includes('bot') || msgLower.includes('throttled')) {
           setErrorMsg('⚡ Cloud servers are waking up or busy. Please try clicking Analyze again.');
         } else {
           setErrorMsg(data.message || 'Failed to resolve media stream.');
@@ -348,7 +391,9 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
         return;
       }
 
-      if (errLower.includes('unavailable') || errLower.includes('private') || errLower.includes('not found')) {
+      if (errLower.includes('incomplete') || errLower.includes('must be 11')) {
+        setErrorMsg(err.message);
+      } else if (errLower.includes('unavailable') || errLower.includes('private') || errLower.includes('not found')) {
         setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
       } else if (isTimeout) {
         setErrorMsg('⏳ Server is taking longer than usual to wake up. Please tap Analyze once more!');
@@ -832,6 +877,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
             </h2>
             <div className="sz-input-wrap">
               <input
+                id="sz-main-input"
                 type="text"
                 placeholder="Paste YouTube, Video or Audio Link here..."
                 value={url}
@@ -839,12 +885,64 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                 onKeyDown={(e) => e.key === 'Enter' && resolveSingleUrl()}
                 className="sz-url-input"
               />
-              <button
-                onClick={() => resolveSingleUrl()}
-                disabled={isResolving || !url.trim()}
-                className="sz-btn-analyze">
-                {isResolving ? 'Resolving...' : 'Analyze'}
-              </button>
+              <div className="sz-btn-group" style={{ display: 'flex', gap: '8px', flexShrink: 0, width: 'auto' }}>
+                <button
+                  type="button"
+                  onClick={handlePaste}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                    color: '#38bdf8',
+                    padding: '0 14px',
+                    borderRadius: '8px',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    minHeight: '44px',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Paste link from clipboard"
+                >
+                  📋 Paste
+                </button>
+                {url && (
+                  <button
+                    type="button"
+                    onClick={() => { setUrl(''); setErrorMsg(''); }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#94a3b8',
+                      padding: '0 10px',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: '44px'
+                    }}
+                    title="Clear"
+                  >
+                    ✕
+                  </button>
+                )}
+                <button
+                  onClick={() => resolveSingleUrl()}
+                  disabled={isResolving || !url.trim()}
+                  className="sz-btn-analyze"
+                  style={{ minHeight: '44px' }}
+                >
+                  {isResolving ? 'Resolving...' : 'Analyze'}
+                </button>
+              </div>
+            </div>
+            <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>💡 In YouTube app: tap <b>Share</b> ➔ <b>Copy link</b>, then tap <b>📋 Paste</b> above.</span>
             </div>
           </div>
 

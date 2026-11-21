@@ -1,27 +1,52 @@
 const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
+let play = null;
+try {
+    play = require('play-dl');
+} catch {}
 
 class MediaResolver {
     constructor() {
-        // Primary: VisionOS, Tv, Mweb, WebEmbedded clients do not require player.js / decipher worker threads
-        // This eliminates "Could not prepare player" and worker timeout errors on cloud datacenter IPs
+        const cookie = process.env.YOUTUBE_COOKIE || undefined;
+        // Priority 1: Client.Tv generates direct unthrottled googlevideo.com URLs without player.js worker decipher overhead
+        // WebEmbedded is a secondary fallback that accepts cookies
         this.ytdlFast = new Ytdl({
-            clients: [Client.VisionOS, Client.Tv, Client.Mweb, Client.WebEmbedded]
+            clients: [Client.Tv, Client.WebEmbedded],
+            cookie
         });
-        this.ytdlDefault = new Ytdl();
+        this.ytdlDefault = new Ytdl({
+            clients: [Client.Tv, Client.VisionOS, Client.WebEmbedded],
+            cookie
+        });
     }
 
     /**
-     * Normalizes all YouTube URL variations (shorts, youtu.be, embed, live) to canonical watch URL
+     * Normalizes all YouTube URL variations (shorts, youtu.be, embed, live) to canonical watch URL.
+     * Throws immediately if an incomplete YouTube video ID is provided.
      */
     sanitizeUrl(url) {
         if (!url) return '';
         const trimmed = String(url).trim();
         try {
-            const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]{11})/i);
+            // Check for YouTube patterns
+            const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]+)/i);
             if (match && match[1]) {
-                return `https://www.youtube.com/watch?v=${match[1]}`;
+                const vid = match[1];
+                if (vid.length < 11) {
+                    throw new Error(`Incomplete YouTube link: ID "${vid}" has only ${vid.length} characters (must be 11). Please paste the complete video link.`);
+                }
+                return `https://www.youtube.com/watch?v=${vid.substring(0, 11)}`;
             }
-        } catch {}
+            const u = new URL(trimmed);
+            if (u.searchParams.has('v') && !trimmed.includes('/playlist')) {
+                const vParam = u.searchParams.get('v');
+                if (vParam && vParam.length < 11) {
+                    throw new Error(`Incomplete YouTube link: ID "${vParam}" has only ${vParam.length} characters (must be 11). Please paste the complete video link.`);
+                }
+                return `https://www.youtube.com/watch?v=${(vParam || '').substring(0, 11)}`;
+            }
+        } catch (e) {
+            if (e.message.includes('Incomplete YouTube link')) throw e;
+        }
         return trimmed;
     }
 
@@ -33,40 +58,136 @@ class MediaResolver {
 
         const cleanUrl = this.sanitizeUrl(url);
 
-        let info;
+        let info = null;
+        let lastError = null;
+
+        // Engine 1: Fast Ytdl with Tv client (direct googlevideo URLs, no player decipher)
         try {
-            // Priority 1: Fast multi-client resolution without player.js worker decipher overhead
             info = await Promise.race([
                 this.ytdlFast.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Fast resolution timeout')), 16000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Tv client resolution timeout')), 12000))
             ]);
-        } catch (primaryErr) {
-            const errStr = (primaryErr?.message || '').toLowerCase();
+        } catch (err1) {
+            lastError = err1;
+            const errStr = (err1?.message || '').toLowerCase();
+            if (errStr.includes('incomplete youtube link')) {
+                throw err1;
+            }
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
-            console.warn('[MediaResolver] Fast client fallback triggering for:', cleanUrl, primaryErr.message);
+            console.warn('[MediaResolver] Fast Tv client failed, trying secondary client:', err1.message);
+        }
 
-            // Priority 2: Fallback to standard client resolution
+        // Engine 2: Default Ytdl with multi-clients fallback
+        if (!info) {
             try {
-                const infoPromise = this.ytdlDefault.getInfo(cleanUrl);
-                const timeoutPromise = new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error("Resolution timed out. YouTube throttled shared cloud IPs. Please use the SaveZonix Extension or local engine for instant downloads.")), 14000)
-                );
-                info = await Promise.race([infoPromise, timeoutPromise]);
-            } catch (fallbackErr) {
-                const fallbackStr = (fallbackErr?.message || '').toLowerCase();
-                if (fallbackStr.includes('unavailable') || fallbackStr.includes('private') || fallbackStr.includes('not found') || fallbackStr.includes('404')) {
-                    throw new Error("This video is unavailable or private on YouTube.");
-                }
-                throw fallbackErr;
+                info = await Promise.race([
+                    this.ytdlDefault.getInfo(cleanUrl),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Secondary client resolution timeout')), 12000))
+                ]);
+            } catch (err2) {
+                lastError = err2;
+                console.warn('[MediaResolver] Secondary Ytdl client failed:', err2.message);
             }
         }
 
-        const details = info.videoDetails;
+        // Engine 3: play-dl fallback
+        if (!info && play) {
+            try {
+                console.log('[MediaResolver] Attempting play-dl fallback for:', cleanUrl);
+                const pInfo = await Promise.race([
+                    play.video_info(cleanUrl),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 10000))
+                ]);
+                if (pInfo && pInfo.video_details) {
+                    const vd = pInfo.video_details;
+                    const pFormats = (pInfo.format || []).map(f => ({
+                        itag: f.itag,
+                        qualityLabel: f.qualityLabel,
+                        audioBitrate: f.audioBitrate,
+                        mimeType: f.mimeType,
+                        contentLength: parseInt(f.contentLength || '0', 10),
+                        url: f.url
+                    }));
+                    return this._buildResponsePayload({
+                        videoId: vd.id,
+                        url: vd.url || cleanUrl,
+                        title: vd.title,
+                        author: vd.channel ? vd.channel.name : 'YouTube',
+                        durationSeconds: vd.durationInSec || 0,
+                        thumbnailUrl: vd.thumbnails && vd.thumbnails.length > 0 
+                            ? vd.thumbnails[vd.thumbnails.length - 1].url 
+                            : `https://i.ytimg.com/vi/${vd.id}/hqdefault.jpg`,
+                        formats: pFormats
+                    });
+                }
+            } catch (err3) {
+                lastError = err3;
+                console.warn('[MediaResolver] play-dl fallback failed:', err3.message);
+            }
+        }
 
-        // Group qualities and audio streams
+        // Engine 4: If all stream extractors failed, try oEmbed to at least extract metadata
+        if (!info) {
+            try {
+                const oRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`, {
+                    signal: AbortSignal.timeout(4000)
+                });
+                if (oRes.ok) {
+                    const oData = await oRes.json();
+                    const ytMatch = cleanUrl.match(/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/);
+                    const vid = ytMatch ? ytMatch[1] : '';
+                    return {
+                        id: vid,
+                        url: cleanUrl,
+                        title: oData.title || 'YouTube Video',
+                        author: oData.author_name || 'YouTube Creator',
+                        durationSeconds: 0,
+                        formattedDuration: '00:00',
+                        thumbnailUrl: oData.thumbnail_url || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : ''),
+                        availableQualities: ['1080p', '720p', '480p', '360p', 'MP3'],
+                        availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
+                        throttledCloud: true,
+                        bestAudioStream: null,
+                        bestVideoStream: null,
+                        allFormats: []
+                    };
+                }
+            } catch (oErr) {
+                console.warn('[MediaResolver] oEmbed fallback failed:', oErr.message);
+            }
+
+            const errStr = (lastError?.message || '').toLowerCase();
+            if (errStr.includes('incomplete youtube link')) {
+                throw lastError;
+            }
+            if (errStr.includes('not a youtube video url') || errStr.includes('not a youtube watch url')) {
+                throw new Error("Invalid YouTube link format. Please copy the complete video URL from the YouTube app.");
+            }
+            if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404')) {
+                throw new Error("This video is unavailable, private, or deleted on YouTube.");
+            }
+            throw new Error("YouTube throttled cloud servers for this video. Please use the SaveZonix Extension or local companion for instant downloads.");
+        }
+
+        const details = info.videoDetails;
         const formats = info.formats || [];
+
+        return this._buildResponsePayload({
+            videoId: details.videoId,
+            url: details.video_url || cleanUrl,
+            title: details.title,
+            author: details.author ? details.author.name : 'YouTube',
+            durationSeconds: parseInt(details.lengthSeconds || '0', 10),
+            thumbnailUrl: details.thumbnails && details.thumbnails.length > 0 
+                ? details.thumbnails[details.thumbnails.length - 1].url 
+                : `https://i.ytimg.com/vi/${details.videoId}/hqdefault.jpg`,
+            formats
+        });
+    }
+
+    _buildResponsePayload({ videoId, url, title, author, durationSeconds, thumbnailUrl, formats }) {
         const videoStreams = formats.filter(f => f.qualityLabel);
         const audioStreams = formats.filter(f => !f.qualityLabel && f.audioBitrate);
 
@@ -89,15 +210,13 @@ class MediaResolver {
         const bestVideo = chooseFormat(formats, { quality: 'highestvideo' }) || videoStreams[0];
 
         return {
-            id: details.videoId,
-            url: details.video_url || url,
-            title: details.title,
-            author: details.author ? details.author.name : 'YouTube',
-            durationSeconds: parseInt(details.lengthSeconds || '0', 10),
-            formattedDuration: this._formatDuration(parseInt(details.lengthSeconds || '0', 10)),
-            thumbnailUrl: details.thumbnails && details.thumbnails.length > 0 
-                ? details.thumbnails[details.thumbnails.length - 1].url 
-                : `https://i.ytimg.com/vi/${details.videoId}/hqdefault.jpg`,
+            id: videoId,
+            url,
+            title,
+            author,
+            durationSeconds,
+            formattedDuration: this._formatDuration(durationSeconds),
+            thumbnailUrl,
             availableQualities,
             availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
             bestAudioStream: bestAudio ? {
@@ -164,7 +283,7 @@ class MediaResolver {
             };
         }
 
-        // Priority 2: Separate video + audio streams (needs muxing for full experience)
+        // Priority 2: Separate video + audio streams
         const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel))
                    || chooseFormat(formats, { quality: 'highestvideo' });
         const audio = chooseFormat(formats, { quality: 'highestaudio' });
