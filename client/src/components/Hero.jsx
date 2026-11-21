@@ -16,16 +16,16 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
       <div className="hero-container">
         <div className="hero-pill">
           <span className="pill-dot"></span>
-          <span>⚡ 100% Free Web Downloader &amp; Chrome Extension</span>
+          <span>Online Video &amp; Audio Downloader</span>
         </div>
 
         <h1 className="hero-title">
-          The World's Fastest<br />
-          <span className="gradient-text-hero">Universal Media Downloader</span>
+          Fast, Free &amp; Clean<br />
+          <span className="gradient-text-hero">Universal Video Downloader</span>
         </h1>
 
         <p className="hero-subtitle">
-          Download YouTube 4K videos, MP3 music, Instagram Reels, and entire playlists directly in your browser or with our 1-click Chrome Extension. No apps or software installation required.
+          Save YouTube, Instagram, Reels, and online streams in 4K, 1080p, or high-bitrate MP3. Fast, ad-free, and directly in your browser.
         </p>
 
         <div className="hero-cta-group">
@@ -79,15 +79,15 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
         </div>
 
         {/* Feature badges under Hero */}
-        <div className="hero-badges-row" style={{ display: 'flex', justifyContent: 'center', gap: '24px', flexWrap: 'wrap', marginTop: '16px', color: '#94a3b8', fontSize: '12.5px' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> No Software to Install
-          </span>
+        <div className="hero-badges-row" style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', marginTop: '16px', color: '#94a3b8', fontSize: '12px' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> 4K Ultra HD &amp; 320kbps MP3
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-            <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> YouTube, Instagram, Reels &amp; More
+            <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> YouTube, Instagram &amp; Web Streams
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ color: '#10b981', fontWeight: 800 }}>✓</span> 100% Free &amp; Ad-Free
           </span>
         </div>
       </div>

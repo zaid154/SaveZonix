@@ -872,8 +872,8 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       {activeTab === 'single' && (
         <div>
           <div className="sz-card">
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Zap color="#3b82f6" size={20} /> Turbo High-Speed Downloader
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Zap color="#38bdf8" size={18} /> High-Speed Video Downloader
             </h2>
             <div className="sz-input-wrap">
               <input
@@ -942,7 +942,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
               </div>
             </div>
             <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>💡 In YouTube app: tap <b>Share</b> ➔ <b>Copy link</b>, then tap <b>📋 Paste</b> above.</span>
+              <span>💡 Tip: Paste any video link from YouTube, Instagram, or the web.</span>
             </div>
           </div>
 
@@ -996,9 +996,9 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#fff', fontSize: '0.9rem', fontWeight: 600, flexWrap: 'wrap', gap: '8px' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, wordBreak: 'break-word' }}>
                       <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-                      {downloadProgress?.status || '⚡ Turbo Engine: Processing & fetching stream chunks from YouTube...'}
+                      {downloadProgress?.status || 'Connecting to stream & preparing download...'}
                     </span>
-                    <span style={{ flexShrink: 0 }}>{downloadProgress?.percentage || 15}% {downloadProgress?.speedMBps ? `(${downloadProgress.speedMBps} MB/s)` : ''}</span>
+                    <span style={{ flexShrink: 0 }}>{downloadProgress?.percentage ? `${downloadProgress.percentage}%` : 'Starting...'} {downloadProgress?.speedMBps ? `(${downloadProgress.speedMBps} MB/s)` : ''}</span>
                   </div>
                   <div style={{ width: '100%', height: '10px', background: '#374151', borderRadius: '5px', overflow: 'hidden' }}>
                     <div style={{

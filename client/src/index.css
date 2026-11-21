@@ -73,8 +73,16 @@ body {
 .brand-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logo-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
 .logo-icon {
@@ -85,6 +93,7 @@ body {
   font-size: 22px;
   font-weight: 800;
   color: #fff;
+  white-space: nowrap;
 }
 
 .version-badge {
@@ -1498,14 +1507,31 @@ input:-webkit-autofill:active {
 
   /* Navbar */
   .nav-container {
-    padding: 10px 14px !important;
-    min-height: 56px !important;
+    padding: 8px 12px !important;
+    min-height: 52px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
   }
-  .logo-icon {
-    font-size: 24px !important;
+  .brand-logo {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-shrink: 0 !important;
+    min-width: 0 !important;
+  }
+  .logo-img {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 5px !important;
+    flex-shrink: 0 !important;
   }
   .logo-text {
-    font-size: 18px !important;
+    font-size: 16.5px !important;
+    white-space: nowrap !important;
+    letter-spacing: -0.02em !important;
   }
   .nav-links {
     display: none !important;
@@ -1513,17 +1539,40 @@ input:-webkit-autofill:active {
   .btn-nav-download {
     display: none !important;
   }
-  .nav-mobile-toggle {
-    display: inline-flex !important;
-    width: 40px !important;
-    height: 40px !important;
-    min-width: 40px;
-    min-height: 40px;
+  .nav-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    flex-shrink: 0 !important;
+  }
+  .btn-auth-nav {
+    padding: 5px 9px !important;
+    font-size: 11.5px !important;
+    font-weight: 600 !important;
+    border-radius: 6px !important;
+    min-height: 32px !important;
+    white-space: nowrap !important;
+    line-height: 1 !important;
+    flex-shrink: 0 !important;
   }
   .nav-trial-pill {
+    min-height: 32px !important;
+    padding: 4px 7px !important;
+    font-size: 11px !important;
+    gap: 3px !important;
+    border-radius: 12px !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+  .nav-mobile-toggle {
+    display: inline-flex !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
     min-height: 36px !important;
-    padding: 4px 8px !important;
-    font-size: 11.5px !important;
+    padding: 6px !important;
+    flex-shrink: 0 !important;
+    border-radius: 8px !important;
   }
   .mobile-drawer {
     display: flex;
@@ -1918,8 +1967,37 @@ input:-webkit-autofill:active {
 
 /* ─── E. Micro Screens (<= 360px) ─── */
 @media (max-width: 360px) {
+  .nav-container {
+    padding: 6px 8px !important;
+    gap: 4px !important;
+  }
+  .brand-logo {
+    gap: 4px !important;
+  }
+  .logo-img {
+    width: 20px !important;
+    height: 20px !important;
+  }
   .logo-text {
-    font-size: 16.5px !important;
+    font-size: 15px !important;
+  }
+  .nav-actions {
+    gap: 4px !important;
+  }
+  .btn-auth-nav {
+    padding: 4px 7px !important;
+    font-size: 11px !important;
+  }
+  .nav-trial-pill {
+    padding: 3px 5px !important;
+    font-size: 10px !important;
+  }
+  .nav-mobile-toggle {
+    width: 32px !important;
+    height: 32px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+    padding: 5px !important;
   }
   .hero-title {
     font-size: 24px !important;

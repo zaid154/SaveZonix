@@ -68,9 +68,8 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             href="/"
             onClick={(e) => { e.preventDefault(); onNavigate('/'); }}
             className="brand-logo"
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <img src="/logo.png" alt="SaveZonix" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
+            <img src="/logo.png" alt="SaveZonix" className="logo-img" />
             <span className="logo-text">Save<span className="gradient-text">Zonix</span></span>
             <span style={{ fontSize: '11px', padding: '3px 8px', background: 'rgba(56,189,248,0.15)', border: '1px solid #38bdf8', color: '#38bdf8', borderRadius: '12px', fontWeight: '700', marginLeft: '6px' }}>
               Admin Cockpit
@@ -98,9 +97,8 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
           href="/"
           onClick={(e) => { e.preventDefault(); onNavigate('/'); }}
           className="brand-logo"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
         >
-          <img src="/logo.png" alt="SaveZonix" style={{ width: '28px', height: '28px', borderRadius: '6px' }} />
+          <img src="/logo.png" alt="SaveZonix" className="logo-img" />
           <span className="logo-text">Save<span className="gradient-text">Zonix</span></span>
         </a>
 
