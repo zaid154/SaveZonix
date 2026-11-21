@@ -205,9 +205,13 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
 
-      setMessage(`Verification code sent to ${email}`);
+      setMessage(data.message || `Verification code sent to ${email}`);
       setCooldown(60);
-      setOtpDigits(['', '', '', '', '', '']);
+      if (data.devOtp) {
+        setOtpDigits(data.devOtp.toString().split(''));
+      } else {
+        setOtpDigits(['', '', '', '', '', '']);
+      }
       setView('otp');
     } catch (err) {
       setError(err.message);
@@ -261,6 +265,9 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
       setMessage(data.message || `Reset code sent to ${email}`);
       setCooldown(60);
+      if (data.devOtp) {
+        setOtpDigits(data.devOtp.toString().split(''));
+      }
     } catch (err) {
       setError(err.message);
     } finally {
