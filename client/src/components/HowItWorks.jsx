@@ -4,20 +4,20 @@ export default function HowItWorks() {
   const steps = [
     {
       num: '01',
-      title: 'Copy Media URL',
-      desc: 'Grab the link from YouTube, Instagram Reels, TikTok, Vimeo, or any live HLS stream from your browser.',
+      title: 'Copy Video URL',
+      desc: 'Copy the video link from YouTube, Instagram Reels, TikTok, or any supported web page.',
       icon: ''
     },
     {
       num: '02',
-      title: 'Smart Deep Analysis',
-      desc: 'SaveZonix auto-detects all available resolutions (360p to 4K Ultra-HD), bitrates, audio tracks, and segment playlists.',
+      title: 'Select Format & Quality',
+      desc: 'Pick your preferred video quality from 360p up to 4K Ultra HD, or select MP3 for audio.',
       icon: ''
     },
     {
       num: '03',
-      title: '64x Turbo Download',
-      desc: 'Download using up to 64 parallel network chunk connections. Enjoy zero buffering, instant merging, and cinema playback.',
+      title: 'Download Directly',
+      desc: 'Hit download to save the file straight to your phone or computer with no extra software needed.',
       icon: ''
     }
   ];
@@ -25,9 +25,9 @@ export default function HowItWorks() {
   return (
     <section className="section-container" id="how-it-works">
       <div className="section-header">
-        <span className="section-tag">EFFORTLESS PROCESS</span>
-        <h2 className="section-title">How SaveZonix Works in 3 Steps</h2>
-        <p className="section-desc">Engineered for maximum speed and simplicity. No complex setup or command line required.</p>
+        <span className="section-tag">How It Works</span>
+        <h2 className="section-title">How to Download in 3 Steps</h2>
+        <p className="section-desc">Fast, simple, and runs directly in your browser.</p>
       </div>
 
       <div className="how-it-works-grid">

@@ -14,7 +14,8 @@ import {
   Music,
   Video,
   Lock,
-  Crown
+  Crown,
+  Clipboard
 } from 'lucide-react';
 import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
 
@@ -873,7 +874,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
         <div>
           <div className="sz-card">
             <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Zap color="#38bdf8" size={18} /> High-Speed Video Downloader
+              <Video color="#38bdf8" size={18} /> Video Downloader
             </h2>
             <div className="sz-input-wrap">
               <input
@@ -901,13 +902,14 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: '4px',
+                    gap: '6px',
                     minHeight: '44px',
                     whiteSpace: 'nowrap'
                   }}
                   title="Paste link from clipboard"
                 >
-                  📋 Paste
+                  <Clipboard size={14} />
+                  <span>Paste</span>
                 </button>
                 {url && (
                   <button
@@ -940,9 +942,6 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                   {isResolving ? 'Resolving...' : 'Analyze'}
                 </button>
               </div>
-            </div>
-            <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>💡 Tip: Paste any video link from YouTube, Instagram, or the web.</span>
             </div>
           </div>
 
@@ -984,7 +983,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                       onClick={() => handleStartDownload()}
                       disabled={isDownloading}
                       className="sz-btn-download">
-                      <Download size={18} /> {isDownloading ? 'Downloading...' : '⚡ Turbo Download'}
+                      <Download size={18} /> {isDownloading ? 'Downloading...' : 'Download'}
                     </button>
                   </div>
                 </div>
@@ -1036,7 +1035,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                       borderRadius: '8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px',
                       flexShrink: 0
                     }}>
-                    <Download size={16} /> Save to PC
+                    <Download size={16} /> Save Video
                   </a>
                 </div>
               )}
@@ -1049,8 +1048,8 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       {activeTab === 'playlist' && (
         <div>
           <div style={{ background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ListMusic color="#3b82f6" /> YouTube Playlist & Mix Studio
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ListMusic color="#38bdf8" size={18} /> Playlist Downloader
             </h2>
             <div className="sz-input-wrap">
               <input
@@ -1096,7 +1095,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                         return;
                       }
                       if (selectedVideoIds.size === 0) return alert('Please select at least 1 video.');
-                      alert(`Queued ${selectedVideoIds.size} items for turbo batch download!`);
+                      alert(`Queued ${selectedVideoIds.size} items for batch download.`);
                     }}
                     style={{
                       padding: '10px 20px', background: '#10b981', color: '#fff', fontWeight: 700,

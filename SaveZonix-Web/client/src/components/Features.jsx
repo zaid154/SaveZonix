@@ -7,8 +7,8 @@ const FEATURES = [
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
       </svg>
     ),
-    title: '64-Thread Acceleration',
-    desc: 'Splits direct MP4 and adaptive HLS streams into 64 concurrent micro-ranges for maximum ISP speed saturation.'
+    title: 'High-Speed Downloads',
+    desc: 'Parallel stream connections download audio and video segments simultaneously at max connection speed.'
   },
   {
     icon: (
@@ -18,8 +18,8 @@ const FEATURES = [
         <line x1="2" y1="21" x2="22" y2="21" />
       </svg>
     ),
-    title: 'CleanStream Cinema',
-    desc: 'Stream web videos in an ad-free cinema player with CORS bypass proxy, subtitles, and picture-in-picture.'
+    title: 'Ad-Free Player',
+    desc: 'Watch and preview video streams directly in the browser without interruptions or popup redirects.'
   },
   {
     icon: (
@@ -27,8 +27,8 @@ const FEATURES = [
         <path d="M19.439 7.85c0-1.571-.9-2.85-2.01-2.85h-1.85a3 3 0 0 0-2.83 2h-1.49a3 3 0 0 0-2.83-2H6.57c-1.11 0-2.01 1.279-2.01 2.85v1.85a3 3 0 0 0 2 2.83v1.49a3 3 0 0 0-2 2.83v1.85c0 1.571.9 2.85 2.01 2.85h1.85a3 3 0 0 0 2.83-2h1.49a3 3 0 0 0 2.83 2h1.85c1.11 0 2.01-1.279 2.01-2.85v-1.85a3 3 0 0 0-2-2.83v-1.49a3 3 0 0 0 2-2.83z" />
       </svg>
     ),
-    title: 'Chrome Companion Extension',
-    desc: 'Detect media streams directly from browser tabs with 1-click downloads and built-in YouTube ad blocking.'
+    title: 'Chrome Extension',
+    desc: 'Quickly detect media and download videos directly with 1 click while browsing YouTube and web pages.'
   },
   {
     icon: (
@@ -38,8 +38,8 @@ const FEATURES = [
         <circle cx="18" cy="16" r="3" />
       </svg>
     ),
-    title: '320kbps MP3 Extractor',
-    desc: 'Extract studio-grade 320kbps MP3 and AAC audio from music videos and podcasts with lossless FFmpeg.'
+    title: '320kbps MP3 Audio',
+    desc: 'Extract clean MP3 and AAC audio from music videos and podcasts with original clarity.'
   },
   {
     icon: (
@@ -50,8 +50,8 @@ const FEATURES = [
         <path d="M4 4v16" />
       </svg>
     ),
-    title: 'Batch Playlist Studio',
-    desc: 'Download entire YouTube playlists with 1 click. Smart queue manager runs smoothly in the background.'
+    title: 'Playlist Support',
+    desc: 'Select and download entire YouTube playlists or mixes in one go without downloading one by one.'
   },
   {
     icon: (
@@ -60,8 +60,8 @@ const FEATURES = [
         <path d="m9 12 2 2 4-4" />
       </svg>
     ),
-    title: 'Anti-Corruption Validator',
-    desc: 'Deep binary inspection validates moov, moof, and mdat container atoms so your files never fail to play.'
+    title: 'Reliable File Output',
+    desc: 'Files are checked and muxed properly so they open and play smoothly on all phones, tablets, and PCs.'
   }
 ];
 
@@ -69,9 +69,9 @@ export default function Features() {
   return (
     <section className="section-container" id="features">
       <div className="section-header">
-        <span className="section-tag">UNMATCHED POWER</span>
-        <h2 className="section-title">Built for Speed, Designed for Creators</h2>
-        <p className="section-desc">Everything you need to capture, remux, and stream media effortlessly.</p>
+        <span className="section-tag">Features</span>
+        <h2 className="section-title">Everything You Need in a Downloader</h2>
+        <p className="section-desc">Download videos in original resolution, save audio, and enjoy a clean experience.</p>
       </div>
 
       <div className="features-grid">

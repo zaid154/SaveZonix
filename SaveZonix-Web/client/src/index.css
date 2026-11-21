@@ -1619,14 +1619,18 @@ input:-webkit-autofill:active {
     display: none !important;
   }
   .hero-btn-web {
-    display: flex !important;
+    display: inline-flex !important;
     width: 100% !important;
     min-height: 48px !important;
     justify-content: center !important;
     align-items: center !important;
-  }
-  .btn-hero-secondary {
-    display: none !important;
+    padding: 10px 16px !important;
+    background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+    color: #fff !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 18px rgba(37, 99, 235, 0.4) !important;
+    border: none !important;
+    text-decoration: none !important;
   }
   .hero-badges-row {
     flex-wrap: wrap !important;
