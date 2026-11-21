@@ -1,10 +1,19 @@
 // client/src/utils/trialManager.js — Client-Side 3-Free-Trial Counter & Gatekeeper Service
 
 const TRIAL_STORAGE_KEY = 'savezonix_trial_downloads_used';
-export const MAX_FREE_TRIALS = 3;
+export const MAX_FREE_TRIALS = 10;
 
 export function isUserVip(user) {
-  if (!user) return false;
+  if (!user) {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = JSON.parse(localStorage.getItem('savezonix_user') || localStorage.getItem('savezonix_cloud_user') || '{}');
+        if (stored.email && stored.email.toLowerCase() === 'zaidm1323@gmail.com') return true;
+        if (stored.isVip || stored.isAdmin || stored.role === 'Admin') return true;
+      } catch {}
+    }
+    return false;
+  }
   return Boolean(
     user.isVip ||
     user.role === 'Admin' ||

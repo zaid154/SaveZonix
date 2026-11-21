@@ -247,54 +247,109 @@ class MediaResolver {
      */
     async resolveSpecificStream(url, quality = '1080p') {
         const cleanUrl = this.sanitizeUrl(url);
-        let info;
+        let info = null;
+        let lastErr = null;
+
         try {
             info = await this.ytdlFast.getInfo(cleanUrl);
-        } catch {
-            info = await this.ytdlDefault.getInfo(cleanUrl);
-        }
-        const formats = info.formats || [];
-
-        if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
-            const audio = chooseFormat(formats, { quality: 'highestaudio' });
-            return {
-                type: 'audio',
-                stream: audio,
-                title: info.videoDetails.title,
-                sizeBytes: parseInt(audio?.contentLength || '0', 10)
-            };
+        } catch (e1) {
+            lastErr = e1;
+            try {
+                info = await this.ytdlDefault.getInfo(cleanUrl);
+            } catch (e2) {
+                lastErr = e2;
+                console.warn('[MediaResolver] Both ytdl clients failed in resolveSpecificStream:', e2.message);
+            }
         }
 
-        const targetLabel = quality.toLowerCase().replace('p', '');
+        if (info && info.formats && info.formats.length > 0) {
+            const formats = info.formats || [];
 
-        // Priority 1: Combined format (video+audio in one stream) — no FFmpeg muxing needed on cloud
-        const combinedFormat = formats.find(f =>
-            f.qualityLabel &&
-            f.qualityLabel.toLowerCase().includes(targetLabel) &&
-            f.hasAudio && f.hasVideo
-        );
-        if (combinedFormat) {
+            if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
+                const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats[0];
+                return {
+                    type: 'audio',
+                    stream: audio,
+                    title: info.videoDetails?.title || 'YouTube Audio',
+                    sizeBytes: parseInt(audio?.contentLength || '0', 10)
+                };
+            }
+
+            const targetLabel = quality.toLowerCase().replace('p', '');
+
+            // Priority 1: Combined format (video+audio in one stream) — no FFmpeg muxing needed on cloud
+            const combinedFormat = formats.find(f =>
+                f.qualityLabel &&
+                f.qualityLabel.toLowerCase().includes(targetLabel) &&
+                f.hasAudio && f.hasVideo
+            );
+            if (combinedFormat) {
+                return {
+                    type: 'video',
+                    videoStream: combinedFormat,
+                    audioStream: null,
+                    title: info.videoDetails?.title || 'YouTube Video',
+                    sizeBytes: parseInt(combinedFormat.contentLength || '0', 10)
+                };
+            }
+
+            // Priority 2: Separate video + audio streams
+            const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel))
+                       || chooseFormat(formats, { quality: 'highestvideo' })
+                       || formats[0];
+            const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats[0];
+
             return {
                 type: 'video',
-                videoStream: combinedFormat,
-                audioStream: null,
-                title: info.videoDetails.title,
-                sizeBytes: parseInt(combinedFormat.contentLength || '0', 10)
+                videoStream: video,
+                audioStream: audio,
+                title: info.videoDetails?.title || 'YouTube Video',
+                sizeBytes: (parseInt(video?.contentLength || '0', 10)) + (parseInt(audio?.contentLength || '0', 10))
             };
         }
 
-        // Priority 2: Separate video + audio streams
-        const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel))
-                   || chooseFormat(formats, { quality: 'highestvideo' });
-        const audio = chooseFormat(formats, { quality: 'highestaudio' });
+        // Engine 2: play-dl fallback when @distube/ytdl-core fails on Render
+        if (play) {
+            try {
+                console.log('[MediaResolver] Attempting play-dl fallback in resolveSpecificStream for:', cleanUrl);
+                const pInfo = await Promise.race([
+                    play.video_info(cleanUrl),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 10000))
+                ]);
+                if (pInfo && pInfo.video_details) {
+                    const formats = pInfo.format || [];
+                    const title = pInfo.video_details.title || 'YouTube Video';
 
-        return {
-            type: 'video',
-            videoStream: video,
-            audioStream: audio,
-            title: info.videoDetails.title,
-            sizeBytes: (parseInt(video?.contentLength || '0', 10)) + (parseInt(audio?.contentLength || '0', 10))
-        };
+                    if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
+                        const audioOnly = formats.filter(f => !f.qualityLabel && f.url);
+                        const bestAudio = audioOnly.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0] || formats[0];
+                        return {
+                            type: 'audio',
+                            stream: { url: bestAudio?.url, mimeType: bestAudio?.mimeType },
+                            title,
+                            sizeBytes: parseInt(bestAudio?.contentLength || '0', 10)
+                        };
+                    }
+
+                    const targetLabel = quality.toLowerCase().replace('p', '');
+                    const matchingVideo = formats.find(f => f.qualityLabel && f.qualityLabel.includes(targetLabel) && f.url)
+                                       || formats.filter(f => f.qualityLabel && f.url).sort((a, b) => parseInt(b.qualityLabel || '0') - parseInt(a.qualityLabel || '0'))[0]
+                                       || formats[0];
+
+                    return {
+                        type: 'video',
+                        videoStream: { url: matchingVideo?.url, mimeType: matchingVideo?.mimeType, qualityLabel: matchingVideo?.qualityLabel },
+                        audioStream: null,
+                        title,
+                        sizeBytes: parseInt(matchingVideo?.contentLength || '0', 10)
+                    };
+                }
+            } catch (playErr) {
+                console.warn('[MediaResolver] play-dl resolveSpecificStream fallback failed:', playErr.message);
+            }
+        }
+
+        throw new Error(lastErr ? lastErr.message : 'Could not resolve stream from YouTube.');
     }
 
     _formatDuration(seconds) {

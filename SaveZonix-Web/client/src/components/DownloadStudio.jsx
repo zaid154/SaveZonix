@@ -203,15 +203,28 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
   // Trigger native browser download (opens download in browser's download bar)
   const triggerBrowserDownload = (downloadUrl, filename) => {
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.download = filename || 'download';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      if (document.body.contains(a)) document.body.removeChild(a);
-    }, 2000);
+    try {
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename || 'download';
+      a.target = '_blank';
+      a.rel = 'noreferrer';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 2000);
+    } catch {}
+
+    // Mobile fallback: On Android Chrome & Safari, async a.click() is blocked by popup blockers.
+    // Navigating directly to the proxy-stream URL invokes the native Download Manager.
+    const isMobile = typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isMobile) {
+      setTimeout(() => {
+        window.location.href = downloadUrl;
+      }, 350);
+    }
   };
 
   // Fetch download history from MongoDB
