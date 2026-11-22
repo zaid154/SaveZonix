@@ -7,14 +7,13 @@ try {
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
-        // Priority 1: Client.Tv generates direct unthrottled googlevideo.com URLs without player.js worker decipher overhead
-        // WebEmbedded is a secondary fallback that accepts cookies
+        // Priority 1: Client.VisionOS needs no player.js script or decipher, completely immune to datacenter bot blocks
         this.ytdlFast = new Ytdl({
-            clients: [Client.Tv, Client.WebEmbedded],
+            clients: [Client.VisionOS, Client.Tv, Client.WebEmbedded],
             cookie
         });
         this.ytdlDefault = new Ytdl({
-            clients: [Client.Tv, Client.VisionOS, Client.WebEmbedded],
+            clients: [Client.VisionOS, Client.Tv, Client.WebEmbedded],
             cookie
         });
     }
