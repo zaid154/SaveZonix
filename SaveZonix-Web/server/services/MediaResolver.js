@@ -25,7 +25,15 @@ class MediaResolver {
      */
     sanitizeUrl(url) {
         if (!url) return '';
-        const trimmed = String(url).trim();
+        let str = '';
+        if (typeof url === 'string') {
+            str = url;
+        } else if (typeof url === 'object' && url !== null) {
+            str = url.url || url.targetUrl || '';
+        } else {
+            str = String(url);
+        }
+        const trimmed = str.trim();
         try {
             // Check for YouTube patterns
             const match = trimmed.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/|live\/))([a-zA-Z0-9_-]+)/i);

@@ -54,7 +54,10 @@ async function startDownload(req, res) {
  */
 async function resolveMedia(req, res) {
   try {
-    const { url } = req.body;
+    let { url } = req.body;
+    if (typeof url === 'object' && url !== null) {
+      url = url.url || '';
+    }
     if (!url) {
       return res.status(400).json({ success: false, message: 'Media URL is required' });
     }
@@ -135,7 +138,10 @@ async function recordDownloadTelemetry(req, res) {
  */
 async function streamDownload(req, res) {
   try {
-    const { url, quality = '1080p' } = req.body;
+    let { url, quality = '1080p' } = req.body;
+    if (typeof url === 'object' && url !== null) {
+      url = url.url || '';
+    }
     if (!url) {
       return res.status(400).json({ success: false, message: 'URL is required' });
     }

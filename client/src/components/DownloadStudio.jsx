@@ -431,8 +431,13 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
     const actualUrl = (typeof targetUrl === 'string' && targetUrl) ? targetUrl : url;
     const actualQuality = (typeof targetQuality === 'string' && targetQuality) ? targetQuality : selectedQuality;
-    const finalUrl = sanitizeSingleUrl(actualUrl || url);
-    if (!finalUrl) return;
+    const sanitized = sanitizeSingleUrl(actualUrl || url);
+    if (sanitized?.error) {
+      setErrorMsg(sanitized.error);
+      return;
+    }
+    const finalUrl = typeof sanitized === 'string' ? sanitized : (sanitized?.url || actualUrl || url);
+    if (!finalUrl || typeof finalUrl !== 'string') return;
 
     setIsDownloading(true);
     setErrorMsg('');
