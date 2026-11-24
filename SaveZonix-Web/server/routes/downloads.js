@@ -41,21 +41,33 @@ router.get('/test-clients', async (req, res) => {
   const { Ytdl } = require('@distube/ytdl-core');
   const cookie = process.env.YOUTUBE_COOKIE || undefined;
   const url = req.query.url || 'https://www.youtube.com/shorts/L8XYCkfamfE';
-  const results = {};
-  for (const name of ['tv', 'visionos', 'web_embedded', 'mweb']) {
-    const t0 = Date.now();
-    try {
-      const y = new Ytdl({ clients: [name], cookie });
-      const info = await Promise.race([
-        y.getInfo(url),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout 6s')), 6000))
-      ]);
-      results[name] = { pass: true, timeMs: Date.now() - t0, formats: info.formats.length, title: info.videoDetails?.title };
-    } catch (e) {
-      results[name] = { pass: false, timeMs: Date.now() - t0, error: e.message };
-    }
+  const targetClient = req.query.client || 'tv';
+  const t0 = Date.now();
+  try {
+    const y = new Ytdl({ clients: [targetClient], cookie });
+    const info = await Promise.race([
+      y.getInfo(url),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout 15s')), 15000))
+    ]);
+    const f1080 = info.formats.find(f => f.qualityLabel && f.qualityLabel.includes('1080'));
+    res.json({
+      pass: true,
+      client: targetClient,
+      timeMs: Date.now() - t0,
+      title: info.videoDetails?.title,
+      formatsCount: info.formats.length,
+      has1080pUrl: Boolean(f1080 && f1080.url),
+      sampleUrl: f1080?.url ? f1080.url.substring(0, 60) + '...' : null
+    });
+  } catch (e) {
+    res.status(500).json({
+      pass: false,
+      client: targetClient,
+      timeMs: Date.now() - t0,
+      error: e.message,
+      stack: e.stack
+    });
   }
-  res.json({ results, cookieLen: cookie ? cookie.length : 0 });
 });
 
 // Start Turbo Download (disk-based, for local engine only)
