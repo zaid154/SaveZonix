@@ -1,4 +1,16 @@
+const path = require('path');
 const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
+
+// Enable authenticated cookie support for Client.VisionOS (bypasses cloud datacenter 403 blocks while avoiding player decipher AST crashes)
+try {
+    const clientsPath = path.join(path.dirname(require.resolve('@distube/ytdl-core')), 'clients.js');
+    const { CLIENTS } = require(clientsPath);
+    if (CLIENTS && CLIENTS.visionos) {
+        CLIENTS.visionos.account = 'optional';
+    }
+} catch (e) {
+    console.warn('[MediaResolver] Could not patch CLIENTS.visionos account mode:', e.message);
+}
 let play = null;
 try {
     play = require('play-dl');
