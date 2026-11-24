@@ -109,11 +109,19 @@ app.get('/api/debug-ytdl', async (req, res) => {
   }
 
   try {
-    const ytdlAndroid = new Ytdl({ clients: [Client.Mweb] });
-    const info = await ytdlAndroid.getInfo(url);
-    results.mweb = { success: true, formats: info.formats?.length };
+    const ytdlWebEmb = new Ytdl({ clients: [Client.WebEmbedded] });
+    const info = await ytdlWebEmb.getInfo(url);
+    results.webEmbedded = { success: true, formats: info.formats?.length, sampleUrl: info.formats?.[0]?.url ? info.formats[0].url.slice(0, 50) : null };
   } catch (err) {
-    results.mweb = { success: false, error: err.message };
+    results.webEmbedded = { success: false, error: err.message };
+  }
+
+  try {
+    const ytdlTv = new Ytdl({ clients: [Client.Tv] });
+    const info = await ytdlTv.getInfo(url);
+    results.tv = { success: true, formats: info.formats?.length, sampleUrl: info.formats?.[0]?.url ? info.formats[0].url.slice(0, 50) : null };
+  } catch (err) {
+    results.tv = { success: false, error: err.message };
   }
 
   res.json(results);
