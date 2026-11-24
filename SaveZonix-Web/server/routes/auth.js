@@ -2,8 +2,13 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const Plan = require('../models/Plan');
+const UsageLog = require('../models/UsageLog');
+const AppConfig = require('../models/AppConfig');
 const OtpToken = require('../models/OtpToken');
 const EmailLog = require('../models/EmailLog');
+const { getMidnightIST, getNextMidnightIST } = require('../middleware/enforceDownloadLimits');
+const { checkUserSubscription } = require('../services/subscriptionService');
 const {
   generateOtp,
   sendOtpEmail,
@@ -635,6 +640,169 @@ router.get('/me', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Full User Profile & Quota Stats for User Dashboard
+// ─────────────────────────────────────────────────────────────
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    let user = await User.findById(req.user.userId).select('-password -PasswordHash');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    await checkUserSubscription(user);
+
+    const isAdmin = Boolean(
+      user.role === 'admin' ||
+      user.role === 'Admin' ||
+      user.email === 'zaidm1323@gmail.com'
+    );
+
+    let plan = null;
+    if (user.planId) plan = await Plan.findById(user.planId);
+    if (!plan) plan = await Plan.findOne({ slug: user.planSlug || 'free' });
+    if (!plan) {
+      plan = {
+        name: 'Free',
+        slug: 'free',
+        dailyDownloadLimit: 5,
+        maxVideoQuality: '720p',
+        maxAudioQuality: 128,
+        playlistDownload: false
+      };
+    }
+
+    const midnightIST = getMidnightIST();
+    const usedToday = await UsageLog.countDocuments({
+      userId: user._id,
+      status: 'completed',
+      timestamp: { $gte: midnightIST }
+    });
+
+    const dailyLimit = isAdmin
+      ? -1
+      : (user.customDailyLimit !== null && user.customDailyLimit !== undefined
+          ? user.customDailyLimit
+          : plan.dailyDownloadLimit);
+
+    const maxVideoQuality = isAdmin
+      ? '4K'
+      : (user.customMaxQuality || plan.maxVideoQuality);
+
+    return res.json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVip: user.isVip,
+        vipExpiresAt: user.vipExpiresAt,
+        plan: {
+          id: plan._id,
+          name: plan.name,
+          slug: plan.slug,
+          billingPeriod: plan.billingPeriod,
+          dailyDownloadLimit: dailyLimit,
+          maxVideoQuality,
+          maxAudioQuality: plan.maxAudioQuality,
+          playlistDownload: plan.playlistDownload,
+          speedPriority: plan.speedPriority,
+          ads: plan.ads
+        },
+        quota: {
+          dailyLimit,
+          usedToday,
+          remainingToday: dailyLimit === -1 ? 999999 : Math.max(0, dailyLimit - usedToday),
+          resetsAt: getNextMidnightIST()
+        }
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Change Password Endpoint
+// ─────────────────────────────────────────────────────────────
+router.post('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long.' });
+    }
+
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found.' });
+
+    if (user.password) {
+      const isMatch = await bcrypt.compare(currentPassword || '', user.password);
+      if (!isMatch) {
+        return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+      }
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.PasswordHash = undefined;
+    await user.save();
+
+    return res.json({ success: true, message: 'Password changed successfully.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Google OAuth Sign-In Endpoint
+// ─────────────────────────────────────────────────────────────
+router.post('/google', async (req, res) => {
+  try {
+    const { email, name, googleId } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Google account email is required.' });
+    }
+
+    let user = await User.findOne({ email: email.toLowerCase().trim() });
+    const freePlan = await Plan.findOne({ slug: 'free' });
+
+    if (!user) {
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email: email.toLowerCase().trim(),
+        role: 'free',
+        planId: freePlan ? freePlan._id : null,
+        planSlug: 'free',
+        isActive: true
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        email: user.email,
+        role: user.role,
+        isVip: user.isVip
+      },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isVip: user.isVip,
+        planSlug: user.planSlug || 'free'
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 

@@ -7,6 +7,8 @@ const downloadManager = require('../services/DownloadManager');
 const mediaResolver = require('../services/MediaResolver');
 const ffmpegService = require('../services/FFmpegService');
 const DownloadHistory = require('../models/DownloadHistory');
+const { signStreamUrl, verifyStreamToken } = require('../utils/signedUrls');
+const { recordUsageLog } = require('../middleware/enforceDownloadLimits');
 
 function sanitizeFileName(name) {
   if (!name) return 'media_' + Date.now();
@@ -150,6 +152,28 @@ async function streamDownload(req, res) {
     const streamData = await mediaResolver.resolveSpecificStream(url, quality);
     const safeTitle = sanitizeFileName(streamData.title);
 
+    const targetUrl = streamData.type === 'audio' ? streamData.stream.url : streamData.videoStream.url;
+    const signedData = signStreamUrl(targetUrl, quality);
+
+    // Record verified usage to UsageLog
+    if (req.authMeta) {
+      await recordUsageLog(req.authMeta, {
+        url,
+        platform: streamData.platform || 'YouTube',
+        quality,
+        format: streamData.type === 'audio' ? 'mp3' : 'mp4',
+        fileSizeBytes: streamData.sizeBytes || streamData.videoSize || 0,
+        status: 'completed'
+      });
+    }
+
+    const quotaMeta = req.authMeta ? {
+      dailyLimit: req.authMeta.dailyLimit,
+      remainingToday: Math.max(0, req.authMeta.remainingToday - 1),
+      planName: req.authMeta.planName,
+      resetsAt: req.authMeta.resetsAt
+    } : null;
+
     if (streamData.type === 'audio') {
       return res.json({
         success: true,
@@ -158,7 +182,9 @@ async function streamDownload(req, res) {
         fileName: `${safeTitle}.mp3`,
         streamUrl: streamData.stream.url,
         sizeBytes: streamData.sizeBytes,
-        mimeType: streamData.stream.mimeType || 'audio/mp4'
+        mimeType: streamData.stream.mimeType || 'audio/mp4',
+        signedToken: signedData.token,
+        quota: quotaMeta
       });
     } else {
       const hasAudio = streamData.videoStream?.hasAudio || false;
@@ -172,7 +198,9 @@ async function streamDownload(req, res) {
         videoSize: parseInt(streamData.videoStream.contentLength || '0', 10),
         audioSize: parseInt(streamData.audioStream?.contentLength || '0', 10),
         needsMuxing: !hasAudio && !!streamData.audioStream?.url,
-        mimeType: streamData.videoStream.mimeType || 'video/mp4'
+        mimeType: streamData.videoStream.mimeType || 'video/mp4',
+        signedToken: signedData.token,
+        quota: quotaMeta
       });
     }
   } catch (err) {
@@ -307,6 +335,19 @@ async function proxyStream(req, res) {
     const isAllowed = allowedHosts.some(h => parsedUrl.hostname.endsWith(h));
     if (!isAllowed) {
       return res.status(403).json({ success: false, message: 'Proxy not allowed for this domain' });
+    }
+
+    // Verify Signed Stream Token if present (prevents hotlinking & unauthorized stream bypass)
+    const token = req.query.token;
+    if (token) {
+      const verification = verifyStreamToken(streamUrl, req.query.quality || '720p', token);
+      if (!verification.valid) {
+        return res.status(403).json({
+          success: false,
+          code: 'INVALID_STREAM_SIGNATURE',
+          message: verification.error || 'Stream token is invalid or expired.'
+        });
+      }
     }
 
     if (req.method === 'OPTIONS') {

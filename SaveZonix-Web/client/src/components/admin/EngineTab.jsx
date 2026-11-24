@@ -481,6 +481,43 @@ export default function EngineTab({
             </div>
 
             <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Guest Daily Download Limit</label>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={settings.guestDailyLimit ?? 2}
+                onChange={(e) => setSettings({ ...settings, guestDailyLimit: Number(e.target.value) })}
+                style={{ width: '100%', padding: '10px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#f8fafc', fontSize: '13px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Free User Max Quality</label>
+              <select
+                value={settings.freeMaxQuality || '720p'}
+                onChange={(e) => setSettings({ ...settings, freeMaxQuality: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#f8fafc', fontSize: '13px' }}
+              >
+                <option value="480p">480p</option>
+                <option value="720p">720p HD (Default)</option>
+                <option value="1080p">1080p Full HD</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>Quality Exceeded Behavior</label>
+              <select
+                value={settings.onQualityExceeded || 'popup'}
+                onChange={(e) => setSettings({ ...settings, onQualityExceeded: e.target.value })}
+                style={{ width: '100%', padding: '10px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#f8fafc', fontSize: '13px' }}
+              >
+                <option value="popup">Show Upgrade Modal (Recommended)</option>
+                <option value="downgrade">Auto Downgrade to Plan Maximum</option>
+              </select>
+            </div>
+
+            <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>4K Video Cinema VIP Lock</label>
               <select
                 value={settings.lock4KForVip ? 'true' : 'false'}

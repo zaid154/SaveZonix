@@ -233,6 +233,54 @@ export default function UsersTab({
                         )}
 
                         <button
+                          onClick={async () => {
+                            if (!confirm(`Reset today's download count to 0 for ${u.email}?`)) return;
+                            const t = localStorage.getItem('savezonix_token') || localStorage.getItem('savezonix_admin_token');
+                            try {
+                              const res = await fetch(`/api/admin/users/${u._id}/reset-usage`, {
+                                method: 'POST',
+                                headers: { Authorization: `Bearer ${t}` }
+                              });
+                              const d = await res.json();
+                              alert(d.message || 'Usage reset');
+                            } catch (e) {
+                              alert('Error resetting usage');
+                            }
+                          }}
+                          title="Reset today's download counter"
+                          style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#a78bfa', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Reset Usage
+                        </button>
+
+                        <button
+                          onClick={async () => {
+                            const newLimit = prompt(`Enter custom daily download limit for ${u.email} (-1 for unlimited, blank to inherit plan):`, u.customDailyLimit !== null && u.customDailyLimit !== undefined ? u.customDailyLimit : '');
+                            if (newLimit === null) return;
+                            const newQuality = prompt(`Enter custom max video quality (e.g. 720p, 1080p, 4K, blank to inherit plan):`, u.customMaxQuality || '');
+                            const t = localStorage.getItem('savezonix_token') || localStorage.getItem('savezonix_admin_token');
+                            try {
+                              const res = await fetch(`/api/admin/users/${u._id}/limits`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
+                                body: JSON.stringify({
+                                  customDailyLimit: newLimit === '' ? null : Number(newLimit),
+                                  customMaxQuality: newQuality ? newQuality.trim() : null
+                                })
+                              });
+                              const d = await res.json();
+                              alert(d.message || 'Limits updated');
+                            } catch (e) {
+                              alert('Error setting custom limits');
+                            }
+                          }}
+                          title="Set custom download limit override"
+                          style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#38bdf8', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                        >
+                          Custom Limits
+                        </button>
+
+                        <button
                           onClick={() => onToggleActive(u._id, u.email)}
                           disabled={isUpdatingActive}
                           style={{

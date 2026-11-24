@@ -4,7 +4,7 @@ const AppConfigSchema = new mongoose.Schema({
   // App Version & Auto-Update Controls
   latestAppVersion: {
     type: String,
-    default: '2.5.0'
+    default: '2.6.1'
   },
   minAllowedVersion: {
     type: String,
@@ -32,7 +32,7 @@ const AppConfigSchema = new mongoose.Schema({
   },
   extensionVersion: {
     type: String,
-    default: '2.5.0'
+    default: '2.6.1'
   },
   extensionDownloadUrl: {
     type: String,
@@ -43,15 +43,59 @@ const AppConfigSchema = new mongoose.Schema({
     default: 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1'
   },
 
-  // Monetization & Quotas
+  // Global Guest & Free Limits
+  guestDailyLimit: {
+    type: Number,
+    default: 2
+  },
+  guestMaxQuality: {
+    type: String,
+    default: '480p'
+  },
   freeDailyLimit: {
     type: Number,
-    default: 3
+    default: 5
   },
-  lock4KForVip: {
+  freeMaxQuality: {
+    type: String,
+    default: '720p'
+  },
+  onQualityExceeded: {
+    type: String,
+    enum: ['popup', 'downgrade'],
+    default: 'popup'
+  },
+
+  // Platform & Feature Toggles
+  maintenanceMode: {
+    type: Boolean,
+    default: false
+  },
+  allowSignups: {
     type: Boolean,
     default: true
   },
+  allowPayments: {
+    type: Boolean,
+    default: true
+  },
+  platformToggles: {
+    youtube: { type: Boolean, default: true },
+    instagram: { type: Boolean, default: true },
+    tiktok: { type: Boolean, default: true },
+    facebook: { type: Boolean, default: true },
+    vimeo: { type: Boolean, default: true }
+  },
+  blockedDomains: {
+    type: [String],
+    default: []
+  },
+  maxFileSizeMB: {
+    type: Number,
+    default: 4096
+  },
+
+  // Payment Gateways
   vipMonthlyPriceINR: {
     type: Number,
     default: 99
@@ -72,6 +116,23 @@ const AppConfigSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  stripePublishableKey: {
+    type: String,
+    default: ''
+  },
+  stripeSecretKey: {
+    type: String,
+    default: ''
+  },
+  turnstileSiteKey: {
+    type: String,
+    default: ''
+  },
+  turnstileSecretKey: {
+    type: String,
+    default: ''
+  },
+
   announcementMessage: {
     type: String,
     default: ''
@@ -82,15 +143,7 @@ const AppConfigSchema = new mongoose.Schema({
     type: Number,
     default: 64
   },
-  DefaultThreads: {
-    type: Number,
-    default: 64
-  },
   maxThreads: {
-    type: Number,
-    default: 256
-  },
-  MaxThreads: {
     type: Number,
     default: 256
   },
@@ -98,71 +151,18 @@ const AppConfigSchema = new mongoose.Schema({
     type: Number,
     default: 32
   },
-  StrictCdnMaxThreads: {
+  hlsChunkConcurrency: {
     type: Number,
-    default: 32
+    default: 16
   },
-  openCdnMaxThreads: {
+  ramCacheMaxMB: {
     type: Number,
-    default: 128
+    default: 512
   },
-  registrationEnabled: {
+  enableTelemetry: {
     type: Boolean,
     default: true
   },
-  RegistrationEnabled: {
-    type: Boolean,
-    default: true
-  },
-  allowGuestDownloads: {
-    type: Boolean,
-    default: true
-  },
-  guestDailyDownloadLimit: {
-    type: Number,
-    default: 10
-  },
-  maintenanceMode: {
-    type: Boolean,
-    default: false
-  },
-  MaintenanceMode: {
-    type: Boolean,
-    default: false
-  },
-  maintenanceDurationMinutes: {
-    type: Number,
-    default: 15
-  },
-  maintenanceEndsAt: {
-    type: Date
-  },
-  maintenanceMessage: {
-    type: String,
-    default: 'Server routine upgrade in progress. All stream engines will resume shortly.'
-  },
-
-  // Bandwidth Speed Throttler (MB/s) - 0 indicates Uncapped Gigabit
-  freeMaxSpeedMBps: {
-    type: Number,
-    default: 15
-  },
-  vipMaxSpeedMBps: {
-    type: Number,
-    default: 0
-  },
-
-  // Platform-Specific Thread Concurrency Presets
-  platformThreadCaps: {
-    type: Object,
-    default: {
-      youtube: 64,
-      instagram: 24,
-      tiktok: 24,
-      directCdn: 128
-    }
-  },
-
   updatedAt: {
     type: Date,
     default: Date.now

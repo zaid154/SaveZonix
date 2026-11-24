@@ -16,6 +16,7 @@ const paymentRoutes = require('./routes/payment');
 const playlistRoutes = require('./routes/playlist');
 const downloadsRoutes = require('./routes/downloads');
 const feedbackRoutes = require('./routes/feedback');
+const plansRoutes = require('./routes/plans');
 const downloadManager = require('./services/DownloadManager');
 
 // Crash prevention guards for unhandled background stream rejections
@@ -76,6 +77,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/telemetry', adminRoutes);
 app.use('/api/playlist', playlistRoutes);
 app.use('/api/downloads', downloadsRoutes);
+app.use('/api/plans', plansRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
@@ -138,8 +140,19 @@ server.listen(PORT, () => {
 
 // Connect to MongoDB asynchronously
 mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
-  .then(() => {
+  .then(async () => {
     console.log(`[SaveZonix Server] 🍃 Connected to MongoDB: ${MONGO_URI}`);
+    try {
+      const Plan = require('./models/Plan');
+      const count = await Plan.countDocuments();
+      if (count === 0) {
+        console.log('[SaveZonix Server] 📦 Initializing default subscription plans...');
+        const { seedPlansAndAdmin } = require('./seeds/seedDefaultPlans');
+        await seedPlansAndAdmin();
+      }
+    } catch (seedErr) {
+      console.warn('[SaveZonix Server] Auto-seed notice:', seedErr.message);
+    }
   })
   .catch((err) => {
     console.warn(`[SaveZonix Server] ⚠️ MongoDB connection notice: ${err.message} (Running in fallback mode)`);

@@ -107,7 +107,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
           <a href="#studio" onClick={(e) => handleNavClick(e, '#studio')}>Web Studio</a>
           <a href="#features" onClick={(e) => handleNavClick(e, '#features')}>Features</a>
           <a href="#how-it-works" onClick={(e) => handleNavClick(e, '#how-it-works')}>How It Works</a>
-          <a href="#pricing" onClick={(e) => handleNavClick(e, '#pricing')}>Pricing</a>
+          <a href="/pricing" onClick={(e) => { e.preventDefault(); onNavigate('/pricing'); }}>Pricing</a>
           <a href="#faq" onClick={(e) => handleNavClick(e, '#faq')}>FAQ</a>
         </nav>
 
@@ -264,6 +264,52 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
 
                   {/* Menu Items */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    {/* User Dashboard */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        onNavigate('/dashboard');
+                      }}
+                      style={{
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px 12px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '10px',
+                        color: '#f8fafc',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '6px',
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#38bdf8'
+                      }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="7" height="7"></rect>
+                          <rect x="14" y="3" width="7" height="7"></rect>
+                          <rect x="14" y="14" width="7" height="7"></rect>
+                          <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: '#f8fafc', fontSize: '13px', fontWeight: 600, lineHeight: 1.2 }}>My Dashboard</div>
+                        <div style={{ color: '#94a3b8', fontSize: '11px', fontWeight: 500 }}>Quota, History &amp; Settings</div>
+                      </div>
+                    </button>
+
                     {/* Admin Dashboard / Cockpit */}
                     {isAdmin && (
                       <button

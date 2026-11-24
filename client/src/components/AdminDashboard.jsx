@@ -26,6 +26,8 @@ import AiAdvisorTab from './admin/AiAdvisorTab';
 import DiagnosticsTab from './admin/DiagnosticsTab';
 import SecurityTab from './admin/SecurityTab';
 import EngineTab from './admin/EngineTab';
+import PlansTab from './admin/PlansTab';
+import CouponsTab from './admin/CouponsTab';
 import { setMaxFreeTrials } from '../utils/trialManager';
 
 export default function AdminDashboard({ user, currentPath = '/admin/overview', onNavigate, onBack, onOpenAuth, onLogout }) {
@@ -57,10 +59,12 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
     if (!path) return 'overview';
     const sub = path.replace(/^\/admin\/?/i, '').toLowerCase().trim();
     if (sub === 'financials' || sub === 'finance' || sub === 'sales') return 'financials';
+    if (sub === 'plans' || sub === 'plan') return 'plans';
+    if (sub === 'coupons' || sub === 'coupon') return 'coupons';
     if (sub === 'ai-cdn-advisor' || sub === 'ai-advisor' || sub === 'ai_advisor') return 'ai-cdn-advisor';
     if (sub === 'engine-database' || sub === 'engine' || sub === 'engine_database') return 'engine-database';
     if (sub === 'feedback' || sub === 'feedbacks') return 'feedback';
-    const valid = ['overview', 'financials', 'users', 'downloads', 'feedback', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
+    const valid = ['overview', 'plans', 'coupons', 'financials', 'users', 'downloads', 'feedback', 'ai-cdn-advisor', 'diagnostics', 'security', 'engine-database'];
     if (valid.includes(sub)) return sub;
     return 'overview';
   }
@@ -722,6 +726,8 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
       <div className="admin-tabs-bar" style={{ display: 'flex', gap: '4px', background: '#060a12', padding: '4px', borderRadius: '10px', border: '1px solid #1a2333', marginBottom: '16px' }}>
         {[
           { id: 'overview', label: 'Overview', icon: IconActivity },
+          { id: 'plans', label: 'Plans & Limits', icon: IconSliders },
+          { id: 'coupons', label: 'Coupons & Promos', icon: IconCreditCard },
           { id: 'financials', label: 'Financials & VIP', icon: IconCreditCard },
           { id: 'users', label: `Users (${users.length || stats?.totalUsers || 0})`, icon: IconUsers },
           { id: 'downloads', label: `Downloads (${downloads.length || stats?.totalDownloads || 0})`, icon: IconDownload },
@@ -824,6 +830,20 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             onNavigateToDownloads={() => handleTabClick('downloads')}
             onNavigateToFeedback={() => handleTabClick('feedback')}
           />
+        </AdminErrorBoundary>
+      )}
+
+      {/* Plans & DB Limits Management Tab */}
+      {activeTab === 'plans' && (
+        <AdminErrorBoundary moduleName="Subscription Plans & Quota Limits">
+          <PlansTab token={activeToken} />
+        </AdminErrorBoundary>
+      )}
+
+      {/* Coupons & Promotions Tab */}
+      {activeTab === 'coupons' && (
+        <AdminErrorBoundary moduleName="Coupons & Discounts">
+          <CouponsTab token={activeToken} />
         </AdminErrorBoundary>
       )}
 

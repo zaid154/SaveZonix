@@ -74,6 +74,16 @@ export default function Footer({ onOpenAdmin, onOpenLegal, onNavigate }) {
             </h4>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
               <li>
+                <a href="/pricing" onClick={(e) => handleNav('/pricing', e)} style={{ color: '#94a3b8', textDecoration: 'none' }}>
+                  Subscription Plans &amp; Pricing
+                </a>
+              </li>
+              <li>
+                <a href="/dashboard" onClick={(e) => handleNav('/dashboard', e)} style={{ color: '#94a3b8', textDecoration: 'none' }}>
+                  User Dashboard &amp; Quota
+                </a>
+              </li>
+              <li>
                 <a href="/about" onClick={(e) => handleNav('/about', e)} style={{ color: '#94a3b8', textDecoration: 'none' }}>
                   About SaveZonix
                 </a>

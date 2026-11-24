@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@distube/ytdl-core": "^5.2.1",
+    "@upstash/redis": "^1.41.1",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -20,6 +21,8 @@
     "mongoose": "^8.5.2",
     "nodemailer": "^10.0.9",
     "play-dl": "^1.9.7",
-    "socket.io": "^4.8.4"
+    "razorpay": "^2.9.8",
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.7"
   }
 }

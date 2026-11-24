@@ -1,0 +1,180 @@
+// Prisma Schema for SaveZonix Enterprise Authentication, Plans & Usage Enforcement
+// Target: PostgreSQL (Neon / Supabase / Vercel Postgres) with Connection Pooling support
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  guest
+  free
+  premium
+  admin
+}
+
+enum BillingPeriod {
+  monthly
+  yearly
+  lifetime
+}
+
+enum VideoQuality {
+  p360  @map("360p")
+  p480  @map("480p")
+  p720  @map("720p")
+  p1080 @map("1080p")
+  p1440 @map("1440p")
+  k4    @map("4K")
+}
+
+enum DownloadStatus {
+  completed
+  failed
+  blocked
+}
+
+model User {
+  id                  String        @id @default(uuid())
+  email               String        @unique
+  name                String?
+  passwordHash        String?
+  role                Role          @default(free)
+  planId              String?
+  plan                Plan?         @relation(fields: [planId], references: [id])
+  vipExpiresAt        DateTime?
+  customDailyLimit    Int?          // Admin custom limit override
+  customMaxQuality    String?       // Admin custom quality override
+  isActive            Boolean       @default(true)
+  isBanned            Boolean       @default(false)
+  bannedReason        String?
+  lastActiveAt        DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  usageLogs           UsageLog[]
+  payments            Payment[]
+  auditLogs           AuditLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Plan {
+  id                   String        @id @default(uuid())
+  name                 String
+  slug                 String        @unique
+  priceINR             Float         @default(0)
+  priceUSD             Float         @default(0)
+  billingPeriod        BillingPeriod @default(monthly)
+  dailyDownloadLimit   Int           @default(5)      // -1 for unlimited
+  monthlyDownloadLimit Int           @default(150)    // -1 for unlimited
+  maxVideoQuality      String        @default("720p") // 360p, 480p, 720p, 1080p, 1440p, 4K
+  maxAudioQuality      Int           @default(128)    // 128, 192, 320 kbps
+  allowedFormats       String[]      @default(["mp4", "mp3"])
+  playlistDownload     Boolean       @default(false)
+  maxPlaylistItems     Int           @default(0)
+  concurrentDownloads  Int           @default(1)
+  maxFileSizeMB        Int           @default(500)
+  speedPriority        String        @default("standard") // standard, high, ultra
+  ads                  Boolean       @default(true)
+  isActive             Boolean       @default(true)
+  isPopular            Boolean       @default(false)
+  sortOrder            Int           @default(0)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  users                User[]
+  payments             Payment[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model UsageLog {
+  id               String         @id @default(uuid())
+  userId           String?
+  user             User?          @relation(fields: [userId], references: [id])
+  guestFingerprint String?
+  ipAddress        String         @default("127.0.0.1")
+  url              String
+  platform         String         @default("Web Stream")
+  quality          String         @default("720p")
+  format           String         @default("mp4")
+  fileSizeBytes    Float          @default(0)
+  status           DownloadStatus @default(completed)
+  timestamp        DateTime       @default(now())
+
+  @@index([userId, timestamp])
+  @@index([guestFingerprint, timestamp])
+  @@index([ipAddress, timestamp])
+}
+
+model Payment {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  planId        String?
+  plan          Plan?     @relation(fields: [planId], references: [id])
+  orderId       String    @unique
+  paymentId     String?
+  amount        Float
+  currency      String    @default("INR")
+  gateway       String    @default("razorpay") // razorpay, stripe
+  status        String    @default("pending")  // pending, completed, failed, refunded
+  couponCode    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+}
+
+model Coupon {
+  id            String    @id @default(uuid())
+  code          String    @unique
+  discountType  String    @default("percentage") // percentage, fixed
+  discountValue Float
+  maxUses       Int       @default(100)
+  usedCount     Int       @default(0)
+  expiresAt     DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+
+  @@index([code])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  adminId    String?
+  admin      User?    @relation(fields: [adminId], references: [id])
+  adminEmail String
+  action     String   // e.g. PLAN_CREATE, USER_LIMIT_OVERRIDE, USER_BAN
+  targetType String   // User, Plan, Settings
+  targetId   String?
+  details    Json?
+  ipAddress  String   @default("127.0.0.1")
+  timestamp  DateTime @default(now())
+
+  @@index([adminEmail])
+  @@index([timestamp])
+}
+
+model GlobalSettings {
+  id                 String   @id @default("singleton")
+  guestDailyLimit    Int      @default(2)
+  guestMaxQuality    String   @default("480p")
+  freeDailyLimit     Int      @default(5)
+  freeMaxQuality     String   @default("720p")
+  onQualityExceeded  String   @default("popup") // popup, downgrade
+  maintenanceMode    Boolean  @default(false)
+  allowSignups       Boolean  @default(true)
+  allowPayments      Boolean  @default(true)
+  blockedDomains     String[] @default([])
+  maxFileSizeMB      Int      @default(4096)
+  updatedAt          DateTime @updatedAt
+}

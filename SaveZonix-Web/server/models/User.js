@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
-    trim: true
+    trim: true,
+    default: 'SaveZonix User'
   },
   FullName: {
     type: String,
@@ -12,7 +13,9 @@ const UserSchema = new mongoose.Schema({
   email: {
     type: String,
     lowercase: true,
-    trim: true
+    trim: true,
+    required: true,
+    index: true
   },
   Email: {
     type: String,
@@ -26,10 +29,22 @@ const UserSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    default: 'User'
+    enum: ['guest', 'free', 'premium', 'admin', 'User', 'Admin'],
+    default: 'free',
+    index: true
   },
   Role: {
     type: String
+  },
+  planId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Plan',
+    default: null,
+    index: true
+  },
+  planSlug: {
+    type: String,
+    default: 'free'
   },
   isActive: {
     type: Boolean,
@@ -38,6 +53,15 @@ const UserSchema = new mongoose.Schema({
   IsActive: {
     type: Boolean
   },
+  isBanned: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  bannedReason: {
+    type: String,
+    default: null
+  },
   isVip: {
     type: Boolean,
     default: false
@@ -45,6 +69,15 @@ const UserSchema = new mongoose.Schema({
   vipExpiresAt: {
     type: Date,
     default: null
+  },
+  // Custom admin overrides per user
+  customDailyLimit: {
+    type: Number,
+    default: null // null means inherit from Plan
+  },
+  customMaxQuality: {
+    type: String,
+    default: null // null means inherit from Plan
   },
   dailyDownloads: {
     type: Number,
@@ -58,9 +91,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: () => new Date().toISOString().split('T')[0]
   },
-  createdAt: {
+  lastActiveAt: {
     type: Date,
     default: Date.now
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true
   }
 }, { strict: false });
 

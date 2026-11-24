@@ -15,6 +15,8 @@ import UpgradeVipModal from './components/UpgradeVipModal';
 import FeedbackPage from './components/FeedbackPage';
 import AboutPage from './components/AboutPage';
 import ContactPage from './components/ContactPage';
+import UserDashboard from './components/UserDashboard';
+import PricingPage from './components/PricingPage';
 import YouTubeDownloaderPage from './components/landing/YouTubeDownloaderPage';
 import YouTubeToMp3Page from './components/landing/YouTubeToMp3Page';
 import InstagramReelsDownloaderPage from './components/landing/InstagramReelsDownloaderPage';
@@ -100,6 +102,8 @@ export default function App() {
   const isFeedbackRoute = currentPath === '/feedback' || currentPath === '/uninstall';
   const isAboutRoute = currentPath === '/about';
   const isContactRoute = currentPath === '/contact';
+  const isDashboardRoute = currentPath === '/dashboard';
+  const isPricingRoute = currentPath === '/pricing';
   const isYouTubeDownloader = currentPath === '/youtube-downloader';
   const isYouTubeToMp3 = currentPath === '/youtube-to-mp3';
   const isInstagramReels = currentPath === '/instagram-reels-downloader';
@@ -139,6 +143,19 @@ export default function App() {
           <AboutPage onNavigate={navigate} />
         ) : isContactRoute ? (
           <ContactPage onNavigate={navigate} />
+        ) : isDashboardRoute ? (
+          <UserDashboard
+            user={user}
+            onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenVip={() => setIsVipOpen(true)}
+            onNavigate={navigate}
+          />
+        ) : isPricingRoute ? (
+          <PricingPage
+            user={user}
+            onOpenAuth={() => setIsAuthOpen(true)}
+            onNavigate={navigate}
+          />
         ) : isYouTubeDownloader ? (
           <YouTubeDownloaderPage
             user={user}
