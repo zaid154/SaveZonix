@@ -437,8 +437,8 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
             <button
               type="button"
               onClick={onOpenVip}
+              className="btn-nav-vip-desktop"
               style={{
-                display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
                 padding: '7px 14px',

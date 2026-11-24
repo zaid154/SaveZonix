@@ -1373,6 +1373,9 @@ input:-webkit-autofill:active {
     .btn-nav-download {
       display: none !important;
     }
+    .btn-nav-vip-desktop {
+      display: none !important;
+    }
     .nav-mobile-toggle {
       display: inline-flex !important;
       width: 40px;
@@ -1552,11 +1555,15 @@ input:-webkit-autofill:active {
   .btn-nav-download {
     display: none !important;
   }
+  .btn-nav-vip-desktop {
+    display: none !important;
+  }
   .nav-actions {
     display: flex !important;
     align-items: center !important;
     gap: 5px !important;
     flex-shrink: 0 !important;
+    margin-left: auto !important;
   }
   .btn-auth-nav {
     padding: 5px 9px !important;
@@ -2055,14 +2062,15 @@ input:-webkit-autofill:active {
     height: 20px !important;
   }
   .logo-text {
-    font-size: 15px !important;
+    font-size: 14px !important;
   }
   .nav-actions {
-    gap: 4px !important;
+    gap: 3px !important;
+    margin-left: auto !important;
   }
   .btn-auth-nav {
-    padding: 4px 7px !important;
-    font-size: 11px !important;
+    padding: 4px 6px !important;
+    font-size: 10.5px !important;
   }
   .nav-trial-pill {
     padding: 3px 5px !important;

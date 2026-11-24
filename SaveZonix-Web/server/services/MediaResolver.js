@@ -7,13 +7,15 @@ try {
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
-        // Priority 1: Client.VisionOS needs no player.js script or decipher, completely immune to datacenter bot blocks
-        this.ytdlFast = new Ytdl({
-            clients: [Client.VisionOS, Client.Tv, Client.WebEmbedded],
+        // Priority 1: Client.VisionOS ONLY - does not fetch player.js or spawn decipher worker threads.
+        // Completely immune to datacenter bot blocks on Render/AWS/GCP.
+        this.ytdlVisionOS = new Ytdl({
+            clients: [Client.VisionOS],
             cookie
         });
+        this.ytdlFast = this.ytdlVisionOS;
         this.ytdlDefault = new Ytdl({
-            clients: [Client.VisionOS, Client.Tv, Client.WebEmbedded],
+            clients: [Client.VisionOS, Client.Mweb, Client.Tv, Client.WebEmbedded],
             cookie
         });
     }
@@ -68,11 +70,11 @@ class MediaResolver {
         let info = null;
         let lastError = null;
 
-        // Engine 1: Fast Ytdl with Tv client (direct googlevideo URLs, no player decipher)
+        // Engine 1: Fast Ytdl with VisionOS client (direct googlevideo URLs, completely immune to datacenter bot blocks)
         try {
             info = await Promise.race([
-                this.ytdlFast.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Tv client resolution timeout')), 12000))
+                this.ytdlVisionOS.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS resolution timeout')), 12000))
             ]);
         } catch (err1) {
             lastError = err1;
@@ -83,7 +85,7 @@ class MediaResolver {
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
-            console.warn('[MediaResolver] Fast Tv client failed, trying secondary client:', err1.message);
+            console.warn('[MediaResolver] Fast VisionOS client failed, trying secondary client:', err1.message);
         }
 
         // Engine 2: Default Ytdl with multi-clients fallback
@@ -257,10 +259,12 @@ class MediaResolver {
         let info = null;
         let lastErr = null;
 
+        // Engine 1: VisionOS ONLY (Fast, direct streams, immune to datacenter player decipher blocks)
         try {
-            info = await this.ytdlFast.getInfo(cleanUrl);
+            info = await this.ytdlVisionOS.getInfo(cleanUrl);
         } catch (e1) {
             lastErr = e1;
+            console.warn('[MediaResolver] VisionOS client failed in resolveSpecificStream, trying secondary:', e1.message);
             try {
                 info = await this.ytdlDefault.getInfo(cleanUrl);
             } catch (e2) {
@@ -273,7 +277,7 @@ class MediaResolver {
             const formats = info.formats || [];
 
             if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
-                const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats[0];
+                const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats.find(f => f.url && f.hasAudio) || formats[0];
                 return {
                     type: 'audio',
                     stream: audio,
@@ -284,12 +288,13 @@ class MediaResolver {
 
             const targetLabel = quality.toLowerCase().replace('p', '');
 
-            // Priority 1: Combined format (video+audio in one stream) — no FFmpeg muxing needed on cloud
+            // Priority 1: Combined format (video+audio in one stream) with direct URL
             const combinedFormat = formats.find(f =>
                 f.qualityLabel &&
                 f.qualityLabel.toLowerCase().includes(targetLabel) &&
-                f.hasAudio && f.hasVideo
-            );
+                f.hasAudio && f.hasVideo && f.url
+            ) || formats.find(f => f.hasAudio && f.hasVideo && f.url);
+
             if (combinedFormat) {
                 return {
                     type: 'video',
@@ -300,11 +305,12 @@ class MediaResolver {
                 };
             }
 
-            // Priority 2: Separate video + audio streams
-            const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel))
+            // Priority 2: Separate video stream
+            const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel) && f.url)
+                       || formats.find(f => f.url && f.hasVideo)
                        || chooseFormat(formats, { quality: 'highestvideo' })
                        || formats[0];
-            const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats[0];
+            const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats.find(f => f.url && f.hasAudio) || formats[0];
 
             return {
                 type: 'video',
