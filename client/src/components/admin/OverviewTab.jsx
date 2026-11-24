@@ -1,5 +1,6 @@
 import React from 'react';
 import { IconCrown, IconMessageSquare, IconDownload, IconActivity, IconLayers } from './AdminIcons';
+import MediaThumb from './MediaThumb';
 
 export default function OverviewTab({ stats, downloads, feedbacks = [], onNavigateToDownloads, onNavigateToFeedback }) {
   if (!stats) {
@@ -198,22 +199,7 @@ export default function OverviewTab({ stats, downloads, feedbacks = [], onNaviga
                 <tr key={d._id} style={{ borderBottom: '1px solid #131b2c', color: '#cbd5e1' }}>
                   <td style={{ padding: '10px 12px', maxWidth: '300px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '42px', height: '28px', borderRadius: '4px', overflow: 'hidden', flexShrink: 0, background: '#090d16', border: '1px solid #1a2333', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {d.thumbnailUrl ? (
-                          <img
-                            src={d.thumbnailUrl}
-                            alt=""
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'; }}
-                          />
-                        ) : null}
-                        <div style={{ display: d.thumbnailUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', color: '#475569' }}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect width="18" height="18" x="3" y="3" rx="2" />
-                            <polygon points="10 8 16 12 10 16 10 8" fill="#475569" />
-                          </svg>
-                        </div>
-                      </div>
+                      <MediaThumb record={d} width={42} height={28} borderRadius={4} border="1px solid #1a2333" />
                       <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, color: '#f8fafc' }} title={d.title || d.fileName}>
                         {d.title || d.fileName || d.originalUrl || 'Media Stream'}
                       </div>

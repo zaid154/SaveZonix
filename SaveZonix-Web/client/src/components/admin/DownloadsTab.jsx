@@ -1,15 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { IconSearch, IconTrash, IconRefresh, IconDownload, IconActivity, IconGlobe, IconPuzzle } from './AdminIcons';
-
-// Helper: Extract YouTube Thumbnail from URL
-function getYouTubeThumbnail(url, fallback = '') {
-  if (!url || typeof url !== 'string') return fallback;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i);
-  if (match && match[1]) {
-    return `https://i.ytimg.com/vi/${match[1]}/hqdefault.jpg`;
-  }
-  return fallback;
-}
+import MediaThumb from './MediaThumb';
+import { getYouTubeThumbnail, resolveMediaThumbnail } from '../../utils/mediaThumbnail';
 
 // Helper: Extract Series / Playlist Metadata
 function extractSeriesInfo(title, strategy) {
@@ -174,12 +166,8 @@ export default function DownloadsTab({
 
         // Resolve thumbnail from items or YouTube fallback
         if (!grp.thumbnailUrl) {
-          const itemWithThumb = grp.items.find(i => i.thumbnailUrl);
-          if (itemWithThumb && itemWithThumb.thumbnailUrl) {
-            grp.thumbnailUrl = itemWithThumb.thumbnailUrl;
-          } else if (grp.items[0]?.originalUrl) {
-            grp.thumbnailUrl = getYouTubeThumbnail(grp.items[0].originalUrl);
-          }
+          const itemWithThumb = grp.items.find((i) => resolveMediaThumbnail(i));
+          grp.thumbnailUrl = itemWithThumb ? resolveMediaThumbnail(itemWithThumb) : '';
         }
 
         // Determine true total videos in playlist
@@ -498,48 +486,33 @@ export default function DownloadsTab({
                         <td style={{ padding: '12px 10px', maxWidth: '340px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {/* Playlist Cover Image with corner badge */}
-                            <div
+                            <MediaThumb
+                              src={entry.thumbnailUrl}
+                              record={entry.items?.[0]}
+                              alt={entry.title}
+                              width={50}
+                              height={35}
+                              borderRadius={8}
+                              border="1px solid rgba(56, 189, 248, 0.4)"
+                              boxShadow="0 4px 12px rgba(14, 165, 233, 0.2)"
                               onClick={() => toggleGroupCollapse(entry.groupId)}
-                              style={{
-                                width: '50px',
-                                height: '35px',
-                                borderRadius: '8px',
-                                overflow: 'hidden',
-                                flexShrink: 0,
-                                position: 'relative',
-                                background: '#090d16',
-                                border: '1px solid rgba(56, 189, 248, 0.4)',
-                                cursor: 'pointer',
-                                boxShadow: '0 4px 12px rgba(14, 165, 233, 0.2)'
-                              }}
-                            >
-                              {entry.thumbnailUrl ? (
-                                <img
-                                  src={entry.thumbnailUrl}
-                                  alt={entry.title}
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
+                              placeholder={(
+                                <div
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    width: '100%',
+                                    height: '100%',
+                                    background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)'
                                   }}
-                                />
-                              ) : null}
-                              <div
-                                style={{
-                                  display: entry.thumbnailUrl ? 'none' : 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '100%',
-                                  height: '100%',
-                                  background: 'linear-gradient(135deg, #0369a1 0%, #0284c7 100%)',
-                                  color: '#38bdf8',
-                                  fontSize: '18px'
-                                }}
-                              >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                                </svg>
-                              </div>
+                                >
+                                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                  </svg>
+                                </div>
+                              )}
+                            >
                               <div
                                 style={{
                                   position: 'absolute',
@@ -563,7 +536,7 @@ export default function DownloadsTab({
                                 </svg>
                                 {entry.totalVideos}
                               </div>
-                            </div>
+                            </MediaThumb>
 
                             <div style={{ minWidth: 0, flex: 1 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
@@ -836,48 +809,7 @@ export default function DownloadsTab({
                                           <td style={{ padding: '8px 12px', maxWidth: '380px' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                               {/* Episode Thumbnail */}
-                                              <div
-                                                style={{
-                                                  width: '46px',
-                                                  height: '30px',
-                                                  borderRadius: '4px',
-                                                  overflow: 'hidden',
-                                                  flexShrink: 0,
-                                                  background: '#070a10',
-                                                  border: '1px solid #1e293b',
-                                                  display: 'flex',
-                                                  alignItems: 'center',
-                                                  justifyContent: 'center'
-                                                }}
-                                              >
-                                                {sub.thumbnailUrl || getYouTubeThumbnail(sub.originalUrl) ? (
-                                                  <img
-                                                    src={sub.thumbnailUrl || getYouTubeThumbnail(sub.originalUrl)}
-                                                    alt=""
-                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                    onError={(e) => {
-                                                      e.currentTarget.style.display = 'none';
-                                                      if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex';
-                                                    }}
-                                                  />
-                                                ) : null}
-                                                <div
-                                                  style={{
-                                                    display: (sub.thumbnailUrl || getYouTubeThumbnail(sub.originalUrl)) ? 'none' : 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    width: '100%',
-                                                    height: '100%',
-                                                    fontSize: '11px',
-                                                    color: '#475569'
-                                                  }}
-                                                >
-                                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <rect width="18" height="18" x="3" y="3" rx="2" />
-                                                    <polygon points="10 8 16 12 10 16 10 8" fill="#475569" />
-                                                  </svg>
-                                                </div>
-                                              </div>
+                                              <MediaThumb record={sub} width={46} height={30} borderRadius={4} background="#070a10" />
 
                                               <div style={{ minWidth: 0, flex: 1 }}>
                                                 <div style={{ color: '#e2e8f0', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={sub.title || sub.fileName}>
@@ -947,40 +879,7 @@ export default function DownloadsTab({
                   <tr key={entry._id} style={{ borderBottom: '1px solid #131b2c', color: '#cbd5e1' }}>
                     <td style={{ padding: '12px 16px', maxWidth: '340px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                          width: '56px',
-                          height: '38px',
-                          borderRadius: '6px',
-                          overflow: 'hidden',
-                          flexShrink: 0,
-                          background: '#090d16',
-                          border: '1px solid #1e293b',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          {entry.thumbnailUrl ? (
-                            <img
-                              src={entry.thumbnailUrl}
-                              alt=""
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                              onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextSibling) e.currentTarget.nextSibling.style.display = 'flex'; }}
-                            />
-                          ) : null}
-                          <div style={{
-                            display: entry.thumbnailUrl ? 'none' : 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            width: '100%',
-                            height: '100%',
-                            color: '#475569',
-                          }}>
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect width="18" height="18" x="3" y="3" rx="2" />
-                              <polygon points="10 8 16 12 10 16 10 8" fill="#475569" />
-                            </svg>
-                          </div>
-                        </div>
+                        <MediaThumb record={entry} width={56} height={38} borderRadius={6} />
                         <div style={{ minWidth: 0, flex: 1 }}>
                           <div style={{ fontWeight: 600, color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.title || entry.fileName}>
                             {entry.title || entry.fileName || 'Direct Stream'}

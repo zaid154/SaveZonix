@@ -14,6 +14,7 @@ const { activateSubscription } = require('../services/subscriptionService');
 const AppConfig = require('../models/AppConfig');
 const DownloadHistory = require('../models/DownloadHistory');
 const Payment = require('../models/Payment');
+const { resolveMediaThumbnail } = require('../utils/mediaThumbnail');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'savezonix_default_jwt_secret';
 const MASTER_ADMIN_KEY = process.env.ADMIN_KEY || 'savezonix_admin_2026';
@@ -595,7 +596,7 @@ router.post('/record-download', async (req, res) => {
 
     const updateData = {
       title: (title || fileName || 'Media Item').trim(),
-      thumbnailUrl: thumbnailUrl || '',
+      thumbnailUrl: resolveMediaThumbnail(thumbnailUrl, originalUrl),
       fileName: (fileName || title || 'download.mp4').trim(),
       originalUrl: originalUrl || '',
       platform: platform || 'Web Stream',
@@ -662,7 +663,11 @@ router.get('/downloads', adminAuth, async (req, res) => {
 
     const maxLimit = Math.min(parseInt(req.query.limit) || 1000, 2500);
     const downloads = await DownloadHistory.find(query).sort({ createdAt: -1 }).limit(maxLimit).lean();
-    return res.json(downloads);
+    const enriched = downloads.map((d) => ({
+      ...d,
+      thumbnailUrl: resolveMediaThumbnail(d.thumbnailUrl, d.originalUrl)
+    }));
+    return res.json(enriched);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

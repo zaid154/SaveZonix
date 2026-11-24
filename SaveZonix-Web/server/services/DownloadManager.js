@@ -5,6 +5,7 @@ const turboDownloader = require('./TurboDownloader');
 const mediaResolver = require('./MediaResolver');
 const ffmpegService = require('./FFmpegService');
 const DownloadHistory = require('../models/DownloadHistory');
+const { resolveMediaThumbnail } = require('../utils/mediaThumbnail');
 
 class DownloadManager {
     constructor() {
@@ -158,6 +159,7 @@ class DownloadManager {
                 const historyRecord = new DownloadHistory({
                     taskId,
                     title: streamData.title,
+                    thumbnailUrl: resolveMediaThumbnail(streamData.thumbnailUrl, url),
                     fileName: path.basename(finalFilePath),
                     originalUrl: url,
                     quality: quality,
