@@ -136,6 +136,7 @@ if (fs.existsSync(clientDist)) {
 // Start HTTP + Socket.IO Server
 server.listen(PORT, () => {
   console.log(`[SaveZonix Server] 🚀 MERN Server running on http://localhost:${PORT}`);
+  require('./services/MediaResolver').warmup().catch(() => {});
 });
 
 // Connect to MongoDB asynchronously

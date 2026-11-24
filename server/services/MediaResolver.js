@@ -1,45 +1,85 @@
 const path = require('path');
 const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
 
+const INFO_CACHE_TTL_MS = 2 * 60 * 1000;
+const INFO_CACHE_MAX = 40;
+const WARMUP_VIDEO_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
+        this._infoCache = new Map();
+        this._inFlightFetches = new Map();
+        this._recentSteps = [];
+        this._nextFetchId = 1;
+        this._warmupPromise = null;
+
         // VisionOS avoids JS player parsing when accepted; Mweb uses cookie + patched base.js on datacenter IPs
         this.ytdl = new Ytdl({
             clients: [Client.VisionOS, Client.Mweb],
             cookie,
-            fetch: this._createPatchedFetch()
+            fetch: this._createPatchedFetch(),
+            timeoutMs: 45000
         });
         this.ytdlVisionOS = this.ytdl;
         this.ytdlFast = this.ytdl;
     }
 
+    _shortUrlTag(urlStr) {
+        try {
+            const u = new URL(urlStr);
+            if (u.pathname.includes('/s/player/') && u.pathname.endsWith('/base.js')) return 'base.js';
+            if (u.pathname.includes('/youtubei/v1/')) return `v1/${u.pathname.split('/youtubei/v1/')[1] || ''}`;
+            if (u.pathname === '/' || u.pathname === '') return `${u.hostname}/`;
+            const seg = u.pathname.split('/').filter(Boolean).slice(-1)[0] || u.pathname;
+            return seg.slice(0, 24);
+        } catch {
+            return String(urlStr).slice(0, 24);
+        }
+    }
+
     /**
      * Patches YouTube player JS (e.g. b485e332) where ytdl-core's stripped solver AST
-     * lacks Object.prototype inheritance setup for addOnDisposeCallback.
+     * lacks Object.prototype inheritance setup for addOnDisposeCallback, and tracks fetch latencies.
      */
     _createPatchedFetch() {
         return async (input, init) => {
             const urlStr = typeof input === 'string' ? input : (input?.url || String(input));
-            const res = await fetch(input, init);
-            if (urlStr.includes('/s/player/') && urlStr.includes('/base.js') && res.ok) {
-                let body = await res.text();
-                if (body.includes('addOnDisposeCallback')) {
-                    const patch = 'var __szPatch=Object.defineProperty(Object.prototype,"addOnDisposeCallback",{value:function(){},configurable:true,writable:true});';
-                    body = body.includes('var window=this;')
-                        ? body.replace('var window=this;', `var window=this;${patch}`)
-                        : `${patch}${body}`;
+            const tag = this._shortUrlTag(urlStr);
+            const id = this._nextFetchId++;
+            const startedAt = Date.now();
+            this._inFlightFetches.set(id, { tag, startedAt });
+            let status = 'err';
+            try {
+                const res = await fetch(input, init);
+                status = res.status;
+                if (urlStr.includes('/s/player/') && urlStr.includes('/base.js') && res.ok) {
+                    let body = await res.text();
+                    if (body.includes('addOnDisposeCallback')) {
+                        const patch = 'var __szPatch=Object.defineProperty(Object.prototype,"addOnDisposeCallback",{value:function(){},configurable:true,writable:true});';
+                        body = body.includes('var window=this;')
+                            ? body.replace('var window=this;', `var window=this;${patch}`)
+                            : `${patch}${body}`;
+                    }
+                    const headers = new Headers(res.headers);
+                    headers.delete('content-length');
+                    headers.delete('content-encoding');
+                    return new Response(body, {
+                        status: res.status,
+                        statusText: res.statusText,
+                        headers
+                    });
                 }
-                const headers = new Headers(res.headers);
-                headers.delete('content-length');
-                headers.delete('content-encoding');
-                return new Response(body, {
-                    status: res.status,
-                    statusText: res.statusText,
-                    headers
-                });
+                return res;
+            } catch (err) {
+                status = err?.name === 'AbortError' ? 'abort' : 'err';
+                throw err;
+            } finally {
+                const elapsed = Date.now() - startedAt;
+                this._inFlightFetches.delete(id);
+                this._recentSteps.push({ t: startedAt, label: `${tag}:${status}(${elapsed}ms)` });
+                if (this._recentSteps.length > 20) this._recentSteps.shift();
             }
-            return res;
         };
     }
 
@@ -53,15 +93,43 @@ class MediaResolver {
     }
 
     /**
-     * Resolve YouTube info using VisionOS + Mweb (with signed-in cookie support if configured)
-     * and abortable timeout so stalled attempts surface clear diagnostic codes.
+     * Pre-warms player AST solver, BotGuard PoToken worker, and signed-in YouTube session
+     * once at server startup so user requests resolve in ~1-3s instead of cold-starting on 0.1 vCPU.
      */
-    async _getYtdlInfo(cleanUrl, timeoutMs = 18000) {
-        const effectiveTimeout = Math.max(Number(timeoutMs) || 18000, 18000);
+    warmup() {
+        if (this._warmupPromise) return this._warmupPromise;
+        const start = Date.now();
+        console.log('[MediaResolver] Starting background extractor warmup...');
+        this._warmupPromise = this._getYtdlInfo(WARMUP_VIDEO_URL, 45000, { skipCache: true })
+            .then(() => {
+                console.log(`[MediaResolver] Warmup completed cleanly in ${Date.now() - start}ms`);
+            })
+            .catch((err) => {
+                console.warn(`[MediaResolver] Warmup finished with notice in ${Date.now() - start}ms:`, err.message);
+            });
+        return this._warmupPromise;
+    }
+
+    /**
+     * Resolve YouTube info using cached stream map (2m TTL) or VisionOS + Mweb with
+     * abortable timeout and step-level breadcrumbs for timeout diagnostics.
+     */
+    async _getYtdlInfo(cleanUrl, timeoutMs = 23000, { skipCache = false } = {}) {
+        const now = Date.now();
+        if (!skipCache) {
+            const cached = this._infoCache.get(cleanUrl);
+            if (cached && cached.expiresAt > now) {
+                return cached.info;
+            }
+            if (cached) this._infoCache.delete(cleanUrl);
+        }
+
+        const effectiveTimeout = Math.max(Number(timeoutMs) || 23000, 23000);
+        const startedAt = Date.now();
         const controller = new AbortController();
         let timer = null;
         try {
-            return await Promise.race([
+            const info = await Promise.race([
                 this.ytdl.getInfo(cleanUrl, { signal: controller.signal }),
                 new Promise((_, reject) => {
                     timer = setTimeout(() => {
@@ -70,17 +138,43 @@ class MediaResolver {
                     }, effectiveTimeout);
                 })
             ]);
+
+            if (!skipCache && info && (info.formats || []).some(f => Boolean(f.url))) {
+                if (this._infoCache.size >= INFO_CACHE_MAX) {
+                    const oldestKey = this._infoCache.keys().next().value;
+                    if (oldestKey) this._infoCache.delete(oldestKey);
+                }
+                this._infoCache.set(cleanUrl, {
+                    info,
+                    expiresAt: Date.now() + INFO_CACHE_TTL_MS
+                });
+            }
+            return info;
         } catch (err) {
             const attempts = Array.isArray(err?.attempts)
                 ? err.attempts.map(a => `${a.client}${a.signedIn ? ':auth' : ''}=${a.code || a.reason || 'err'}`).join(', ')
                 : '';
-            const baseMsg = err?.message || 'YouTube stream resolution failed';
+            let baseMsg = err?.message || 'YouTube stream resolution failed';
+            if (baseMsg.startsWith('Stream resolution timeout')) {
+                const done = this._recentSteps
+                    .filter(s => s.t >= startedAt - 1000)
+                    .slice(-8)
+                    .map(s => s.label)
+                    .join(', ');
+                const pending = [...this._inFlightFetches.values()]
+                    .map(p => `${p.tag}(${Date.now() - p.startedAt}ms)`)
+                    .join(', ');
+                const trace = [done ? `done: ${done}` : '', pending ? `pending: ${pending}` : '']
+                    .filter(Boolean)
+                    .join('; ');
+                if (trace) baseMsg = `${baseMsg} [${trace}]`;
+            }
             if (attempts && !baseMsg.includes(attempts)) {
                 const enriched = new Error(`${baseMsg} [${attempts}]`);
                 enriched.attempts = err.attempts;
                 throw enriched;
             }
-            throw err;
+            throw baseMsg !== err?.message ? new Error(baseMsg) : err;
         } finally {
             if (timer) clearTimeout(timer);
         }
@@ -136,9 +230,9 @@ class MediaResolver {
         let info = null;
         let lastError = null;
 
-        // Engine 1: Fast Ytdl with VisionOS-first priority
+        // Engine 1: Fast Ytdl with VisionOS-first priority & Mweb signed-in fallback
         try {
-            info = await this._getYtdlInfo(cleanUrl, 10000);
+            info = await this._getYtdlInfo(cleanUrl, 23000);
         } catch (err1) {
             lastError = err1;
             const errStr = (err1?.message || '').toLowerCase();
@@ -148,39 +242,7 @@ class MediaResolver {
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
-            console.warn('[MediaResolver] Ytdl client failed, trying secondary engines:', err1.message);
-        }
-
-        // Engine 2: High-Availability Piped Cloud Proxy Fallback (Bypasses all cloud datacenter 403 blocks)
-        if (!info) {
-            const vidMatch = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-            if (vidMatch && vidMatch[1]) {
-                try {
-                    const piped = await this._resolveViaPiped(vidMatch[1], '1080p');
-                    if (piped && piped.videoStream) {
-                        return {
-                            id: vidMatch[1],
-                            url: cleanUrl,
-                            title: piped.title,
-                            author: 'YouTube',
-                            durationSeconds: 0,
-                            formattedDuration: '00:00',
-                            thumbnailUrl: `https://i.ytimg.com/vi/${vidMatch[1]}/hqdefault.jpg`,
-                            availableQualities: ['1080p', '720p', '480p', '360p', 'MP3'],
-                            availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
-                            bestAudioStream: null,
-                            bestVideoStream: piped.videoStream,
-                            allFormats: [{
-                                qualityLabel: piped.videoStream.qualityLabel,
-                                url: piped.videoStream.url,
-                                mimeType: piped.videoStream.mimeType
-                            }]
-                        };
-                    }
-                } catch (pErr) {
-                    console.warn('[MediaResolver] Piped resolveVideo fallback failed:', pErr.message);
-                }
-            }
+            console.warn('[MediaResolver] Ytdl client failed, falling back to oEmbed metadata:', err1.message);
         }
 
         // Engine 3: If all stream extractors failed, try oEmbed to at least extract metadata
@@ -326,12 +388,12 @@ class MediaResolver {
         let info = null;
         let lastErr = null;
 
-        // Engine 1: VisionOS-first Ytdl pool
+        // Engine 1: Cached or live VisionOS + Mweb Ytdl pool
         try {
-            info = await this._getYtdlInfo(cleanUrl, 10000);
+            info = await this._getYtdlInfo(cleanUrl, 23000);
         } catch (e1) {
             lastErr = e1;
-            console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream, trying secondary fallbacks:', e1.message);
+            console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream:', e1.message);
         }
 
         const playableFormats = (info?.formats || []).filter(f => Boolean(f.url));
@@ -401,86 +463,7 @@ class MediaResolver {
             };
         }
 
-        // Engine 2: Fast parallel Piped Cloud Stream Fallback (max 3.5s)
-        const vidMatch = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-        if (vidMatch && vidMatch[1]) {
-            try {
-                console.log('[MediaResolver] Attempting Piped fallback in resolveSpecificStream for:', vidMatch[1]);
-                const piped = await this._resolveViaPiped(vidMatch[1], quality);
-                if (piped) {
-                    return piped;
-                }
-            } catch (pipedErr) {
-                console.warn('[MediaResolver] Piped resolveSpecificStream failed:', pipedErr.message);
-            }
-        }
-
         throw new Error(lastErr ? lastErr.message : 'Could not resolve playable stream from YouTube.');
-    }
-
-    async _resolveViaPiped(videoId, quality = '1080p') {
-        const instances = [
-            'https://api.piped.private.coffee',
-            'https://pipedapi.kavin.rocks',
-            'https://pipedapi.adminforge.de'
-        ];
-        try {
-            const data = await Promise.any(
-                instances.map(async (inst) => {
-                    const res = await fetch(`${inst}/streams/${videoId}`, {
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-                        signal: AbortSignal.timeout(3500)
-                    });
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                    const json = await res.json();
-                    if (!json || (!json.videoStreams?.length && !json.audioStreams?.length)) {
-                        throw new Error('Empty streams');
-                    }
-                    return json;
-                })
-            );
-
-            const title = data.title || 'YouTube Video';
-            const targetLabel = quality.toLowerCase().replace('p', '');
-
-            if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
-                const audio = (data.audioStreams || [])[0];
-                if (audio?.url) {
-                    return {
-                        type: 'audio',
-                        stream: { url: audio.url, mimeType: audio.mimeType || 'audio/mp4' },
-                        title,
-                        sizeBytes: audio.bitrate || 0
-                    };
-                }
-            }
-
-            const video = (data.videoStreams || []).find(v => v.quality && v.quality.includes(targetLabel) && v.url)
-                       || (data.videoStreams || []).find(v => v.url)
-                       || (data.videoStreams || [])[0];
-            const audio = (data.audioStreams || [])[0];
-
-            if (video?.url) {
-                return {
-                    type: 'video',
-                    videoStream: {
-                        url: video.url,
-                        mimeType: video.mimeType || 'video/mp4',
-                        qualityLabel: video.quality || quality,
-                        hasAudio: !video.videoOnly
-                    },
-                    audioStream: (video.videoOnly && audio?.url) ? {
-                        url: audio.url,
-                        mimeType: audio.mimeType || 'audio/mp4'
-                    } : null,
-                    title,
-                    sizeBytes: 0
-                };
-            }
-        } catch {
-            return null;
-        }
-        return null;
     }
 
     _formatDuration(seconds) {
