@@ -72,9 +72,9 @@ async function enforceDownloadLimits(req, res, next) {
     let config = await AppConfig.findOne();
     if (!config) {
       config = {
-        guestDailyLimit: 2,
-        guestMaxQuality: '480p',
-        freeDailyLimit: 5,
+        guestDailyLimit: 3,
+        guestMaxQuality: '720p',
+        freeDailyLimit: 3,
         freeMaxQuality: '720p',
         onQualityExceeded: 'popup'
       };
@@ -107,8 +107,8 @@ async function enforceDownloadLimits(req, res, next) {
     }
 
     // 3. Resolve Limits & Quota
-    let dailyLimit = 2;
-    let maxVideoQuality = '480p';
+    let dailyLimit = 3;
+    let maxVideoQuality = '720p';
     let maxAudioQuality = 128;
     let playlistAllowed = false;
     let planName = 'Guest';
@@ -133,17 +133,19 @@ async function enforceDownloadLimits(req, res, next) {
       planName = plan?.name || 'Free';
       planSlug = plan?.slug || 'free';
 
+      const rawFreeLimit = (plan?.dailyDownloadLimit === 5 || plan?.dailyDownloadLimit === 10) ? 3 : (plan?.dailyDownloadLimit ?? config.freeDailyLimit ?? 3);
       dailyLimit = user.customDailyLimit !== null && user.customDailyLimit !== undefined
         ? user.customDailyLimit
-        : (plan?.dailyDownloadLimit ?? config.freeDailyLimit ?? 5);
+        : rawFreeLimit;
 
       maxVideoQuality = user.customMaxQuality || plan?.maxVideoQuality || config.freeMaxQuality || '720p';
       maxAudioQuality = plan?.maxAudioQuality || 128;
       playlistAllowed = Boolean(plan?.playlistDownload);
     } else {
-      // Guest
-      dailyLimit = config.guestDailyLimit || 2;
-      maxVideoQuality = config.guestMaxQuality || '480p';
+      // Guest: Align with free daily trial (default: 3 downloads)
+      const rawGuest = config.guestDailyLimit || config.guestDailyDownloadLimit;
+      dailyLimit = (rawGuest === 2 || rawGuest === 10 || !rawGuest) ? 3 : rawGuest;
+      maxVideoQuality = config.guestMaxQuality || config.freeMaxQuality || '720p';
       maxAudioQuality = 128;
       playlistAllowed = false;
       planName = 'Guest';

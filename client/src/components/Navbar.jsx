@@ -4,7 +4,7 @@ import { getRemainingTrials, isUserVip, getMaxFreeTrials } from '../utils/trialM
 export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenExtensionModal, onOpenGatekeeper, onLogout, onNavigate, currentPath }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const maxLimit = appConfig?.freeDailyLimit || getMaxFreeTrials();
+  const maxLimit = appConfig?.guestDailyLimit || appConfig?.freeDailyLimit || getMaxFreeTrials();
   const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user, maxLimit));
   const dropdownRef = useRef(null);
 

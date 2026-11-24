@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Pricing({ appConfig, onSelectVip }) {
   const vipPrice = appConfig?.vipMonthlyPriceINR || 99;
-  const freeLimit = appConfig?.freeDailyLimit || 5;
+  const freeLimit = appConfig?.freeDailyLimit || 3;
 
   return (
     <section className="section-container" id="pricing">

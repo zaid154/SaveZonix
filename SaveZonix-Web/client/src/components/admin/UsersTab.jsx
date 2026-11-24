@@ -145,7 +145,7 @@ export default function UsersTab({
 
                     {/* Daily Used */}
                     <td style={{ padding: '14px 16px', color: '#94a3b8', fontWeight: 500 }}>
-                      {u.dailyDownloads || 0} / {u.isVip ? '∞' : (freeDailyLimit || 10)}
+                      {u.dailyDownloads || 0} / {u.isVip ? '∞' : (freeDailyLimit || 3)}
                     </td>
 
                     {/* Account Status */}

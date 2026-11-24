@@ -62,17 +62,18 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         setAppConfig(data);
-        if (data.freeDailyLimit) {
-          setMaxFreeTrials(data.freeDailyLimit);
-        }
+        const limit = data.guestDailyLimit || data.freeDailyLimit || 3;
+        setMaxFreeTrials(limit);
       })
       .catch(() => {
         setAppConfig({
           latestAppVersion: '2.6.1',
           freeDailyLimit: 3,
+          guestDailyLimit: 3,
           vipMonthlyPriceINR: 99,
           chromeWebStoreUrl: CHROME_STORE_DEFAULT
         });
+        setMaxFreeTrials(3);
       });
   }, []);
 

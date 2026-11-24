@@ -15,7 +15,7 @@ const defaultPlans = [
     priceINR: 0,
     priceUSD: 0,
     billingPeriod: 'monthly',
-    dailyDownloadLimit: 5,
+    dailyDownloadLimit: 3,
     monthlyDownloadLimit: 150,
     maxVideoQuality: '720p',
     maxAudioQuality: 128,
@@ -145,9 +145,9 @@ async function seedPlansAndAdmin() {
   let config = await AppConfig.findOne();
   if (!config) {
     config = await AppConfig.create({
-      guestDailyLimit: 2,
-      guestMaxQuality: '480p',
-      freeDailyLimit: 5,
+      guestDailyLimit: 3,
+      guestMaxQuality: '720p',
+      freeDailyLimit: 3,
       freeMaxQuality: '720p',
       onQualityExceeded: 'popup',
       vipMonthlyPriceINR: 99,
@@ -155,7 +155,17 @@ async function seedPlansAndAdmin() {
       vipLifetimePriceINR: 1999
     });
     console.log('[Seed] Created default AppConfig');
+  } else {
+    if (config.guestDailyLimit === 2 || config.freeDailyLimit === 5 || config.freeDailyLimit === 10) {
+      config.guestDailyLimit = 3;
+      config.freeDailyLimit = 3;
+      await config.save();
+      console.log('[Seed] Updated AppConfig daily limits to 3');
+    }
   }
+
+  // Ensure Free Plan in database has dailyDownloadLimit = 3
+  await Plan.updateOne({ slug: 'free' }, { $set: { dailyDownloadLimit: 3 } });
 
   console.log('[Seed] Database initialization and default plans seeding complete!');
   await mongoose.disconnect();

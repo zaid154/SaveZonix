@@ -36,7 +36,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
   const [completedTask, setCompletedTask] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [localEngineActive, setLocalEngineActive] = useState(false);
-  const maxTrials = appConfig?.freeDailyLimit || getMaxFreeTrials();
+  const maxTrials = appConfig?.guestDailyLimit || appConfig?.freeDailyLimit || getMaxFreeTrials();
   const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user, maxTrials));
 
   useEffect(() => {

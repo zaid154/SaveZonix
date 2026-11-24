@@ -59,7 +59,7 @@ const freePlan = defaultPlans.find(p => p.slug === 'free');
 const proPlan = defaultPlans.find(p => p.slug === 'pro');
 const ultimatePlan = defaultPlans.find(p => p.slug === 'ultimate');
 
-assert(freePlan.dailyDownloadLimit === 5, 'Free plan daily limit must be 5');
+assert(freePlan.dailyDownloadLimit === 3, 'Free plan daily limit must be 3');
 assert(freePlan.maxVideoQuality === '720p', 'Free plan max quality must be 720p');
 assert(proPlan.maxVideoQuality === '4K', 'Pro plan max quality must be 4K');
 assert(ultimatePlan.dailyDownloadLimit === -1, 'Ultimate plan daily limit must be unlimited (-1)');

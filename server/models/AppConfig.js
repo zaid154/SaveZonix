@@ -46,15 +46,15 @@ const AppConfigSchema = new mongoose.Schema({
   // Global Guest & Free Limits
   guestDailyLimit: {
     type: Number,
-    default: 2
+    default: 3
   },
   guestMaxQuality: {
     type: String,
-    default: '480p'
+    default: '720p'
   },
   freeDailyLimit: {
     type: Number,
-    default: 5
+    default: 3
   },
   freeMaxQuality: {
     type: String,

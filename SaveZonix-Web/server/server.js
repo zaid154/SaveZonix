@@ -144,11 +144,33 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
     console.log(`[SaveZonix Server] 🍃 Connected to MongoDB: ${MONGO_URI}`);
     try {
       const Plan = require('./models/Plan');
+      const AppConfig = require('./models/AppConfig');
       const count = await Plan.countDocuments();
       if (count === 0) {
         console.log('[SaveZonix Server] 📦 Initializing default subscription plans...');
         const { seedPlansAndAdmin } = require('./seeds/seedDefaultPlans');
         await seedPlansAndAdmin();
+      } else {
+        // Ensure Free Plan daily limit is synced to 3
+        await Plan.updateOne({ slug: 'free', dailyDownloadLimit: { $in: [2, 5, 10] } }, { $set: { dailyDownloadLimit: 3 } });
+      }
+
+      // Sync AppConfig daily limits to 3 if using legacy defaults
+      const config = await AppConfig.findOne();
+      if (config) {
+        let dirty = false;
+        if (config.guestDailyLimit === 2 || config.guestDailyLimit === 10 || !config.guestDailyLimit) {
+          config.guestDailyLimit = 3;
+          dirty = true;
+        }
+        if (config.freeDailyLimit === 5 || config.freeDailyLimit === 10 || !config.freeDailyLimit) {
+          config.freeDailyLimit = 3;
+          dirty = true;
+        }
+        if (dirty) {
+          await config.save();
+          console.log('[SaveZonix Server] 🔄 Synced AppConfig daily limits (Free: 3, Guest: 3)');
+        }
       }
     } catch (seedErr) {
       console.warn('[SaveZonix Server] Auto-seed notice:', seedErr.message);

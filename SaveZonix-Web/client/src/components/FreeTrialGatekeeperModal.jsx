@@ -13,7 +13,7 @@ const ChromeIcon = ({ size = 20 }) => (
 );
 
 export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtension, onOpenVip, onOpenAuth, appConfig }) {
-  const maxTrials = appConfig?.freeDailyLimit || 3;
+  const maxTrials = appConfig?.guestDailyLimit || appConfig?.freeDailyLimit || 3;
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();

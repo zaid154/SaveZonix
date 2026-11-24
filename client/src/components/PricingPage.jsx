@@ -21,7 +21,7 @@ export default function PricingPage({ user, onOpenAuth, onNavigate }) {
         } else {
           // Fallback static default plans
           setPlans([
-            { id: 'free', slug: 'free', name: 'Free', priceINR: 0, dailyDownloadLimit: 5, maxVideoQuality: '720p', maxAudioQuality: 128, playlistDownload: false, speedPriority: 'standard', ads: true },
+            { id: 'free', slug: 'free', name: 'Free', priceINR: 0, dailyDownloadLimit: 3, maxVideoQuality: '720p', maxAudioQuality: 128, playlistDownload: false, speedPriority: 'standard', ads: true },
             { id: 'basic', slug: 'basic', name: 'Basic', priceINR: 49, dailyDownloadLimit: 25, maxVideoQuality: '1080p', maxAudioQuality: 192, playlistDownload: true, maxPlaylistItems: 10, speedPriority: 'standard', ads: false },
             { id: 'pro', slug: 'pro', name: 'Pro', priceINR: 99, dailyDownloadLimit: 100, maxVideoQuality: '4K', maxAudioQuality: 320, playlistDownload: true, maxPlaylistItems: 50, speedPriority: 'high', ads: false, isPopular: true },
             { id: 'ultimate', slug: 'ultimate', name: 'Ultimate', priceINR: 199, dailyDownloadLimit: -1, maxVideoQuality: '4K', maxAudioQuality: 320, playlistDownload: true, maxPlaylistItems: 500, speedPriority: 'ultra', ads: false }

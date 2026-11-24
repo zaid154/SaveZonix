@@ -33,7 +33,9 @@ async function runSeed() {
     config.chromeWebStoreUrl = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
     config.updateChangelog = '100% Pure MERN Web Downloader & Chrome Web Store Extension integration.';
     config.silentAutoUpdate = true;
-    config.freeDailyLimit = 10;
+    config.freeDailyLimit = 3;
+    config.guestDailyLimit = 3;
+    config.guestDailyDownloadLimit = 3;
     config.lock4KForVip = true;
     config.vipMonthlyPriceINR = 99;
     config.defaultThreads = 64;
