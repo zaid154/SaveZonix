@@ -23,6 +23,20 @@ router.post('/stream', streamDownload);
 router.get('/proxy-stream', proxyStream);
 
 // Diagnostic endpoint to empirically test all InnerTube clients on cloud
+router.get('/test-net', async (req, res) => {
+  const results = {};
+  for (const url of ['https://httpbin.org/ip', 'https://www.google.com', 'https://www.youtube.com', 'https://www.youtube.com/sw.js_data']) {
+    const t0 = Date.now();
+    try {
+      const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      results[url] = { ok: resp.ok, status: resp.status, timeMs: Date.now() - t0 };
+    } catch (e) {
+      results[url] = { ok: false, error: e.message, timeMs: Date.now() - t0 };
+    }
+  }
+  res.json(results);
+});
+
 router.get('/test-clients', async (req, res) => {
   const { Ytdl } = require('@distube/ytdl-core');
   const cookie = process.env.YOUTUBE_COOKIE || undefined;
