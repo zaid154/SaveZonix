@@ -4,18 +4,13 @@ const EmailLog = require('../models/EmailLog');
 let cachedTransporter = null;
 let lastConfigHash = '';
 
-// Verified fallback credentials ensuring zero-downtime email dispatch
-const DEFAULT_SMTP_USER = 'trendykart.app@gmail.com';
-const DEFAULT_SMTP_PASS = 'ziqyiszqfggqgrjm';
-const DEFAULT_BREVO_KEY = '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';
-
 function getEmailConfig() {
-  const smtpUser = (process.env.SMTP_USER || DEFAULT_SMTP_USER).trim();
-  const smtpPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || DEFAULT_SMTP_PASS).trim();
+  const smtpUser = (process.env.SMTP_USER || '').trim();
+  const smtpPass = (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '').trim();
   const smtpHost = (process.env.SMTP_HOST || process.env.SMTP_SERVER || 'smtp.gmail.com').trim();
   const smtpPort = Number(process.env.SMTP_PORT) || 587;
-  const smtpFrom = (process.env.SMTP_FROM || `SaveZonix <${smtpUser}>`).trim();
-  const brevoKey = (process.env.BREVO_API_KEY || DEFAULT_BREVO_KEY).trim();
+  const smtpFrom = (process.env.SMTP_FROM || (smtpUser ? `SaveZonix <${smtpUser}>` : 'SaveZonix <noreply@savezonix.com>')).trim();
+  const brevoKey = (process.env.BREVO_API_KEY || '').trim();
 
   return { smtpUser, smtpPass, smtpHost, smtpPort, smtpFrom, brevoKey };
 }
