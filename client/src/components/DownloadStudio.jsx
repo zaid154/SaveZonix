@@ -15,7 +15,9 @@ import {
   Video,
   Lock,
   Crown,
-  Clipboard
+  Clipboard,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
 
@@ -501,7 +503,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
               }
               triggerBrowserDownload(dlUrl, localData.fileName);
               recordTrialDownloadConsumed(user);
-              setCompletedTask({ fileName: localData.fileName, title: localData.title, directDownload: true, downloadUrl: dlUrl });
+              setCompletedTask({ fileName: localData.fileName, title: localData.title, quality: actualQuality, directDownload: true, downloadUrl: dlUrl });
               setIsDownloading(false);
               return;
             }
@@ -552,6 +554,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
       setCompletedTask({
         fileName: data.fileName,
         title: data.title,
+        quality: actualQuality,
         fileSize: data.sizeBytes || data.videoSize || 0,
         directDownload: true,
         downloadUrl: dlUrl
@@ -579,7 +582,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
             }
             triggerBrowserDownload(dlUrl, localData.fileName);
             recordTrialDownloadConsumed(user);
-            setCompletedTask({ fileName: localData.fileName, title: localData.title, directDownload: true, downloadUrl: dlUrl });
+            setCompletedTask({ fileName: localData.fileName, title: localData.title, quality: actualQuality, directDownload: true, downloadUrl: dlUrl });
             setIsDownloading(false);
             return;
           }
@@ -1016,54 +1019,113 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                 </div>
               </div>
 
-              {/* Real-time Progress Bar */}
+              {/* Real-time High-Tech Progress Card */}
               {isDownloading && (
-                <div style={{ marginTop: '24px', background: '#1f2937', padding: '16px', borderRadius: '12px', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', color: '#fff', fontSize: '0.9rem', fontWeight: 600, flexWrap: 'wrap', gap: '8px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, wordBreak: 'break-word' }}>
-                      <span style={{ display: 'inline-block', width: '9px', height: '9px', borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-                      {downloadProgress?.status || 'Connecting to stream & preparing download...'}
-                    </span>
-                    <span style={{ flexShrink: 0 }}>{downloadProgress?.percentage ? `${downloadProgress.percentage}%` : 'Starting...'} {downloadProgress?.speedMBps ? `(${downloadProgress.speedMBps} MB/s)` : ''}</span>
+                <div className="sz-downloading-card">
+                  <div className="sz-dl-header">
+                    <div className="sz-dl-left">
+                      <div className="sz-dl-spinner-wrap">
+                        <Loader2 className="sz-spin-icon" size={18} />
+                      </div>
+                      <div className="sz-dl-status-wrap">
+                        <div className="sz-dl-badge-row">
+                          <span className="sz-dl-badge">
+                            <span className="sz-pulse-dot" />
+                            FAST STREAM
+                          </span>
+                          <span className="sz-dl-quality-tag">{selectedQuality || '1080p'}</span>
+                        </div>
+                        <span className="sz-dl-status-text">
+                          {downloadProgress?.status || 'Connecting to stream & preparing download...'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="sz-dl-right">
+                      <span className="sz-dl-percent">
+                        {downloadProgress?.percentage ? `${downloadProgress.percentage}%` : 'Starting...'}
+                      </span>
+                      {downloadProgress?.speedMBps ? (
+                        <span className="sz-dl-speed">
+                          <Zap size={12} className="sz-zap-icon" /> {downloadProgress.speedMBps} MB/s
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  <div style={{ width: '100%', height: '10px', background: '#374151', borderRadius: '5px', overflow: 'hidden' }}>
-                    <div style={{
-                      width: `${Math.max(15, downloadProgress?.percentage || 15)}%`, height: '100%',
-                      background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-                      transition: 'width 0.3s ease'
-                    }} />
+
+                  {/* Modern Animated Progress Track */}
+                  <div className="sz-progress-track">
+                    <div 
+                      className="sz-progress-fill"
+                      style={{ width: `${Math.max(14, downloadProgress?.percentage || 14)}%` }}
+                    >
+                      <div className="sz-progress-glow" />
+                    </div>
+                  </div>
+
+                  {/* High-Tech Sub-Row */}
+                  <div className="sz-dl-footer">
+                    <span className="sz-dl-meta-item">
+                      <Sparkles size={12} style={{ color: '#38bdf8' }} /> High-Speed Cloud Muxer Active
+                    </span>
+                    <span className="sz-dl-meta-item">
+                      Direct Browser Stream
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Completed Card */}
+              {/* Modern Completed Success Card */}
               {completedTask && (
-                <div className="sz-completed-row" style={{ marginTop: '20px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', padding: '16px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: '1 1 240px' }}>
-                    <CheckCircle2 color="#10b981" size={24} style={{ flexShrink: 0 }} />
-                    <div style={{ minWidth: 0 }}>
-                      <h4 style={{ color: '#fff', fontWeight: 600, wordBreak: 'break-word', fontSize: '0.95rem' }}>Download Completed Successfully!</h4>
-                      <p style={{ color: '#9ca3af', fontSize: '0.8rem', wordBreak: 'break-all' }}>
-                        {completedTask.fileName}
-                        {completedTask.fileSize ? ` • ${(completedTask.fileSize / 1024 / 1024).toFixed(2)} MB` : ''}
-                        {completedTask.timeSeconds ? ` in ${completedTask.timeSeconds}s` : ''}
-                        {completedTask.averageSpeedMBps ? ` (@ ${completedTask.averageSpeedMBps} MB/s)` : ''}
-                      </p>
+                <div className="sz-completed-card">
+                  <div className="sz-completed-inner">
+                    <div className="sz-completed-left">
+                      <div className="sz-completed-icon-box">
+                        <CheckCircle2 size={24} className="sz-success-check" />
+                      </div>
+                      <div className="sz-completed-details">
+                        <div className="sz-completed-eyebrow">
+                          <span className="sz-completed-pill">READY TO SAVE</span>
+                          <span className="sz-completed-quality-pill">{completedTask.quality || selectedQuality || '1080p'}</span>
+                        </div>
+                        <h4 className="sz-completed-title" title={completedTask.fileName}>
+                          {completedTask.fileName}
+                        </h4>
+                        <div className="sz-completed-stats">
+                          {completedTask.fileSize ? (
+                            <span className="sz-stat-chip">
+                              {(completedTask.fileSize / 1024 / 1024).toFixed(2)} MB
+                            </span>
+                          ) : null}
+                          {completedTask.timeSeconds ? (
+                            <span className="sz-stat-chip">
+                              {completedTask.timeSeconds}s
+                            </span>
+                          ) : null}
+                          {completedTask.averageSpeedMBps ? (
+                            <span className="sz-stat-chip sz-stat-speed">
+                              <Zap size={11} /> {completedTask.averageSpeedMBps} MB/s
+                            </span>
+                          ) : null}
+                          <span className="sz-stat-chip sz-stat-verified">
+                            <Check size={11} /> Verified Safe
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="sz-completed-actions">
+                      <a
+                        href={completedTask.downloadUrl || getFileDownloadUrl(completedTask.fileName)}
+                        download={completedTask.fileName}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="sz-btn-save-video"
+                      >
+                        <Download size={18} />
+                        <span>Save Video</span>
+                      </a>
                     </div>
                   </div>
-                  <a
-                    href={completedTask.downloadUrl || getFileDownloadUrl(completedTask.fileName)}
-                    download={completedTask.fileName}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="sz-completed-btn"
-                    style={{
-                      padding: '10px 20px', background: '#10b981', color: '#fff', fontWeight: 700,
-                      borderRadius: '8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      flexShrink: 0
-                    }}>
-                    <Download size={16} /> Save Video
-                  </a>
                 </div>
               )}
             </div>
