@@ -36,6 +36,37 @@ export default function UsersTab({
     return true;
   });
 
+  const thStyle = { padding: '12px', whiteSpace: 'nowrap', fontWeight: 600 };
+  const tdStyle = { padding: '12px', whiteSpace: 'nowrap', verticalAlign: 'middle' };
+  const badgeBase = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '4px 9px',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: 600,
+    lineHeight: 1.2,
+    whiteSpace: 'nowrap'
+  };
+  const actionBtnBase = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+    height: '28px',
+    padding: '0 9px',
+    background: '#131b2c',
+    border: '1px solid #1e293b',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: 600,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+    cursor: 'pointer'
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Controls Bar */}
@@ -49,7 +80,7 @@ export default function UsersTab({
               onChange={(e) => setSearchUser(e.target.value)}
               style={{ width: '100%', padding: '9px 12px 9px 34px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '8px', color: '#f8fafc', fontSize: '13px', outline: 'none' }}
             />
-            <span style={{ position: 'absolute', left: '11px', top: '10px', color: '#64748b' }}>
+            <span style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#64748b', display: 'flex', pointerEvents: 'none' }}>
               <IconSearch size={14} color="#64748b" />
             </span>
           </div>
@@ -73,12 +104,12 @@ export default function UsersTab({
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
             <thead>
               <tr style={{ background: '#060a12', borderBottom: '1px solid #1a2333', color: '#64748b', fontSize: '11.5px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                <th style={{ padding: '12px 16px' }}>User</th>
-                <th style={{ padding: '12px 16px' }}>Role</th>
-                <th style={{ padding: '12px 16px' }}>Membership</th>
-                <th style={{ padding: '12px 16px' }}>Daily Used</th>
-                <th style={{ padding: '12px 16px' }}>Account Status</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Actions</th>
+                <th style={{ ...thStyle, paddingLeft: '16px' }}>User</th>
+                <th style={thStyle}>Role</th>
+                <th style={thStyle}>Membership</th>
+                <th style={thStyle}>Daily Used</th>
+                <th style={thStyle}>Account Status</th>
+                <th style={{ ...thStyle, paddingRight: '16px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -86,16 +117,18 @@ export default function UsersTab({
                 const isUpdatingVip = actionLoadingId === `vip-${u._id}`;
                 const isUpdatingActive = actionLoadingId === `active-${u._id}`;
                 const isDeleting = actionLoadingId === `del-${u._id}`;
+                const isAdminRow = (u.role || '').toLowerCase() === 'admin' || u.email?.toLowerCase() === 'zaidm1323@gmail.com';
 
                 return (
                   <tr key={u._id} style={{ borderBottom: '1px solid #131b2c', color: '#cbd5e1' }}>
                     {/* Name & Email with monogram */}
-                    <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <td style={{ ...tdStyle, paddingLeft: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: '185px' }}>
                         <div style={{
-                          width: '34px',
-                          height: '34px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '50%',
+                          flexShrink: 0,
                           background: u.isVip ? 'rgba(251, 191, 36, 0.15)' : '#131b2c',
                           border: `1px solid ${u.isVip ? 'rgba(251, 191, 36, 0.4)' : '#1e293b'}`,
                           color: u.isVip ? '#fbbf24' : '#94a3b8',
@@ -107,7 +140,7 @@ export default function UsersTab({
                         }}>
                           {getInitials(u.name)}
                         </div>
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 600, color: '#f8fafc' }}>{u.name || 'Member'}</div>
                           <div style={{ fontSize: '12px', color: '#64748b' }}>{u.email}</div>
                         </div>
@@ -115,46 +148,42 @@ export default function UsersTab({
                     </td>
 
                     {/* Role */}
-                    <td style={{ padding: '14px 16px' }}>
+                    <td style={tdStyle}>
                       <span style={{
+                        ...badgeBase,
                         padding: '3px 8px',
-                        borderRadius: '6px',
                         fontSize: '11px',
-                        fontWeight: 600,
-                        background: u.role === 'Admin' ? 'rgba(56, 189, 248, 0.12)' : '#131b2c',
-                        color: u.role === 'Admin' ? '#38bdf8' : '#94a3b8',
-                        border: `1px solid ${u.role === 'Admin' ? 'rgba(56, 189, 248, 0.3)' : '#1e293b'}`
+                        background: isAdminRow ? 'rgba(56, 189, 248, 0.12)' : '#131b2c',
+                        color: isAdminRow ? '#38bdf8' : '#94a3b8',
+                        border: `1px solid ${isAdminRow ? 'rgba(56, 189, 248, 0.3)' : '#1e293b'}`
                       }}>
-                        {u.role || 'User'}
+                        {isAdminRow ? 'Admin' : (u.role || 'User')}
                       </span>
                     </td>
 
                     {/* Membership */}
-                    <td style={{ padding: '14px 16px' }}>
+                    <td style={tdStyle}>
                       {u.isVip ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 9px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 600, background: 'rgba(251, 191, 36, 0.12)', color: '#fbbf24', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
+                        <span style={{ ...badgeBase, background: 'rgba(251, 191, 36, 0.12)', color: '#fbbf24', border: '1px solid rgba(251, 191, 36, 0.3)' }}>
                           <IconCrown size={12} color="#fbbf24" />
-                          {u.vipPlan === 'lifetime' ? 'VIP Lifetime' : (u.vipPlan === 'annual' ? 'VIP Annual' : 'VIP Pass')}
+                          <span>{u.vipPlan === 'lifetime' ? 'VIP Lifetime' : (u.vipPlan === 'annual' ? 'VIP Annual' : 'VIP Pass')}</span>
                         </span>
                       ) : (
-                        <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', color: '#64748b', background: '#060a12', border: '1px solid #1a2333' }}>
+                        <span style={{ ...badgeBase, color: '#64748b', background: '#060a12', border: '1px solid #1a2333', fontWeight: 500 }}>
                           Free Tier
                         </span>
                       )}
                     </td>
 
                     {/* Daily Used */}
-                    <td style={{ padding: '14px 16px', color: '#94a3b8', fontWeight: 500 }}>
+                    <td style={{ ...tdStyle, color: '#94a3b8', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
                       {u.dailyDownloads || 0} / {u.isVip ? '∞' : (freeDailyLimit || 3)}
                     </td>
 
                     {/* Account Status */}
-                    <td style={{ padding: '14px 16px' }}>
+                    <td style={tdStyle}>
                       <span style={{
-                        padding: '3px 8px',
-                        borderRadius: '6px',
-                        fontSize: '11.5px',
-                        fontWeight: 600,
+                        ...badgeBase,
                         background: u.isActive !== false ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
                         color: u.isActive !== false ? '#34d399' : '#f87171',
                         border: `1px solid ${u.isActive !== false ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
@@ -164,11 +193,11 @@ export default function UsersTab({
                     </td>
 
                     {/* Actions */}
-                    <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center' }}>
+                    <td style={{ ...tdStyle, paddingRight: '16px', textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                         <button
                           onClick={() => onInspectUser(u._id, u.email)}
-                          style={{ padding: '5px 10px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#38bdf8', fontSize: '11.5px', fontWeight: 600, cursor: 'pointer' }}
+                          style={{ ...actionBtnBase, color: '#38bdf8' }}
                         >
                           History
                         </button>
@@ -178,34 +207,25 @@ export default function UsersTab({
                             onClick={() => onToggleVip(u._id, u.email, null)}
                             disabled={isUpdatingVip}
                             style={{
-                              padding: '5px 10px',
-                              background: '#131b2c',
-                              border: '1px solid #334155',
-                              borderRadius: '6px',
+                              ...actionBtnBase,
+                              borderColor: '#334155',
                               color: '#fbbf24',
-                              fontSize: '11.5px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
                               opacity: isUpdatingVip ? 0.6 : 1
                             }}
                           >
                             {isUpdatingVip ? 'Updating...' : 'Revoke VIP'}
                           </button>
                         ) : (
-                          <div style={{ display: 'inline-flex', gap: '4px' }}>
+                          <div style={{ display: 'inline-flex', gap: '5px', flexShrink: 0 }}>
                             <button
                               onClick={() => onToggleVip(u._id, u.email, 'monthly')}
                               disabled={isUpdatingVip}
                               title="Grant 30-Day VIP Pass"
                               style={{
-                                padding: '5px 8px',
+                                ...actionBtnBase,
                                 background: '#2563eb',
-                                border: '1px solid #2563eb',
-                                borderRadius: '6px',
+                                borderColor: '#2563eb',
                                 color: '#ffffff',
-                                fontSize: '11.5px',
-                                fontWeight: 600,
-                                cursor: 'pointer',
                                 opacity: isUpdatingVip ? 0.6 : 1
                               }}
                             >
@@ -216,14 +236,11 @@ export default function UsersTab({
                               disabled={isUpdatingVip}
                               title="Grant Lifetime / Founder VIP Pass (Never Expires)"
                               style={{
-                                padding: '5px 8px',
+                                ...actionBtnBase,
                                 background: 'rgba(245, 158, 11, 0.15)',
-                                border: '1px solid rgba(245, 158, 11, 0.4)',
-                                borderRadius: '6px',
+                                borderColor: 'rgba(245, 158, 11, 0.4)',
                                 color: '#fbbf24',
-                                fontSize: '11px',
                                 fontWeight: 700,
-                                cursor: 'pointer',
                                 opacity: isUpdatingVip ? 0.6 : 1
                               }}
                             >
@@ -248,7 +265,7 @@ export default function UsersTab({
                             }
                           }}
                           title="Reset today's download counter"
-                          style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#a78bfa', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                          style={{ ...actionBtnBase, color: '#a78bfa' }}
                         >
                           Reset Usage
                         </button>
@@ -275,7 +292,7 @@ export default function UsersTab({
                             }
                           }}
                           title="Set custom download limit override"
-                          style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid #1e293b', borderRadius: '6px', color: '#38bdf8', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}
+                          style={{ ...actionBtnBase, color: '#38bdf8' }}
                         >
                           Custom Limits
                         </button>
@@ -284,26 +301,21 @@ export default function UsersTab({
                           onClick={() => onToggleActive(u._id, u.email)}
                           disabled={isUpdatingActive}
                           style={{
-                            padding: '5px 10px',
-                            background: '#131b2c',
-                            border: `1px solid ${u.isActive !== false ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`,
-                            borderRadius: '6px',
+                            ...actionBtnBase,
+                            borderColor: u.isActive !== false ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
                             color: u.isActive !== false ? '#f87171' : '#34d399',
-                            fontSize: '11.5px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
                             opacity: isUpdatingActive ? 0.6 : 1
                           }}
                         >
                           {isUpdatingActive ? '...' : u.isActive !== false ? 'Suspend' : 'Activate'}
                         </button>
 
-                        {u.role !== 'Admin' && u.email !== 'zaidm1323@gmail.com' && (
+                        {!isAdminRow && (
                           <button
                             onClick={() => onDeleteUser(u._id, u.email)}
                             disabled={isDeleting}
                             title="Delete account"
-                            style={{ padding: '5px 8px', background: '#131b2c', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: '6px', color: '#f87171', fontSize: '11.5px', cursor: 'pointer' }}
+                            style={{ ...actionBtnBase, width: '28px', padding: 0, borderColor: 'rgba(239, 68, 68, 0.25)', color: '#f87171' }}
                           >
                             <IconTrash size={12} color="#f87171" />
                           </button>
