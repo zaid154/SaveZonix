@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "cleanUrls": false,
+  "cleanUrls": true,
   "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/dist",
   "redirects": [
@@ -24,18 +24,6 @@
     {
       "source": "/google0b7884132a6d5c6c.html",
       "destination": "/google0b7884132a6d5c6c.html"
-    },
-    {
-      "source": "/sitemap.xml",
-      "destination": "/sitemap.xml"
-    },
-    {
-      "source": "/robots.txt",
-      "destination": "/robots.txt"
-    },
-    {
-      "source": "/site.webmanifest",
-      "destination": "/site.webmanifest"
     },
     {
       "source": "/(.*)",
