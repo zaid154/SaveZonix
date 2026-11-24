@@ -1,15 +1,18 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
+  "buildCommand": "npm run build --prefix client",
+  "outputDirectory": "client/dist",
   "redirects": [
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "has": [
         {
           "type": "host",
           "value": "www.savezonix-pro.vercel.app"
         }
       ],
-      "destination": "https://savezonix-pro.vercel.app/$1",
+      "destination": "https://savezonix-pro.vercel.app/:path*",
       "permanent": true
     }
   ],
@@ -19,13 +22,17 @@
       "destination": "https://savezonix.onrender.com/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/google0b7884132a6d5c6c.html",
+      "destination": "/google0b7884132a6d5c6c.html"
+    },
+    {
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "headers": [
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
@@ -33,6 +40,13 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    },
+    {
+      "source": "/google0b7884132a6d5c6c.html",
+      "headers": [
+        { "key": "Content-Type", "value": "text/html; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     },
     {
@@ -57,7 +71,7 @@
       ]
     },
     {
-      "source": "/assets/(.*)",
+      "source": "/assets/:path*",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
