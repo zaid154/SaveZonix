@@ -83,7 +83,7 @@ app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 const healthHandler = (req, res) => {
   res.json({
     status: 'ok',
-    version: '2.5.7',
+    version: '2.5.8',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,

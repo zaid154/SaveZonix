@@ -1,16 +1,6 @@
 const path = require('path');
 const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
 
-// Enable authenticated cookie support for Client.VisionOS (bypasses cloud datacenter 403 blocks while avoiding player decipher AST crashes)
-try {
-    const clientsPath = path.join(path.dirname(require.resolve('@distube/ytdl-core')), 'clients.js');
-    const { CLIENTS } = require(clientsPath);
-    if (CLIENTS && CLIENTS.visionos) {
-        CLIENTS.visionos.account = 'optional';
-    }
-} catch (e) {
-    console.warn('[MediaResolver] Could not patch CLIENTS.visionos account mode:', e.message);
-}
 let play = null;
 try {
     play = require('play-dl');
@@ -19,13 +9,13 @@ try {
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
-        // Priority 1: Client.VisionOS ONLY - does not fetch player.js or spawn decipher worker threads.
-        // Completely immune to datacenter bot blocks on Render/AWS/GCP and zero player decipher crashes.
-        this.ytdlVisionOS = new Ytdl({
-            clients: [Client.VisionOS],
+        // Multi-client priority: Tv (fastest, full format set), VisionOS, WebEmbedded, Mweb
+        this.ytdl = new Ytdl({
+            clients: [Client.Tv, Client.VisionOS, Client.WebEmbedded, Client.Mweb],
             cookie
         });
-        this.ytdlFast = this.ytdlVisionOS;
+        this.ytdlVisionOS = this.ytdl;
+        this.ytdlFast = this.ytdl;
     }
 
     /**
@@ -78,11 +68,11 @@ class MediaResolver {
         let info = null;
         let lastError = null;
 
-        // Engine 1: Fast Ytdl with VisionOS client (direct googlevideo URLs, completely immune to datacenter bot blocks)
+        // Engine 1: Fast Ytdl with multi-client priority (Tv, VisionOS, WebEmbedded)
         try {
             info = await Promise.race([
-                this.ytdlVisionOS.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS resolution timeout')), 12000))
+                this.ytdl.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Resolution timeout')), 25000))
             ]);
         } catch (err1) {
             lastError = err1;
@@ -93,7 +83,7 @@ class MediaResolver {
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
-            console.warn('[MediaResolver] VisionOS client failed, trying play-dl fallback:', err1.message);
+            console.warn('[MediaResolver] Ytdl client failed, trying play-dl fallback:', err1.message);
         }
 
         // Engine 2: play-dl fallback
@@ -254,15 +244,15 @@ class MediaResolver {
         let info = null;
         let lastErr = null;
 
-        // Engine 1: VisionOS ONLY (Fast, direct streams, immune to datacenter player decipher blocks)
+        // Engine 1: Multi-client Ytdl (Tv, VisionOS, WebEmbedded)
         try {
             info = await Promise.race([
-                this.ytdlVisionOS.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS stream resolution timeout')), 12000))
+                this.ytdl.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), 25000))
             ]);
         } catch (e1) {
             lastErr = e1;
-            console.warn('[MediaResolver] VisionOS client failed in resolveSpecificStream, falling back to play-dl:', e1.message);
+            console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream, falling back to play-dl:', e1.message);
         }
 
         if (info && info.formats && info.formats.length > 0) {
