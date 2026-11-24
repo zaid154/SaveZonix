@@ -20,16 +20,12 @@ class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
         // Priority 1: Client.VisionOS ONLY - does not fetch player.js or spawn decipher worker threads.
-        // Completely immune to datacenter bot blocks on Render/AWS/GCP.
+        // Completely immune to datacenter bot blocks on Render/AWS/GCP and zero player decipher crashes.
         this.ytdlVisionOS = new Ytdl({
             clients: [Client.VisionOS],
             cookie
         });
         this.ytdlFast = this.ytdlVisionOS;
-        this.ytdlDefault = new Ytdl({
-            clients: [Client.VisionOS, Client.Mweb, Client.Tv, Client.WebEmbedded],
-            cookie
-        });
     }
 
     /**
@@ -97,23 +93,10 @@ class MediaResolver {
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
-            console.warn('[MediaResolver] Fast VisionOS client failed, trying secondary client:', err1.message);
+            console.warn('[MediaResolver] VisionOS client failed, trying play-dl fallback:', err1.message);
         }
 
-        // Engine 2: Default Ytdl with multi-clients fallback
-        if (!info) {
-            try {
-                info = await Promise.race([
-                    this.ytdlDefault.getInfo(cleanUrl),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Secondary client resolution timeout')), 12000))
-                ]);
-            } catch (err2) {
-                lastError = err2;
-                console.warn('[MediaResolver] Secondary Ytdl client failed:', err2.message);
-            }
-        }
-
-        // Engine 3: play-dl fallback
+        // Engine 2: play-dl fallback
         if (!info && play) {
             try {
                 console.log('[MediaResolver] Attempting play-dl fallback for:', cleanUrl);
@@ -273,16 +256,13 @@ class MediaResolver {
 
         // Engine 1: VisionOS ONLY (Fast, direct streams, immune to datacenter player decipher blocks)
         try {
-            info = await this.ytdlVisionOS.getInfo(cleanUrl);
+            info = await Promise.race([
+                this.ytdlVisionOS.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('VisionOS stream resolution timeout')), 12000))
+            ]);
         } catch (e1) {
             lastErr = e1;
-            console.warn('[MediaResolver] VisionOS client failed in resolveSpecificStream, trying secondary:', e1.message);
-            try {
-                info = await this.ytdlDefault.getInfo(cleanUrl);
-            } catch (e2) {
-                lastErr = e2;
-                console.warn('[MediaResolver] Both ytdl clients failed in resolveSpecificStream:', e2.message);
-            }
+            console.warn('[MediaResolver] VisionOS client failed in resolveSpecificStream, falling back to play-dl:', e1.message);
         }
 
         if (info && info.formats && info.formats.length > 0) {
