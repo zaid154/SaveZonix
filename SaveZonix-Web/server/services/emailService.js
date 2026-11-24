@@ -78,94 +78,107 @@ async function recordTelemetry({ recipient, templateType, channel, status, laten
 }
 
 /**
- * Core dispatch engine with automated failover:
- * Priority 1: Gmail SMTP (Direct inbox delivery)
- * Priority 2: Brevo HTTPS REST API (Port 443 cloud firewall-proof fallback)
+ * Core dispatch engine with smart channel selection:
+ * On cloud platforms (Render, Heroku, etc.) where outbound SMTP ports 465/587
+ * are blocked, Brevo REST API (HTTPS port 443) is tried FIRST to avoid a 10s
+ * SMTP timeout that can cause the HTTP request to time out before the email is sent.
+ * On local/dev environments, Gmail SMTP is tried first for instant inbox delivery.
  */
 async function sendEmail({ to, subject, text, html, templateType = 'register_otp' }) {
   const config = getEmailConfig();
   const errors = [];
   const start = Date.now();
 
-  // 1. Primary: Direct Gmail SMTP
-  if (config.smtpUser && config.smtpPass) {
-    try {
-      const tx = getTransporter(config);
-      const from = config.smtpFrom || `SaveZonix <${config.smtpUser}>`;
-      console.log(`[Email Service] Dispatching via Gmail SMTP to ${to}`);
-      const info = await tx.sendMail({
-        from,
-        to: to.trim(),
-        subject,
-        text,
-        html
-      });
-      const latencyMs = Date.now() - start;
-      console.log(`[Email Service] Gmail SMTP delivered successfully (${latencyMs}ms): ${info.messageId}`);
+  // Detect cloud hosting where outbound SMTP is typically blocked
+  const isCloudHosted = !!(process.env.RENDER || process.env.RENDER_SERVICE_ID ||
+    process.env.HEROKU || process.env.DYNO || process.env.RAILWAY_ENVIRONMENT ||
+    process.env.FLY_APP_NAME || process.env.VERCEL);
 
-      recordTelemetry({
-        recipient: to,
-        templateType,
-        channel: 'gmail_smtp',
-        status: 'delivered',
-        latencyMs,
-        messageId: info.messageId
-      });
+  // On cloud: Brevo first → Gmail SMTP fallback
+  // On local: Gmail SMTP first → Brevo fallback
+  const channels = isCloudHosted
+    ? ['brevo', 'smtp']
+    : ['smtp', 'brevo'];
 
-      return { success: true, provider: 'gmail-smtp', messageId: info.messageId, latencyMs };
-    } catch (err) {
-      console.error(`[Email Service] Gmail SMTP failed to ${to}:`, err.message);
-      errors.push(`Gmail SMTP (${err.message})`);
-    }
-  }
-
-  // 2. Automated Failover: Brevo REST API v3 over HTTPS Port 443
-  if (config.brevoKey) {
-    try {
-      const senderEmail = config.smtpUser || 'trendykart.app@gmail.com';
-      console.log(`[Email Service] Failover dispatching via Brevo REST API to ${to}`);
-
-      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'api-key': config.brevoKey,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          sender: { name: 'SaveZonix', email: senderEmail },
-          to: [{ email: to.trim() }],
+  for (const channel of channels) {
+    if (channel === 'smtp' && config.smtpUser && config.smtpPass) {
+      try {
+        const tx = getTransporter(config);
+        const from = config.smtpFrom || `SaveZonix <${config.smtpUser}>`;
+        console.log(`[Email Service] Dispatching via Gmail SMTP to ${to}`);
+        const info = await tx.sendMail({
+          from,
+          to: to.trim(),
           subject,
-          textContent: text,
-          htmlContent: html,
-        }),
-      });
+          text,
+          html
+        });
+        const latencyMs = Date.now() - start;
+        console.log(`[Email Service] Gmail SMTP delivered successfully (${latencyMs}ms): ${info.messageId}`);
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        const detailedMsg = errData.message || errData.code || `Brevo HTTP ${res.status}`;
-        throw new Error(detailedMsg);
+        recordTelemetry({
+          recipient: to,
+          templateType,
+          channel: 'gmail_smtp',
+          status: 'delivered',
+          latencyMs,
+          messageId: info.messageId
+        });
+
+        return { success: true, provider: 'gmail-smtp', messageId: info.messageId, latencyMs };
+      } catch (err) {
+        console.error(`[Email Service] Gmail SMTP failed to ${to}:`, err.message);
+        errors.push(`Gmail SMTP (${err.message})`);
       }
-
-      const data = await res.json().catch(() => ({}));
-      const latencyMs = Date.now() - start;
-      console.log(`[Email Service] Brevo API delivered successfully (${latencyMs}ms): ${data?.messageId}`);
-
-      recordTelemetry({
-        recipient: to,
-        templateType,
-        channel: 'brevo_api',
-        status: 'delivered',
-        latencyMs,
-        messageId: data?.messageId
-      });
-
-      return { success: true, provider: 'brevo-api', messageId: data?.messageId, latencyMs };
-    } catch (err) {
-      console.error(`[Email Service] Brevo API failover failed to ${to}:`, err.message);
-      errors.push(`Brevo API (${err.message})`);
     }
-  }
+
+    if (channel === 'brevo' && config.brevoKey) {
+      try {
+        const senderEmail = config.smtpUser || 'trendykart.app@gmail.com';
+        console.log(`[Email Service] Dispatching via Brevo REST API to ${to}`);
+
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            accept: 'application/json',
+            'api-key': config.brevoKey,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: { name: 'SaveZonix', email: senderEmail },
+            to: [{ email: to.trim() }],
+            subject,
+            textContent: text,
+            htmlContent: html,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          const detailedMsg = errData.message || errData.code || `Brevo HTTP ${res.status}`;
+          throw new Error(detailedMsg);
+        }
+
+        const data = await res.json().catch(() => ({}));
+        const latencyMs = Date.now() - start;
+        console.log(`[Email Service] Brevo API delivered successfully (${latencyMs}ms): ${data?.messageId}`);
+
+        recordTelemetry({
+          recipient: to,
+          templateType,
+          channel: 'brevo_api',
+          status: 'delivered',
+          latencyMs,
+          messageId: data?.messageId
+        });
+
+        return { success: true, provider: 'brevo-api', messageId: data?.messageId, latencyMs };
+      } catch (err) {
+        console.error(`[Email Service] Brevo API failed to ${to}:`, err.message);
+        errors.push(`Brevo API (${err.message})`);
+      }
+    }
+  } // end for-loop over channels
 
   const latencyMs = Date.now() - start;
   const errorSummary = `Email delivery failed via all configured channels: ${errors.join('; ')}`;
