@@ -5,7 +5,7 @@ const router = express.Router();
 
 // Fallback config defaults
 const DEFAULT_CONFIG = {
-  latestAppVersion: '2.5.8',
+  latestAppVersion: '2.5.9',
   minAllowedVersion: '2.0.0',
   forceUpdate: false,
   gracePeriodDays: 7,

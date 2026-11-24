@@ -81,13 +81,17 @@ app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check
 const healthHandler = (req, res) => {
+  const cookie = process.env.YOUTUBE_COOKIE || '';
   res.json({
     status: 'ok',
-    version: '2.5.8',
+    version: '2.5.9',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,
-    hasCookie: Boolean(process.env.YOUTUBE_COOKIE),
+    hasCookie: Boolean(cookie),
+    cookieLength: cookie.length,
+    hasSAPISID: cookie.includes('SAPISID'),
+    hasLOGIN_INFO: cookie.includes('LOGIN_INFO'),
     timestamp: new Date()
   });
 };
