@@ -4,6 +4,7 @@ import DownloadStudio from './components/DownloadStudio';
 import Hero from './components/Hero';
 import Features from './components/Features';
 import HowItWorks from './components/HowItWorks';
+import SupportedPlatforms from './components/SupportedPlatforms';
 import Pricing from './components/Pricing';
 import FAQ from './components/FAQ';
 import Footer from './components/Footer';
@@ -12,8 +13,15 @@ import AdminDashboard from './components/AdminDashboard';
 import LegalPage from './components/LegalPage';
 import UpgradeVipModal from './components/UpgradeVipModal';
 import FeedbackPage from './components/FeedbackPage';
+import AboutPage from './components/AboutPage';
+import ContactPage from './components/ContactPage';
+import YouTubeDownloaderPage from './components/landing/YouTubeDownloaderPage';
+import YouTubeToMp3Page from './components/landing/YouTubeToMp3Page';
+import InstagramReelsDownloaderPage from './components/landing/InstagramReelsDownloaderPage';
+import PlaylistDownloaderPage from './components/landing/PlaylistDownloaderPage';
 import ExtensionInstallModal from './components/ExtensionInstallModal';
 import FreeTrialGatekeeperModal from './components/FreeTrialGatekeeperModal';
+import SEOHead from './components/SEOHead';
 import { setMaxFreeTrials } from './utils/trialManager';
 
 export default function App() {
@@ -90,6 +98,12 @@ export default function App() {
   const isAdminRoute = currentPath === '/admin' || currentPath.startsWith('/admin/');
   const isLegalRoute = ['/privacy', '/terms', '/dmca', '/disclaimer'].includes(currentPath);
   const isFeedbackRoute = currentPath === '/feedback' || currentPath === '/uninstall';
+  const isAboutRoute = currentPath === '/about';
+  const isContactRoute = currentPath === '/contact';
+  const isYouTubeDownloader = currentPath === '/youtube-downloader';
+  const isYouTubeToMp3 = currentPath === '/youtube-to-mp3';
+  const isInstagramReels = currentPath === '/instagram-reels-downloader';
+  const isPlaylistDownloader = currentPath === '/playlist-downloader';
   const legalType = isLegalRoute ? currentPath.replace('/', '') : 'privacy';
 
   return (
@@ -121,8 +135,49 @@ export default function App() {
           <LegalPage type={legalType} onNavigate={navigate} />
         ) : isFeedbackRoute ? (
           <FeedbackPage onNavigate={navigate} />
+        ) : isAboutRoute ? (
+          <AboutPage onNavigate={navigate} />
+        ) : isContactRoute ? (
+          <ContactPage onNavigate={navigate} />
+        ) : isYouTubeDownloader ? (
+          <YouTubeDownloaderPage
+            user={user}
+            appConfig={appConfig}
+            onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
+            onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+            onOpenVip={() => setIsVipOpen(true)}
+            onNavigate={navigate}
+          />
+        ) : isYouTubeToMp3 ? (
+          <YouTubeToMp3Page
+            user={user}
+            appConfig={appConfig}
+            onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
+            onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+            onOpenVip={() => setIsVipOpen(true)}
+            onNavigate={navigate}
+          />
+        ) : isInstagramReels ? (
+          <InstagramReelsDownloaderPage
+            user={user}
+            appConfig={appConfig}
+            onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
+            onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+            onOpenVip={() => setIsVipOpen(true)}
+            onNavigate={navigate}
+          />
+        ) : isPlaylistDownloader ? (
+          <PlaylistDownloaderPage
+            user={user}
+            appConfig={appConfig}
+            onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
+            onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
+            onOpenVip={() => setIsVipOpen(true)}
+            onNavigate={navigate}
+          />
         ) : (
           <>
+            <SEOHead />
             <Hero
               appConfig={appConfig}
               onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
@@ -136,6 +191,7 @@ export default function App() {
                 onOpenVip={() => setIsVipOpen(true)}
               />
             </div>
+            <SupportedPlatforms />
             <Features />
             <HowItWorks />
             <Pricing
@@ -151,6 +207,7 @@ export default function App() {
         <Footer
           onOpenAdmin={() => navigate('/admin/overview')}
           onOpenLegal={(type) => navigate(`/${type}`)}
+          onNavigate={navigate}
         />
       )}
 

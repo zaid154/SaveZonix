@@ -43,7 +43,7 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
             }}
           >
             {/* Chrome 4-color SVG Logo */}
-            <svg width="24" height="24" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+            <svg width="24" height="24" viewBox="0 0 24 24" style={{ flexShrink: 0 }} aria-label="Google Chrome Logo" role="img">
               <path fill="#4285F4" d="M12 12m-9.5 0a9.5 9.5 0 1 0 19 0a9.5 9.5 0 1 0 -19 0Z"/>
               <path fill="#EA4335" d="M12 2.5C7.9 2.5 4.3 4.9 2.7 8.3l4.8 8.3L12 12l8.2 0C19.1 6.6 15.9 2.5 12 2.5z"/>
               <path fill="#FBBC05" d="M2.7 8.3C1.9 9.9 1.5 11.7 1.5 13.5c0 5 3.5 9.2 8.2 10.3l4.8-8.3-2.5-3.5L2.7 8.3z"/>
@@ -67,8 +67,9 @@ export default function Hero({ appConfig, onOpenExtensionModal }) {
               alignItems: 'center',
               gap: '10px'
             }}
+            aria-label="Use Web Downloader to download online video and audio"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
             <div className="btn-text-wrap" style={{ textAlign: 'left' }}>

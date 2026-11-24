@@ -15,5 +15,15 @@ export default defineConfig({
         ws: true
       }
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          icons: ['lucide-react']
+        }
+      }
+    }
   }
 });

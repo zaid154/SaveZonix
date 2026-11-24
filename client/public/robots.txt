@@ -1,0 +1,10 @@
+# SaveZonix Production Robots Configuration
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /admin/
+Disallow: /api/
+
+# Canonical Sitemap
+Sitemap: https://savezonix-pro.vercel.app/sitemap.xml
+Host: https://savezonix-pro.vercel.app

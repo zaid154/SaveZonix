@@ -7,8 +7,8 @@ const FEATURES = [
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
       </svg>
     ),
-    title: 'High-Speed Downloads',
-    desc: 'Parallel stream connections download audio and video segments simultaneously at max connection speed.'
+    title: 'Fast 64-Thread Video Downloader',
+    desc: 'Parallel stream connections download audio and video segments simultaneously at maximum bandwidth without throttling.'
   },
   {
     icon: (
@@ -18,8 +18,8 @@ const FEATURES = [
         <line x1="2" y1="21" x2="22" y2="21" />
       </svg>
     ),
-    title: 'Ad-Free Player',
-    desc: 'Watch and preview video streams directly in the browser without interruptions or popup redirects.'
+    title: 'Ad-Free Online Media Downloader',
+    desc: 'Download videos and preview streams directly in your browser with zero popups, redirects, or malware.'
   },
   {
     icon: (
@@ -27,8 +27,8 @@ const FEATURES = [
         <path d="M19.439 7.85c0-1.571-.9-2.85-2.01-2.85h-1.85a3 3 0 0 0-2.83 2h-1.49a3 3 0 0 0-2.83-2H6.57c-1.11 0-2.01 1.279-2.01 2.85v1.85a3 3 0 0 0 2 2.83v1.49a3 3 0 0 0-2 2.83v1.85c0 1.571.9 2.85 2.01 2.85h1.85a3 3 0 0 0 2.83-2h1.49a3 3 0 0 0 2.83 2h1.85c1.11 0 2.01-1.279 2.01-2.85v-1.85a3 3 0 0 0-2-2.83v-1.49a3 3 0 0 0 2-2.83z" />
       </svg>
     ),
-    title: 'Chrome Extension',
-    desc: 'Quickly detect media and download videos directly with 1 click while browsing YouTube and web pages.'
+    title: 'Free Chrome Extension Companion',
+    desc: 'Detect media streams instantly and download YouTube videos with 1-click while browsing the web.'
   },
   {
     icon: (
@@ -38,8 +38,8 @@ const FEATURES = [
         <circle cx="18" cy="16" r="3" />
       </svg>
     ),
-    title: '320kbps MP3 Audio',
-    desc: 'Extract clean MP3 and AAC audio from music videos and podcasts with original clarity.'
+    title: 'YouTube to 320kbps MP3 Audio',
+    desc: 'Extract clean MP3 and AAC audio from music videos, soundscapes, and podcasts with studio-grade clarity.'
   },
   {
     icon: (
@@ -50,8 +50,8 @@ const FEATURES = [
         <path d="M4 4v16" />
       </svg>
     ),
-    title: 'Playlist Support',
-    desc: 'Select and download entire YouTube playlists or mixes in one go without downloading one by one.'
+    title: 'Full Playlist Downloader',
+    desc: 'Select and download entire YouTube playlists or album mixes in batch without saving tracks one by one.'
   },
   {
     icon: (
@@ -60,8 +60,8 @@ const FEATURES = [
         <path d="m9 12 2 2 4-4" />
       </svg>
     ),
-    title: 'Reliable File Output',
-    desc: 'Files are checked and muxed properly so they open and play smoothly on all phones, tablets, and PCs.'
+    title: '4K Ultra HD & 1080p Muxing',
+    desc: 'Streams are verified and muxed with audio tracks so files open and play flawlessly on iOS, Android, and PC.'
   }
 ];
 

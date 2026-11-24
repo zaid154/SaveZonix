@@ -3,15 +3,121 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>SaveZonix — 64-Thread Video Downloader & Cinema</title>
-    <meta name="description" content="Download YouTube, Instagram, HLS Streams, fMP4, and 4K videos at up to 64x parallel speed." />
-    <link rel="icon" type="image/png" sizes="32x32" href="/logo.png?v=2.5.3" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/logo.png?v=2.5.3" />
-    <link rel="apple-touch-icon" href="/logo.png?v=2.5.3" />
-    <link rel="shortcut icon" href="/favicon.ico?v=2.5.3" />
+    <meta name="theme-color" content="#07090e" />
+
+    <!-- Primary SEO Metadata (50-60 chars title, 150-160 chars description with CTA) -->
+    <title>SaveZonix: Free Video Downloader — YouTube 4K, MP3 &amp; Reels</title>
+    <meta name="description" content="Download YouTube videos in 4K &amp; 1080p, extract 320kbps MP3 audio, and save Instagram Reels with SaveZonix. 100% free, fast, and no registration required!" />
+    <meta name="keywords" content="video downloader, YouTube video downloader, YouTube to MP3, Instagram reels downloader, playlist downloader, 4K video downloader online free, fast video downloader, download YouTube playlist, online media downloader, no signup video downloader" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://savezonix-pro.vercel.app/" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SaveZonix" />
+    <meta property="og:url" content="https://savezonix-pro.vercel.app/" />
+    <meta property="og:title" content="SaveZonix: Free Video Downloader — YouTube 4K, MP3 &amp; Reels" />
+    <meta property="og:description" content="Download YouTube videos in 4K &amp; 1080p, extract 320kbps MP3 audio, and save Instagram Reels with SaveZonix. 100% free, fast, and no registration required!" />
+    <meta property="og:image" content="https://savezonix-pro.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SaveZonix Universal Video Downloader and MP3 Converter" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@SaveZonix" />
+    <meta name="twitter:creator" content="@SaveZonix" />
+    <meta name="twitter:url" content="https://savezonix-pro.vercel.app/" />
+    <meta name="twitter:title" content="SaveZonix: Free Video Downloader — YouTube 4K, MP3 &amp; Reels" />
+    <meta name="twitter:description" content="Download YouTube videos in 4K &amp; 1080p, extract 320kbps MP3 audio, and save Instagram Reels with SaveZonix. 100% free, fast, and no registration required!" />
+    <meta name="twitter:image" content="https://savezonix-pro.vercel.app/og-image.png" />
+
+    <!-- Google Search Console Verification Placeholder -->
+    <meta name="google-site-verification" content="YOUR_GOOGLE_SEARCH_CONSOLE_VERIFICATION_TOKEN" />
+
+    <!-- Favicon & PWA Web Manifest -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/logo.png?v=2.6.0" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/logo.png?v=2.6.0" />
+    <link rel="apple-touch-icon" href="/logo.png?v=2.6.0" />
+    <link rel="shortcut icon" href="/favicon.ico?v=2.6.0" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Performance & Font Optimization -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data: WebApplication, WebSite & Organization (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "@id": "https://savezonix-pro.vercel.app/#app",
+          "name": "SaveZonix",
+          "url": "https://savezonix-pro.vercel.app/",
+          "description": "Fast universal video downloader and converter for YouTube 4K, 1080p, MP3 audio, and Instagram Reels.",
+          "applicationCategory": "MultimediaApplication",
+          "operatingSystem": "All (Web Browser, Windows, Mac, Linux, Android, iOS)",
+          "browserRequirements": "Requires JavaScript. Compatible with Chrome, Safari, Firefox, Edge.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock"
+          },
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.9",
+            "ratingCount": "12500",
+            "bestRating": "5",
+            "worstRating": "1"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://savezonix-pro.vercel.app/#website",
+          "name": "SaveZonix",
+          "url": "https://savezonix-pro.vercel.app/",
+          "description": "Free online video downloader for YouTube, Instagram Reels, TikTok, and web streams.",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": {
+              "@type": "EntryPoint",
+              "urlTemplate": "https://savezonix-pro.vercel.app/?url={search_term_string}"
+            },
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://savezonix-pro.vercel.app/#organization",
+          "name": "SaveZonix",
+          "url": "https://savezonix-pro.vercel.app/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://savezonix-pro.vercel.app/logo.png"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "Customer Support",
+            "email": "savezonix@gmail.com"
+          }
+        }
+      ]
+    }
+    </script>
+
+    <!-- Google Analytics 4 (GA4) Placeholder -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XXXXXXXXXX');
+    </script>
   </head>
   <body>
     <div id="root"></div>

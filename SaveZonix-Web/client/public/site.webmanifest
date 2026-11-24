@@ -1,0 +1,21 @@
+{
+  "name": "SaveZonix — Universal Video Downloader & Converter",
+  "short_name": "SaveZonix",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090e",
+  "theme_color": "#07090e",
+  "description": "Download YouTube, Instagram Reels, 4K videos, and MP3 audio at turbo speeds.",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
