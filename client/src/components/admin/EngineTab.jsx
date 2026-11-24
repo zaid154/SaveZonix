@@ -474,7 +474,7 @@ export default function EngineTab({
                 type="number"
                 min={1}
                 max={50}
-                value={settings.freeDailyLimit || 10}
+                value={settings.freeDailyLimit ?? 3}
                 onChange={(e) => setSettings({ ...settings, freeDailyLimit: Number(e.target.value) })}
                 style={{ width: '100%', padding: '10px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#f8fafc', fontSize: '13px' }}
               />

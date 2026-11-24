@@ -14,6 +14,7 @@ import UpgradeVipModal from './components/UpgradeVipModal';
 import FeedbackPage from './components/FeedbackPage';
 import ExtensionInstallModal from './components/ExtensionInstallModal';
 import FreeTrialGatekeeperModal from './components/FreeTrialGatekeeperModal';
+import { setMaxFreeTrials } from './utils/trialManager';
 
 export default function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(() => {
@@ -49,11 +50,16 @@ export default function App() {
     // Fetch dynamic app config
     fetch('/api/app-config')
       .then((res) => res.json())
-      .then((data) => setAppConfig(data))
+      .then((data) => {
+        setAppConfig(data);
+        if (data.freeDailyLimit) {
+          setMaxFreeTrials(data.freeDailyLimit);
+        }
+      })
       .catch(() => {
         setAppConfig({
-          latestAppVersion: '2.5.0',
-          freeDailyLimit: 10,
+          latestAppVersion: '2.6.1',
+          freeDailyLimit: 3,
           vipMonthlyPriceINR: 99,
           chromeWebStoreUrl: CHROME_STORE_DEFAULT
         });
@@ -124,6 +130,7 @@ export default function App() {
             <div id="studio">
               <DownloadStudio
                 user={user}
+                appConfig={appConfig}
                 onOpenGatekeeper={() => setIsGatekeeperOpen(true)}
                 onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
                 onOpenVip={() => setIsVipOpen(true)}
@@ -157,6 +164,7 @@ export default function App() {
         isOpen={isVipOpen}
         onClose={() => setIsVipOpen(false)}
         user={user}
+        appConfig={appConfig}
         onSuccess={(u) => setUser(u)}
       />
 
@@ -167,6 +175,7 @@ export default function App() {
 
       <FreeTrialGatekeeperModal
         isOpen={isGatekeeperOpen}
+        appConfig={appConfig}
         onClose={() => setIsGatekeeperOpen(false)}
         onOpenExtension={() => setIsExtensionModalOpen(true)}
         onOpenVip={() => setIsVipOpen(true)}

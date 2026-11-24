@@ -12,7 +12,8 @@ const ChromeIcon = ({ size = 20 }) => (
   </svg>
 );
 
-export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtension, onOpenVip, onOpenAuth }) {
+export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtension, onOpenVip, onOpenAuth, appConfig }) {
+  const maxTrials = appConfig?.freeDailyLimit || 3;
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') onClose();
@@ -113,13 +114,13 @@ export default function FreeTrialGatekeeperModal({ isOpen, onClose, onOpenExtens
               marginBottom: '12px'
             }}
           >
-            <Lock size={14} /> FREE TRIAL LIMIT REACHED (3/3 USED)
+            <Lock size={14} /> FREE TRIAL LIMIT REACHED ({maxTrials}/{maxTrials} USED)
           </div>
           <h2 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 8px', color: '#f8fafc' }}>
             Free Web Trial Limit Reached
           </h2>
           <p style={{ fontSize: '14px', color: '#94a3b8', margin: 0, lineHeight: 1.5 }}>
-            You have used all 3 free trial downloads. Choose an option below to continue downloading:
+            You have used all {maxTrials} free trial downloads. Choose an option below to continue downloading:
           </p>
         </div>
 

@@ -277,6 +277,99 @@ export default function FinancialsTab({ settings, setSettings, onSaveSettings })
         </div>
       </div>
 
+      {/* Live VIP Pricing & Free Web Quota Controls */}
+      <div style={{ padding: '20px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <IconCreditCard size={18} color="#fbbf24" /> VIP Pricing & Free Web Quota Controls
+            </h3>
+            <p style={{ color: '#64748b', fontSize: '12px', margin: '4px 0 0 0' }}>
+              Changes saved here take effect immediately across all landing pages, mobile browsers, and desktop apps.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
+              Free Web Trial Limit (Downloads)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={settings?.freeDailyLimit ?? 3}
+              onChange={(e) => setSettings && setSettings({ ...settings, freeDailyLimit: Number(e.target.value) })}
+              style={{ width: '100%', padding: '9px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#34d399', fontSize: '13px', fontWeight: 700 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
+              VIP Monthly Plan (INR ₹)
+            </label>
+            <input
+              type="number"
+              min={9}
+              value={settings?.vipMonthlyPriceINR ?? 99}
+              onChange={(e) => setSettings && setSettings({ ...settings, vipMonthlyPriceINR: Number(e.target.value) })}
+              style={{ width: '100%', padding: '9px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#fbbf24', fontSize: '13px', fontWeight: 700 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
+              VIP Annual Plan (INR ₹)
+            </label>
+            <input
+              type="number"
+              min={99}
+              value={settings?.vipAnnualPriceINR ?? 799}
+              onChange={(e) => setSettings && setSettings({ ...settings, vipAnnualPriceINR: Number(e.target.value) })}
+              style={{ width: '100%', padding: '9px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#fbbf24', fontSize: '13px', fontWeight: 700 }}
+            />
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
+              4K / Cinema VIP Lock
+            </label>
+            <select
+              value={settings?.lock4KForVip !== false ? 'true' : 'false'}
+              onChange={(e) => setSettings && setSettings({ ...settings, lock4KForVip: e.target.value === 'true' })}
+              style={{ width: '100%', padding: '9px 12px', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', color: '#f8fafc', fontSize: '13px' }}
+            >
+              <option value="true">Locked for VIP Only (Recommended)</option>
+              <option value="false">Open for All Users</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            type="button"
+            onClick={onSaveSettings}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '9px 20px',
+              background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+              color: '#fff',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(2, 132, 199, 0.3)'
+            }}
+          >
+            <IconCheck size={14} /> Save Pricing &amp; Quota Changes
+          </button>
+        </div>
+      </div>
+
       {/* Gateway Configuration & License Generator Split */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
         {/* Razorpay Gateway Credentials Container */}

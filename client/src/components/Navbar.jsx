@@ -1,21 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getRemainingTrials, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
+import { getRemainingTrials, isUserVip, getMaxFreeTrials } from '../utils/trialManager';
 
 export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenExtensionModal, onOpenGatekeeper, onLogout, onNavigate, currentPath }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user));
+  const maxLimit = appConfig?.freeDailyLimit || getMaxFreeTrials();
+  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user, maxLimit));
   const dropdownRef = useRef(null);
 
   useEffect(() => {
-    setRemainingTrials(getRemainingTrials(user));
-  }, [user]);
+    setRemainingTrials(getRemainingTrials(user, maxLimit));
+  }, [user, maxLimit]);
 
   useEffect(() => {
-    const onTrialUpdated = () => setRemainingTrials(getRemainingTrials(user));
+    const onTrialUpdated = (e) => setRemainingTrials(getRemainingTrials(user, e.detail?.max || maxLimit));
     window.addEventListener('savezonix:trial_updated', onTrialUpdated);
     return () => window.removeEventListener('savezonix:trial_updated', onTrialUpdated);
-  }, [user]);
+  }, [user, maxLimit]);
 
   const CHROME_STORE_DEFAULT = 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1';
   const chromeStoreUrl = appConfig?.chromeWebStoreUrl || CHROME_STORE_DEFAULT;
@@ -465,7 +466,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                   const el = document.querySelector('#studio');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
-                title={`${remainingTrials} of ${MAX_FREE_TRIALS} free web downloads left`}
+                title={`${remainingTrials} of ${maxLimit} free web downloads left`}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -484,7 +485,7 @@ export default function Navbar({ appConfig, user, onOpenAuth, onOpenVip, onOpenE
                 }}
               >
                 <span>🎁</span>
-                <span>{remainingTrials}/{MAX_FREE_TRIALS}</span>
+                <span>{remainingTrials}/{maxLimit}</span>
               </button>
             ) : (
               <button

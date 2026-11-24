@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 
-export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
+export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user, appConfig }) {
   const [selectedPlan, setSelectedPlan] = useState('annual');
+  const monthlyPrice = appConfig?.vipMonthlyPriceINR || 99;
+  const annualPrice = appConfig?.vipAnnualPriceINR || 799;
+  const lifetimePrice = appConfig?.vipLifetimePriceINR || 1999;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -323,7 +326,7 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
               >
                 <div style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>Monthly</div>
                 <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', margin: '4px 0 2px 0' }}>
-                  ₹99
+                  ₹{monthlyPrice}
                 </div>
                 <div style={{ fontSize: '10.5px', color: '#64748b' }}>30 Days</div>
               </div>
@@ -361,9 +364,9 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
                 </div>
                 <div style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>Annual</div>
                 <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', margin: '4px 0 2px 0' }}>
-                  ₹799
+                  ₹{annualPrice}
                 </div>
-                <div style={{ fontSize: '10.5px', color: '#38bdf8' }}>Save ₹389</div>
+                <div style={{ fontSize: '10.5px', color: '#38bdf8' }}>Save ₹{Math.max(0, (monthlyPrice * 12) - annualPrice)}</div>
               </div>
 
               {/* Lifetime */}
@@ -399,7 +402,7 @@ export default function UpgradeVipModal({ isOpen, onClose, onSuccess, user }) {
                 </div>
                 <div style={{ fontSize: '11.5px', color: '#94a3b8', fontWeight: 600 }}>Lifetime</div>
                 <div style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', margin: '4px 0 2px 0' }}>
-                  ₹1,999
+                  ₹{lifetimePrice}
                 </div>
                 <div style={{ fontSize: '10.5px', color: '#fbbf24' }}>One-Time</div>
               </div>

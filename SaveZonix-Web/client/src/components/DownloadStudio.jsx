@@ -19,11 +19,11 @@ import {
   Loader2,
   Check
 } from 'lucide-react';
-import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, MAX_FREE_TRIALS } from '../utils/trialManager';
+import { getRemainingTrials, hasFreeTrialsRemaining, recordTrialDownloadConsumed, isUserVip, getMaxFreeTrials } from '../utils/trialManager';
 
 const RENDER_API_BASE = 'https://savezonix.onrender.com';
 
-export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtensionModal, onOpenVip }) {
+export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOpenExtensionModal, onOpenVip }) {
   const [activeTab, setActiveTab] = useState('single'); // 'single' | 'playlist' | 'history'
   
   // Single Downloader State
@@ -36,17 +36,18 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
   const [completedTask, setCompletedTask] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [localEngineActive, setLocalEngineActive] = useState(false);
-  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user));
+  const maxTrials = appConfig?.freeDailyLimit || getMaxFreeTrials();
+  const [remainingTrials, setRemainingTrials] = useState(() => getRemainingTrials(user, maxTrials));
 
   useEffect(() => {
-    setRemainingTrials(getRemainingTrials(user));
-  }, [user]);
+    setRemainingTrials(getRemainingTrials(user, maxTrials));
+  }, [user, maxTrials]);
 
   useEffect(() => {
-    const onTrialUpdated = () => setRemainingTrials(getRemainingTrials(user));
+    const onTrialUpdated = (e) => setRemainingTrials(getRemainingTrials(user, e.detail?.max || maxTrials));
     window.addEventListener('savezonix:trial_updated', onTrialUpdated);
     return () => window.removeEventListener('savezonix:trial_updated', onTrialUpdated);
-  }, [user]);
+  }, [user, maxTrials]);
 
   // Playlist Studio State
   const [playlistUrl, setPlaylistUrl] = useState('');
@@ -785,7 +786,7 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
                 fontSize: '13.5px',
                 fontWeight: 700
               }}>
-                Free Web Trial: {remainingTrials} of {MAX_FREE_TRIALS} Downloads Left
+                Free Web Trial: {remainingTrials} of {maxTrials} Downloads Left
               </span>
               <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: '8px' }}>
                 • No Login or Card Required

@@ -26,6 +26,7 @@ import AiAdvisorTab from './admin/AiAdvisorTab';
 import DiagnosticsTab from './admin/DiagnosticsTab';
 import SecurityTab from './admin/SecurityTab';
 import EngineTab from './admin/EngineTab';
+import { setMaxFreeTrials } from '../utils/trialManager';
 
 export default function AdminDashboard({ user, currentPath = '/admin/overview', onNavigate, onBack, onOpenAuth, onLogout }) {
   // 1. Unified Authentication Resolution
@@ -588,6 +589,9 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
         body: JSON.stringify(settings)
       });
       if (res.ok) {
+        if (settings.freeDailyLimit) {
+          setMaxFreeTrials(settings.freeDailyLimit);
+        }
         setSaveMessage('Engine parameters saved and synchronized across fleet!');
         showAdminToast('Engine configuration saved to MongoDB & live across all apps!');
         setTimeout(() => setSaveMessage(''), 5000);
