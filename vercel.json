@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "cleanUrls": true,
+  "cleanUrls": false,
   "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/dist",
   "redirects": [
@@ -22,7 +22,11 @@
       "destination": "https://savezonix.onrender.com/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/google0b7884132a6d5c6c.html",
+      "destination": "/google0b7884132a6d5c6c.html"
+    },
+    {
+      "source": "/((?!google0b7884132a6d5c6c\\.html).*)",
       "destination": "/index.html"
     }
   ],
@@ -36,6 +40,13 @@
         { "key": "X-XSS-Protection", "value": "1; mode=block" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    },
+    {
+      "source": "/google0b7884132a6d5c6c.html",
+      "headers": [
+        { "key": "Content-Type", "value": "text/html; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
       ]
     },
     {
