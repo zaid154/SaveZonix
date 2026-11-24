@@ -1,6 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": true,
   "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/dist",
   "redirects": [
@@ -22,17 +21,13 @@
       "destination": "https://savezonix.onrender.com/api/:path*"
     },
     {
-      "source": "/google0b7884132a6d5c6c.html",
-      "destination": "/google0b7884132a6d5c6c.html"
-    },
-    {
-      "source": "/:path*",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
     {
-      "source": "/:path*",
+      "source": "/(.*)",
       "headers": [
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
@@ -71,7 +66,7 @@
       ]
     },
     {
-      "source": "/assets/:path*",
+      "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
       ]
