@@ -94,39 +94,6 @@ const healthHandler = (req, res) => {
 app.get('/api/health', healthHandler);
 app.get('/api/system/health', healthHandler);
 
-// Diagnostic Debug Endpoint for Cloud Stream Extraction
-app.get('/api/debug-ytdl', async (req, res) => {
-  const url = req.query.url || 'https://www.youtube.com/watch?v=L8XYCkfamfE';
-  const { Ytdl, Client } = require('@distube/ytdl-core');
-  const results = { hasCookie: Boolean(process.env.YOUTUBE_COOKIE) };
-  
-  try {
-    const ytdlVision = new Ytdl({ clients: [Client.VisionOS] });
-    const info = await ytdlVision.getInfo(url);
-    results.visionOS = { success: true, formats: info.formats?.length, sampleUrl: info.formats?.[0]?.url ? info.formats[0].url.slice(0, 50) : null };
-  } catch (err) {
-    results.visionOS = { success: false, error: err.message };
-  }
-
-  try {
-    const ytdlWebEmb = new Ytdl({ clients: [Client.WebEmbedded] });
-    const info = await ytdlWebEmb.getInfo(url);
-    results.webEmbedded = { success: true, formats: info.formats?.length, sampleUrl: info.formats?.[0]?.url ? info.formats[0].url.slice(0, 50) : null };
-  } catch (err) {
-    results.webEmbedded = { success: false, error: err.message };
-  }
-
-  try {
-    const ytdlTv = new Ytdl({ clients: [Client.Tv] });
-    const info = await ytdlTv.getInfo(url);
-    results.tv = { success: true, formats: info.formats?.length, sampleUrl: info.formats?.[0]?.url ? info.formats[0].url.slice(0, 50) : null };
-  } catch (err) {
-    results.tv = { success: false, error: err.message };
-  }
-
-  res.json(results);
-});
-
 // API 404 Handler (Guarantees JSON response for unmatched /api routes)
 app.use('/api', (req, res, next) => {
   res.status(404).json({ success: false, message: `API endpoint not found: ${req.method} ${req.originalUrl}` });
