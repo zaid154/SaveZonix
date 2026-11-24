@@ -152,12 +152,9 @@ router.post('/send-register-otp', otpRateLimiter, checkDisposableEmail, async (r
     try {
       await sendOtpEmail(normalizedEmail, otp, 'register', magicLink);
     } catch (mailErr) {
-      console.warn('[OTP Register] Mail dispatch warning:', mailErr.message);
-      return res.json({
-        success: true,
-        message: `Verification code generated: ${otp}`,
-        devOtp: otp,
-        magicLink
+      console.error('[OTP Register Error] Mail dispatch failed:', mailErr.message);
+      return res.status(500).json({
+        error: 'Failed to send verification email. Please check your email address or try again in a moment.'
       });
     }
 
@@ -388,12 +385,9 @@ router.post('/send-reset-otp', otpRateLimiter, async (req, res) => {
     try {
       await sendOtpEmail(normalizedEmail, otp, 'reset', magicLink);
     } catch (mailErr) {
-      console.warn('[Send Reset OTP] Mail dispatch warning:', mailErr.message);
-      return res.json({
-        success: true,
-        message: `Password reset code generated: ${otp}`,
-        devOtp: otp,
-        magicLink
+      console.error('[Send Reset OTP Error] Mail dispatch failed:', mailErr.message);
+      return res.status(500).json({
+        error: 'Failed to send password reset email. Please try again in a moment.'
       });
     }
 

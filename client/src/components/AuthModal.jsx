@@ -207,11 +207,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
       setMessage(data.message || `Verification code sent to ${email}`);
       setCooldown(60);
-      if (data.devOtp) {
-        setOtpDigits(data.devOtp.toString().split(''));
-      } else {
-        setOtpDigits(['', '', '', '', '', '']);
-      }
+      setOtpDigits(['', '', '', '', '', '']);
       setView('otp');
     } catch (err) {
       setError(err.message);
@@ -265,9 +261,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
       setMessage(data.message || `Reset code sent to ${email}`);
       setCooldown(60);
-      if (data.devOtp) {
-        setOtpDigits(data.devOtp.toString().split(''));
-      }
+      setOtpDigits(['', '', '', '', '', '']);
     } catch (err) {
       setError(err.message);
     } finally {
