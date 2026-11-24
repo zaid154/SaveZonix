@@ -9,13 +9,47 @@ try {
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
-        // Multi-client priority: Tv (fastest, full format set), VisionOS, WebEmbedded, Mweb
+        // VisionOS resolves direct playable formats cleanly (~1s) without heavy JS player parsing
         this.ytdl = new Ytdl({
-            clients: [Client.Tv, Client.VisionOS, Client.WebEmbedded, Client.Mweb],
+            clients: [Client.VisionOS, Client.Mweb, Client.WebEmbedded, Client.Tv],
             cookie
         });
+        this.ytdlNoCookie = cookie
+            ? new Ytdl({ clients: [Client.VisionOS, Client.Mweb] })
+            : null;
         this.ytdlVisionOS = this.ytdl;
         this.ytdlFast = this.ytdl;
+    }
+
+    /**
+     * Resolve YouTube info using VisionOS-first multi-client pool with a cookieless fallback
+     * in case configured cookies are stale or rejected.
+     */
+    async _getYtdlInfo(cleanUrl, timeoutMs = 10000) {
+        try {
+            return await Promise.race([
+                this.ytdl.getInfo(cleanUrl),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), timeoutMs))
+            ]);
+        } catch (err) {
+            const msg = (err?.message || '').toLowerCase();
+            if (
+                msg.includes('incomplete youtube link') ||
+                msg.includes('unavailable') ||
+                msg.includes('private') ||
+                msg.includes('not found') ||
+                msg.includes('does not exist')
+            ) {
+                throw err;
+            }
+            if (this.ytdlNoCookie) {
+                return await Promise.race([
+                    this.ytdlNoCookie.getInfo(cleanUrl),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), 8000))
+                ]);
+            }
+            throw err;
+        }
     }
 
     /**
@@ -68,12 +102,9 @@ class MediaResolver {
         let info = null;
         let lastError = null;
 
-        // Engine 1: Fast Ytdl with multi-client priority (Tv, VisionOS, WebEmbedded)
+        // Engine 1: Fast Ytdl with VisionOS-first priority
         try {
-            info = await Promise.race([
-                this.ytdl.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Resolution timeout')), 6000))
-            ]);
+            info = await this._getYtdlInfo(cleanUrl, 10000);
         } catch (err1) {
             lastError = err1;
             const errStr = (err1?.message || '').toLowerCase();
@@ -124,7 +155,7 @@ class MediaResolver {
                 console.log('[MediaResolver] Attempting play-dl fallback for:', cleanUrl);
                 const pInfo = await Promise.race([
                     play.video_info(cleanUrl),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 5000))
                 ]);
                 if (pInfo && pInfo.video_details) {
                     const vd = pInfo.video_details;
@@ -276,12 +307,9 @@ class MediaResolver {
         let info = null;
         let lastErr = null;
 
-        // Engine 1: Multi-client Ytdl (Tv, VisionOS, WebEmbedded)
+        // Engine 1: VisionOS-first Ytdl pool
         try {
-            info = await Promise.race([
-                this.ytdl.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), 6000))
-            ]);
+            info = await this._getYtdlInfo(cleanUrl, 10000);
         } catch (e1) {
             lastErr = e1;
             console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream, trying secondary fallbacks:', e1.message);
@@ -289,20 +317,32 @@ class MediaResolver {
 
         if (info && info.formats && info.formats.length > 0) {
             const formats = info.formats || [];
+            const title = info.videoDetails?.title || 'YouTube Video';
+            const vidId = info.videoDetails?.videoId || '';
+            const thumbnailUrl = info.videoDetails?.thumbnails?.length
+                ? info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url
+                : (vidId ? `https://i.ytimg.com/vi/${vidId}/hqdefault.jpg` : '');
+
+            const pickBestAudio = () =>
+                formats.find(f => !f.hasVideo && f.hasAudio && f.mimeType?.includes('audio/mp4') && f.url)
+                || chooseFormat(formats, { quality: 'highestaudio' })
+                || formats.find(f => f.url && f.hasAudio)
+                || formats[0];
 
             if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
-                const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats.find(f => f.url && f.hasAudio) || formats[0];
+                const audio = pickBestAudio();
                 return {
                     type: 'audio',
                     stream: audio,
                     title: info.videoDetails?.title || 'YouTube Audio',
+                    thumbnailUrl,
                     sizeBytes: parseInt(audio?.contentLength || '0', 10)
                 };
             }
 
             const targetLabel = quality.toLowerCase().replace('p', '');
 
-            // Priority 1: Combined format (video+audio in one stream) that matches requested quality
+            // Priority 1: Combined format (video+audio in one stream) matching requested quality
             const combinedFormat = formats.find(f =>
                 f.qualityLabel &&
                 f.qualityLabel.toLowerCase().includes(targetLabel) &&
@@ -314,34 +354,54 @@ class MediaResolver {
                     type: 'video',
                     videoStream: combinedFormat,
                     audioStream: null,
-                    title: info.videoDetails?.title || 'YouTube Video',
+                    title,
+                    thumbnailUrl,
                     sizeBytes: parseInt(combinedFormat.contentLength || '0', 10)
                 };
             }
 
-            // Priority 2: Separate video stream (for true 1080p/720p HD) + separate audio stream
-            const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel) && f.url)
+            // Priority 2: Separate video stream (prefer H.264/MP4 for instant muxing) + audio stream
+            const matchingByQuality = formats.filter(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel) && f.url && f.hasVideo);
+            const video = matchingByQuality.find(f => f.mimeType?.includes('video/mp4') && f.mimeType?.includes('avc1'))
+                       || matchingByQuality.find(f => f.mimeType?.includes('video/mp4'))
+                       || matchingByQuality[0]
+                       || formats.find(f => f.url && f.hasVideo && f.mimeType?.includes('video/mp4'))
                        || formats.find(f => f.url && f.hasVideo)
                        || chooseFormat(formats, { quality: 'highestvideo' })
                        || formats[0];
-            const audio = chooseFormat(formats, { quality: 'highestaudio' }) || formats.find(f => f.url && f.hasAudio) || formats[0];
+            const audio = pickBestAudio();
 
             return {
                 type: 'video',
                 videoStream: video,
                 audioStream: audio,
-                title: info.videoDetails?.title || 'YouTube Video',
+                title,
+                thumbnailUrl,
                 sizeBytes: (parseInt(video?.contentLength || '0', 10)) + (parseInt(audio?.contentLength || '0', 10))
             };
         }
 
-        // Engine 2: play-dl fallback when @distube/ytdl-core fails on Render
+        // Engine 2: Fast parallel Piped Cloud Stream Fallback (max 3.5s)
+        const vidMatch = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if (vidMatch && vidMatch[1]) {
+            try {
+                console.log('[MediaResolver] Attempting Piped fallback in resolveSpecificStream for:', vidMatch[1]);
+                const piped = await this._resolveViaPiped(vidMatch[1], quality);
+                if (piped) {
+                    return piped;
+                }
+            } catch (pipedErr) {
+                console.warn('[MediaResolver] Piped resolveSpecificStream failed:', pipedErr.message);
+            }
+        }
+
+        // Engine 3: play-dl fallback (capped at 5s)
         if (play) {
             try {
                 console.log('[MediaResolver] Attempting play-dl fallback in resolveSpecificStream for:', cleanUrl);
                 const pInfo = await Promise.race([
                     play.video_info(cleanUrl),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 10000))
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 5000))
                 ]);
                 if (pInfo && pInfo.video_details) {
                     const formats = pInfo.format || [];
@@ -376,20 +436,6 @@ class MediaResolver {
             }
         }
 
-        // Engine 3: High-Availability Piped Cloud Stream Fallback (Bypasses datacenter bot blocks)
-        const vidMatch = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-        if (vidMatch && vidMatch[1]) {
-            try {
-                console.log('[MediaResolver] Attempting Piped fallback in resolveSpecificStream for:', vidMatch[1]);
-                const piped = await this._resolveViaPiped(vidMatch[1], quality);
-                if (piped) {
-                    return piped;
-                }
-            } catch (pipedErr) {
-                console.warn('[MediaResolver] Piped resolveSpecificStream failed:', pipedErr.message);
-            }
-        }
-
         throw new Error(lastErr ? lastErr.message : 'Could not resolve stream from YouTube.');
     }
 
@@ -399,57 +445,61 @@ class MediaResolver {
             'https://pipedapi.kavin.rocks',
             'https://pipedapi.adminforge.de'
         ];
-        for (const inst of instances) {
-            try {
-                const res = await fetch(`${inst}/streams/${videoId}`, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
-                    signal: AbortSignal.timeout(5000)
-                });
-                if (!res.ok) continue;
-                const data = await res.json();
-                if (!data || (!data.videoStreams?.length && !data.audioStreams?.length)) continue;
-
-                const title = data.title || 'YouTube Video';
-                const targetLabel = quality.toLowerCase().replace('p', '');
-
-                if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
-                    const audio = (data.audioStreams || [])[0];
-                    if (audio?.url) {
-                        return {
-                            type: 'audio',
-                            stream: { url: audio.url, mimeType: audio.mimeType || 'audio/mp4' },
-                            title,
-                            sizeBytes: audio.bitrate || 0
-                        };
+        try {
+            const data = await Promise.any(
+                instances.map(async (inst) => {
+                    const res = await fetch(`${inst}/streams/${videoId}`, {
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+                        signal: AbortSignal.timeout(3500)
+                    });
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const json = await res.json();
+                    if (!json || (!json.videoStreams?.length && !json.audioStreams?.length)) {
+                        throw new Error('Empty streams');
                     }
-                }
+                    return json;
+                })
+            );
 
-                const video = (data.videoStreams || []).find(v => v.quality && v.quality.includes(targetLabel) && v.url)
-                           || (data.videoStreams || []).find(v => v.url)
-                           || (data.videoStreams || [])[0];
+            const title = data.title || 'YouTube Video';
+            const targetLabel = quality.toLowerCase().replace('p', '');
 
+            if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
                 const audio = (data.audioStreams || [])[0];
-
-                if (video?.url) {
+                if (audio?.url) {
                     return {
-                        type: 'video',
-                        videoStream: {
-                            url: video.url,
-                            mimeType: video.mimeType || 'video/mp4',
-                            qualityLabel: video.quality || quality,
-                            hasAudio: !video.videoOnly
-                        },
-                        audioStream: (video.videoOnly && audio?.url) ? {
-                            url: audio.url,
-                            mimeType: audio.mimeType || 'audio/mp4'
-                        } : null,
+                        type: 'audio',
+                        stream: { url: audio.url, mimeType: audio.mimeType || 'audio/mp4' },
                         title,
-                        sizeBytes: 0
+                        sizeBytes: audio.bitrate || 0
                     };
                 }
-            } catch (e) {
-                // try next instance
             }
+
+            const video = (data.videoStreams || []).find(v => v.quality && v.quality.includes(targetLabel) && v.url)
+                       || (data.videoStreams || []).find(v => v.url)
+                       || (data.videoStreams || [])[0];
+            const audio = (data.audioStreams || [])[0];
+
+            if (video?.url) {
+                return {
+                    type: 'video',
+                    videoStream: {
+                        url: video.url,
+                        mimeType: video.mimeType || 'video/mp4',
+                        qualityLabel: video.quality || quality,
+                        hasAudio: !video.videoOnly
+                    },
+                    audioStream: (video.videoOnly && audio?.url) ? {
+                        url: audio.url,
+                        mimeType: audio.mimeType || 'audio/mp4'
+                    } : null,
+                    title,
+                    sizeBytes: 0
+                };
+            }
+        } catch {
+            return null;
         }
         return null;
     }

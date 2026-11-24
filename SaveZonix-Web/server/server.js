@@ -52,7 +52,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Private-Network', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-admin-key, x-guest-fingerprint');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
   }
@@ -61,7 +61,7 @@ app.use((req, res, next) => {
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key', 'x-guest-fingerprint']
 }));
 app.use(express.json({ limit: '50mb' }));
 

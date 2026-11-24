@@ -175,14 +175,47 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
     }
   };
 
-  // Polling fallback: Automatically detect completed downloads even if WebSocket disconnects
+  // Build auth + fingerprint headers for API calls
+  const getApiHeaders = () => {
+    const headers = { 'Content-Type': 'application/json' };
+    try {
+      const token = localStorage.getItem('savezonix_token') || localStorage.getItem('savezonix_admin_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch {}
+    return headers;
+  };
+
+  // Resolve active API base URL (local companion vs direct Render cloud API on Vercel)
+  const getApiBase = (explicitBase = null) => {
+    if (explicitBase !== null && explicitBase !== '') return explicitBase;
+    const isLocalHost = typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocalHost) {
+      return localEngineActive ? 'http://localhost:5001' : '';
+    }
+    return RENDER_API_BASE;
+  };
+
+  // Pick smart default quality respecting user tier (VIP gets 1080p, free/guest defaults to 720p)
+  const pickDefaultQuality = (qualities = []) => {
+    const preferredOrder = isUserVip(user)
+      ? ['1080p', '720p', '480p', '360p', 'MP3']
+      : [appConfig?.guestMaxQuality || '720p', '720p', '480p', '360p', 'MP3'];
+    for (const q of preferredOrder) {
+      if (qualities.includes(q)) return q;
+    }
+    return qualities[0] || (isUserVip(user) ? '1080p' : '720p');
+  };
+
+  // Polling fallback: Detect completed local disk downloads even if WebSocket disconnects
   useEffect(() => {
     let interval;
-    if (isDownloading) {
-      const base = localEngineActive ? 'http://localhost:5001' : '';
+    const isLocalHost = typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isDownloading && isLocalHost && localEngineActive) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch(`${base}/api/downloads/history?limit=1`);
+          const res = await fetch(`http://localhost:5001/api/downloads/history?limit=1`);
           const data = await safeJsonParse(res);
           if (data.success && data.history?.length > 0) {
             const latest = data.history[0];
@@ -318,23 +351,23 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
 
     const isLocalHost = typeof window !== 'undefined' && 
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    let base = engineBase !== null ? engineBase : ((isLocalHost && localEngineActive) ? 'http://localhost:5001' : '');
+    let base = getApiBase(engineBase);
 
     try {
       let res;
       try {
         res = await fetch(`${base}/api/downloads/resolve`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ url: cleanTarget }),
           signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(55000) : undefined
         });
       } catch (cloudErr) {
-        if (!base && isLocalHost) {
+        if (isLocalHost) {
           try {
             res = await fetch('http://localhost:5001/api/downloads/resolve', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getApiHeaders(),
               body: JSON.stringify({ url: cleanTarget }),
               signal: AbortSignal.timeout(5000)
             });
@@ -350,7 +383,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       const data = await safeJsonParse(res);
       if (data.success) {
         setResolvedMedia(data);
-        const topQuality = data.availableQualities?.includes('1080p') ? '1080p' : (data.availableQualities?.[0] || '1080p');
+        const topQuality = pickDefaultQuality(data.availableQualities);
         if (data.availableQualities?.length > 0) {
           setSelectedQuality(topQuality);
         }
@@ -361,11 +394,11 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
         }
       } else {
         // Fallback to local companion engine if cloud resolution failed (only on localhost)
-        if (!base && isLocalHost) {
+        if (isLocalHost) {
           try {
             const localRes = await fetch('http://localhost:5001/api/downloads/resolve', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getApiHeaders(),
               body: JSON.stringify({ url: cleanTarget }),
               signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
             });
@@ -373,7 +406,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
             if (localData.success) {
               setResolvedMedia(localData);
               setLocalEngineActive(true);
-              const topQuality = localData.availableQualities?.includes('1080p') ? '1080p' : (localData.availableQualities?.[0] || '1080p');
+              const topQuality = pickDefaultQuality(localData.availableQualities);
               if (localData.availableQualities?.length > 0) {
                 setSelectedQuality(topQuality);
               }
@@ -451,7 +484,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
 
     const isLocalHost = typeof window !== 'undefined' && 
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    let base = engineBase !== null ? engineBase : ((isLocalHost && localEngineActive) ? 'http://localhost:5001' : '');
+    let base = getApiBase(engineBase);
     const isLocal = isLocalHost && (localEngineActive || base === 'http://localhost:5001');
 
     // ═══ LOCAL ENGINE: Use old disk-based flow with Socket.IO progress ═══
@@ -459,7 +492,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       try {
         const res = await fetch(`${base}/api/downloads/start`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({ url: finalUrl, quality: actualQuality || selectedQuality })
         });
         const data = await safeJsonParse(res);
@@ -476,12 +509,12 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       return;
     }
 
-    // ═══ CLOUD DEPLOYMENT: Use streaming approach (Vercel + Render) ═══
+    // ═══ CLOUD DEPLOYMENT: Use streaming approach (Direct Render API) ═══
     try {
-      // Step 1: Resolve stream URLs from server
+      // Step 1: Resolve stream URLs from server (pass Authorization header for VIP/Admin quotas)
       const res = await fetch(`${base}/api/downloads/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getApiHeaders(),
         body: JSON.stringify({ url: finalUrl, quality: actualQuality }),
         signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(55000) : undefined
       });
@@ -493,7 +526,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
           try {
             const localRes = await fetch('http://localhost:5001/api/downloads/stream', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getApiHeaders(),
               body: JSON.stringify({ url: finalUrl, quality: actualQuality }),
               signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(6000) : undefined
             });
@@ -541,16 +574,20 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       try {
         fetch(`${base}/api/downloads/record`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getApiHeaders(),
           body: JSON.stringify({
             title: data.title,
+            thumbnailUrl: resolvedMedia?.thumbnailUrl || '',
             fileName: data.fileName,
             originalUrl: finalUrl,
+            platform: 'YouTube',
             quality: actualQuality,
             format: data.type === 'audio' ? 'mp3' : 'mp4',
             fileSize: data.sizeBytes || data.videoSize || 0,
             status: 'Completed',
-            downloadSource: 'web'
+            downloadSource: 'web',
+            userId: user?.id || user?._id || undefined,
+            userEmail: user?.email || undefined
           })
         }).catch(() => {});
       } catch {}
