@@ -84,7 +84,7 @@ const healthHandler = (req, res) => {
   const cookie = process.env.YOUTUBE_COOKIE || '';
   res.json({
     status: 'ok',
-    version: '2.5.9',
+    version: '2.6.0',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,

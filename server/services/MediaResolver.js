@@ -72,7 +72,7 @@ class MediaResolver {
         try {
             info = await Promise.race([
                 this.ytdl.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Resolution timeout')), 25000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Resolution timeout')), 6000))
             ]);
         } catch (err1) {
             lastError = err1;
@@ -83,10 +83,42 @@ class MediaResolver {
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404') || errStr.includes('does not exist')) {
                 throw new Error("This video is unavailable or private on YouTube.");
             }
-            console.warn('[MediaResolver] Ytdl client failed, trying play-dl fallback:', err1.message);
+            console.warn('[MediaResolver] Ytdl client failed, trying secondary engines:', err1.message);
         }
 
-        // Engine 2: play-dl fallback
+        // Engine 2: High-Availability Piped Cloud Proxy Fallback (Bypasses all cloud datacenter 403 blocks)
+        if (!info) {
+            const vidMatch = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+            if (vidMatch && vidMatch[1]) {
+                try {
+                    const piped = await this._resolveViaPiped(vidMatch[1], '1080p');
+                    if (piped && piped.videoStream) {
+                        return {
+                            id: vidMatch[1],
+                            url: cleanUrl,
+                            title: piped.title,
+                            author: 'YouTube',
+                            durationSeconds: 0,
+                            formattedDuration: '00:00',
+                            thumbnailUrl: `https://i.ytimg.com/vi/${vidMatch[1]}/hqdefault.jpg`,
+                            availableQualities: ['1080p', '720p', '480p', '360p', 'MP3'],
+                            availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
+                            bestAudioStream: null,
+                            bestVideoStream: piped.videoStream,
+                            allFormats: [{
+                                qualityLabel: piped.videoStream.qualityLabel,
+                                url: piped.videoStream.url,
+                                mimeType: piped.videoStream.mimeType
+                            }]
+                        };
+                    }
+                } catch (pErr) {
+                    console.warn('[MediaResolver] Piped resolveVideo fallback failed:', pErr.message);
+                }
+            }
+        }
+
+        // Engine 3: play-dl fallback
         if (!info && play) {
             try {
                 console.log('[MediaResolver] Attempting play-dl fallback for:', cleanUrl);
@@ -248,11 +280,11 @@ class MediaResolver {
         try {
             info = await Promise.race([
                 this.ytdl.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), 25000))
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), 6000))
             ]);
         } catch (e1) {
             lastErr = e1;
-            console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream, falling back to play-dl:', e1.message);
+            console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream, trying secondary fallbacks:', e1.message);
         }
 
         if (info && info.formats && info.formats.length > 0) {
@@ -344,7 +376,77 @@ class MediaResolver {
             }
         }
 
+        // Engine 3: High-Availability Piped Cloud Stream Fallback (Bypasses datacenter bot blocks)
+        const vidMatch = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if (vidMatch && vidMatch[1]) {
+            try {
+                console.log('[MediaResolver] Attempting Piped fallback in resolveSpecificStream for:', vidMatch[1]);
+                const piped = await this._resolveViaPiped(vidMatch[1], quality);
+                if (piped) {
+                    return piped;
+                }
+            } catch (pipedErr) {
+                console.warn('[MediaResolver] Piped resolveSpecificStream failed:', pipedErr.message);
+            }
+        }
+
         throw new Error(lastErr ? lastErr.message : 'Could not resolve stream from YouTube.');
+    }
+
+    async _resolveViaPiped(videoId, quality = '1080p') {
+        const instances = [
+            'https://api.piped.private.coffee',
+            'https://pipedapi.kavin.rocks',
+            'https://pipedapi.adminforge.de'
+        ];
+        for (const inst of instances) {
+            try {
+                const res = await fetch(`${inst}/streams/${videoId}`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+                    signal: AbortSignal.timeout(5000)
+                });
+                if (!res.ok) continue;
+                const data = await res.json();
+                if (!data || (!data.videoStreams?.length && !data.audioStreams?.length)) continue;
+
+                const title = data.title || 'YouTube Video';
+                const targetLabel = quality.toLowerCase().replace('p', '');
+
+                if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
+                    const audio = (data.audioStreams || [])[0];
+                    if (audio?.url) {
+                        return {
+                            type: 'audio',
+                            stream: { url: audio.url, mimeType: audio.mimeType || 'audio/mp4' },
+                            title,
+                            sizeBytes: audio.bitrate || 0
+                        };
+                    }
+                }
+
+                const video = (data.videoStreams || []).find(v => v.quality && v.quality.includes(targetLabel) && v.url)
+                           || (data.videoStreams || []).find(v => v.url)
+                           || (data.videoStreams || [])[0];
+
+                if (video?.url) {
+                    return {
+                        type: 'video',
+                        videoStream: {
+                            url: video.url,
+                            mimeType: video.mimeType || 'video/mp4',
+                            qualityLabel: video.quality || quality,
+                            hasAudio: !video.videoOnly
+                        },
+                        audioStream: null,
+                        title,
+                        sizeBytes: 0
+                    };
+                }
+            } catch (e) {
+                // try next instance
+            }
+        }
+        return null;
     }
 
     _formatDuration(seconds) {

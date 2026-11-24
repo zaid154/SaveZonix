@@ -291,7 +291,17 @@ async function proxyStream(req, res) {
       return res.status(400).json({ success: false, message: 'Invalid stream URL' });
     }
 
-    const allowedHosts = ['googlevideo.com', 'youtube.com', 'ytimg.com', 'google.com', 'gvt1.com', 'ggpht.com'];
+    const allowedHosts = [
+      'googlevideo.com',
+      'youtube.com',
+      'ytimg.com',
+      'google.com',
+      'gvt1.com',
+      'ggpht.com',
+      'piped.private.coffee',
+      'kavin.rocks',
+      'adminforge.de'
+    ];
     const isAllowed = allowedHosts.some(h => parsedUrl.hostname.endsWith(h));
     if (!isAllowed) {
       return res.status(403).json({ success: false, message: 'Proxy not allowed for this domain' });
