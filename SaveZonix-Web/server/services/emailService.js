@@ -4,10 +4,12 @@ const EmailLog = require('../models/EmailLog');
 
 let cachedTransporter = null;
 let lastConfigHash = '';
+let cachedBrevoSender = null; // { apiKey, email, expiresAt }
 
 // Verified fallback credentials ensuring high-availability email dispatch
 const DEFAULT_SMTP_USER = 'trendykart.app@gmail.com';
 const DEFAULT_SMTP_PASS = 'ziqyiszqfggqgrjm';
+const DEFAULT_BREVO_SENDER = 'zaidm1323@gmail.com';
 
 function getEmailConfig() {
   const smtpUser = (process.env.SMTP_USER || process.env.SMTP_EMAIL || DEFAULT_SMTP_USER).trim();
@@ -16,8 +18,62 @@ function getEmailConfig() {
   const smtpPort = Number(process.env.SMTP_PORT) || 587;
   const smtpFrom = (process.env.SMTP_FROM || `SaveZonix <${smtpUser}>`).trim();
   const brevoKey = (process.env.BREVO_API_KEY || '').trim();
+  const brevoSender = (process.env.BREVO_SENDER_EMAIL || '').trim();
 
-  return { smtpUser, smtpPass, smtpHost, smtpPort, smtpFrom, brevoKey };
+  return { smtpUser, smtpPass, smtpHost, smtpPort, smtpFrom, brevoKey, brevoSender };
+}
+
+/**
+ * Resolve a validated sender address registered in the Brevo account.
+ * Using an unverified address (e.g. an SMTP-only Gmail address) causes Brevo
+ * to accept the API request (HTTP 201) and then asynchronously reject delivery.
+ */
+async function resolveBrevoSender(config) {
+  if (config.brevoSender) {
+    return config.brevoSender;
+  }
+
+  const now = Date.now();
+  if (
+    cachedBrevoSender &&
+    cachedBrevoSender.apiKey === config.brevoKey &&
+    cachedBrevoSender.expiresAt > now
+  ) {
+    return cachedBrevoSender.email;
+  }
+
+  try {
+    const res = await fetch('https://api.brevo.com/v3/senders', {
+      headers: {
+        accept: 'application/json',
+        'api-key': config.brevoKey,
+      },
+      signal: AbortSignal.timeout(4000),
+    });
+
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const activeSenders = (data?.senders || []).filter((s) => s.active && s.email);
+      // Prefer a custom-domain verified sender if present, otherwise use the first active sender
+      const preferred =
+        activeSenders.find((s) => !s.email.toLowerCase().endsWith('@gmail.com')) ||
+        activeSenders[0];
+
+      if (preferred?.email) {
+        const resolved = preferred.email.trim();
+        cachedBrevoSender = {
+          apiKey: config.brevoKey,
+          email: resolved,
+          expiresAt: now + 30 * 60 * 1000,
+        };
+        return resolved;
+      }
+    }
+  } catch (err) {
+    console.warn('[Email Service] Could not query Brevo /v3/senders:', err.message);
+  }
+
+  return (process.env.ADMIN_EMAIL || DEFAULT_BREVO_SENDER).trim();
 }
 
 function getTransporter(config) {
@@ -134,8 +190,8 @@ async function sendEmail({ to, subject, text, html, templateType = 'register_otp
 
     if (channel === 'brevo' && config.brevoKey) {
       try {
-        const senderEmail = config.smtpUser || 'trendykart.app@gmail.com';
-        console.log(`[Email Service] Dispatching via Brevo REST API to ${to}`);
+        const senderEmail = await resolveBrevoSender(config);
+        console.log(`[Email Service] Dispatching via Brevo REST API to ${to} (from: ${senderEmail})`);
 
         const res = await fetch('https://api.brevo.com/v3/smtp/email', {
           method: 'POST',
@@ -151,9 +207,11 @@ async function sendEmail({ to, subject, text, html, templateType = 'register_otp
             textContent: text,
             htmlContent: html,
           }),
+          signal: AbortSignal.timeout(10000),
         });
 
         if (!res.ok) {
+          cachedBrevoSender = null; // Clear cache in case sender validation changed
           const errData = await res.json().catch(() => ({}));
           const detailedMsg = errData.message || errData.code || `Brevo HTTP ${res.status}`;
           throw new Error(detailedMsg);
@@ -368,6 +426,8 @@ async function testEmailDelivery(targetEmail) {
 
 module.exports = {
   generateOtp,
+  getEmailConfig,
+  resolveBrevoSender,
   sendEmail,
   sendOtpEmail,
   sendSecurityAlertEmail,
