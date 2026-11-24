@@ -66,6 +66,9 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
   useEffect(() => {
     // Check if SaveZonix Local Companion Engine is running on localhost:5001
     const checkLocal = async () => {
+      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        return '';
+      }
       try {
         const res = await fetch('http://localhost:5001/api/health', { signal: AbortSignal.timeout(600) });
         if (res.ok) {
