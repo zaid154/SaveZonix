@@ -302,12 +302,12 @@ class MediaResolver {
 
             const targetLabel = quality.toLowerCase().replace('p', '');
 
-            // Priority 1: Combined format (video+audio in one stream) with direct URL
+            // Priority 1: Combined format (video+audio in one stream) that matches requested quality
             const combinedFormat = formats.find(f =>
                 f.qualityLabel &&
                 f.qualityLabel.toLowerCase().includes(targetLabel) &&
                 f.hasAudio && f.hasVideo && f.url
-            ) || formats.find(f => f.hasAudio && f.hasVideo && f.url);
+            );
 
             if (combinedFormat) {
                 return {
@@ -319,7 +319,7 @@ class MediaResolver {
                 };
             }
 
-            // Priority 2: Separate video stream
+            // Priority 2: Separate video stream (for true 1080p/720p HD) + separate audio stream
             const video = formats.find(f => f.qualityLabel && f.qualityLabel.toLowerCase().includes(targetLabel) && f.url)
                        || formats.find(f => f.url && f.hasVideo)
                        || chooseFormat(formats, { quality: 'highestvideo' })
@@ -428,6 +428,8 @@ class MediaResolver {
                            || (data.videoStreams || []).find(v => v.url)
                            || (data.videoStreams || [])[0];
 
+                const audio = (data.audioStreams || [])[0];
+
                 if (video?.url) {
                     return {
                         type: 'video',
@@ -437,7 +439,10 @@ class MediaResolver {
                             qualityLabel: video.quality || quality,
                             hasAudio: !video.videoOnly
                         },
-                        audioStream: null,
+                        audioStream: (video.videoOnly && audio?.url) ? {
+                            url: audio.url,
+                            mimeType: audio.mimeType || 'audio/mp4'
+                        } : null,
                         title,
                         sizeBytes: 0
                     };

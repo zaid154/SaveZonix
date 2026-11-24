@@ -5,6 +5,7 @@ const https = require('https');
 const http = require('http');
 const downloadManager = require('../services/DownloadManager');
 const mediaResolver = require('../services/MediaResolver');
+const ffmpegService = require('../services/FFmpegService');
 const DownloadHistory = require('../models/DownloadHistory');
 
 function sanitizeFileName(name) {
@@ -277,6 +278,7 @@ function pipeRemoteStream(targetUrl, req, res, fileName, redirectCount = 0) {
 async function proxyStream(req, res) {
   try {
     const streamUrl = req.query.url;
+    const audioUrl = req.query.audioUrl;
     const fileName = decodeURIComponent(req.query.filename || 'download');
 
     if (!streamUrl) {
@@ -311,6 +313,19 @@ async function proxyStream(req, res) {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
       return res.sendStatus(204);
+    }
+
+    // When audioUrl is present, mux video + audio streams on the fly into MP4
+    if (audioUrl) {
+      try {
+        const parsedAudioUrl = new URL(audioUrl);
+        const isAudioAllowed = allowedHosts.some(h => parsedAudioUrl.hostname.endsWith(h));
+        if (isAudioAllowed) {
+          return await ffmpegService.muxStreamToResponse(streamUrl, audioUrl, res, fileName);
+        }
+      } catch (muxErr) {
+        console.warn('[ProxyStream] On-the-fly muxing failed, falling back to direct stream:', muxErr.message);
+      }
     }
 
     pipeRemoteStream(streamUrl, req, res, fileName, 0);

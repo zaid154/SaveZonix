@@ -495,7 +495,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
             if (localData.success) {
               setLocalEngineActive(true);
               const sUrl = localData.type === 'audio' ? localData.streamUrl : localData.videoStreamUrl;
-              const dlUrl = `http://localhost:5001/api/downloads/proxy-stream?url=${encodeURIComponent(sUrl)}&filename=${encodeURIComponent(localData.fileName)}`;
+              let dlUrl = `http://localhost:5001/api/downloads/proxy-stream?url=${encodeURIComponent(sUrl)}&filename=${encodeURIComponent(localData.fileName)}`;
+              if (localData.audioStreamUrl && localData.needsMuxing) {
+                dlUrl += `&audioUrl=${encodeURIComponent(localData.audioStreamUrl)}`;
+              }
               triggerBrowserDownload(dlUrl, localData.fileName);
               recordTrialDownloadConsumed(user);
               setCompletedTask({ fileName: localData.fileName, title: localData.title, directDownload: true, downloadUrl: dlUrl });
@@ -520,7 +523,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
 
       // Step 2: Trigger browser download directly from Render (bypasses Vercel 30s proxy timeout)
       const streamUrl = data.type === 'audio' ? data.streamUrl : data.videoStreamUrl;
-      const dlUrl = `${RENDER_API_BASE}/api/downloads/proxy-stream?url=${encodeURIComponent(streamUrl)}&filename=${encodeURIComponent(data.fileName)}`;
+      let dlUrl = `${RENDER_API_BASE}/api/downloads/proxy-stream?url=${encodeURIComponent(streamUrl)}&filename=${encodeURIComponent(data.fileName)}`;
+      if (data.audioStreamUrl && data.needsMuxing) {
+        dlUrl += `&audioUrl=${encodeURIComponent(data.audioStreamUrl)}`;
+      }
 
       triggerBrowserDownload(dlUrl, data.fileName);
       recordTrialDownloadConsumed(user);
@@ -567,7 +573,10 @@ export default function DownloadStudio({ user, onOpenGatekeeper, onOpenExtension
           if (localData.success) {
             setLocalEngineActive(true);
             const sUrl = localData.type === 'audio' ? localData.streamUrl : localData.videoStreamUrl;
-            const dlUrl = `http://localhost:5001/api/downloads/proxy-stream?url=${encodeURIComponent(sUrl)}&filename=${encodeURIComponent(localData.fileName)}`;
+            let dlUrl = `http://localhost:5001/api/downloads/proxy-stream?url=${encodeURIComponent(sUrl)}&filename=${encodeURIComponent(localData.fileName)}`;
+            if (localData.audioStreamUrl && localData.needsMuxing) {
+              dlUrl += `&audioUrl=${encodeURIComponent(localData.audioStreamUrl)}`;
+            }
             triggerBrowserDownload(dlUrl, localData.fileName);
             recordTrialDownloadConsumed(user);
             setCompletedTask({ fileName: localData.fileName, title: localData.title, directDownload: true, downloadUrl: dlUrl });
