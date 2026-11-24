@@ -185,7 +185,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
     return headers;
   };
 
-  // Resolve active API base URL (local companion vs direct Render cloud API on Vercel)
+  // Resolve active API base URL (local companion vs same-origin Vercel rewrite for /resolve & /stream)
   const getApiBase = (explicitBase = null) => {
     if (explicitBase !== null && explicitBase !== '') return explicitBase;
     const isLocalHost = typeof window !== 'undefined' &&
@@ -193,7 +193,7 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
     if (isLocalHost) {
       return localEngineActive ? 'http://localhost:5001' : '';
     }
-    return RENDER_API_BASE;
+    return '';
   };
 
   // Pick smart default quality respecting user tier (VIP gets 1080p, free/guest defaults to 720p)
@@ -551,8 +551,6 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
         const msgLower = (data.message || '').toLowerCase();
         if (msgLower.includes('unavailable') || msgLower.includes('private') || msgLower.includes('not found') || msgLower.includes('does not exist')) {
           setErrorMsg('⚠️ This video is unavailable, deleted, or private on YouTube. Please try another video link.');
-        } else if (msgLower.includes('player') || msgLower.includes('429') || msgLower.includes('bot') || msgLower.includes('throttled') || msgLower.includes('timeout')) {
-          setErrorMsg('⚡ Cloud servers are waking up or busy. Please tap Download again.');
         } else {
           setErrorMsg(data.message || 'Failed to resolve stream.');
         }

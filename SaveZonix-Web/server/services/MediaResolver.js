@@ -1,54 +1,88 @@
 const path = require('path');
 const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
 
-let play = null;
-try {
-    play = require('play-dl');
-} catch {}
-
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
-        // VisionOS resolves direct playable formats cleanly (~1s) without heavy JS player parsing
+        // VisionOS avoids JS player parsing when accepted; Mweb uses cookie + patched base.js on datacenter IPs
         this.ytdl = new Ytdl({
-            clients: [Client.VisionOS, Client.Mweb, Client.WebEmbedded, Client.Tv],
-            cookie
+            clients: [Client.VisionOS, Client.Mweb],
+            cookie,
+            fetch: this._createPatchedFetch()
         });
-        this.ytdlNoCookie = cookie
-            ? new Ytdl({ clients: [Client.VisionOS, Client.Mweb] })
-            : null;
         this.ytdlVisionOS = this.ytdl;
         this.ytdlFast = this.ytdl;
     }
 
     /**
-     * Resolve YouTube info using VisionOS-first multi-client pool with a cookieless fallback
-     * in case configured cookies are stale or rejected.
+     * Patches YouTube player JS (e.g. b485e332) where ytdl-core's stripped solver AST
+     * lacks Object.prototype inheritance setup for addOnDisposeCallback.
      */
-    async _getYtdlInfo(cleanUrl, timeoutMs = 10000) {
+    _createPatchedFetch() {
+        return async (input, init) => {
+            const urlStr = typeof input === 'string' ? input : (input?.url || String(input));
+            const res = await fetch(input, init);
+            if (urlStr.includes('/s/player/') && urlStr.includes('/base.js') && res.ok) {
+                let body = await res.text();
+                if (body.includes('addOnDisposeCallback')) {
+                    const patch = 'var __szPatch=Object.defineProperty(Object.prototype,"addOnDisposeCallback",{value:function(){},configurable:true,writable:true});';
+                    body = body.includes('var window=this;')
+                        ? body.replace('var window=this;', `var window=this;${patch}`)
+                        : `${patch}${body}`;
+                }
+                const headers = new Headers(res.headers);
+                headers.delete('content-length');
+                headers.delete('content-encoding');
+                return new Response(body, {
+                    status: res.status,
+                    statusText: res.statusText,
+                    headers
+                });
+            }
+            return res;
+        };
+    }
+
+    _safeChooseFormat(formats, options) {
+        if (!Array.isArray(formats) || formats.length === 0) return null;
+        try {
+            return chooseFormat(formats, options);
+        } catch {
+            return null;
+        }
+    }
+
+    /**
+     * Resolve YouTube info using VisionOS + Mweb (with signed-in cookie support if configured)
+     * and abortable timeout so stalled attempts surface clear diagnostic codes.
+     */
+    async _getYtdlInfo(cleanUrl, timeoutMs = 18000) {
+        const effectiveTimeout = Math.max(Number(timeoutMs) || 18000, 18000);
+        const controller = new AbortController();
+        let timer = null;
         try {
             return await Promise.race([
-                this.ytdl.getInfo(cleanUrl),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), timeoutMs))
+                this.ytdl.getInfo(cleanUrl, { signal: controller.signal }),
+                new Promise((_, reject) => {
+                    timer = setTimeout(() => {
+                        controller.abort();
+                        reject(new Error(`Stream resolution timeout after ${effectiveTimeout}ms`));
+                    }, effectiveTimeout);
+                })
             ]);
         } catch (err) {
-            const msg = (err?.message || '').toLowerCase();
-            if (
-                msg.includes('incomplete youtube link') ||
-                msg.includes('unavailable') ||
-                msg.includes('private') ||
-                msg.includes('not found') ||
-                msg.includes('does not exist')
-            ) {
-                throw err;
-            }
-            if (this.ytdlNoCookie) {
-                return await Promise.race([
-                    this.ytdlNoCookie.getInfo(cleanUrl),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('Stream resolution timeout')), 8000))
-                ]);
+            const attempts = Array.isArray(err?.attempts)
+                ? err.attempts.map(a => `${a.client}${a.signedIn ? ':auth' : ''}=${a.code || a.reason || 'err'}`).join(', ')
+                : '';
+            const baseMsg = err?.message || 'YouTube stream resolution failed';
+            if (attempts && !baseMsg.includes(attempts)) {
+                const enriched = new Error(`${baseMsg} [${attempts}]`);
+                enriched.attempts = err.attempts;
+                throw enriched;
             }
             throw err;
+        } finally {
+            if (timer) clearTimeout(timer);
         }
     }
 
@@ -149,43 +183,7 @@ class MediaResolver {
             }
         }
 
-        // Engine 3: play-dl fallback
-        if (!info && play) {
-            try {
-                console.log('[MediaResolver] Attempting play-dl fallback for:', cleanUrl);
-                const pInfo = await Promise.race([
-                    play.video_info(cleanUrl),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 5000))
-                ]);
-                if (pInfo && pInfo.video_details) {
-                    const vd = pInfo.video_details;
-                    const pFormats = (pInfo.format || []).map(f => ({
-                        itag: f.itag,
-                        qualityLabel: f.qualityLabel,
-                        audioBitrate: f.audioBitrate,
-                        mimeType: f.mimeType,
-                        contentLength: parseInt(f.contentLength || '0', 10),
-                        url: f.url
-                    }));
-                    return this._buildResponsePayload({
-                        videoId: vd.id,
-                        url: vd.url || cleanUrl,
-                        title: vd.title,
-                        author: vd.channel ? vd.channel.name : 'YouTube',
-                        durationSeconds: vd.durationInSec || 0,
-                        thumbnailUrl: vd.thumbnails && vd.thumbnails.length > 0 
-                            ? vd.thumbnails[vd.thumbnails.length - 1].url 
-                            : `https://i.ytimg.com/vi/${vd.id}/hqdefault.jpg`,
-                        formats: pFormats
-                    });
-                }
-            } catch (err3) {
-                lastError = err3;
-                console.warn('[MediaResolver] play-dl fallback failed:', err3.message);
-            }
-        }
-
-        // Engine 4: If all stream extractors failed, try oEmbed to at least extract metadata
+        // Engine 3: If all stream extractors failed, try oEmbed to at least extract metadata
         if (!info) {
             try {
                 const oRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(cleanUrl)}&format=json`, {
@@ -206,6 +204,7 @@ class MediaResolver {
                         availableQualities: ['1080p', '720p', '480p', '360p', 'MP3'],
                         availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
                         throttledCloud: true,
+                        cloudError: lastError?.message || undefined,
                         bestAudioStream: null,
                         bestVideoStream: null,
                         allFormats: []
@@ -225,11 +224,31 @@ class MediaResolver {
             if (errStr.includes('unavailable') || errStr.includes('private') || errStr.includes('not found') || errStr.includes('404')) {
                 throw new Error("This video is unavailable, private, or deleted on YouTube.");
             }
-            throw new Error("YouTube throttled cloud servers for this video. Please use the SaveZonix Extension or local companion for instant downloads.");
+            throw new Error(lastError?.message || "YouTube throttled cloud servers for this video. Please use the SaveZonix Extension or local companion for instant downloads.");
         }
 
         const details = info.videoDetails;
-        const formats = info.formats || [];
+        const formats = (info.formats || []).filter(f => Boolean(f.url));
+        if (formats.length === 0) {
+            return {
+                id: details.videoId,
+                url: details.video_url || cleanUrl,
+                title: details.title || 'YouTube Video',
+                author: details.author ? details.author.name : 'YouTube Creator',
+                durationSeconds: parseInt(details.lengthSeconds || '0', 10),
+                formattedDuration: this._formatDuration(parseInt(details.lengthSeconds || '0', 10)),
+                thumbnailUrl: details.thumbnails && details.thumbnails.length > 0
+                    ? details.thumbnails[details.thumbnails.length - 1].url
+                    : `https://i.ytimg.com/vi/${details.videoId}/hqdefault.jpg`,
+                availableQualities: ['1080p', '720p', '480p', '360p', 'MP3'],
+                availableFormats: ['MP4', 'WebM', 'MP3', 'M4A'],
+                throttledCloud: true,
+                cloudError: 'Extractor returned formats without direct stream URLs',
+                bestAudioStream: null,
+                bestVideoStream: null,
+                allFormats: []
+            };
+        }
 
         return this._buildResponsePayload({
             videoId: details.videoId,
@@ -263,8 +282,8 @@ class MediaResolver {
             availableQualities.push('MP3');
         }
 
-        const bestAudio = chooseFormat(formats, { quality: 'highestaudio' }) || audioStreams[0];
-        const bestVideo = chooseFormat(formats, { quality: 'highestvideo' }) || videoStreams[0];
+        const bestAudio = this._safeChooseFormat(formats, { quality: 'highestaudio' }) || audioStreams[0] || formats.find(f => f.hasAudio) || formats[0];
+        const bestVideo = this._safeChooseFormat(formats, { quality: 'highestvideo' }) || videoStreams[0] || formats.find(f => f.hasVideo) || formats[0];
 
         return {
             id: videoId,
@@ -315,8 +334,9 @@ class MediaResolver {
             console.warn('[MediaResolver] Ytdl failed in resolveSpecificStream, trying secondary fallbacks:', e1.message);
         }
 
-        if (info && info.formats && info.formats.length > 0) {
-            const formats = info.formats || [];
+        const playableFormats = (info?.formats || []).filter(f => Boolean(f.url));
+        if (info && playableFormats.length > 0) {
+            const formats = playableFormats;
             const title = info.videoDetails?.title || 'YouTube Video';
             const vidId = info.videoDetails?.videoId || '';
             const thumbnailUrl = info.videoDetails?.thumbnails?.length
@@ -325,7 +345,7 @@ class MediaResolver {
 
             const pickBestAudio = () =>
                 formats.find(f => !f.hasVideo && f.hasAudio && f.mimeType?.includes('audio/mp4') && f.url)
-                || chooseFormat(formats, { quality: 'highestaudio' })
+                || this._safeChooseFormat(formats, { quality: 'highestaudio' })
                 || formats.find(f => f.url && f.hasAudio)
                 || formats[0];
 
@@ -367,9 +387,9 @@ class MediaResolver {
                        || matchingByQuality[0]
                        || formats.find(f => f.url && f.hasVideo && f.mimeType?.includes('video/mp4'))
                        || formats.find(f => f.url && f.hasVideo)
-                       || chooseFormat(formats, { quality: 'highestvideo' })
+                       || this._safeChooseFormat(formats, { quality: 'highestvideo' })
                        || formats[0];
-            const audio = pickBestAudio();
+            const audio = video?.hasAudio ? null : pickBestAudio();
 
             return {
                 type: 'video',
@@ -395,48 +415,7 @@ class MediaResolver {
             }
         }
 
-        // Engine 3: play-dl fallback (capped at 5s)
-        if (play) {
-            try {
-                console.log('[MediaResolver] Attempting play-dl fallback in resolveSpecificStream for:', cleanUrl);
-                const pInfo = await Promise.race([
-                    play.video_info(cleanUrl),
-                    new Promise((_, reject) => setTimeout(() => reject(new Error('play-dl timeout')), 5000))
-                ]);
-                if (pInfo && pInfo.video_details) {
-                    const formats = pInfo.format || [];
-                    const title = pInfo.video_details.title || 'YouTube Video';
-
-                    if (quality.toUpperCase() === 'MP3' || quality.toUpperCase() === 'AUDIO') {
-                        const audioOnly = formats.filter(f => !f.qualityLabel && f.url);
-                        const bestAudio = audioOnly.sort((a, b) => (b.audioBitrate || 0) - (a.audioBitrate || 0))[0] || formats[0];
-                        return {
-                            type: 'audio',
-                            stream: { url: bestAudio?.url, mimeType: bestAudio?.mimeType },
-                            title,
-                            sizeBytes: parseInt(bestAudio?.contentLength || '0', 10)
-                        };
-                    }
-
-                    const targetLabel = quality.toLowerCase().replace('p', '');
-                    const matchingVideo = formats.find(f => f.qualityLabel && f.qualityLabel.includes(targetLabel) && f.url)
-                                       || formats.filter(f => f.qualityLabel && f.url).sort((a, b) => parseInt(b.qualityLabel || '0') - parseInt(a.qualityLabel || '0'))[0]
-                                       || formats[0];
-
-                    return {
-                        type: 'video',
-                        videoStream: { url: matchingVideo?.url, mimeType: matchingVideo?.mimeType, qualityLabel: matchingVideo?.qualityLabel },
-                        audioStream: null,
-                        title,
-                        sizeBytes: parseInt(matchingVideo?.contentLength || '0', 10)
-                    };
-                }
-            } catch (playErr) {
-                console.warn('[MediaResolver] play-dl resolveSpecificStream fallback failed:', playErr.message);
-            }
-        }
-
-        throw new Error(lastErr ? lastErr.message : 'Could not resolve stream from YouTube.');
+        throw new Error(lastErr ? lastErr.message : 'Could not resolve playable stream from YouTube.');
     }
 
     async _resolveViaPiped(videoId, quality = '1080p') {
