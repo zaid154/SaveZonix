@@ -38,13 +38,28 @@ router.get('/test-net', async (req, res) => {
 });
 
 router.get('/test-clients', async (req, res) => {
-  const { Ytdl } = require('@distube/ytdl-core');
+  const { Ytdl, Client } = require('@distube/ytdl-core');
   const cookie = process.env.YOUTUBE_COOKIE || undefined;
   const url = req.query.url || 'https://www.youtube.com/shorts/L8XYCkfamfE';
   const targetClient = req.query.client || 'tv';
   const t0 = Date.now();
   try {
-    const y = new Ytdl({ clients: [targetClient], cookie });
+    let y;
+    if (targetClient === 'visionos_cookie_fetch') {
+      const cookieFetch = (input, init = {}) => {
+        const headers = new Headers(init.headers || {});
+        if (cookie && !headers.has('Cookie')) {
+          headers.set('Cookie', cookie);
+        }
+        return fetch(input, { ...init, headers });
+      };
+      y = new Ytdl({
+        clients: [Client.VisionOS],
+        fetch: cookieFetch
+      });
+    } else {
+      y = new Ytdl({ clients: [targetClient], cookie });
+    }
     const info = await Promise.race([
       y.getInfo(url),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout 15s')), 15000))
