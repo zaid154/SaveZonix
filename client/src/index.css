@@ -447,18 +447,89 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 200;
-  padding: 20px;
+  padding: 24px 16px;
+  overflow-y: auto;
 }
 
 .modal-content {
   background: #0d121f;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 16px;
-  padding: 32px;
+  padding: 24px 26px;
   max-width: 440px;
   width: 100%;
+  margin: auto;
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
   position: relative;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+}
+
+.auth-modal-header {
+  padding-right: 40px;
+  margin-bottom: 14px;
+}
+
+.auth-modal-header.centered {
+  padding: 0 36px;
+  text-align: center;
+}
+
+.auth-modal-header .modal-title {
+  margin-bottom: 4px;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.auth-modal-header .modal-desc {
+  margin-bottom: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-modal-sheet .auth-close-btn {
+  top: 16px;
+  right: 16px;
+  min-width: 36px;
+  min-height: 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.auth-modal-sheet .auth-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.auth-modal-sheet .auth-alert {
+  margin-bottom: 14px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+}
+
+.auth-modal-sheet .form-group {
+  margin-bottom: 13px;
+}
+
+.auth-step1-form {
+  margin-bottom: 12px;
+}
+
+.auth-modal-sheet .btn-send-code {
+  min-height: 41px;
+}
+
+.auth-modal-sheet .btn-modal-submit {
+  margin-top: 6px;
+  padding: 11px 14px;
+}
+
+.auth-modal-sheet .modal-toggle-text {
+  margin-top: 14px;
 }
 
 .btn-close-modal {
@@ -594,7 +665,7 @@ input:-webkit-autofill:active {
 /* Dedicated OTP Digit Boxes */
 .auth-otp-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: center;
   align-items: center;
   width: 100%;
@@ -602,14 +673,14 @@ input:-webkit-autofill:active {
 
 .auth-otp-box {
   flex: 1 1 0;
-  max-width: 44px;
+  max-width: 58px;
   min-width: 0;
-  height: 52px;
-  font-size: 22px;
+  height: 48px;
+  font-size: 20px;
   font-weight: 800;
   text-align: center;
-  background: #080c14;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: #070b14;
+  border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 8px;
   color: #38bdf8;
   outline: none;
@@ -2680,6 +2751,7 @@ input:-webkit-autofill:active {
   .auth-modal-sheet {
     max-width: 100% !important;
     width: 100% !important;
+    margin: 0 !important;
     border-radius: 20px 20px 0 0 !important;
     padding: 24px 16px calc(20px + env(safe-area-inset-bottom)) !important;
     max-height: 92vh !important;

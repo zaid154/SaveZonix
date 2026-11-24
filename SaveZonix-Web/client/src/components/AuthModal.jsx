@@ -166,6 +166,32 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
 
   if (!isOpen) return null;
 
+  const headerMap = {
+    login: {
+      title: 'Welcome Back',
+      desc: 'Login to access your VIP status and sync download stats.'
+    },
+    register: {
+      title: 'Create an Account',
+      desc: 'We will send a 6-digit verification code & 1-Click magic link to your email.'
+    },
+    otp: {
+      title: 'Enter Verification Code',
+      desc: (
+        <>
+          Enter the 6-digit code sent to <strong style={{ color: '#38bdf8' }}>{email}</strong> or click the 1-Click link in your email.
+        </>
+      )
+    },
+    forgot: {
+      title: 'Reset Password',
+      desc: magicResetToken
+        ? 'Your reset link is verified. Set your new password below.'
+        : 'Enter your registered email to receive a 6-digit reset code.'
+    }
+  };
+  const activeHeader = headerMap[view] || headerMap.login;
+
   async function handleLogin(e) {
     e.preventDefault();
     setError('');
@@ -306,7 +332,11 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content auth-modal-sheet" onClick={(e) => e.stopPropagation()}>
-        <button className="btn-close-modal" onClick={onClose} aria-label="Close modal">✕</button>
+        <div className={`auth-modal-header${view === 'otp' ? ' centered' : ''}`}>
+          <h2 className="modal-title">{activeHeader.title}</h2>
+          <p className="modal-desc">{activeHeader.desc}</p>
+        </div>
+        <button type="button" className="btn-close-modal auth-close-btn" onClick={onClose} aria-label="Close modal">✕</button>
 
         {error && (
           <div className="auth-alert error">
@@ -325,9 +355,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* 1. LOGIN VIEW */}
         {view === 'login' && (
           <div>
-            <h2 className="modal-title">Welcome Back</h2>
-            <p className="modal-desc">Login to access your VIP status and sync download stats.</p>
-
             <form onSubmit={handleLogin}>
               <div className="form-group">
                 <label>Email Address</label>
@@ -393,9 +420,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* 2. REGISTER VIEW */}
         {view === 'register' && (
           <div>
-            <h2 className="modal-title">Create an Account</h2>
-            <p className="modal-desc">We will send a 6-digit verification code & 1-Click magic link to your email.</p>
-
             <form onSubmit={handleSendRegisterOtp}>
               <div className="form-group">
                 <label>Full Name</label>
@@ -469,10 +493,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* 3. OTP VERIFICATION VIEW (6-Box Auto-Focus UI + 60s Cooldown) */}
         {view === 'otp' && (
           <div style={{ textAlign: 'center' }}>
-            <h2 className="modal-title">Enter Verification Code</h2>
-            <p className="modal-desc">Enter the 6-digit code sent to <strong style={{ color: '#38bdf8' }}>{email}</strong> or click the 1-Click link in your email.</p>
-
-            <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '10px' }}>
+            <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginTop: '6px' }}>
               
               {/* 6 Individual Auto-Focus OTP Boxes */}
               <div className="auth-otp-row" onPaste={handleOtpPaste}>
@@ -523,15 +544,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         {/* 4. FORGOT PASSWORD VIEW */}
         {view === 'forgot' && (
           <div>
-            <h2 className="modal-title">Reset Password</h2>
-            <p className="modal-desc">
-              {magicResetToken
-                ? 'Your reset link is verified. Set your new password below.'
-                : 'Enter your registered email to receive a 6-digit reset code.'}
-            </p>
-
             {!magicResetToken && (
-              <form onSubmit={handleForgotStep1} style={{ marginBottom: '18px' }}>
+              <form onSubmit={handleForgotStep1} className="auth-step1-form">
                 <div className="form-group">
                   <label>Registered Email</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -563,7 +577,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                     <label style={{ margin: 0 }}>6-Digit Reset Code</label>
                     <span style={{ fontSize: '11px', color: '#64748b' }}>Expires in 10 mins</span>
                   </div>
-                  <div className="auth-otp-row" style={{ margin: '6px auto 16px' }} onPaste={handleOtpPaste}>
+                  <div className="auth-otp-row" onPaste={handleOtpPaste}>
                     {otpDigits.map((digit, idx) => (
                       <input
                         key={idx}
