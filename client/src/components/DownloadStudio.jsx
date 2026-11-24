@@ -670,30 +670,21 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       <div className="sz-tabs-scroll">
         <button 
           onClick={() => setActiveTab('single')}
-          className="sz-tab-btn"
-          style={{
-            background: activeTab === 'single' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: '#fff'
-          }}>
-          <Zap size={16} /> Single Downloader
+          className={`sz-tab-btn ${activeTab === 'single' ? 'active' : ''}`}
+        >
+          <Zap size={15} /> Single Downloader
         </button>
         <button 
           onClick={() => setActiveTab('playlist')}
-          className="sz-tab-btn"
-          style={{
-            background: activeTab === 'playlist' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: '#fff'
-          }}>
-          <ListMusic size={16} /> Playlist Studio
+          className={`sz-tab-btn ${activeTab === 'playlist' ? 'active' : ''}`}
+        >
+          <ListMusic size={15} /> Playlist Studio
         </button>
         <button 
           onClick={() => { setActiveTab('history'); fetchHistory(); }}
-          className="sz-tab-btn"
-          style={{
-            background: activeTab === 'history' ? '#3b82f6' : 'rgba(255,255,255,0.05)',
-            color: '#fff'
-          }}>
-          <History size={16} /> History ({historyList.length})
+          className={`sz-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+        >
+          <History size={15} /> History {historyList.length > 0 && <span className="sz-tab-count">{historyList.length}</span>}
         </button>
       </div>
 
@@ -746,155 +737,97 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
 
       {/* ── FREE TRIAL & VIP STATUS BANNER ── */}
       {isUserVip(user) ? (
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.1) 100%)',
-          border: '1px solid rgba(245, 158, 11, 0.35)',
-          borderRadius: '12px',
-          padding: '8px 16px',
-          marginBottom: '20px',
-          color: '#fbbf24',
-          fontSize: '13px',
-          fontWeight: 600,
-          boxShadow: '0 4px 15px rgba(245, 158, 11, 0.1)'
-        }}>
-          <Crown size={16} color="#fbbf24" />
-          <span>👑 VIP Member Active • Unlimited 4K Cloud Downloads Unlocked</span>
+        <div className="sz-trial-banner sz-vip-active-banner">
+          <div className="sz-trial-left">
+            <div className="sz-trial-icon-box sz-vip-icon-box">
+              <Crown size={16} />
+            </div>
+            <div>
+              <div className="sz-trial-title-row">
+                <span className="sz-vip-title">VIP MEMBER ACTIVE</span>
+                <span className="sz-vip-tag">UNLIMITED 4K</span>
+              </div>
+              <div className="sz-trial-subtitle">
+                Unlimited 4K cinema & 320kbps MP3 cloud downloads unlocked.
+              </div>
+            </div>
+          </div>
         </div>
       ) : remainingTrials > 0 ? (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          background: remainingTrials === 1 
-            ? 'linear-gradient(135deg, rgba(249, 115, 22, 0.12) 0%, rgba(234, 88, 12, 0.05) 100%)'
-            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.05) 100%)',
-          border: remainingTrials === 1 ? '1px solid rgba(249, 115, 22, 0.35)' : '1px solid rgba(16, 185, 129, 0.35)',
-          borderRadius: '12px',
-          padding: '10px 16px',
-          marginBottom: '20px',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>🎁</span>
+        <div className={`sz-trial-banner ${remainingTrials === 1 ? 'sz-trial-low' : 'sz-trial-normal'}`}>
+          <div className="sz-trial-left">
+            <div className="sz-trial-icon-box">
+              <Sparkles size={16} />
+            </div>
             <div>
-              <span style={{
-                color: remainingTrials === 1 ? '#fb923c' : '#34d399',
-                fontSize: '13.5px',
-                fontWeight: 700
-              }}>
-                Free Web Trial: {remainingTrials} of {maxTrials} Downloads Left
-              </span>
-              <span style={{ color: '#94a3b8', fontSize: '12px', marginLeft: '8px' }}>
-                • No Login or Card Required
-              </span>
+              <div className="sz-trial-title-row">
+                <span className="sz-trial-pulse-beacon">
+                  <span className="sz-beacon-ring" />
+                  <span className="sz-beacon-dot" />
+                </span>
+                <span className="sz-trial-title">
+                  Free Web Trial: <strong>{remainingTrials} of {maxTrials} Downloads Left</strong>
+                </span>
+                {/* Visual quota indicators */}
+                <div className="sz-trial-dots">
+                  {Array.from({ length: Math.min(maxTrials, 10) }).map((_, idx) => (
+                    <span 
+                      key={idx} 
+                      className={`sz-quota-dot ${idx < remainingTrials ? 'active' : 'used'}`}
+                      title={idx < remainingTrials ? 'Available Download' : 'Used Download'}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="sz-trial-subtitle">
+                Instant Direct Cloud Stream • No Login or Credit Card Required
+              </div>
             </div>
           </div>
 
           <button
             type="button"
             onClick={onOpenExtensionModal}
-            style={{
-              background: 'rgba(56, 189, 248, 0.15)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              color: '#38bdf8',
-              fontSize: '12px',
-              fontWeight: 600,
-              padding: '6px 14px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.25)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(56, 189, 248, 0.15)'}
+            className="sz-btn-extension-cta"
           >
-            <Zap size={13} />
+            <Zap size={14} />
             <span>Get Unlimited with Free Extension →</span>
           </button>
         </div>
       ) : (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-          background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.08) 100%)',
-          border: '1px solid rgba(239, 68, 68, 0.4)',
-          borderRadius: '12px',
-          padding: '12px 18px',
-          marginBottom: '20px',
-          boxShadow: '0 0 25px rgba(239, 68, 68, 0.15)',
-          flexWrap: 'wrap'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '50%',
-              background: 'rgba(239, 68, 68, 0.2)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0
-            }}>
-              <Lock size={16} color="#f87171" />
+        <div className="sz-trial-banner sz-trial-exhausted">
+          <div className="sz-trial-left">
+            <div className="sz-trial-icon-box sz-trial-lock-box">
+              <Lock size={16} />
             </div>
             <div>
-              <div style={{ color: '#f87171', fontSize: '14px', fontWeight: 700 }}>
-                Free Web Trial Limit Reached (3/3 Used)
+              <div className="sz-trial-title-row">
+                <span className="sz-trial-lock-title">
+                  Free Web Trial Limit Reached ({maxTrials}/{maxTrials} Used)
+                </span>
               </div>
-              <div style={{ color: '#94a3b8', fontSize: '12px' }}>
-                Install the 100% Free Chrome Extension or Upgrade to VIP for unlimited turbo downloads.
+              <div className="sz-trial-subtitle">
+                Install our 100% Free Chrome Extension or Upgrade to VIP for unlimited turbo downloads.
               </div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <div className="sz-trial-exhausted-actions">
             <button
               type="button"
               onClick={onOpenExtensionModal}
-              style={{
-                background: 'rgba(56, 189, 248, 0.15)',
-                border: '1px solid rgba(56, 189, 248, 0.4)',
-                color: '#38bdf8',
-                fontSize: '12.5px',
-                fontWeight: 600,
-                padding: '7px 14px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
+              className="sz-btn-extension-cta"
             >
+              <Zap size={14} />
               <span>Install Free Extension</span>
             </button>
             <button
               type="button"
               onClick={onOpenGatekeeper}
-              style={{
-                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
-                border: 'none',
-                color: '#fff',
-                fontSize: '12.5px',
-                fontWeight: 700,
-                padding: '7px 16px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                boxShadow: '0 2px 10px rgba(37, 99, 235, 0.4)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
+              className="sz-btn-unlock-vip-cta"
             >
-              <Zap size={14} />
-              <span>Unlock Unlimited</span>
+              <Crown size={14} />
+              <span>Unlock Unlimited VIP</span>
             </button>
           </div>
         </div>
@@ -903,40 +836,43 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       {/* ── TAB 1: SINGLE DOWNLOADER ── */}
       {activeTab === 'single' && (
         <div>
-          <div className="sz-card">
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Video color="#38bdf8" size={18} /> Video Downloader
-            </h2>
-            <div className="sz-input-wrap">
+          <div className="sz-studio-card">
+            {/* Header with high-tech badge */}
+            <div className="sz-studio-header">
+              <div className="sz-studio-title-wrap">
+                <div className="sz-header-icon-box">
+                  <Video size={18} />
+                </div>
+                <div>
+                  <h2 className="sz-studio-title">Video Downloader</h2>
+                  <p className="sz-studio-desc">Download videos & audio in pristine quality with instant cloud stream.</p>
+                </div>
+              </div>
+              <div className="sz-engine-chip">
+                <span className="sz-pulse-dot" />
+                TURBO STREAM ENGINE
+              </div>
+            </div>
+
+            {/* Modern Unified Command / Input Bar */}
+            <div className="sz-modern-input-bar">
+              <div className="sz-input-search-prefix">
+                <Search size={18} />
+              </div>
               <input
                 id="sz-main-input"
                 type="text"
-                placeholder="Paste YouTube, Video or Audio Link here..."
+                placeholder="Paste YouTube, Shorts, Video or Audio Link here..."
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && resolveSingleUrl()}
-                className="sz-url-input"
+                className="sz-clean-input"
               />
-              <div className="sz-btn-group" style={{ display: 'flex', gap: '8px', flexShrink: 0, width: 'auto' }}>
+              <div className="sz-input-actions-cluster">
                 <button
                   type="button"
                   onClick={handlePaste}
-                  style={{
-                    background: 'rgba(56, 189, 248, 0.12)',
-                    border: '1px solid rgba(56, 189, 248, 0.3)',
-                    color: '#38bdf8',
-                    padding: '0 14px',
-                    borderRadius: '8px',
-                    fontSize: '0.88rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    minHeight: '44px',
-                    whiteSpace: 'nowrap'
-                  }}
+                  className="sz-action-paste-btn"
                   title="Paste link from clipboard"
                 >
                   <Clipboard size={14} />
@@ -946,20 +882,8 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
                   <button
                     type="button"
                     onClick={() => { setUrl(''); setErrorMsg(''); }}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid rgba(255, 255, 255, 0.15)',
-                      color: '#94a3b8',
-                      padding: '0 10px',
-                      borderRadius: '8px',
-                      fontSize: '0.9rem',
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      minHeight: '44px'
-                    }}
-                    title="Clear"
+                    className="sz-action-clear-btn"
+                    title="Clear input"
                   >
                     ✕
                   </button>
@@ -967,54 +891,124 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
                 <button
                   onClick={() => resolveSingleUrl()}
                   disabled={isResolving || !url.trim()}
-                  className="sz-btn-analyze"
-                  style={{ minHeight: '44px' }}
+                  className="sz-btn-analyze-modern"
                 >
-                  {isResolving ? 'Resolving...' : 'Analyze'}
+                  {isResolving ? (
+                    <>
+                      <Loader2 size={16} className="sz-spin-icon" />
+                      <span>Resolving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      <span>Analyze</span>
+                    </>
+                  )}
                 </button>
               </div>
+            </div>
+
+            {/* Platform Feature Chips */}
+            <div className="sz-feature-chips-row">
+              <span className="sz-feature-chip">
+                <Zap size={12} color="#38bdf8" /> 100MB/s Cloud Stream
+              </span>
+              <span className="sz-feature-chip">
+                <Video size={12} color="#818cf8" /> Up to 4K Ultra HD
+              </span>
+              <span className="sz-feature-chip">
+                <Music size={12} color="#34d399" /> 320kbps MP3 Audio
+              </span>
+              <span className="sz-feature-chip">
+                <CheckCircle2 size={12} color="#a78bfa" /> 100% Free & Safe
+              </span>
             </div>
           </div>
 
           {/* Resolved Media Card */}
           {resolvedMedia && (
-            <div className="sz-card" style={{ marginTop: '20px' }}>
+            <div className="sz-studio-card sz-media-preview-card">
               <div className="sz-preview-layout">
-                <img 
-                  src={resolvedMedia.thumbnailUrl} 
-                  alt={resolvedMedia.title}
-                  className="sz-preview-img"
-                />
-                <div className="sz-preview-content">
-                  <h3 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 600, marginBottom: '6px', wordBreak: 'break-word' }}>{resolvedMedia.title}</h3>
-                  <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '14px', wordBreak: 'break-word' }}>Channel: {resolvedMedia.author} • Duration: {resolvedMedia.formattedDuration}</p>
+                {/* 16:9 Thumbnail Container */}
+                <div className="sz-thumb-wrapper">
+                  <img 
+                    src={resolvedMedia.thumbnailUrl} 
+                    alt={resolvedMedia.title}
+                    className="sz-preview-img-modern"
+                  />
+                  {/* Overlay Badges */}
+                  <div className="sz-thumb-badge-top">
+                    <span className="sz-source-badge">
+                      <Video size={11} /> {url.includes('shorts') ? 'Shorts' : 'YouTube'}
+                    </span>
+                  </div>
+                  {resolvedMedia.formattedDuration && resolvedMedia.formattedDuration !== '00:00' && resolvedMedia.formattedDuration !== '0:00' ? (
+                    <div className="sz-thumb-badge-bottom">
+                      <span className="sz-duration-pill">{resolvedMedia.formattedDuration}</span>
+                    </div>
+                  ) : (
+                    <div className="sz-thumb-badge-bottom">
+                      <span className="sz-duration-pill">HD Stream</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="sz-quality-row">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', width: '100%' }}>
-                      <label style={{ color: '#e5e7eb', fontSize: '0.85rem', fontWeight: 600 }}>Quality:</label>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        {(resolvedMedia.availableQualities || []).map(q => (
-                          <button
-                            key={q}
-                            onClick={() => setSelectedQuality(q)}
-                            style={{
-                              padding: '6px 12px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600,
-                              background: selectedQuality === q ? '#3b82f6' : '#1f2937',
-                              color: selectedQuality === q ? '#fff' : '#9ca3af',
-                              border: '1px solid ' + (selectedQuality === q ? '#3b82f6' : '#374151'),
-                              cursor: 'pointer'
-                            }}>
-                            {q}
-                          </button>
-                        ))}
+                {/* Media Details & Controls */}
+                <div className="sz-preview-content">
+                  <div className="sz-channel-pill-row">
+                    <span className="sz-channel-pill">
+                      <span className="sz-verified-indicator" />
+                      {resolvedMedia.author || 'YouTube Channel'}
+                    </span>
+                    {resolvedMedia.formattedDuration && resolvedMedia.formattedDuration !== '00:00' && resolvedMedia.formattedDuration !== '0:00' ? (
+                      <span className="sz-channel-pill" style={{ color: '#94a3b8' }}>
+                        Duration: {resolvedMedia.formattedDuration}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <h3 className="sz-media-title" title={resolvedMedia.title}>
+                    {resolvedMedia.title}
+                  </h3>
+
+                  {/* Quality Selector & Download Row */}
+                  <div className="sz-quality-control-container">
+                    <div className="sz-quality-selection-wrap">
+                      <label className="sz-quality-label">
+                        <Sparkles size={13} color="#38bdf8" /> Select Quality:
+                      </label>
+                      <div className="sz-quality-pills-cluster">
+                        {(resolvedMedia.availableQualities || []).map(q => {
+                          const isSelected = selectedQuality === q;
+                          const isAudio = q === 'MP3';
+                          const is1080 = q === '1080p';
+                          const is4K = q === '4K' || q === '2160p';
+                          return (
+                            <button
+                              key={q}
+                              type="button"
+                              onClick={() => setSelectedQuality(q)}
+                              className={`sz-quality-pill ${isSelected ? 'active' : ''}`}
+                            >
+                              {isAudio ? <Music size={12} className="sz-pill-icon" /> : null}
+                              <span>{q}</span>
+                              {is1080 && <span className="sz-pill-subtag">FHD</span>}
+                              {is4K && <span className="sz-pill-subtag-gold">4K</span>}
+                              {isAudio && <span className="sz-pill-subtag-audio">320k</span>}
+                              {isSelected && <Check size={12} className="sz-pill-check" />}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
                     <button
                       onClick={() => handleStartDownload()}
                       disabled={isDownloading}
-                      className="sz-btn-download">
-                      <Download size={18} /> {isDownloading ? 'Downloading...' : 'Download'}
+                      className="sz-grand-download-btn"
+                    >
+                      <Download size={18} className="sz-btn-dl-icon" />
+                      <span>{isDownloading ? 'Downloading Stream...' : `Download ${selectedQuality || '1080p'}`}</span>
                     </button>
                   </div>
                 </div>
@@ -1137,27 +1131,54 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
       {/* ── TAB 2: PLAYLIST STUDIO ── */}
       {activeTab === 'playlist' && (
         <div>
-          <div style={{ background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '16px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ListMusic color="#38bdf8" size={18} /> Playlist Downloader
-            </h2>
-            <div className="sz-input-wrap">
+          <div className="sz-studio-card">
+            <div className="sz-studio-header">
+              <div className="sz-studio-title-wrap">
+                <div className="sz-header-icon-box">
+                  <ListMusic size={18} />
+                </div>
+                <div>
+                  <h2 className="sz-studio-title">Playlist Downloader</h2>
+                  <p className="sz-studio-desc">Download entire YouTube playlists & mixes with bulk selection.</p>
+                </div>
+              </div>
+              <div className="sz-engine-chip">
+                <span className="sz-pulse-dot" />
+                BATCH STUDIO ENGINE
+              </div>
+            </div>
+
+            <div className="sz-modern-input-bar">
+              <div className="sz-input-search-prefix">
+                <Search size={18} />
+              </div>
               <input
                 type="text"
-                placeholder="Paste YouTube Playlist or Mix Link..."
+                placeholder="Paste YouTube Playlist or Mix Link here..."
                 value={playlistUrl}
                 onChange={(e) => setPlaylistUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && loadPlaylistQueue('', playlistUrl)}
-                className="sz-url-input"
+                className="sz-clean-input"
               />
-              <button
-                onClick={() => loadPlaylistQueue('', playlistUrl)}
-                disabled={isLoadingPlaylist || !playlistUrl.trim()}
-                className="sz-btn-analyze"
-                style={{ minHeight: '44px' }}
-              >
-                {isLoadingPlaylist ? 'Loading...' : 'Load Playlist'}
-              </button>
+              <div className="sz-input-actions-cluster">
+                <button
+                  onClick={() => loadPlaylistQueue('', playlistUrl)}
+                  disabled={isLoadingPlaylist || !playlistUrl.trim()}
+                  className="sz-btn-analyze-modern"
+                >
+                  {isLoadingPlaylist ? (
+                    <>
+                      <Loader2 size={16} className="sz-spin-icon" />
+                      <span>Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      <span>Load Playlist</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1255,13 +1276,19 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
 
       {/* ── TAB 3: DOWNLOADS HISTORY ── */}
       {activeTab === 'history' && (
-        <div style={{ background: '#111827', padding: '24px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <History color="#3b82f6" size={20} /> Download History (MongoDB Atlas)
-            </h2>
+        <div className="sz-studio-card">
+          <div className="sz-studio-header">
+            <div className="sz-studio-title-wrap">
+              <div className="sz-header-icon-box">
+                <History size={18} />
+              </div>
+              <div>
+                <h2 className="sz-studio-title">Download History</h2>
+                <p className="sz-studio-desc">Saved telemetry and completed downloads powered by MongoDB Atlas.</p>
+              </div>
+            </div>
             <div style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
-              <Search size={16} color="#9ca3af" style={{ position: 'absolute', left: '12px', top: '12px' }} />
+              <Search size={16} color="#38bdf8" style={{ position: 'absolute', left: '12px', top: '13px' }} />
               <input
                 type="text"
                 placeholder="Search history..."
@@ -1271,8 +1298,15 @@ export default function DownloadStudio({ user, appConfig, onOpenGatekeeper, onOp
                   fetchHistory();
                 }}
                 style={{
-                  width: '100%', padding: '9px 12px 9px 36px', background: '#1f2937',
-                  border: '1px solid #374151', borderRadius: '8px', color: '#fff', outline: 'none', fontSize: '0.9rem'
+                  width: '100%',
+                  padding: '10px 14px 10px 38px',
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1.5px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '10px',
+                  color: '#fff',
+                  outline: 'none',
+                  fontSize: '0.9rem',
+                  transition: 'all 0.2s'
                 }}
               />
             </div>
