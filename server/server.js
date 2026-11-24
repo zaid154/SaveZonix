@@ -87,11 +87,37 @@ const healthHandler = (req, res) => {
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,
+    hasCookie: Boolean(process.env.YOUTUBE_COOKIE),
     timestamp: new Date()
   });
 };
 app.get('/api/health', healthHandler);
 app.get('/api/system/health', healthHandler);
+
+// Diagnostic Debug Endpoint for Cloud Stream Extraction
+app.get('/api/debug-ytdl', async (req, res) => {
+  const url = req.query.url || 'https://www.youtube.com/watch?v=L8XYCkfamfE';
+  const { Ytdl, Client } = require('@distube/ytdl-core');
+  const results = { hasCookie: Boolean(process.env.YOUTUBE_COOKIE) };
+  
+  try {
+    const ytdlVision = new Ytdl({ clients: [Client.VisionOS] });
+    const info = await ytdlVision.getInfo(url);
+    results.visionOS = { success: true, formats: info.formats?.length, sampleUrl: info.formats?.[0]?.url ? info.formats[0].url.slice(0, 50) : null };
+  } catch (err) {
+    results.visionOS = { success: false, error: err.message };
+  }
+
+  try {
+    const ytdlAndroid = new Ytdl({ clients: [Client.Mweb] });
+    const info = await ytdlAndroid.getInfo(url);
+    results.mweb = { success: true, formats: info.formats?.length };
+  } catch (err) {
+    results.mweb = { success: false, error: err.message };
+  }
+
+  res.json(results);
+});
 
 // API 404 Handler (Guarantees JSON response for unmatched /api routes)
 app.use('/api', (req, res, next) => {
