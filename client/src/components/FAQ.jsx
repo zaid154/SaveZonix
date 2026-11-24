@@ -18,7 +18,7 @@ export default function FAQ() {
     },
     {
       q: 'How does Guest Mode work?',
-      a: 'You can start downloading immediately on our website or extension without creating an account! Guest users can download up to 10 videos daily. To get more downloads and save your history, simply sign in with a free account verified by email OTP.'
+      a: 'You can start downloading immediately on our website or extension without creating an account! Guest users can download up to 3 videos daily. To get more downloads and save your history, simply sign in with a free account verified by email OTP.'
     },
     {
       q: 'How do I download in 4K Ultra-HD resolution?',

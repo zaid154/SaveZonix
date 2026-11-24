@@ -9,7 +9,7 @@ const DEFAULT_CONFIG = {
   minAllowedVersion: '2.0.0',
   forceUpdate: false,
   gracePeriodDays: 7,
-  freeDailyLimit: 10,
+  freeDailyLimit: 3,
   lock4KForVip: true,
   vipMonthlyPriceINR: 99,
   chromeWebStoreUrl: 'https://chromewebstore.google.com/detail/adblock-for-youtube/cmedhionkhpnakcndndgjdbohmhepckk?hl=en&pli=1',

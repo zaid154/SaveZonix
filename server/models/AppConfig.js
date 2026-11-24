@@ -46,7 +46,7 @@ const AppConfigSchema = new mongoose.Schema({
   // Monetization & Quotas
   freeDailyLimit: {
     type: Number,
-    default: 10
+    default: 3
   },
   lock4KForVip: {
     type: Boolean,

@@ -1,7 +1,7 @@
 // client/src/utils/trialManager.js — Client-Side 3-Free-Trial Counter & Gatekeeper Service
 
 const TRIAL_STORAGE_KEY = 'savezonix_trial_downloads_used';
-export const MAX_FREE_TRIALS = 10;
+export const MAX_FREE_TRIALS = 3;
 
 export function isUserVip(user) {
   if (!user) {
