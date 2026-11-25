@@ -8,8 +8,10 @@ const WARMUP_VIDEO_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 
 class MediaResolver {
     constructor() {
-        const cookie = process.env.YOUTUBE_COOKIE || undefined;
+        const envCookie = this._normalizeCookie(process.env.YOUTUBE_COOKIE || '');
         const isCloudDatacenter = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID);
+        this._cookieValue = envCookie;
+        this._cookieSource = envCookie ? 'env' : 'none';
         this._infoCache = new Map();
         this._inFlightFetches = new Map();
         this._recentSteps = [];
@@ -21,12 +23,116 @@ class MediaResolver {
         // VisionOS returns slow 403s on cloud datacenter IPs; Mweb uses cookie + patched base.js
         this.ytdl = new Ytdl({
             clients: isCloudDatacenter ? [Client.Mweb] : [Client.VisionOS, Client.Mweb],
-            cookie,
+            cookie: envCookie || undefined,
             fetch: this._createPatchedFetch(),
             timeoutMs: 60000
         });
         this.ytdlVisionOS = this.ytdl;
         this.ytdlFast = this.ytdl;
+    }
+
+    _normalizeCookie(raw) {
+        if (typeof raw !== 'string') return '';
+        let cleaned = raw.trim().replace(/^cookie:\s*/i, '').trim();
+        if (!cleaned) return '';
+        if (!cleaned.includes('\t') && cleaned.includes('\n')) {
+            cleaned = cleaned
+                .split(/\r?\n/)
+                .map(line => line.trim().replace(/;+$/, ''))
+                .filter(Boolean)
+                .join('; ');
+        }
+        return cleaned;
+    }
+
+    _toCookieHeader(raw) {
+        const cleaned = this._normalizeCookie(raw);
+        if (!cleaned) return '';
+        if (!cleaned.includes('\t')) return cleaned;
+        const pairs = [];
+        for (const rawLine of cleaned.split(/\r?\n/u)) {
+            const line = rawLine.startsWith('#HttpOnly_') ? rawLine.slice('#HttpOnly_'.length) : rawLine;
+            if (!line.trim() || line.startsWith('#')) continue;
+            const [domain, , , , , name, value] = line.split('\t');
+            if (!domain || !name || value === undefined) continue;
+            const host = domain.replace(/^\./u, '').toLowerCase();
+            if (host === 'youtube.com' || host.endsWith('.youtube.com')) {
+                pairs.push(`${name}=${value}`);
+            }
+        }
+        return pairs.join('; ');
+    }
+
+    getCookieMeta() {
+        const header = this._toCookieHeader(this._cookieValue);
+        return {
+            source: this._cookieSource,
+            hasCookie: Boolean(header),
+            length: this._cookieValue.length,
+            hasSAPISID: header.includes('SAPISID') || header.includes('__Secure-3PAPISID'),
+            hasLOGIN_INFO: header.includes('LOGIN_INFO')
+        };
+    }
+
+    /**
+     * Hot-swaps the active YouTube cookie at runtime (Admin DB -> fallback to ENV) without restart.
+     */
+    setCookie(rawCookie, { source = 'admin_db', reWarm = false } = {}) {
+        const cleaned = this._normalizeCookie(rawCookie);
+        const envFallback = this._normalizeCookie(process.env.YOUTUBE_COOKIE || '');
+        const effective = cleaned || envFallback;
+        const effectiveSource = cleaned ? source : (envFallback ? 'env' : 'none');
+
+        this.ytdl.setCookie(effective || undefined);
+        this._cookieValue = effective;
+        this._cookieSource = effectiveSource;
+        this._infoCache.clear();
+        this._warmupPromise = null;
+        this._warmupStatus = { state: 'idle', clients: this._clientsLabel, ms: 0, error: null };
+
+        if (reWarm) {
+            this.warmup().catch(() => {});
+        }
+        return this.getCookieMeta();
+    }
+
+    /**
+     * Verifies directly against youtube.com ytcfg.LOGGED_IN (~0.4s) whether YouTube
+     * treats the provided/active cookie as a signed-in session.
+     */
+    async verifyCookieSession(rawCookie = null) {
+        const target = rawCookie !== null ? this._normalizeCookie(rawCookie) : this._cookieValue;
+        const header = this._toCookieHeader(target);
+        if (!header) {
+            return { ok: false, loggedIn: false, reason: 'No YouTube cookie configured.' };
+        }
+        if (!header.includes('SAPISID') && !header.includes('__Secure-3PAPISID')) {
+            return { ok: false, loggedIn: false, reason: 'Cookie is missing SAPISID or __Secure-3PAPISID.' };
+        }
+        try {
+            const res = await fetch('https://www.youtube.com/', {
+                headers: {
+                    Cookie: header,
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+                },
+                signal: AbortSignal.timeout(8000)
+            });
+            if (!res.ok) {
+                return { ok: false, loggedIn: false, reason: `YouTube returned HTTP ${res.status}` };
+            }
+            const html = await res.text();
+            const loggedInTrue = /"LOGGED_IN"\s*:\s*true/.test(html);
+            const loggedInFalse = /"LOGGED_IN"\s*:\s*false/.test(html);
+            if (loggedInTrue) {
+                return { ok: true, loggedIn: true, reason: 'Active signed-in YouTube session confirmed.' };
+            }
+            if (loggedInFalse) {
+                return { ok: false, loggedIn: false, reason: 'YouTube treats this cookie as signed out (LOGGED_IN: false). Export a fresh one from incognito.' };
+            }
+            return { ok: false, loggedIn: false, reason: 'Could not detect LOGGED_IN session flag in YouTube response.' };
+        } catch (err) {
+            return { ok: false, loggedIn: false, reason: err.message || 'Session verification request failed.' };
+        }
     }
 
     _shortUrlTag(urlStr) {

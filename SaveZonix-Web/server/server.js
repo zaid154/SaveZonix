@@ -83,18 +83,19 @@ app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 
 // Health Check
 const healthHandler = (req, res) => {
-  const cookie = process.env.YOUTUBE_COOKIE || '';
   const mediaResolver = require('./services/MediaResolver');
+  const cookieMeta = mediaResolver.getCookieMeta();
   res.json({
     status: 'ok',
-    version: '2.6.2',
+    version: '2.6.3',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,
-    hasCookie: Boolean(cookie),
-    cookieLength: cookie.length,
-    hasSAPISID: cookie.includes('SAPISID'),
-    hasLOGIN_INFO: cookie.includes('LOGIN_INFO'),
+    hasCookie: cookieMeta.hasCookie,
+    cookieSource: cookieMeta.source,
+    cookieLength: cookieMeta.length,
+    hasSAPISID: cookieMeta.hasSAPISID,
+    hasLOGIN_INFO: cookieMeta.hasLOGIN_INFO,
     mediaWarmup: mediaResolver._warmupStatus,
     timestamp: new Date()
   });
@@ -135,15 +136,24 @@ if (fs.existsSync(clientDist)) {
   });
 }
 
+let warmupFallbackTimer = null;
+
 // Start HTTP + Socket.IO Server
 server.listen(PORT, () => {
   console.log(`[SaveZonix Server] 🚀 MERN Server running on http://localhost:${PORT}`);
-  require('./services/MediaResolver').warmup().catch(() => {});
+  // Give MongoDB up to 2.5s to load an Admin DB YOUTUBE_COOKIE before warming up with ENV fallback
+  warmupFallbackTimer = setTimeout(() => {
+    require('./services/MediaResolver').warmup().catch(() => {});
+  }, 2500);
 });
 
 // Connect to MongoDB asynchronously
 mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
   .then(async () => {
+    if (warmupFallbackTimer) {
+      clearTimeout(warmupFallbackTimer);
+      warmupFallbackTimer = null;
+    }
     console.log(`[SaveZonix Server] 🍃 Connected to MongoDB: ${MONGO_URI}`);
     try {
       const Plan = require('./models/Plan');
@@ -174,11 +184,26 @@ mongoose.connect(MONGO_URI, { serverSelectionTimeoutMS: 5000 })
           await config.save();
           console.log('[SaveZonix Server] 🔄 Synced AppConfig daily limits (Free: 3, Guest: 3)');
         }
+        if (config.youtubeCookie) {
+          try {
+            const mediaResolver = require('./services/MediaResolver');
+            mediaResolver.setCookie(config.youtubeCookie, { source: 'admin_db' });
+            console.log('[SaveZonix Server] 🍪 Loaded YouTube extractor cookie from Admin DB config');
+          } catch (cookieErr) {
+            console.warn('[SaveZonix Server] DB YouTube cookie ignored:', cookieErr.message);
+          }
+        }
       }
     } catch (seedErr) {
       console.warn('[SaveZonix Server] Auto-seed notice:', seedErr.message);
     }
+    require('./services/MediaResolver').warmup().catch(() => {});
   })
   .catch((err) => {
+    if (warmupFallbackTimer) {
+      clearTimeout(warmupFallbackTimer);
+      warmupFallbackTimer = null;
+    }
     console.warn(`[SaveZonix Server] ⚠️ MongoDB connection notice: ${err.message} (Running in fallback mode)`);
+    require('./services/MediaResolver').warmup().catch(() => {});
   });

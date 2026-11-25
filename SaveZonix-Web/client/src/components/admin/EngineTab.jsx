@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
-import { IconDatabase, IconCheck, IconCpu, IconAlertCircle, IconSliders } from './AdminIcons';
+import { IconDatabase, IconCheck, IconCpu, IconAlertCircle, IconSliders, IconLock, IconRefresh } from './AdminIcons';
 
 export default function EngineTab({
   dbStatus,
   settings,
   setSettings,
   onSyncDatabases,
-  onSaveSettings
+  onSaveSettings,
+  authHeaders
 }) {
   const [syncingGithub, setSyncingGithub] = useState(false);
   const [githubMsg, setGithubMsg] = useState('');
+  const [cookieInput, setCookieInput] = useState('');
+  const [showCookieText, setShowCookieText] = useState(false);
+  const [cookieBusy, setCookieBusy] = useState(null);
+  const [cookieNotice, setCookieNotice] = useState(null);
 
   if (!settings) {
     return (
@@ -19,6 +24,64 @@ export default function EngineTab({
   }
 
   const platformCaps = settings.platformThreadCaps || { youtube: 64, instagram: 24, tiktok: 24, directCdn: 128 };
+
+  function getAdminHeaders() {
+    if (authHeaders) return authHeaders;
+    const adminToken = localStorage.getItem('savezonix_token') || localStorage.getItem('savezonix_admin_token') || '';
+    return {
+      'Content-Type': 'application/json',
+      'x-admin-key': 'savezonix_admin_2026',
+      ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {})
+    };
+  }
+
+  async function applyCookieAction(actionType) {
+    if (actionType === 'save' && !cookieInput.trim()) {
+      setCookieNotice({ ok: false, text: 'Please paste your YouTube Cookie string first.' });
+      return;
+    }
+    setCookieBusy(actionType);
+    setCookieNotice(null);
+    try {
+      const endpoint = actionType === 'test' ? '/api/admin/youtube-cookie/test' : '/api/admin/youtube-cookie';
+      const payload = actionType === 'test' ? undefined : (actionType === 'clear' ? { clear: true } : { cookie: cookieInput.trim() });
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: getAdminHeaders(),
+        ...(payload ? { body: JSON.stringify(payload) } : {})
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setCookieNotice({ ok: false, text: data.error || `Request failed (HTTP ${res.status})` });
+        return;
+      }
+
+      if (actionType === 'save') setCookieInput('');
+      const meta = data.cookieMeta || {};
+      setSettings(prev => ({
+        ...prev,
+        youtubeCookieConfigured: meta.hasCookie,
+        youtubeCookieSource: meta.source,
+        youtubeCookieLength: meta.length,
+        youtubeCookieHasSAPISID: meta.hasSAPISID,
+        youtubeCookieHasLOGIN_INFO: meta.hasLOGIN_INFO,
+        youtubeCookieWarmup: data.warmup || prev.youtubeCookieWarmup,
+        youtubeCookieUpdatedAt: actionType === 'clear' ? null : (data.updatedAt || prev.youtubeCookieUpdatedAt)
+      }));
+
+      if (actionType === 'clear') {
+        setCookieNotice({ ok: true, text: `DB cookie cleared cleanly. Active source: ${meta.source === 'env' ? 'Render ENV' : 'None'}.` });
+      } else if (data.loggedIn) {
+        setCookieNotice({ ok: true, loggedIn: true, text: 'Cookie verified (LOGGED_IN: true) & hot-reloaded live! No Render redeploy needed.' });
+      } else {
+        setCookieNotice({ ok: false, loggedIn: false, text: data.sessionMessage || 'YouTube treats this cookie as signed out (LOGGED_IN: false).' });
+      }
+    } catch (err) {
+      setCookieNotice({ ok: false, text: 'Network error: ' + err.message });
+    } finally {
+      setCookieBusy(null);
+    }
+  }
 
   async function handleSyncWithGithub() {
     setSyncingGithub(true);
@@ -97,6 +160,175 @@ export default function EngineTab({
           </div>
         </div>
       )}
+
+      {/* YouTube Cloud Extractor Cookie Hot-Swap Card */}
+      <div style={{ padding: '24px', background: '#0d131f', border: '1px solid #1a2333', borderRadius: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fbbf24' }}>
+              <IconLock size={16} color="#fbbf24" />
+            </div>
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+                YouTube Cloud Extractor Cookie (<code style={{ color: '#38bdf8', fontSize: '13px' }}>YOUTUBE_COOKIE</code>)
+              </h3>
+              <p style={{ color: '#64748b', fontSize: '12px', margin: '3px 0 0 0' }}>
+                Hot-swap Render &amp; MongoDB YouTube session cookies instantly without redeploying the backend server.
+              </p>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{
+              fontSize: '11px',
+              padding: '4px 10px',
+              borderRadius: '999px',
+              fontWeight: 700,
+              background: settings.youtubeCookieConfigured ? 'rgba(16, 185, 129, 0.14)' : 'rgba(239, 68, 68, 0.14)',
+              color: settings.youtubeCookieConfigured ? '#34d399' : '#f87171',
+              border: `1px solid ${settings.youtubeCookieConfigured ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`
+            }}>
+              {settings.youtubeCookieSource === 'admin_db' ? 'ACTIVE: ADMIN DB' : (settings.youtubeCookieSource === 'env' ? 'ACTIVE: RENDER ENV' : 'NO COOKIE SET')}
+            </span>
+            {settings.youtubeCookieConfigured && (
+              <span style={{ fontSize: '11px', color: '#94a3b8', background: '#060a12', border: '1px solid #1e293b', padding: '4px 10px', borderRadius: '999px' }}>
+                {settings.youtubeCookieLength || 0} chars · {settings.youtubeCookieHasSAPISID ? 'SAPISID ✓' : 'No SAPISID'} · {settings.youtubeCookieHasLOGIN_INFO ? 'LOGIN_INFO ✓' : 'No LOGIN_INFO'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div style={{ fontSize: '11.5px', color: '#94a3b8', background: '#060a12', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 12px', marginBottom: '12px', lineHeight: 1.55 }}>
+          <strong style={{ color: '#e2e8f0' }}>How to get a working cookie:</strong> Open a fresh Incognito tab → log into a secondary YouTube account → open DevTools Network / cookie exporter → copy full <code style={{ color: '#38bdf8' }}>Cookie</code> header string (or Netscape <code style={{ color: '#38bdf8' }}>cookies.txt</code>) → close Incognito <em>without signing out</em>.
+          {settings.youtubeCookieWarmup?.error && (
+            <div style={{ marginTop: '6px', color: '#fbbf24' }}>
+              Last extractor notice: {settings.youtubeCookieWarmup.error}
+            </div>
+          )}
+        </div>
+
+        <div style={{ position: 'relative' }}>
+          <textarea
+            rows={3}
+            value={cookieInput}
+            onChange={(e) => setCookieInput(e.target.value)}
+            placeholder="Paste fresh YouTube Cookie header string or Netscape cookies.txt here (stored privately, never shown back)..."
+            style={{
+              width: '100%',
+              padding: '10px 12px',
+              background: '#060a12',
+              border: '1px solid #1e293b',
+              borderRadius: '8px',
+              color: '#f8fafc',
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              resize: 'vertical',
+              WebkitTextSecurity: showCookieText ? 'none' : 'disc'
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              disabled={cookieBusy !== null}
+              onClick={() => applyCookieAction('save')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 16px',
+                background: '#10b981',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#06281e',
+                fontSize: '12.5px',
+                fontWeight: 700,
+                cursor: cookieBusy ? 'wait' : 'pointer',
+                opacity: cookieBusy ? 0.65 : 1
+              }}
+            >
+              <IconCheck size={14} color="#06281e" />
+              {cookieBusy === 'save' ? 'Saving & Verifying...' : 'Save & Verify Cookie Live'}
+            </button>
+
+            <button
+              type="button"
+              disabled={cookieBusy !== null}
+              onClick={() => applyCookieAction('test')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '9px 14px',
+                background: 'rgba(56, 189, 248, 0.12)',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                borderRadius: '8px',
+                color: '#38bdf8',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                cursor: cookieBusy ? 'wait' : 'pointer'
+              }}
+            >
+              <IconRefresh size={14} color="#38bdf8" spinning={cookieBusy === 'test'} />
+              {cookieBusy === 'test' ? 'Testing...' : 'Test Active Cookie'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowCookieText(prev => !prev)}
+              style={{
+                padding: '9px 12px',
+                background: '#060a12',
+                border: '1px solid #1e293b',
+                borderRadius: '8px',
+                color: '#94a3b8',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              {showCookieText ? 'Hide Input' : 'Show Input'}
+            </button>
+          </div>
+
+          {settings.youtubeCookieSource === 'admin_db' && (
+            <button
+              type="button"
+              disabled={cookieBusy !== null}
+              onClick={() => applyCookieAction('clear')}
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                borderRadius: '8px',
+                color: '#f87171',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: cookieBusy ? 'wait' : 'pointer'
+              }}
+            >
+              Clear DB Cookie (Use ENV)
+            </button>
+          )}
+        </div>
+
+        {cookieNotice && (
+          <div style={{
+            marginTop: '12px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            fontSize: '12.5px',
+            fontWeight: 600,
+            background: cookieNotice.ok ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+            border: `1px solid ${cookieNotice.ok ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
+            color: cookieNotice.ok ? '#34d399' : '#f87171'
+          }}>
+            {cookieNotice.text}
+          </div>
+        )}
+      </div>
 
       {/* Main Settings Form */}
       <form onSubmit={onSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>

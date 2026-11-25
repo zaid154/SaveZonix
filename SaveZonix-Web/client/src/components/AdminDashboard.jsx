@@ -930,6 +930,7 @@ export default function AdminDashboard({ user, currentPath = '/admin/overview', 
             setSettings={setSettings}
             onSyncDatabases={handleSyncDatabases}
             onSaveSettings={handleSaveSettings}
+            authHeaders={getAuthHeaders()}
           />
         </AdminErrorBoundary>
       )}

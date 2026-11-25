@@ -1095,8 +1095,18 @@ router.get('/settings', adminAuth, async (req, res) => {
     }
 
     const configObj = config.toObject ? config.toObject() : { ...config };
+    const { youtubeCookie: _omittedCookie, ...safeConfigObj } = configObj;
+    const mediaResolver = require('../services/MediaResolver');
+    const cookieMeta = mediaResolver.getCookieMeta();
     const responsePayload = {
-      ...configObj,
+      ...safeConfigObj,
+      youtubeCookieConfigured: cookieMeta.hasCookie,
+      youtubeCookieSource: cookieMeta.source,
+      youtubeCookieLength: cookieMeta.length,
+      youtubeCookieHasSAPISID: cookieMeta.hasSAPISID,
+      youtubeCookieHasLOGIN_INFO: cookieMeta.hasLOGIN_INFO,
+      youtubeCookieWarmup: mediaResolver._warmupStatus,
+      youtubeCookieUpdatedAt: config.youtubeCookieUpdatedAt || null,
       defaultThreads,
       DefaultThreads: defaultThreads,
       maxThreads,
@@ -1263,8 +1273,9 @@ router.post('/settings', adminAuth, async (req, res) => {
     });
 
     const configObj = config.toObject ? config.toObject() : { ...config };
+    const { youtubeCookie: _omittedCookie, ...safeConfigObj } = configObj;
     const responseConfig = {
-      ...configObj,
+      ...safeConfigObj,
       defaultThreads: config.defaultThreads,
       DefaultThreads: config.DefaultThreads,
       maxThreads: config.maxThreads,
@@ -1280,6 +1291,85 @@ router.post('/settings', adminAuth, async (req, res) => {
     return res.json({ success: true, message: 'Configuration parameters saved successfully!', config: responseConfig });
   } catch (err) {
     return res.status(500).json({ error: err.message });
+  }
+});
+
+// Hot-swap & verify YouTube Cloud Extractor Cookie without redeploy
+router.post('/youtube-cookie', adminAuth, async (req, res) => {
+  try {
+    const mediaResolver = require('../services/MediaResolver');
+    const clearRequested = req.body?.clear === true;
+    const rawCookie = clearRequested ? '' : (req.body?.cookie ?? req.body?.youtubeCookie ?? '');
+
+    if (!clearRequested && !String(rawCookie).trim()) {
+      return res.status(400).json({ success: false, error: 'Please paste a non-empty YouTube cookie string.' });
+    }
+
+    let cookieMeta;
+    try {
+      cookieMeta = mediaResolver.setCookie(rawCookie, { source: 'admin_db', reWarm: false });
+    } catch (validationErr) {
+      return res.status(400).json({
+        success: false,
+        error: validationErr.message || 'Invalid YouTube cookie format (missing SAPISID / __Secure-3PAPISID).'
+      });
+    }
+
+    const sessionCheck = await mediaResolver.verifyCookieSession();
+
+    if (mongoose.connection.readyState === 1) {
+      let config = await AppConfig.findOne();
+      if (!config) config = new AppConfig();
+      config.youtubeCookie = clearRequested ? '' : mediaResolver._normalizeCookie(rawCookie);
+      config.youtubeCookieUpdatedAt = clearRequested ? null : new Date();
+      config.updatedAt = new Date();
+      await config.save();
+
+      await AuditLog.create({
+        adminId: req.adminUser?.userId || req.adminUser?._id || 'admin',
+        adminEmail: req.adminUser?.email || 'Administrator',
+        action: clearRequested ? 'CLEAR_YOUTUBE_COOKIE' : 'UPDATE_YOUTUBE_COOKIE',
+        targetType: 'Settings',
+        details: {
+          source: cookieMeta.source,
+          length: cookieMeta.length,
+          loggedIn: sessionCheck.loggedIn
+        }
+      }).catch(() => {});
+    }
+
+    // Re-warm extractor in background so Mweb client uses the updated cookie right away
+    mediaResolver.warmup().catch(() => {});
+
+    return res.json({
+      success: true,
+      cleared: clearRequested,
+      loggedIn: sessionCheck.loggedIn,
+      sessionMessage: sessionCheck.reason,
+      cookieMeta,
+      warmup: mediaResolver._warmupStatus,
+      updatedAt: clearRequested ? null : new Date().toISOString()
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Test active YouTube Cookie session live
+router.post('/youtube-cookie/test', adminAuth, async (req, res) => {
+  try {
+    const mediaResolver = require('../services/MediaResolver');
+    const cookieMeta = mediaResolver.getCookieMeta();
+    const sessionCheck = await mediaResolver.verifyCookieSession();
+    return res.json({
+      success: true,
+      loggedIn: sessionCheck.loggedIn,
+      sessionMessage: sessionCheck.reason,
+      cookieMeta,
+      warmup: mediaResolver._warmupStatus
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

@@ -163,6 +163,14 @@ const AppConfigSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  youtubeCookie: {
+    type: String,
+    default: ''
+  },
+  youtubeCookieUpdatedAt: {
+    type: Date,
+    default: null
+  },
   updatedAt: {
     type: Date,
     default: Date.now
