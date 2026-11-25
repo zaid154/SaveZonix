@@ -1355,18 +1355,22 @@ router.post('/youtube-cookie', adminAuth, async (req, res) => {
   }
 });
 
-// Test active YouTube Cookie session live
+// Test active YouTube Cookie session & InnerTube client matrix live
 router.post('/youtube-cookie/test', adminAuth, async (req, res) => {
   try {
     const mediaResolver = require('../services/MediaResolver');
     const cookieMeta = mediaResolver.getCookieMeta();
-    const sessionCheck = await mediaResolver.verifyCookieSession();
+    const [sessionCheck, clientMatrix] = await Promise.all([
+      mediaResolver.verifyCookieSession(),
+      mediaResolver.testAllClients('jNQXAC9IVRw').catch(() => [])
+    ]);
     return res.json({
       success: true,
       loggedIn: sessionCheck.loggedIn,
       sessionMessage: sessionCheck.reason,
       cookieMeta,
-      warmup: mediaResolver._warmupStatus
+      warmup: mediaResolver._warmupStatus,
+      clientMatrix
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });

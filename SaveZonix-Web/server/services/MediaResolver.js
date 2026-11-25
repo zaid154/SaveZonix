@@ -17,12 +17,14 @@ class MediaResolver {
         this._recentSteps = [];
         this._nextFetchId = 1;
         this._warmupPromise = null;
-        this._clientsLabel = isCloudDatacenter ? 'mweb' : 'visionos,mweb';
+        this._iosCooldownUntil = 0;
+        this._lastPlayerErrorDetail = '';
+        this._clientsLabel = isCloudDatacenter ? 'ios,web_creator,mweb' : 'visionos,web_creator,mweb';
         this._warmupStatus = { state: 'idle', clients: this._clientsLabel, ms: 0, error: null };
 
-        // VisionOS returns slow 403s on cloud datacenter IPs; Mweb uses cookie + patched base.js
+        // VisionOS returns slow 403s on cloud datacenter IPs; WebCreator matches Chrome cookie UA
         this.ytdl = new Ytdl({
-            clients: isCloudDatacenter ? [Client.Mweb] : [Client.VisionOS, Client.Mweb],
+            clients: isCloudDatacenter ? [Client.WebCreator, Client.Mweb] : [Client.VisionOS, Client.WebCreator, Client.Mweb],
             cookie: envCookie || undefined,
             fetch: this._createPatchedFetch(),
             timeoutMs: 60000
@@ -87,6 +89,8 @@ class MediaResolver {
         this._cookieValue = effective;
         this._cookieSource = effectiveSource;
         this._infoCache.clear();
+        this._iosCooldownUntil = 0;
+        this._lastPlayerErrorDetail = '';
         this._warmupPromise = null;
         this._warmupStatus = { state: 'idle', clients: this._clientsLabel, ms: 0, error: null };
 
@@ -135,11 +139,15 @@ class MediaResolver {
         }
     }
 
-    _shortUrlTag(urlStr) {
+    _shortUrlTag(urlStr, init) {
         try {
             const u = new URL(urlStr);
             if (u.pathname.includes('/s/player/') && u.pathname.endsWith('/base.js')) return 'base.js';
-            if (u.pathname.includes('/youtubei/v1/')) return `v1/${u.pathname.split('/youtubei/v1/')[1] || ''}`;
+            if (u.pathname.includes('/youtubei/v1/')) {
+                const ep = u.pathname.split('/youtubei/v1/')[1] || '';
+                const clientId = init?.headers?.['X-YouTube-Client-Name'] || init?.headers?.['x-youtube-client-name'];
+                return clientId ? `v1/${ep}#${clientId}` : `v1/${ep}`;
+            }
             if (u.pathname === '/' || u.pathname === '') return `${u.hostname}/`;
             const seg = u.pathname.split('/').filter(Boolean).slice(-1)[0] || u.pathname;
             return seg.slice(0, 24);
@@ -155,7 +163,7 @@ class MediaResolver {
     _createPatchedFetch() {
         return async (input, init) => {
             const urlStr = typeof input === 'string' ? input : (input?.url || String(input));
-            const tag = this._shortUrlTag(urlStr);
+            const tag = this._shortUrlTag(urlStr, init);
             const id = this._nextFetchId++;
             const startedAt = Date.now();
             this._inFlightFetches.set(id, { tag, startedAt });
@@ -163,6 +171,13 @@ class MediaResolver {
             try {
                 const res = await fetch(input, init);
                 status = res.status;
+                if (!res.ok && urlStr.includes('/youtubei/v1/player')) {
+                    const preview = await res.clone().text().then(t => t.replace(/\s+/g, ' ').slice(0, 140)).catch(() => '');
+                    if (preview) {
+                        this._lastPlayerErrorDetail = `${tag}=${res.status}:${preview}`;
+                        console.warn(`[MediaResolver] ${tag} HTTP ${res.status}:`, preview);
+                    }
+                }
                 if (urlStr.includes('/s/player/') && urlStr.includes('/base.js') && res.ok) {
                     let body = await res.text();
                     if (body.includes('addOnDisposeCallback')) {
@@ -191,6 +206,153 @@ class MediaResolver {
                 if (this._recentSteps.length > 20) this._recentSteps.shift();
             }
         };
+    }
+
+    async _probeRangePlayable(streamUrl, ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36') {
+        if (!streamUrl) return { ok: false, status: 0 };
+        try {
+            const res = await fetch(streamUrl, {
+                headers: { 'User-Agent': ua, Range: 'bytes=0-63' },
+                signal: AbortSignal.timeout(3000)
+            });
+            res.body?.cancel().catch(() => {});
+            return { ok: res.status === 200 || res.status === 206, status: res.status };
+        } catch {
+            return { ok: false, status: 0 };
+        }
+    }
+
+    async _resolveViaIOS(cleanUrl) {
+        const match = cleanUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+        if (!match) return null;
+        const videoId = match[1];
+        const iosUa = 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)';
+        const res = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': iosUa,
+                'X-YouTube-Client-Name': '5',
+                'X-YouTube-Client-Version': '20.10.4',
+                Origin: 'https://www.youtube.com'
+            },
+            body: JSON.stringify({
+                context: {
+                    client: {
+                        clientName: 'IOS',
+                        clientVersion: '20.10.4',
+                        deviceMake: 'Apple',
+                        deviceModel: 'iPhone16,2',
+                        osName: 'iPhone',
+                        osVersion: '18.3.2.22D82',
+                        hl: 'en',
+                        gl: 'US'
+                    }
+                },
+                videoId,
+                contentCheckOk: true,
+                racyCheckOk: true
+            }),
+            signal: AbortSignal.timeout(4500)
+        });
+        if (!res.ok) {
+            throw new Error(`IOS HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (data?.playabilityStatus?.status !== 'OK') {
+            throw new Error(`IOS ${data?.playabilityStatus?.status || 'UNPLAYABLE'}: ${data?.playabilityStatus?.reason || ''}`.trim());
+        }
+        const raw = [...(data?.streamingData?.formats || []), ...(data?.streamingData?.adaptiveFormats || [])];
+        const formats = raw.filter(f => Boolean(f.url)).map(f => ({
+            itag: f.itag,
+            qualityLabel: f.qualityLabel,
+            audioBitrate: f.averageBitrate ? Math.round(f.averageBitrate / 1000) : (f.bitrate ? Math.round(f.bitrate / 1000) : undefined),
+            mimeType: f.mimeType,
+            contentLength: f.contentLength,
+            hasVideo: Boolean(f.qualityLabel || f.mimeType?.startsWith('video/')),
+            hasAudio: Boolean(f.audioQuality || f.audioSampleRate || f.mimeType?.startsWith('audio/') || (f.mimeType?.includes('mp4') && f.audioChannels)),
+            url: f.url
+        }));
+        if (formats.length === 0) {
+            throw new Error('IOS returned 0 direct URLs');
+        }
+        const sample = formats.find(f => f.hasVideo) || formats[0];
+        const rangeProbe = await this._probeRangePlayable(sample.url);
+        if (!rangeProbe.ok) {
+            throw new Error(`IOS stream blocked (Range HTTP ${rangeProbe.status})`);
+        }
+        const vd = data.videoDetails || {};
+        return {
+            videoDetails: {
+                videoId: vd.videoId || videoId,
+                video_url: `https://www.youtube.com/watch?v=${videoId}`,
+                title: vd.title || 'YouTube Video',
+                author: { name: vd.author || 'YouTube Creator' },
+                lengthSeconds: vd.lengthSeconds || '0',
+                thumbnails: vd.thumbnail?.thumbnails || []
+            },
+            formats
+        };
+    }
+
+    async testAllClients(videoId = 'jNQXAC9IVRw') {
+        const cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        const results = [];
+
+        // 1. IOS fast direct client
+        const iosStart = Date.now();
+        try {
+            const iosInfo = await this._resolveViaIOS(cleanUrl);
+            results.push({ client: 'ios', ok: true, ms: Date.now() - iosStart, formatsCount: iosInfo.formats.length, rangeStatus: 206 });
+        } catch (err) {
+            results.push({ client: 'ios', ok: false, ms: Date.now() - iosStart, formatsCount: 0, error: err.message });
+        }
+
+        // 2. ytdl-core clients individually
+        const candidates = [Client.WebCreator, Client.Mweb, Client.WebEmbedded, Client.Tv];
+        for (const client of candidates) {
+            const st = Date.now();
+            if (client === Client.WebCreator && !this._cookieValue) {
+                results.push({ client, ok: false, ms: 0, formatsCount: 0, error: 'Skipped (requires cookie)' });
+                continue;
+            }
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 10000);
+            try {
+                const probeYtdl = new Ytdl({
+                    clients: [client],
+                    cookie: this._cookieValue || undefined,
+                    fetch: this._createPatchedFetch(),
+                    timeoutMs: 10000
+                });
+                const info = await probeYtdl.getInfo(cleanUrl, { signal: ctrl.signal });
+                const playable = (info.formats || []).filter(f => Boolean(f.url));
+                const sample = playable.find(f => f.hasVideo) || playable[0];
+                const range = sample ? await this._probeRangePlayable(sample.url) : { ok: false, status: 0 };
+                results.push({
+                    client,
+                    ok: playable.length > 0 && range.ok,
+                    ms: Date.now() - st,
+                    formatsCount: playable.length,
+                    rangeStatus: range.status,
+                    error: range.ok ? undefined : `Stream Range HTTP ${range.status}`
+                });
+            } catch (err) {
+                const att = Array.isArray(err?.attempts)
+                    ? err.attempts.map(a => `${a.signedIn ? 'auth' : 'anon'}=${a.code || a.reason}`).join(', ')
+                    : '';
+                results.push({
+                    client,
+                    ok: false,
+                    ms: Date.now() - st,
+                    formatsCount: 0,
+                    error: att ? `${err.message} [${att}]` : err.message
+                });
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+        return results;
     }
 
     _safeChooseFormat(formats, options) {
@@ -225,9 +387,48 @@ class MediaResolver {
         return this._warmupPromise;
     }
 
+    _storeInfoCache(cleanUrl, info) {
+        if (!info || !(info.formats || []).some(f => Boolean(f.url))) return;
+        if (this._infoCache.size >= INFO_CACHE_MAX) {
+            const oldestKey = this._infoCache.keys().next().value;
+            if (oldestKey) this._infoCache.delete(oldestKey);
+        }
+        this._infoCache.set(cleanUrl, {
+            info,
+            expiresAt: Date.now() + INFO_CACHE_TTL_MS
+        });
+    }
+
+    async _resolveViaYtdlSecondary(cleanUrl, budgetMs = 8000) {
+        if (budgetMs < 2500) return null;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), budgetMs);
+        try {
+            for (const client of [Client.WebEmbedded, Client.Tv]) {
+                const probeYtdl = new Ytdl({
+                    clients: [client],
+                    cookie: this._cookieValue || undefined,
+                    fetch: this._createPatchedFetch(),
+                    timeoutMs: budgetMs
+                });
+                try {
+                    const info = await probeYtdl.getInfo(cleanUrl, { signal: ctrl.signal });
+                    const playable = (info?.formats || []).filter(f => Boolean(f.url));
+                    const sample = playable.find(f => f.hasVideo) || playable[0];
+                    if (!sample) continue;
+                    const range = await this._probeRangePlayable(sample.url);
+                    if (range.ok) return info;
+                } catch {}
+            }
+        } finally {
+            clearTimeout(timer);
+        }
+        return null;
+    }
+
     /**
-     * Resolve YouTube info using cached stream map (2m TTL) or VisionOS + Mweb with
-     * abortable timeout and step-level breadcrumbs for timeout diagnostics.
+     * Resolve YouTube info using cached stream map (2m TTL), fast IOS probe, primary cookie Ytdl pool,
+     * and Range-verified WebEmbedded/Tv secondary fallback.
      */
     async _getYtdlInfo(cleanUrl, timeoutMs = 23000, { skipCache = false } = {}) {
         const now = Date.now();
@@ -239,8 +440,23 @@ class MediaResolver {
             if (cached) this._infoCache.delete(cleanUrl);
         }
 
-        const effectiveTimeout = Math.max(Number(timeoutMs) || 23000, 23000);
         const startedAt = Date.now();
+
+        // Fast direct IOS probe first (resolves in ~0.4s with 206 streams when IP is accepted)
+        if (Date.now() > this._iosCooldownUntil) {
+            try {
+                const iosInfo = await this._resolveViaIOS(cleanUrl);
+                if (iosInfo) {
+                    if (!skipCache) this._storeInfoCache(cleanUrl, iosInfo);
+                    return iosInfo;
+                }
+            } catch (iosErr) {
+                this._iosCooldownUntil = Date.now() + 5 * 60 * 1000;
+                console.warn('[MediaResolver] Fast IOS probe unavailable (cooling down 5m):', iosErr.message);
+            }
+        }
+
+        const effectiveTimeout = Math.max(Number(timeoutMs) || 23000, 23000);
         const controller = new AbortController();
         let timer = null;
         try {
@@ -254,18 +470,19 @@ class MediaResolver {
                 })
             ]);
 
-            if (!skipCache && info && (info.formats || []).some(f => Boolean(f.url))) {
-                if (this._infoCache.size >= INFO_CACHE_MAX) {
-                    const oldestKey = this._infoCache.keys().next().value;
-                    if (oldestKey) this._infoCache.delete(oldestKey);
-                }
-                this._infoCache.set(cleanUrl, {
-                    info,
-                    expiresAt: Date.now() + INFO_CACHE_TTL_MS
-                });
-            }
+            if (!skipCache) this._storeInfoCache(cleanUrl, info);
             return info;
         } catch (err) {
+            const elapsed = Date.now() - startedAt;
+            const errLower = (err?.message || '').toLowerCase();
+            if (!skipCache && elapsed < 12000 && !errLower.includes('incomplete youtube link')) {
+                const secondaryInfo = await this._resolveViaYtdlSecondary(cleanUrl, Math.min(8000, 20000 - elapsed)).catch(() => null);
+                if (secondaryInfo) {
+                    this._storeInfoCache(cleanUrl, secondaryInfo);
+                    return secondaryInfo;
+                }
+            }
+
             const attempts = Array.isArray(err?.attempts)
                 ? err.attempts.map(a => `${a.client}${a.signedIn ? ':auth' : ''}=${a.code || a.reason || 'err'}`).join(', ')
                 : '';
@@ -285,9 +502,13 @@ class MediaResolver {
                 if (trace) baseMsg = `${baseMsg} [${trace}]`;
             }
             if (attempts && !baseMsg.includes(attempts)) {
-                const enriched = new Error(`${baseMsg} [${attempts}]`);
+                const detailSuffix = this._lastPlayerErrorDetail ? ` (${this._lastPlayerErrorDetail})` : '';
+                const enriched = new Error(`${baseMsg} [${attempts}]${detailSuffix}`);
                 enriched.attempts = err.attempts;
                 throw enriched;
+            }
+            if (this._lastPlayerErrorDetail && !baseMsg.includes(this._lastPlayerErrorDetail)) {
+                throw new Error(`${baseMsg} (${this._lastPlayerErrorDetail})`);
             }
             throw baseMsg !== err?.message ? new Error(baseMsg) : err;
         } finally {

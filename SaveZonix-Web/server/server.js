@@ -87,7 +87,7 @@ const healthHandler = (req, res) => {
   const cookieMeta = mediaResolver.getCookieMeta();
   res.json({
     status: 'ok',
-    version: '2.6.3',
+    version: '2.6.4',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,

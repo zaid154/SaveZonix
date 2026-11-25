@@ -70,11 +70,11 @@ export default function EngineTab({
       }));
 
       if (actionType === 'clear') {
-        setCookieNotice({ ok: true, text: `DB cookie cleared cleanly. Active source: ${meta.source === 'env' ? 'Render ENV' : 'None'}.` });
+        setCookieNotice({ ok: true, text: `DB cookie cleared cleanly. Active source: ${meta.source === 'env' ? 'Render ENV' : 'None'}.`, clientMatrix: data.clientMatrix });
       } else if (data.loggedIn) {
-        setCookieNotice({ ok: true, loggedIn: true, text: 'Cookie verified (LOGGED_IN: true) & hot-reloaded live! No Render redeploy needed.' });
+        setCookieNotice({ ok: true, loggedIn: true, text: 'Cookie verified (LOGGED_IN: true) & hot-reloaded live! No Render redeploy needed.', clientMatrix: data.clientMatrix });
       } else {
-        setCookieNotice({ ok: false, loggedIn: false, text: data.sessionMessage || 'YouTube treats this cookie as signed out (LOGGED_IN: false).' });
+        setCookieNotice({ ok: false, loggedIn: false, text: data.sessionMessage || 'YouTube treats this cookie as signed out (LOGGED_IN: false).', clientMatrix: data.clientMatrix });
       }
     } catch (err) {
       setCookieNotice({ ok: false, text: 'Network error: ' + err.message });
@@ -325,7 +325,28 @@ export default function EngineTab({
             border: `1px solid ${cookieNotice.ok ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)'}`,
             color: cookieNotice.ok ? '#34d399' : '#f87171'
           }}>
-            {cookieNotice.text}
+            <div>{cookieNotice.text}</div>
+            {Array.isArray(cookieNotice.clientMatrix) && cookieNotice.clientMatrix.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                {cookieNotice.clientMatrix.map((c) => (
+                  <span
+                    key={c.client}
+                    title={c.error || `formats=${c.formatsCount}, range=${c.rangeStatus}`}
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      background: '#060a12',
+                      border: `1px solid ${c.ok ? 'rgba(16, 185, 129, 0.4)' : 'rgba(248, 113, 113, 0.35)'}`,
+                      color: c.ok ? '#34d399' : '#fca5a5'
+                    }}
+                  >
+                    {c.client}: {c.ok ? `OK (${c.formatsCount} fmts, HTTP ${c.rangeStatus})` : (c.error || 'failed')}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
