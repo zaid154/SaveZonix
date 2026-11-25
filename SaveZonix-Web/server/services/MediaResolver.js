@@ -1,4 +1,5 @@
 const path = require('path');
+try { require('../patch-ytdl'); } catch {}
 const { Ytdl, chooseFormat, Client } = require('@distube/ytdl-core');
 
 const INFO_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -8,18 +9,21 @@ const WARMUP_VIDEO_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 class MediaResolver {
     constructor() {
         const cookie = process.env.YOUTUBE_COOKIE || undefined;
+        const isCloudDatacenter = Boolean(process.env.RENDER || process.env.RENDER_SERVICE_ID);
         this._infoCache = new Map();
         this._inFlightFetches = new Map();
         this._recentSteps = [];
         this._nextFetchId = 1;
         this._warmupPromise = null;
+        this._clientsLabel = isCloudDatacenter ? 'mweb' : 'visionos,mweb';
+        this._warmupStatus = { state: 'idle', clients: this._clientsLabel, ms: 0, error: null };
 
-        // VisionOS avoids JS player parsing when accepted; Mweb uses cookie + patched base.js on datacenter IPs
+        // VisionOS returns slow 403s on cloud datacenter IPs; Mweb uses cookie + patched base.js
         this.ytdl = new Ytdl({
-            clients: [Client.VisionOS, Client.Mweb],
+            clients: isCloudDatacenter ? [Client.Mweb] : [Client.VisionOS, Client.Mweb],
             cookie,
             fetch: this._createPatchedFetch(),
-            timeoutMs: 45000
+            timeoutMs: 60000
         });
         this.ytdlVisionOS = this.ytdl;
         this.ytdlFast = this.ytdl;
@@ -99,13 +103,18 @@ class MediaResolver {
     warmup() {
         if (this._warmupPromise) return this._warmupPromise;
         const start = Date.now();
-        console.log('[MediaResolver] Starting background extractor warmup...');
-        this._warmupPromise = this._getYtdlInfo(WARMUP_VIDEO_URL, 45000, { skipCache: true })
+        this._warmupStatus = { state: 'running', clients: this._clientsLabel, ms: 0, error: null };
+        console.log(`[MediaResolver] Starting background extractor warmup (${this._clientsLabel})...`);
+        this._warmupPromise = this._getYtdlInfo(WARMUP_VIDEO_URL, 55000, { skipCache: true })
             .then(() => {
-                console.log(`[MediaResolver] Warmup completed cleanly in ${Date.now() - start}ms`);
+                const ms = Date.now() - start;
+                this._warmupStatus = { state: 'ready', clients: this._clientsLabel, ms, error: null };
+                console.log(`[MediaResolver] Warmup completed cleanly in ${ms}ms`);
             })
             .catch((err) => {
-                console.warn(`[MediaResolver] Warmup finished with notice in ${Date.now() - start}ms:`, err.message);
+                const ms = Date.now() - start;
+                this._warmupStatus = { state: 'failed', clients: this._clientsLabel, ms, error: err.message };
+                console.warn(`[MediaResolver] Warmup finished with notice in ${ms}ms:`, err.message);
             });
         return this._warmupPromise;
     }

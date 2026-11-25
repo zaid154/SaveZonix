@@ -84,9 +84,10 @@ app.use('/api/extension-updates.xml', extensionUpdatesRoutes);
 // Health Check
 const healthHandler = (req, res) => {
   const cookie = process.env.YOUTUBE_COOKIE || '';
+  const mediaResolver = require('./services/MediaResolver');
   res.json({
     status: 'ok',
-    version: '2.6.1',
+    version: '2.6.2',
     uptime: process.uptime(),
     dbState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
     connectedClients: io.engine.clientsCount,
@@ -94,6 +95,7 @@ const healthHandler = (req, res) => {
     cookieLength: cookie.length,
     hasSAPISID: cookie.includes('SAPISID'),
     hasLOGIN_INFO: cookie.includes('LOGIN_INFO'),
+    mediaWarmup: mediaResolver._warmupStatus,
     timestamp: new Date()
   });
 };

@@ -4,6 +4,8 @@
   "description": "SaveZonix Central Cloud API for User Auth and Remote Config",
   "main": "server.js",
   "scripts": {
+    "postinstall": "node patch-ytdl.js",
+    "prestart": "node patch-ytdl.js",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node seeds/seedDatabase.js",
